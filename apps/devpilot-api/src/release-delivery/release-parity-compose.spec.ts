@@ -27,6 +27,7 @@ describe("F454 isolated parity compose stack", () => {
       "MYSQL_DATABASE: ${PARITY_DATABASE_NAME:-devpilot_parity}",
       "org.opencontainers.image.revision:",
       "io.svton.devpilot.source-tree-sha256:",
+      "/read-only-repositories/parity-app-intake:ro",
     ]) {
       expect(source).toContain(expected);
     }

@@ -127,6 +127,7 @@ services:
       # scripts/parity-seed.mjs at PARITY_FIXTURE_GIT_ROOT (default below) from
       # the committed files under fixtures/parity-app/.
       - ${PARITY_FIXTURE_GIT_ROOT:-/tmp/codex-tool-runs/svton/f454/parity-app-git}:/read-only-repositories/parity-app:ro
+      - ${PARITY_FIXTURE_GIT_ROOT:-/tmp/codex-tool-runs/svton/f454/parity-app-git}:/read-only-repositories/parity-app-intake:ro
     depends_on:
       mysql:
         condition: service_healthy

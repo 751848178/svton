@@ -4,10 +4,9 @@
 // Chain (each AC-E2E-007..015 mapped to concrete evidence):
 //   1.  (preflight) stack health: api / web / mysql / target-workload
 //   2.  login (bootstrap admin from docker-compose.devpilot-parity.yml)
-//   3.  project intake (reuse F454-seeded ready project, documented): state ->
-//       connect -> analyze (succeeded) -> contract -> review (409 already
-//       finalized) -> finalize (409 already finalized) -> verify exactly one
-//       active Staging + one active Production baseline + config revision R1
+//   3.  fresh project intake: draft -> isolated fixture alias connect -> current
+//       analysis -> contract -> review -> finalize -> verify exactly one active
+//       Staging + one active Production baseline + config revision R1
 //   4.  env configuration (CAS -> R2): deployment-target binding evidence
 //       (GET targets), resource refs (parity-resource-0001), env vars + secret
 //       ref (parity-secret-0001), domain entries (parity-site-0001 domain ->
@@ -45,6 +44,7 @@ import {
   productionRouteEvidenceChecks,
 } from "./lib/parity-production-route-evidence.mjs";
 import { historyChainOutputDirectory } from "./lib/parity-history-chain-paths.mjs";
+import { createPositiveIntakeFlow } from "./lib/parity-positive-intake-flow.mjs";
 import { parityRuntimeConfig } from "./lib/parity-runtime-config.mjs";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const runtime = parityRuntimeConfig();
@@ -130,119 +130,35 @@ async function main() {
     "content-type": "application/json",
   };
 
-  // F475 will replace this fixed fixture lookup with fresh draft creation.
-  // Until then, the intake-draft assertion intentionally fails closed.
-  await step("intake-draft", async () => {
-    const state = await api("GET", `/project-intake/${projectId}`, headers);
-    return pick(state, [
-      "project",
-      "onboardingStatus",
-      "baselines",
-      "repository",
-      "analysisRuns",
-      "finalization",
-    ]);
+  const intakeFlow = createPositiveIntakeFlow({
+    pinnedCommit,
+    runKey: Date.now().toString(36),
+    request: (method, path, body) => api(method, path, headers, body),
   });
-  await step("intake-connect", async () => {
-    // The project-intake connect route is guarded (assertMutable) and refuses
-    // an already-finalized project; the repository-analysis connect route
-    // (same real git ls-remote path, used by F454) is idempotent upsert.
-    const connect = await api(
-      "POST",
-      `/projects/${projectId}/repository-analysis/connect`,
-      headers,
-      {
-        repositoryUrl: "/read-only-repositories/parity-app",
-        visibility: "public",
-        branch: "main",
-      },
-    );
-    return pick(connect, ["provider", "defaultBranch", "selectedBranch", "commitSha", "status"]);
-  });
-  let analysisRunId = "parity-analysis-0001";
-  await step("intake-analyze", async () => {
-    // Reuse the F454-seeded commit-bound analysis run (documented reuse): the
-    // real analysis worker produces no migrationEvidence, and the gate lookup
-    // is newest-analysis-first — a fresh run would shadow the fixture
-    // migration evidence (D10/D11) needed by the production gates. The seed
-    // run is bound to the same pinned commit and its result is the intake
-    // analysis of the ready project.
-    const run = await api(
-      "GET",
-      `/projects/${projectId}/repository-analysis/runs/${analysisRunId}`,
-      headers,
-    );
-    if (run.status !== "succeeded") {
-      throw new Error(`seeded analysis not succeeded: ${run.status}`);
-    }
-    return {
-      runId: analysisRunId,
-      status: run.status,
-      commitSha: run.commitSha,
-      pinned: run.commitSha === pinnedCommit,
-      services: (run.result?.services || []).map((s) => s.key),
-      packageManager: run.result?.repository?.packageManager,
-      migrationEvidence: run.result?.migrationEvidence,
-    };
-  });
-  await step("intake-contract", async () => {
-    const contract = await api(
-      "GET",
-      `/project-intake/${projectId}/analysis-runs/${analysisRunId}/contract`,
-      headers,
-    );
-    return {
-      contractKeys: Object.keys(contract),
-      suggestionCount:
-        (contract.overview ? 1 : 0) +
-        (contract.components?.length || 0) +
-        (contract.dependencies?.length || 0),
-      snapshot: contract.snapshot,
-    };
-  });
-  await step("intake-review", async () => {
-    const out = await apiExpect(
-      "POST",
-      `/project-intake/${projectId}/analysis-runs/${analysisRunId}/review`,
-      headers,
-      { items: [] },
-    );
-    return {
-      expectedRefusal: out.status === 409,
-      code: out.code,
-      message: out.message,
-    };
-  });
-  await step("intake-finalize", async () => {
-    const out = await apiExpect(
-      "POST",
-      `/project-intake/${projectId}/finalize`,
-      headers,
-      { analysisRunId, idempotencyKey: `f455-positive-e2e-finalize-${Date.now()}` },
-    );
-    return {
-      expectedRefusal: out.status === 409,
-      code: out.code,
-      message: out.message,
-    };
-  });
+  await step("intake-draft", () => intakeFlow.draft());
+  await step("intake-connect", () => intakeFlow.connect());
+  await step("intake-analyze", () => intakeFlow.analyze());
+  await step("intake-contract", () => intakeFlow.contract());
+  await step("intake-review", () => intakeFlow.review());
+  await step("intake-finalize", () => intakeFlow.finalize());
+  const intakeProjectId = intakeFlow.projectId();
   await step("baselines-verified", async () => {
     const [staging, production] = await Promise.all([
       prisma.projectEnvironment.findFirst({
-        where: { projectId, key: "staging", status: "active" },
+        where: { projectId: intakeProjectId, key: "staging", status: "active" },
       select: { id: true, key: true, baselineRole: true, status: true, currentConfigRevisionId: true },
       }),
       prisma.projectEnvironment.findFirst({
-        where: { projectId, key: "production", status: "active" },
+        where: { projectId: intakeProjectId, key: "production", status: "active" },
       select: { id: true, key: true, baselineRole: true, status: true, currentConfigRevisionId: true },
       }),
     ]);
     const all = await prisma.projectEnvironment.findMany({
-      where: { projectId, status: "active", baselineRole: { not: null } },
+      where: { projectId: intakeProjectId, status: "active", baselineRole: { not: null } },
       select: { id: true, baselineRole: true },
     });
     const revisions = await prisma.environmentConfigRevision.findMany({
-      where: { projectId },
+      where: { projectId: intakeProjectId },
       select: { id: true, environmentId: true, revision: true },
       orderBy: [{ environmentId: "asc" }, { revision: "asc" }],
     });
