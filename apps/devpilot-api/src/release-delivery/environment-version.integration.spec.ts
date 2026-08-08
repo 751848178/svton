@@ -18,6 +18,9 @@ import {
 } from "./release-production.integration-fixture";
 import { SiteRouteActivationService } from "../site/site-route-activation.service";
 import { SiteFinalProbeService } from "../site/site-final-probe.service";
+import { SiteRouteSwitchEvidenceRepository } from "../site/site-route-switch-evidence.repository";
+import { siteRouteSwitchTestDouble } from "../site/site-route-switch.spec-utils";
+import { EnvironmentVersionCompletionRepository } from "./environment-version-completion.repository";
 
 const describeIntegration =
   process.env.RUN_ENVIRONMENT_VERSION_INTEGRATION === "1"
@@ -35,6 +38,10 @@ describeIntegration("EnvironmentVersion integration", () => {
     );
     service = new EnvironmentVersionService(
       repository,
+      new EnvironmentVersionCompletionRepository(
+        fixture.prisma as never,
+        new SiteRouteSwitchEvidenceRepository(),
+      ),
       new EnvironmentVersionReadRepository(fixture.prisma as never),
       new EnvironmentVersionPolicyService(repository),
       environmentVersionExecutorTestDouble() as never,
@@ -43,6 +50,7 @@ describeIntegration("EnvironmentVersion integration", () => {
       environmentVersionInputTestDouble() as never,
       productionWorkloadTestDouble() as never,
       new SiteRouteActivationService(fixture.prisma as never),
+      siteRouteSwitchTestDouble(),
       new SiteFinalProbeService(),
     );
   });

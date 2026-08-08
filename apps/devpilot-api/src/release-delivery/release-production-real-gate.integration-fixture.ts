@@ -52,6 +52,9 @@ import {
 } from "./release-staging-provider.integration-utils";
 import { SiteRouteActivationService } from "../site/site-route-activation.service";
 import { SiteFinalProbeService } from "../site/site-final-probe.service";
+import { SiteRouteSwitchEvidenceRepository } from "../site/site-route-switch-evidence.repository";
+import { siteRouteSwitchTestDouble } from "../site/site-route-switch.spec-utils";
+import { EnvironmentVersionCompletionRepository } from "./environment-version-completion.repository";
 
 export interface ProductionRealGateFixture {
   prisma: PrismaClient;
@@ -511,6 +514,10 @@ export async function createProductionRealGateFixture(): Promise<ProductionRealG
   const repository = new EnvironmentVersionRepository(db);
   const service = new EnvironmentVersionService(
     repository,
+    new EnvironmentVersionCompletionRepository(
+      db,
+      new SiteRouteSwitchEvidenceRepository(),
+    ),
     new EnvironmentVersionReadRepository(db),
     new EnvironmentVersionPolicyService(repository),
     executor as ReleaseStagingExecutorPort,
@@ -521,6 +528,7 @@ export async function createProductionRealGateFixture(): Promise<ProductionRealG
       new ReleaseStagingWorkloadStateRepository(db),
     ),
     new SiteRouteActivationService(db),
+    siteRouteSwitchTestDouble(),
     new SiteFinalProbeService(),
   );
 

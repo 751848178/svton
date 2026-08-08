@@ -42,12 +42,7 @@ import { ReleaseOrderWithdrawService } from "./release-order-withdraw.service";
 import { ReleaseOrderListRepository } from "./release-order-list.repository";
 import { ReleaseOrderListService } from "./release-order-list.service";
 import { EnvironmentVersionController } from "./environment-version.controller";
-import { EnvironmentVersionRecoveryRepository } from "./environment-version-recovery.repository";
-import { EnvironmentVersionRecoveryService } from "./environment-version-recovery.service";
-import { EnvironmentVersionRepository } from "./environment-version.repository";
-import { EnvironmentVersionService } from "./environment-version.service";
-import { EnvironmentVersionReadRepository } from "./environment-version-read.repository";
-import { EnvironmentVersionPolicyService } from "./environment-version-policy.service";
+import { releaseDeliveryEnvironmentProviders } from "./release-delivery-environment.providers";
 import { ReleaseGateCapabilityRegistryService } from "./release-gate-capability-registry.service";
 import { ReleaseGateArtifactCapabilityProvider } from "./release-gate-artifact-capability.provider";
 import { ReleaseGateBuildCapabilityProvider } from "./release-gate-build-capability.provider";
@@ -82,14 +77,6 @@ import { ReleaseGateManualConfirmationService } from "./release-gate-manual-conf
 import { ProjectDeliverySummaryController } from "./project-delivery-summary.controller";
 import { ProjectDeliverySummaryRepository } from "./project-delivery-summary.repository";
 import { ProjectDeliverySummaryService } from "./project-delivery-summary.service";
-import { EnvironmentVersionProductionGateService } from "./environment-version-production-gate.service";
-import { EnvironmentVersionGateEvidenceRepository } from "./environment-version-gate-evidence.repository";
-import { SiteRouteActivationService } from "../site/site-route-activation.service";
-import { SiteFinalProbeService } from "../site/site-final-probe.service";
-import {
-  SiteProbePort,
-  SiteRouteActivationPort,
-} from "../site/site-route-activation.types";
 
 @Module({
   imports: [
@@ -147,14 +134,7 @@ import {
     ReleaseStrategyCapabilityService,
     ReleaseDeliveryCompatibilityRepository,
     ReleaseDeliveryCompatibilityService,
-    EnvironmentVersionRepository,
-    EnvironmentVersionService,
-    EnvironmentVersionReadRepository,
-    EnvironmentVersionPolicyService,
-    EnvironmentVersionRecoveryRepository,
-    EnvironmentVersionRecoveryService,
-    EnvironmentVersionProductionGateService,
-    EnvironmentVersionGateEvidenceRepository,
+    ...releaseDeliveryEnvironmentProviders,
     ReleaseGateCapabilityRegistryService,
     ReleaseGateArtifactCapabilityProvider,
     ReleaseGateSourceCapabilityProvider,
@@ -180,8 +160,6 @@ import {
     ReleaseGateManualConfirmationService,
     ProjectDeliverySummaryRepository,
     ProjectDeliverySummaryService,
-    SiteRouteActivationService,
-    SiteFinalProbeService,
     {
       provide: ReleaseBuildExecutorPort,
       useExisting: LocalReleaseBuildExecutorService,
@@ -189,14 +167,6 @@ import {
     {
       provide: ReleaseStagingExecutorPort,
       useExisting: LocalReleaseStagingExecutorService,
-    },
-    {
-      provide: SiteRouteActivationPort,
-      useExisting: SiteRouteActivationService,
-    },
-    {
-      provide: SiteProbePort,
-      useExisting: SiteFinalProbeService,
     },
   ],
   exports: [

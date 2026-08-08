@@ -29,35 +29,6 @@ export interface SiteRouteActivationResolveResult {
     | "route_not_frozen";
 }
 
-export interface SiteRouteSwitchEvidence {
-  version: 1;
-  siteId: string | null;
-  primaryDomain: string | null;
-  deploymentRunId: string;
-  releaseRunId: string | null;
-  targetRef: string | null;
-  proxyTarget: string | null;
-  domains: string[];
-  status: "switched" | "unavailable";
-  reasonCode: string;
-  switchedAt: string | null;
-}
-
-export interface SiteRouteSwitchApplyInput {
-  teamId: string;
-  projectId: string;
-  environmentId: string;
-  siteId: string;
-  deploymentRunId: string;
-  releaseRunId?: string | null;
-  targetRef?: string | null;
-  proxyTarget?: string | null;
-  domains: string[];
-  result?: Record<string, unknown>;
-  dnsProbe?: SiteProbeBlock;
-  tlsProbe?: SiteProbeTlsBlock;
-}
-
 export abstract class SiteRouteActivationPort {
   abstract resolve(
     input: SiteRouteActivationResolveInput,

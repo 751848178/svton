@@ -16,6 +16,7 @@ export async function completeVersionedDeployment(
     result?: Record<string, unknown>;
     error?: string;
   },
+  onTransition?: (tx: Prisma.TransactionClient) => Promise<void>,
 ) {
   const finishedAt = new Date();
   const transitioned = await tx.deploymentRun.updateMany({
@@ -36,10 +37,13 @@ export async function completeVersionedDeployment(
     if (current.status !== input.status) {
       throw new DeploymentRunTerminalConflictError(current.status);
     }
-    if (input.status === "failed") return null;
-    return tx.environmentVersion.findUniqueOrThrow({
+    if (input.status === "failed") {
+      return { version: null, transitioned: false };
+    }
+    const version = await tx.environmentVersion.findUniqueOrThrow({
       where: { deploymentRunId: input.deploymentRunId },
     });
+    return { version, transitioned: false };
   }
   const run = await tx.deploymentRun.findUniqueOrThrow({
     where: { id: input.deploymentRunId },
@@ -54,6 +58,7 @@ export async function completeVersionedDeployment(
     },
   });
   if (input.status === "failed") {
+    await onTransition?.(tx);
     if (run.releaseRunId) {
       await tx.releaseRun.updateMany({
         where: { id: run.releaseRunId, status: "running" },
@@ -65,7 +70,7 @@ export async function completeVersionedDeployment(
         },
       });
     }
-    return null;
+    return { version: null, transitioned: true };
   }
   if (!run.environmentId || !run.artifactManifestId || !run.artifactManifest) {
     throw new Error("VERSIONED_DEPLOYMENT_SCOPE_MISSING");
@@ -75,6 +80,7 @@ export async function completeVersionedDeployment(
     where: { id: run.environmentId },
     select: { currentEnvironmentVersionId: true, identityLockedAt: true },
   });
+  await onTransition?.(tx);
   const version = await tx.environmentVersion.upsert({
     where: { deploymentRunId: run.id },
     create: {
@@ -115,5 +121,5 @@ export async function completeVersionedDeployment(
       });
     }
   }
-  return version;
+  return { version, transitioned: true };
 }

@@ -1,13 +1,10 @@
 import { ConflictException, Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
-import { completeVersionedDeployment } from "./environment-version-write.utils";
 import { lockActionableReleaseOrder } from "./release-order-action-boundary";
 import { claimReleaseGateDecision } from "./release-gate-decision.repository";
 import type { ReleaseGateDecisionReference } from "./release-gate-decision.types";
 import { startProductionReleaseExecution } from "./environment-version-production-reservation-boundary";
-import { applySiteRouteSwitch } from "../site/site-route-activation.service";
-import type { SiteRouteSwitchApplyInput } from "../site/site-route-activation.types";
 
 @Injectable()
 export class EnvironmentVersionRepository {
@@ -198,39 +195,4 @@ export class EnvironmentVersionRepository {
     });
   }
 
-  complete(
-    input: Parameters<typeof completeVersionedDeployment>[1] & {
-      teamId: string;
-      projectId: string;
-      releaseOrderId: string;
-      actorId: string;
-      gateDecision?: ReleaseGateDecisionReference;
-      siteRouteSwitch?: SiteRouteSwitchApplyInput;
-    },
-  ) {
-    return this.prisma.$transaction(async (tx) => {
-      const version = await completeVersionedDeployment(tx, input);
-      const run = await tx.deploymentRun.findUniqueOrThrow({
-        where: { id: input.deploymentRunId },
-      });
-      if (input.siteRouteSwitch) {
-        await applySiteRouteSwitch(tx, input.siteRouteSwitch);
-      }
-      if (input.gateDecision) {
-        await claimReleaseGateDecision(tx, {
-          teamId: input.teamId,
-          projectId: input.projectId,
-          releaseOrderId: input.releaseOrderId,
-          actorId: input.actorId,
-          decisionId: input.gateDecision.id,
-          stage: input.gateDecision.stage,
-          inputHash: input.gateDecision.inputHash,
-          actionRunType: "deployment_run",
-          actionRunId: run.id,
-          requireAllowed: input.status === "completed",
-        });
-      }
-      return { run, version };
-    });
-  }
 }

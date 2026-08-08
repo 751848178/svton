@@ -19,6 +19,9 @@ import {
 } from "./release-production.integration-fixture";
 import { SiteRouteActivationService } from "../site/site-route-activation.service";
 import { SiteFinalProbeService } from "../site/site-final-probe.service";
+import { SiteRouteSwitchEvidenceRepository } from "../site/site-route-switch-evidence.repository";
+import { siteRouteSwitchTestDouble } from "../site/site-route-switch.spec-utils";
+import { EnvironmentVersionCompletionRepository } from "./environment-version-completion.repository";
 
 const describeIntegration =
   process.env.RUN_ENVIRONMENT_VERSION_RECOVERY_INTEGRATION === "1"
@@ -338,6 +341,10 @@ function buildServices(fixture: ProductionFixture): ServiceBundle {
   const repository = new EnvironmentVersionRepository(fixture.prisma as never);
   const versions = new EnvironmentVersionService(
     repository,
+    new EnvironmentVersionCompletionRepository(
+      fixture.prisma as never,
+      new SiteRouteSwitchEvidenceRepository(),
+    ),
     new EnvironmentVersionReadRepository(fixture.prisma as never),
     new EnvironmentVersionPolicyService(repository),
     environmentVersionExecutorTestDouble() as never,
@@ -346,6 +353,7 @@ function buildServices(fixture: ProductionFixture): ServiceBundle {
     environmentVersionInputTestDouble() as never,
     productionWorkloadTestDouble() as never,
     new SiteRouteActivationService(fixture.prisma as never),
+    siteRouteSwitchTestDouble(),
     new SiteFinalProbeService(),
   );
   const recovery = new EnvironmentVersionRecoveryService(

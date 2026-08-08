@@ -79,7 +79,7 @@ describeIntegration(
           siteId: f.siteId,
           deploymentRunId: executed.run.id,
           status: "switched",
-          reasonCode: "site_switched",
+          reasonCode: "site_route_switched",
           targetRef: "filesystem-release-target",
           domains: ["demo.f437.example"],
         });
@@ -109,7 +109,7 @@ describeIntegration(
       }
     });
 
-    it("fails the run closed when the site HTTP probe hard-fails, leaving the Site and pointer unchanged", async () => {
+    it("fails the run closed when the site HTTP probe hard-fails while retaining truthful provider evidence", async () => {
       const f = fixture;
       const server = await startHttpServer(500, "f438-site-broken");
       const before = await prisma.projectEnvironment.findUniqueOrThrow({
@@ -158,7 +158,18 @@ describeIntegration(
           where: { id: f.siteId },
           select: { routeSwitch: true },
         });
-        expect(siteAfter.routeSwitch).toEqual(siteBefore.routeSwitch);
+        expect(siteAfter.routeSwitch).not.toEqual(siteBefore.routeSwitch);
+        expect(siteAfter.routeSwitch).toMatchObject({
+          deploymentRunId: executed.run.id,
+          siteId: f.siteId,
+          status: "switched",
+          providerKey: "test-route-provider",
+        });
+        await expect(
+          prisma.siteRouteSwitchRun.count({
+            where: { siteId: f.siteId, deploymentRunId: executed.run.id },
+          }),
+        ).resolves.toBe(1);
 
         const failedRun = await prisma.releaseRun.findUniqueOrThrow({
           where: { id: releaseRun.id },
