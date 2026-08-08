@@ -1,4 +1,5 @@
 import { canonicalHistoryStepValid } from "./parity-negative-history-check-contract.mjs";
+import { structuralEqual } from "./parity-negative-history-structural-equality.mjs";
 
 export const TRUSTED_BASE_CONTEXT_FIELDS = Object.freeze([
   "teamId",
@@ -37,7 +38,9 @@ export function validateTrustedHistoryBase(step, context) {
   );
   for (const field of TRUSTED_BASE_CONTEXT_FIELDS) {
     requireValue(
-      sameJson(expected[field], context[field]),
+      field === "productionRouteSnapshot"
+        ? structuralEqual(expected[field], context[field])
+        : sameJson(expected[field], context[field]),
       `expected-${field}`,
     );
   }
