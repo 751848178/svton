@@ -37,13 +37,14 @@ import {
   negativeStepChecks,
 } from "./lib/parity-negative-e2e-evidence.mjs";
 import { loadNegativeHistoryContext } from "./lib/parity-negative-e2e-context.mjs";
+import { bindNegativeHistoryContext } from "./lib/parity-negative-history-db-binding.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = "/tmp/codex-tool-runs/svton/f457";
 const apiBase = "http://127.0.0.1:4132/api";
-const teamId = "parity-team-0001";
-const projectId = "parity-project-0001";
-const orderId = "parity-order-0001";
+let teamId;
+let projectId;
+let orderId;
 const runStamp = `${Date.now()}`;
 const negProjectId = `parity-negative-project-${runStamp}`;
 const negOrderId = `parity-negative-order-${runStamp}`;
@@ -52,8 +53,8 @@ const negManifestId = `parity-negative-manifest-${runStamp}`;
 const negManifestItemId = `parity-negative-manifest-item-${runStamp}`;
 const negStagingEnvId = `parity-negative-staging-${runStamp}`;
 const negProductionEnvId = `parity-negative-production-${runStamp}`;
-const stagingEnvId = "parity-env-staging";
-const productionEnvId = "parity-env-production";
+let stagingEnvId;
+let productionEnvId;
 const adminEmail = "admin@parity.local";
 // Bootstrap password is read from docker-compose.devpilot-parity.yml (the
 // documented seed source); it is ONLY used in-memory and never written to
@@ -68,6 +69,12 @@ const outsiderUserId = "parity-outsider-0001";
 let MANIFEST_M1;
 let MANIFEST_M2;
 let CROSS_ORDER_MANIFEST;
+const historyEvidenceInput = {
+  evidencePath: process.env.F456_EVIDENCE_PATH,
+  expectedSha256: process.env.F456_EVIDENCE_SHA256,
+  capturedNotBefore: process.env.F456_CAPTURED_NOT_BEFORE,
+  capturedNotAfter: process.env.F456_CAPTURED_NOT_AFTER,
+};
 
 const { PrismaClient } = createRequire(
   resolve(root, "apps/devpilot-api/package.json"),
@@ -105,12 +112,21 @@ async function main() {
   await mkdir(outDir, { recursive: true });
   evidence.capturedAt = new Date().toISOString();
 
-  const historyContext = await step("history-context", () =>
-    loadNegativeHistoryContext(),
+  const historyContext = await step("history-context", async () =>
+    bindNegativeHistoryContext(
+      prisma,
+      await loadNegativeHistoryContext(historyEvidenceInput),
+    ),
   );
+  teamId = historyContext.teamId;
+  projectId = historyContext.projectId;
+  orderId = historyContext.orderId;
+  stagingEnvId = historyContext.stagingEnvId;
+  productionEnvId = historyContext.productionEnvId;
   MANIFEST_M1 = historyContext.manifestM1;
   MANIFEST_M2 = historyContext.manifestM2;
   CROSS_ORDER_MANIFEST = historyContext.crossOrderManifestId;
+  evidence.fixedIds = { teamId, projectId, orderId, negProjectId, negOrderId };
   evidence.context = historyContext;
 
   // ---------------------------------------------------------------- preflight

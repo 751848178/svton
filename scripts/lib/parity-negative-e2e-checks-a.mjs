@@ -1,5 +1,9 @@
 import { predicate } from "./parity-e2e-evidence.mjs";
 import {
+  HISTORY_OBJECTIVE,
+  HISTORY_WORKER,
+} from "./parity-negative-history-contract.mjs";
+import {
   eq,
   present,
   rejected,
@@ -24,13 +28,14 @@ const expectedHistoryAc = Array.from(
 export const NEGATIVE_CHECKS_A = {
   "history-context": (r) => [
     eq("status", r.status, "passed"),
-    eq("projectId", r.projectId, "parity-project-0001"),
-    eq("orderId", r.orderId, "parity-order-0001"),
-    predicate(
-      "sourceSha256",
-      /^[a-f0-9]{64}$/.test(r.sourceSha256),
-      r.sourceSha256,
-    ),
+    eq("worker", r.worker, HISTORY_WORKER),
+    eq("objective", r.objective, HISTORY_OBJECTIVE),
+    yes("historyContractValid", r.historyContractValid),
+    yes("databaseBindingValid", r.databaseBindingValid),
+    present("teamId", r.teamId),
+    present("projectId", r.projectId),
+    present("orderId", r.orderId),
+    eq("sourceSha256", r.sourceSha256, r.expectedSourceSha256),
     predicate(
       "historyAcceptanceIds",
       sameSet(r.historyAcceptanceIds, expectedHistoryAc),
@@ -51,6 +56,11 @@ export const NEGATIVE_CHECKS_A = {
       r.manifestM2Digest,
     ),
     present("crossOrderManifestId", r.crossOrderManifestId),
+    predicate(
+      "crossOrderReleaseOrder",
+      r.crossOrderReleaseOrderId !== r.orderId,
+      r.crossOrderReleaseOrderId,
+    ),
   ],
   preflight: (r) => [
     yes("apiHealth", r.apiHealth),
