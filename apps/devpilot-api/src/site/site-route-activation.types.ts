@@ -59,12 +59,16 @@ export interface SiteProbeTlsBlock {
   host?: string | null;
   port?: number | null;
   servername?: string | null;
+  peerAddress?: string | null;
+  authorized?: boolean | null;
+  authorizationErrorCode?: string | null;
   cert?: {
     subject?: string | null;
     issuer?: string | null;
     validFrom?: string | null;
     validUntil?: string | null;
     expired?: boolean | null;
+    fingerprint256?: string | null;
   } | null;
   error?: { code: string; message: string } | null;
   checkedAt: string;

@@ -18,7 +18,7 @@ export class SiteFinalProbeService implements SiteProbePort {
     const finalUrl = finalSiteUrl(input.primaryDomain, input.tlsRequired);
     const [dnsBlock, tlsBlock, httpBlock] = await Promise.all([
       probeFinalDns(input.primaryDomain, timeoutMs),
-      probeFinalTls(input.primaryDomain, timeoutMs),
+      probeTlsForFinalUrl(finalUrl, input.tlsRequired, timeoutMs),
       probeFinalHttp(finalUrl, timeoutMs),
     ]);
     return {
@@ -31,4 +31,27 @@ export class SiteFinalProbeService implements SiteProbePort {
       http: httpBlock,
     };
   }
+}
+
+export function probeTlsForFinalUrl(
+  finalUrl: string | null,
+  tlsRequired: boolean | null | undefined,
+  timeoutMs: number,
+  probe: typeof probeFinalTls = probeFinalTls,
+) {
+  const checkedAt = new Date().toISOString();
+  if (tlsRequired === false) {
+    return Promise.resolve({
+      status: "not_required",
+      host: finalUrl ? new URL(finalUrl).hostname : null,
+      port: null,
+      servername: null,
+      checkedAt,
+    });
+  }
+  if (!finalUrl) return probe(null, timeoutMs);
+  const target = new URL(finalUrl);
+  return probe(target.hostname, timeoutMs, {
+    port: target.port ? Number(target.port) : 443,
+  });
 }
