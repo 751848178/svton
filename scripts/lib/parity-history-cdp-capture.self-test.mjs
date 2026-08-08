@@ -105,8 +105,10 @@ function failedChecks(evidence) {
   const failures = summarizeBrowserFailures(evidence);
   const result = {
     driverExit: 0,
-    requiredArtifacts: ["proof"],
-    artifacts: { proof: "a".repeat(64) },
+    requiredArtifacts: ["proof.txt"],
+    artifacts: {
+      "proof.txt": { sha256: "a".repeat(64), bytes: 16, kind: "text" },
+    },
     cdpSchema: evidence.schema,
     cdpVersion: evidence.version,
     consoleEvents: evidence.console,

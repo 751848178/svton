@@ -3,6 +3,7 @@ import {
   CDP_EVIDENCE_SCHEMA,
   CDP_EVIDENCE_VERSION,
 } from "./parity-history-cdp-capture.mjs";
+import { browserArtifactsValid } from "./parity-history-browser-artifacts.mjs";
 
 export const SUMMARY_HISTORY_STEP_CHECKS = {
   "version-chains": (r) => [
@@ -56,11 +57,10 @@ function browserChecks(r) {
     r.stagingRunLog,
     r.productionRunLog,
   ]);
-  const artifactsValid =
-    (r.requiredArtifacts || []).length > 0 &&
-    r.requiredArtifacts.every((name) =>
-      /^[a-f0-9]{64}$/.test(r.artifacts?.[name] || ""),
-    );
+  const artifactsValid = browserArtifactsValid(
+    r.requiredArtifacts,
+    r.artifacts,
+  );
   return [
     check("driverExit", r.driverExit, 0),
     predicate("requiredArtifacts", artifactsValid, r.artifacts),

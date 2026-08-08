@@ -937,9 +937,14 @@ async function browserPass(ids) {
     .filter(Boolean);
   const artifacts = {};
   for (const entry of shaLines) {
-    if (entry.screenshot) artifacts[entry.screenshot.split("/").pop()] = entry.sha256;
-    if (entry.dom) artifacts[entry.dom.split("/").pop()] = entry.sha256;
-    if (entry.text) artifacts[entry.text.split("/").pop()] = entry.sha256;
+    const file = entry.screenshot || entry.dom || entry.text;
+    if (file) {
+      artifacts[file.split("/").pop()] = {
+        sha256: entry.sha256,
+        bytes: entry.bytes,
+        kind: entry.kind,
+      };
+    }
   }
   const cdpEvidence = JSON.parse(await readFile(`${browserOut}/cdp-evidence.json`, "utf8"));
   const browserFailures = summarizeBrowserFailures(cdpEvidence);

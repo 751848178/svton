@@ -1,6 +1,6 @@
-import { createHash } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import path from "node:path";
+import { artifactMetadata } from "./parity-history-browser-artifacts.mjs";
 
 export async function runCdpActions(cdp, actions, options) {
   await setViewport(cdp, options);
@@ -94,10 +94,9 @@ async function domDump(cdp, outDir, name) {
 
 function writeArtifact(kind, outDir, name, buffer) {
   const file = path.join(outDir, name);
+  const metadata = artifactMetadata(kind, buffer);
   writeFileSync(file, buffer);
-  process.stdout.write(
-    `${JSON.stringify({ [kind]: file, sha256: sha256(buffer) })}\n`,
-  );
+  process.stdout.write(`${JSON.stringify({ [kind]: file, ...metadata })}\n`);
 }
 
 function setViewport(cdp, options) {
@@ -107,10 +106,6 @@ function setViewport(cdp, options) {
     deviceScaleFactor: 1,
     mobile: false,
   });
-}
-
-function sha256(buffer) {
-  return createHash("sha256").update(buffer).digest("hex");
 }
 
 function sleep(milliseconds) {
