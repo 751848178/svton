@@ -9,28 +9,28 @@ describe("F454 isolated parity compose stack", () => {
       resolve(root, "docker-compose.devpilot-parity.yml"),
       "utf8",
     );
-    expect(source).toContain("name: devpilot-parity");
+    expect(source).toContain(
+      "name: ${PARITY_COMPOSE_PROJECT:-devpilot-parity}",
+    );
     for (const expected of [
       "devpilot-parity-mysql",
       "devpilot-parity-redis",
       "devpilot-parity-release-build",
       "devpilot-parity-deployments",
-      "parity-mysql",
-      "parity-redis",
-      "parity-api",
-      "parity-web",
-      "parity-deploy-target",
       "parity-target-workload",
-      '"127.0.0.1:4132:4132"',
-      '"127.0.0.1:4131:3120"',
-      '"127.0.0.1:4334:3306"',
-      '"127.0.0.1:4384:6379"',
-      '"127.0.0.1:4222:2222"',
-      '"127.0.0.1:43992:80"',
-      "MYSQL_DATABASE: devpilot_parity",
+      '"127.0.0.1:${PARITY_API_PORT:-4132}:4132"',
+      '"127.0.0.1:${PARITY_WEB_PORT:-4131}:3120"',
+      '"127.0.0.1:${PARITY_MYSQL_PORT:-4334}:3306"',
+      '"127.0.0.1:${PARITY_REDIS_PORT:-4384}:6379"',
+      '"127.0.0.1:${PARITY_SSH_PORT:-4222}:2222"',
+      '"127.0.0.1:${PARITY_TARGET_PORT:-43992}:80"',
+      "MYSQL_DATABASE: ${PARITY_DATABASE_NAME:-devpilot_parity}",
+      "org.opencontainers.image.revision:",
+      "io.svton.devpilot.source-tree-sha256:",
     ]) {
       expect(source).toContain(expected);
     }
+    expect(source).not.toContain("container_name:");
   });
 
   it("has no devpilot-g003 references and no shared external network", async () => {
@@ -43,16 +43,18 @@ describe("F454 isolated parity compose stack", () => {
     // Host-facing parity ports only — no manual-stack published ports
     // (3121/3334/2225/23992 etc. are never published by the parity stack).
     for (const port of [
-      '"127.0.0.1:4132:4132"',
-      '"127.0.0.1:4131:3120"',
-      '"127.0.0.1:4334:3306"',
-      '"127.0.0.1:4384:6379"',
-      '"127.0.0.1:4222:2222"',
-      '"127.0.0.1:43992:80"',
+      '"127.0.0.1:${PARITY_API_PORT:-4132}:4132"',
+      '"127.0.0.1:${PARITY_WEB_PORT:-4131}:3120"',
+      '"127.0.0.1:${PARITY_MYSQL_PORT:-4334}:3306"',
+      '"127.0.0.1:${PARITY_REDIS_PORT:-4384}:6379"',
+      '"127.0.0.1:${PARITY_SSH_PORT:-4222}:2222"',
+      '"127.0.0.1:${PARITY_TARGET_PORT:-43992}:80"',
     ]) {
       expect(source).toContain(port);
     }
-    expect(source).not.toMatch(/127\.0\.0\.1:(3121|3334|2225|23992|3120|3320|6384):/);
+    expect(source).not.toMatch(
+      /127\.0\.0\.1:(3121|3334|2225|23992|3120|3320|6384):/,
+    );
   });
 
   it("enables the controlled-local executor and local-filesystem provider inside the parity project only", async () => {
@@ -76,7 +78,7 @@ describe("F454 isolated parity compose stack", () => {
       "REPOSITORY_ANALYSIS_LOCAL_ROOTS: /read-only-repositories",
       "devpilot-parity-release-build:/var/lib/devpilot/release-build",
       "devpilot-parity-deployments:/var/lib/devpilot/release-build/deployments",
-      "PASSWORD_ACCESS: \"true\"",
+      'PASSWORD_ACCESS: "true"',
       "USER_PASSWORD: devpilot-test",
       "/custom-cont-init.d/99-install-tools.sh:ro",
     ]) {

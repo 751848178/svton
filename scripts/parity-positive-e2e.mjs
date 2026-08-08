@@ -45,13 +45,15 @@ import {
   productionRouteEvidenceChecks,
 } from "./lib/parity-production-route-evidence.mjs";
 import { historyChainOutputDirectory } from "./lib/parity-history-chain-paths.mjs";
+import { parityRuntimeConfig } from "./lib/parity-runtime-config.mjs";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const runtime = parityRuntimeConfig();
 const outDir = historyChainOutputDirectory(
   process.env,
   "f455",
   "/tmp/codex-tool-runs/svton/f455",
 );
-const apiBase = "http://127.0.0.1:4132/api";
+const apiBase = runtime.apiBase;
 const teamId = "parity-team-0001";
 const projectId = "parity-project-0001";
 const orderId = "parity-order-0001";
@@ -65,17 +67,16 @@ const { PrismaClient } = createRequire(
   resolve(root, "apps/devpilot-api/package.json"),
 )("@prisma/client");
 const prisma = new PrismaClient({
-  datasources: { db: { url: "mysql://root:password@127.0.0.1:4334/devpilot_parity" } },
+  datasources: { db: { url: runtime.databaseUrl } },
 });
-
 const evidence = {
   worker: "f455-positive-e2e",
   objective: "AC-E2E-007..015 positive chain over the parity stack",
   stack: {
-    web: "http://localhost:4131",
+    web: runtime.webOrigin,
     api: apiBase,
-    mysql: "parity-mysql:4334",
-    targetWorkload: "http://127.0.0.1:43992",
+    mysql: runtime.mysqlEvidence,
+    targetWorkload: runtime.targetOrigin,
     fixtureRepo: "/read-only-repositories/parity-app",
     pinnedCommit,
   },
@@ -84,7 +85,6 @@ const evidence = {
   steps: {},
   ac: {},
 };
-
 const runLog = [];
 function log(message) {
   const line = `[f455 ${new Date().toISOString()}] ${message}`;
@@ -100,8 +100,8 @@ async function main() {
   await step("preflight", async () => {
     const [health, web, target] = await Promise.all([
       httpGet(`${apiBase}/health`),
-      httpGet("http://localhost:4131/", { raw: true }),
-      httpGet("http://127.0.0.1:43992/", { raw: true }),
+      httpGet(`${runtime.webOrigin}/`, { raw: true }),
+      httpGet(`${runtime.targetOrigin}/`, { raw: true }),
     ]);
     const mysqlOk = await mysqlPing();
     const token = await login();
@@ -323,7 +323,7 @@ async function main() {
         ],
         routeSnapshot: {
           domains: ["staging.parity.example.test"],
-          proxyTarget: "http://127.0.0.1:43992",
+          proxyTarget: runtime.targetOrigin,
         },
         policyReferenceIds: [],
         expectedCurrentRevisionId: stagingR1?.id,
@@ -1145,7 +1145,7 @@ function environmentR2Checks(result, role) {
     predicate("secretReferences", jsonEqual(ids(snapshot.secretReferences), ["parity-secret-0001"]), ids(snapshot.secretReferences)),
     predicate("resourceReferences", jsonEqual(ids(snapshot.resourceReferences), expectedResources.sort()), ids(snapshot.resourceReferences)),
     predicate("domains", jsonEqual(snapshot.routeSnapshot?.domains, [`${production ? "" : "staging."}parity.example.test`]), snapshot.routeSnapshot?.domains),
-    check("proxyTarget", snapshot.routeSnapshot?.proxyTarget, production ? "http://parity-target-workload" : "http://127.0.0.1:43992"),
+    check("proxyTarget", snapshot.routeSnapshot?.proxyTarget, production ? "http://parity-target-workload" : runtime.targetOrigin),
     check("tlsRequired", snapshot.routeSnapshot?.tlsRequired, production),
   ];
 }

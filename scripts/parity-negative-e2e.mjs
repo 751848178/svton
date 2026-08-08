@@ -42,14 +42,19 @@ import {
 } from "./lib/parity-negative-e2e-context.mjs";
 import { bindNegativeHistoryContext } from "./lib/parity-negative-history-db-binding.mjs";
 import { historyChainOutputDirectory } from "./lib/parity-history-chain-paths.mjs";
+import { assertNoPreexistingActiveRuns } from "./lib/parity-negative-run-ownership.mjs";
+import { createParityComposeCapture } from "./lib/parity-compose-capture.mjs";
+import { parityRuntimeConfig } from "./lib/parity-runtime-config.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const runtime = parityRuntimeConfig();
+const composeCapture = createParityComposeCapture(root, runtime);
 const outDir = historyChainOutputDirectory(
   process.env,
   "f457",
   "/tmp/codex-tool-runs/svton/f457",
 );
-const apiBase = "http://127.0.0.1:4132/api";
+const apiBase = runtime.apiBase;
 let teamId;
 let projectId;
 let orderId;
@@ -82,17 +87,17 @@ const { PrismaClient } = createRequire(
 )("@prisma/client");
 const prisma = new PrismaClient({
   datasources: {
-    db: { url: "mysql://root:password@127.0.0.1:4334/devpilot_parity" },
+    db: { url: runtime.databaseUrl },
   },
 });
 const evidence = {
   worker: "f457-negative-e2e",
   objective: "AC-E2E-024..035 negative/security E2E over the parity stack",
   stack: {
-    web: "http://localhost:4131",
+    web: runtime.webOrigin,
     api: apiBase,
-    mysql: "parity-mysql:4334",
-    targetWorkload: "http://127.0.0.1:43992",
+    mysql: runtime.mysqlEvidence,
+    targetWorkload: runtime.targetOrigin,
   },
   fixedIds: { teamId, projectId, orderId, negProjectId, negOrderId },
   capturedAt: null,
@@ -133,9 +138,9 @@ async function main() {
   await step("preflight", async () => {
     const [health, web, target, target404] = await Promise.all([
       httpGet(`${apiBase}/health`),
-      httpGet("http://localhost:4131/", { raw: true }),
-      httpGet("http://127.0.0.1:43992/", { raw: true }),
-      httpGet("http://127.0.0.1:43992/parity-negative-probe-missing-457", {
+      httpGet(`${runtime.webOrigin}/`, { raw: true }),
+      httpGet(`${runtime.targetOrigin}/`, { raw: true }),
+      httpGet(`${runtime.targetOrigin}/parity-negative-probe-missing-457`, {
         raw: true,
       }),
     ]);
@@ -170,7 +175,7 @@ async function main() {
   // ------------------------------------------------------- fixture setup (DB)
   await step("fixtures", async () => {
     await seedNegativeFixtures();
-    const cleanup = await cleanupStaleActiveRuns();
+    const cleanup = await assertCleanReleaseEnvironment();
     return {
       seeded: true,
       uniqueFixtureIds: [
@@ -1694,36 +1699,17 @@ async function cancelReleaseRun(runId) {
   });
 }
 
-// Test-harness hygiene: cancel any leftover awaiting_approval ReleaseRuns on
-// the parity production environment left behind by aborted driver runs (the
-// env max-1-run guard would otherwise 409 every later confirm). Rows in
-// `running` status are never touched here.
-async function cleanupStaleActiveRuns() {
-  const stale = await prisma.releaseRun.findMany({
-    where: { environmentId: productionEnvId, status: "awaiting_approval" },
-    select: { id: true, operationApprovalId: true },
+// A pre-existing active run is never owned by this invocation. Refuse before
+// mutation instead of canceling another task's approval or release state.
+async function assertCleanReleaseEnvironment() {
+  const active = await prisma.releaseRun.findMany({
+    where: {
+      environmentId: productionEnvId,
+      status: { in: ["awaiting_approval", "running"] },
+    },
+    select: { id: true, status: true },
   });
-  for (const run of stale) {
-    if (run.operationApprovalId) {
-      await prisma.operationApproval.updateMany({
-        where: { id: run.operationApprovalId },
-        data: { status: "rejected" },
-      });
-    }
-    await prisma.releaseRun.updateMany({
-      where: { id: run.id, status: "awaiting_approval" },
-      data: { status: "canceled" },
-    });
-  }
-  const running = await prisma.releaseRun.count({
-    where: { environmentId: productionEnvId, status: "running" },
-  });
-  if (running > 0) {
-    throw new Error(
-      `stale running ReleaseRun on production (${running}); refusing to proceed`,
-    );
-  }
-  return { canceledStaleRuns: stale.length, runningReleaseRuns: running };
+  return assertNoPreexistingActiveRuns(active);
 }
 
 // F457 fixture-evidence refresh: the parity seed stamps the production gate
@@ -1811,12 +1797,13 @@ async function runSecretScan() {
   });
 
   // 2. DB dump (mysqldump of devpilot_parity).
-  const dump = execCapture("docker", [
+  const dump = composeCapture([
     "exec",
-    "parity-mysql",
+    "-T",
+    "mysql",
     "sh",
     "-lc",
-    "mysqldump -uroot -ppassword --single-transaction --routines --triggers devpilot_parity",
+    `mysqldump -uroot -ppassword --single-transaction --routines --triggers ${runtime.databaseName}`,
   ]);
   await writeFile(`${outDir}/db.dump.sql`, dump.stdout);
   artifacts.push({
@@ -1826,11 +1813,11 @@ async function runSecretScan() {
   });
 
   // 3. API container logs.
-  const apiLogs = execCapture("docker", [
+  const apiLogs = composeCapture([
     "logs",
-    "parity-api",
     "--tail",
     "4000",
+    "api",
   ]);
   await writeFile(
     `${outDir}/api-container.log`,
@@ -1844,11 +1831,11 @@ async function runSecretScan() {
   });
 
   // 4. Web container logs.
-  const webLogs = execCapture("docker", [
+  const webLogs = composeCapture([
     "logs",
-    "parity-web",
     "--tail",
     "2000",
+    "web",
   ]);
   await writeFile(
     `${outDir}/web-container.log`,
@@ -1925,9 +1912,10 @@ async function runSecretScan() {
 
   // 8. Runtime deployment state: active.json activation files (must not carry
   //    secret values) + the designed runtime.env delivery files (0600).
-  const runtimeListing = execCapture("docker", [
+  const runtimeListing = composeCapture([
     "exec",
-    "parity-api",
+    "-T",
+    "api",
     "sh",
     "-lc",
     "find /var/lib/devpilot/release-build/deployments -name active.json -o -name runtime.env | sort",
@@ -1939,9 +1927,10 @@ async function runSecretScan() {
   const activeHits = [];
   const envFileInfo = [];
   for (const file of runtimeFiles) {
-    const content = execCapture("docker", [
+    const content = composeCapture([
       "exec",
-      "parity-api",
+      "-T",
+      "api",
       "sh",
       "-lc",
       `cat "${file}"`,
@@ -1949,9 +1938,10 @@ async function runSecretScan() {
     if (file.endsWith("active.json")) {
       activeHits.push(...scanText(content.stdout, secrets));
     } else {
-      const mode = execCapture("docker", [
+      const mode = composeCapture([
         "exec",
-        "parity-api",
+        "-T",
+        "api",
         "sh",
         "-lc",
         `stat -c '%a' "${file}"`,

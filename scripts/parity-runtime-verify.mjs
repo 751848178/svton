@@ -7,12 +7,14 @@ import { writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parityRuntimeConfig } from "./lib/parity-runtime-config.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const api = "http://127.0.0.1:4132/api";
+const runtime = parityRuntimeConfig();
+const api = runtime.apiBase;
 const { PrismaClient } = createRequire(resolve(root, "apps/devpilot-api/package.json"))("@prisma/client");
 const prisma = new PrismaClient({
-  datasources: { db: { url: "mysql://root:password@127.0.0.1:4334/devpilot_parity" } },
+  datasources: { db: { url: runtime.databaseUrl } },
 });
 
 const email = process.env.PARITY_ADMIN_EMAIL || "admin@parity.local";
@@ -23,7 +25,7 @@ const orderId = "parity-order-0001";
 
 const evidence = {
   worker: "f454-parity-stack",
-  stack: { api, web: "http://127.0.0.1:4131", mysql: "parity-mysql:4334", target: "http://127.0.0.1:43992" },
+  stack: { api, web: runtime.webOrigin, mysql: runtime.mysqlEvidence, target: runtime.targetOrigin },
   fixtureRepo: "/read-only-repositories/parity-app",
   fixedIds: { projectId, orderId, teamId },
   capturedAt: new Date().toISOString(),

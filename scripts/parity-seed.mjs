@@ -7,6 +7,7 @@
 //   node scripts/parity-seed.mjs seed      idempotent seed (stack must be up; migrate is a no-op when applied)
 //   node scripts/parity-seed.mjs reset     down + prune ONLY devpilot-parity-* volumes/network + up + migrate + seed
 //   node scripts/parity-seed.mjs down      compose down (parity project only)
+//   node scripts/parity-seed.mjs destroy   verified isolated project down + volumes
 //   node scripts/parity-seed.mjs inventory print row counts + fixed IDs (idempotency evidence)
 //
 // Reset allowlist: the reset path only ever touches
@@ -29,25 +30,25 @@ import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  parityComposeEnvironment,
+  parityRuntimeConfig,
+  requireVerifiedRuntimeIdentity,
+} from "./lib/parity-runtime-config.mjs";
+import {
+  assertRuntimeImageLabels,
+  expectedRuntimeImageLabels,
+} from "./lib/parity-runtime-provenance.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const composeFile = resolve(root, "docker-compose.devpilot-parity.yml");
+const runtime = parityRuntimeConfig();
 const fixtureSource = resolve(root, "fixtures/parity-app");
 const fixtureGitRoot =
   process.env.PARITY_FIXTURE_GIT_ROOT ||
   "/tmp/codex-tool-runs/svton/f454/parity-app-git";
-const dbName = "devpilot_parity";
-const dbUrl = `mysql://root:password@127.0.0.1:4334/${dbName}`;
-
-// The only volume names the reset path may prune. Everything else is refused.
-const VOLUME_ALLOWLIST = [
-  "devpilot-parity-mysql",
-  "devpilot-parity-redis",
-  "devpilot-parity-release-build",
-  "devpilot-parity-deployments",
-  "devpilot-parity-deploy-target-data",
-];
-const NETWORK_ALLOWLIST = ["devpilot-parity_default"];
+const dbName = runtime.databaseName;
+const dbUrl = runtime.databaseUrl;
 
 // Deterministic fixture IDs (AC-E2E-006): the same IDs are used across the
 // seed, the DB, the API and the runtime evidence.
@@ -100,6 +101,12 @@ const IDS = {
 const command = process.argv[2] || "up";
 
 export async function main() {
+  if (process.env.PARITY_REQUIRE_VERIFIED_RUNTIME === "1") {
+    requireVerifiedRuntimeIdentity(runtime);
+    if (["up", "reset"].includes(command)) {
+      await prepareVerifiedRuntimeImages();
+    }
+  }
   if (command === "fixture") await ensureFixtureRepo();
   else if (command === "up" || command === "seed") {
     // Bring up infra first, migrate BEFORE the api container boots (its
@@ -117,10 +124,27 @@ export async function main() {
     await reset();
   } else if (command === "down") {
     await compose(["down", "--remove-orphans"]);
+  } else if (command === "destroy") {
+    requireVerifiedRuntimeIdentity(runtime);
+    await compose(["down", "--volumes", "--remove-orphans"]);
   } else if (command === "inventory") {
     await printInventory();
   } else {
     throw new Error(`unknown command: ${command}`);
+  }
+}
+
+async function prepareVerifiedRuntimeImages() {
+  await compose(["build", "api", "web"]);
+  const expected = expectedRuntimeImageLabels(runtime);
+  for (const image of [runtime.apiImage, runtime.webImage]) {
+    const out = run("docker", [
+      "image",
+      "inspect",
+      image,
+      "--format={{json .Config.Labels}}",
+    ]);
+    assertRuntimeImageLabels(JSON.parse(out.stdout), expected);
   }
 }
 
@@ -195,28 +219,14 @@ async function fixturePinnedCommit() {
 }
 
 // ---------------------------------------------------------------------------
-// Reset: down parity project, prune ONLY allowlisted parity volumes/network,
-// up infra, drop/create ONLY devpilot_parity, migrate, seed.
+// Reset: down the exact validated Compose project with its own volumes, then
+// recreate only its MySQL database. No global volume/network enumeration.
 async function reset() {
   await ensureFixtureRepo();
   console.log(
-    `[parity-seed] RESET allowlist: DB=${dbName} volumes=${VOLUME_ALLOWLIST.join(",")} network=${NETWORK_ALLOWLIST.join(",")}`,
+    `[parity-seed] RESET namespace: project=${runtime.composeProject} DB=${dbName}`,
   );
-  await compose(["down", "--remove-orphans"]);
-  const volumes = listVolumes().filter((name) =>
-    VOLUME_ALLOWLIST.includes(name),
-  );
-  for (const volume of volumes) {
-    await run("docker", ["volume", "rm", "-f", volume]);
-    console.log(`[parity-seed] pruned volume ${volume} (allowlisted)`);
-  }
-  const networks = listNetworks().filter((name) =>
-    NETWORK_ALLOWLIST.includes(name),
-  );
-  for (const network of networks) {
-    await run("docker", ["network", "rm", network]);
-    console.log(`[parity-seed] pruned network ${network} (allowlisted)`);
-  }
+  await compose(["down", "--volumes", "--remove-orphans"]);
   await compose(["up", "-d", "mysql", "redis", "deploy-target", "target-workload"]);
   await waitMysqlHealthy();
   await dropCreateDb();
@@ -232,9 +242,10 @@ async function reset() {
 // Docker Desktop bind mounts can go stale when the host dir handle changes;
 // if the api container sees an empty fixture mount, force-recreate it.
 async function repairApiFixtureMount() {
-  const out = run("docker", [
+  const out = compose([
     "exec",
-    "parity-api",
+    "-T",
+    "api",
     "sh",
     "-lc",
     "test -f /read-only-repositories/parity-app/package.json && echo OK || echo MISSING",
@@ -244,29 +255,8 @@ async function repairApiFixtureMount() {
   await compose(["up", "-d", "--force-recreate", "api"]);
 }
 
-function listVolumes() {
-  const out = run("docker", ["volume", "ls", "-q"], { check: false });
-  return out.stdout
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
-}
-
-function listNetworks() {
-  const out = run("docker", ["network", "ls", "--format", "{{.Name}}"], {
-    check: false,
-  });
-  return out.stdout
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
-}
-
 async function dropCreateDb() {
-  await run("docker", [
-    "compose",
-    "-f",
-    composeFile,
+  await compose([
     "exec",
     "-T",
     "mysql",
@@ -293,7 +283,7 @@ async function migrateDeploy() {
 
 async function waitMysqlHealthy() {
   for (let i = 0; i < 60; i += 1) {
-    const state = containerHealth("parity-mysql");
+    const state = containerHealth("mysql");
     if (state === "healthy") return;
     await sleep(2000);
   }
@@ -302,17 +292,19 @@ async function waitMysqlHealthy() {
 
 async function waitApiHealthy() {
   for (let i = 0; i < 90; i += 1) {
-    const state = containerHealth("parity-api");
+    const state = containerHealth("api");
     if (state === "healthy") return;
     await sleep(2000);
   }
   throw new Error("parity api did not become healthy");
 }
 
-function containerHealth(containerName) {
+function containerHealth(service) {
+  const container = compose(["ps", "-q", service], { check: false }).stdout.trim();
+  if (!container) return "missing";
   const out = run("docker", [
     "inspect",
-    containerName,
+    container,
     "--format={{.State.Health.Status}}",
   ], { check: false });
   return out.stdout.trim();
@@ -512,7 +504,7 @@ async function seed() {
         category: "compute",
         approvalMode: "manual",
         provisioningMode: "manual",
-        deliverySchema: { endpoint: "http://127.0.0.1:43992" },
+        deliverySchema: { endpoint: runtime.targetOrigin },
         createdById: IDS.user,
       },
       update: {},
@@ -534,8 +526,8 @@ async function seed() {
         resourceTypeId: IDS.resourceType,
         name: "parity-target-workload",
         status: "active",
-        config: { endpoint: "http://127.0.0.1:43992" },
-        delivery: { endpoint: "http://127.0.0.1:43992" },
+        config: { endpoint: runtime.targetOrigin },
+        delivery: { endpoint: runtime.targetOrigin },
       },
       update: { status: "active", environmentId: null },
     });
@@ -554,7 +546,7 @@ async function seed() {
         primaryDomain: "parity.example.test",
         aliases: [],
         runtimeType: "reverse_proxy",
-        runtimeConfig: { proxyTarget: "http://127.0.0.1:43992" },
+        runtimeConfig: { proxyTarget: runtime.targetOrigin },
         tls: {
           status: "valid",
           issuer: "parity-fixture",
@@ -570,7 +562,7 @@ async function seed() {
         routeSwitch: {
           version: 1,
           targetRef: "filesystem-release-target",
-          proxyTarget: "http://127.0.0.1:43992",
+          proxyTarget: runtime.targetOrigin,
           domains: ["parity.example.test"],
           status: "switched",
           reasonCode: "parity-seed",
@@ -893,7 +885,7 @@ async function seed() {
         ],
         routeSnapshot: {
           domains: ["staging.parity.example.test"],
-          proxyTarget: "http://127.0.0.1:43992",
+          proxyTarget: runtime.targetOrigin,
         },
         source: "parity_seed",
       },
@@ -918,7 +910,7 @@ async function seed() {
         ],
         routeSnapshot: {
           domains: ["parity.example.test"],
-          proxyTarget: "http://127.0.0.1:43992",
+          proxyTarget: runtime.targetOrigin,
         },
         source: "parity_seed",
       },
@@ -1280,8 +1272,15 @@ function encryptCbcForSeed(plainText) {
   return `${iv.toString("hex")}:${enc}`;
 }
 
-function compose(args) {
-  return run("docker", ["compose", "-f", composeFile, ...args]);
+function compose(args, options = {}) {
+  return run(
+    "docker",
+    ["compose", "-p", runtime.composeProject, "-f", composeFile, ...args],
+    {
+      ...options,
+      env: parityComposeEnvironment(runtime, options.env || process.env),
+    },
+  );
 }
 
 function run(cmd, args, options = {}) {

@@ -57,10 +57,12 @@ import {
 import { productionConfirmResult } from "./lib/parity-negative-history-confirm-result.mjs";
 import { versionRowResult } from "./lib/parity-negative-history-version-row-result.mjs";
 import { historyChainOutputDirectory } from "./lib/parity-history-chain-paths.mjs";
+import { parityRuntimeConfig } from "./lib/parity-runtime-config.mjs";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const runtime = parityRuntimeConfig();
 const outDir = historyChainOutputDirectory(process.env, "f456", "/tmp/codex-tool-runs/svton/f456");
 const browserTrustedRoot = await realpath(tmpdir());
-const apiBase = "http://127.0.0.1:4132/api";
+const apiBase = runtime.apiBase;
 let teamId;
 let projectId;
 let orderId;
@@ -71,25 +73,23 @@ const adminPassword = "ParityDemo123!";
 const pinnedCommit = "2f0ec3246761537123c65ac415a14e503ebbfa38";
 const f455EvidenceOriginal = `${historyChainOutputDirectory(process.env, "f455", "/tmp/codex-tool-runs/svton/f455")}/f455-positive-e2e-evidence.json`;
 const cdpDriver = resolve(root, "scripts/lib/parity-history-cdp-driver.mjs");
-const webBase = "http://localhost:4131";
+const webBase = runtime.webOrigin;
 const parityRouteProviderKey = process.env.DEVPILOT_PARITY_ROUTE_PROVIDER_KEY || null;
 let positiveContext;
-
 const { PrismaClient } = createRequire(
   resolve(root, "apps/devpilot-api/package.json"),
 )("@prisma/client");
 const prisma = new PrismaClient({
-  datasources: { db: { url: "mysql://root:password@127.0.0.1:4334/devpilot_parity" } },
+  datasources: { db: { url: runtime.databaseUrl } },
 });
-
 const evidence = {
   worker: "f456-version-history-e2e",
   objective: "AC-E2E-016..023 multiple builds / repeat staging / upgrade-rollback E2E",
   stack: {
     web: webBase,
     api: apiBase,
-    mysql: "parity-mysql:4334",
-    targetWorkload: "http://127.0.0.1:43992",
+    mysql: runtime.mysqlEvidence,
+    targetWorkload: runtime.targetOrigin,
     fixtureRepo: "/read-only-repositories/parity-app",
     pinnedCommit,
   },
@@ -120,7 +120,7 @@ async function main() {
     const [health, web, target] = await Promise.all([
       httpGet(`${apiBase}/health`),
       httpGet(`${webBase}/`, { raw: true }),
-      httpGet("http://127.0.0.1:43992/", { raw: true }),
+      httpGet(`${runtime.targetOrigin}/`, { raw: true }),
     ]);
     const mysqlRows = await prisma.$queryRaw`SELECT 1 AS healthy`;
     token = await login();
