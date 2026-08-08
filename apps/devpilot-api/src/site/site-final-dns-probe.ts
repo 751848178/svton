@@ -1,33 +1,26 @@
-import { promises as dns } from "node:dns";
 import type { SiteProbeBlock } from "./site-route-activation.types";
-import { probeError, withProbeTimeout } from "./site-probe-error";
+import { probeError } from "./site-probe-error";
+import type { ApprovedSiteProbeTarget } from "./site-probe-target.types";
 
-export async function probeFinalDns(
-  hostname: string | null,
-  timeoutMs: number,
-): Promise<SiteProbeBlock> {
+export function probeFinalDns(
+  target: ApprovedSiteProbeTarget | null,
+  error?: unknown,
+): SiteProbeBlock {
   const checkedAt = new Date().toISOString();
-  if (!hostname) {
+  if (!target) {
     return {
       status: "unavailable",
       hostname: null,
-      error: { code: "NO_DOMAIN", message: "no route domain to resolve" },
+      error: error
+        ? probeError(error)
+        : { code: "NO_DOMAIN", message: "no route domain to resolve" },
       checkedAt,
     };
   }
-  try {
-    const records = await withProbeTimeout(
-      dns.resolve(hostname),
-      timeoutMs,
-      "DNS_TIMEOUT",
-    );
-    return { status: "resolved", hostname, records, checkedAt };
-  } catch (error) {
-    return {
-      status: "unavailable",
-      hostname,
-      error: probeError(error),
-      checkedAt,
-    };
-  }
+  return {
+    status: "resolved",
+    hostname: target.hostname,
+    records: target.addresses.map(({ address }) => address),
+    checkedAt,
+  };
 }

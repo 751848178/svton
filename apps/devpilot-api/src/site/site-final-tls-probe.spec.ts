@@ -4,11 +4,12 @@ import { createServer as createNetServer, type Server } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer as createTlsServer } from "node:tls";
-import { probeTlsForFinalUrl } from "./site-final-probe.service";
+import { probeTlsForFinalTarget } from "./site-final-probe.service";
 import {
   probeFinalTls,
   type FinalTlsProbeOptions,
 } from "./site-final-tls-probe";
+import type { ApprovedSiteProbeTarget } from "./site-probe-target.types";
 
 interface TestCertificates {
   ca: Buffer;
@@ -107,7 +108,8 @@ describe("final site TLS proof", () => {
   it("classifies a refused connection as unavailable", async () => {
     const port = await closedPort();
     const result = await probeFinalTls("localhost", 200, {
-      connectHost: "127.0.0.1",
+      pinnedAddress: "127.0.0.1",
+      family: 4,
       port,
       ca: certificates.ca,
     });
@@ -125,8 +127,8 @@ describe("final site TLS proof", () => {
     });
 
     await expect(
-      probeTlsForFinalUrl(
-        "http://example.test/",
+      probeTlsForFinalTarget(
+        approvedTarget("example.test", 80, "http:"),
         false,
         100,
         probeMock as unknown as typeof probeFinalTls,
@@ -146,8 +148,8 @@ describe("final site TLS proof", () => {
       checkedAt: new Date().toISOString(),
     }));
 
-    await probeTlsForFinalUrl(
-      "https://BÜCHER.example:8443/release",
+    await probeTlsForFinalTarget(
+      approvedTarget("xn--bcher-kva.example", 8443, "https:"),
       true,
       123,
       probeMock as unknown as typeof probeFinalTls,
@@ -155,6 +157,8 @@ describe("final site TLS proof", () => {
 
     expect(probeMock).toHaveBeenCalledWith("xn--bcher-kva.example", 123, {
       port: 8443,
+      pinnedAddress: "8.8.8.8",
+      family: 4,
     });
   });
 
@@ -174,10 +178,30 @@ function probe(server: Server, hostname: string, ca: Buffer) {
   if (!address || typeof address === "string") throw new Error("no TLS port");
   const options: FinalTlsProbeOptions = {
     ca,
-    connectHost: "127.0.0.1",
+    pinnedAddress: "127.0.0.1",
+    family: 4,
     port: address.port,
   };
   return probeFinalTls(hostname, 1000, options);
+}
+
+function approvedTarget(
+  hostname: string,
+  port: number,
+  protocol: "http:" | "https:",
+): ApprovedSiteProbeTarget {
+  const hostHeader = port === 80 || port === 443 ? hostname : `${hostname}:${port}`;
+  return {
+    url: `${protocol}//${hostHeader}/`,
+    protocol,
+    hostname,
+    port,
+    hostHeader,
+    path: "/",
+    address: "8.8.8.8",
+    family: 4,
+    addresses: [{ address: "8.8.8.8", family: 4 }],
+  };
 }
 
 async function closedPort(): Promise<number> {

@@ -5,6 +5,7 @@ import type { PrismaClient } from "@prisma/client";
 import { probeFinalHttp } from "../site/site-final-http-probe";
 import { finalSiteUrl } from "../site/site-final-url";
 import type { SiteProbePort } from "../site/site-route-activation.types";
+import type { ApprovedSiteProbeTarget } from "../site/site-probe-target.types";
 import {
   approveProductionReleaseRun,
   confirmProductionRun,
@@ -293,9 +294,31 @@ function exactSiteProbe(): SiteProbePort {
           checkedAt,
         },
         tls: { status: "unavailable", checkedAt },
-        http: await probeFinalHttp(finalUrl, input.timeoutMs ?? 1000),
+        http: await probeFinalHttp(
+          approvedLoopbackTarget(finalUrl),
+          input.timeoutMs ?? 1000,
+        ),
       };
     },
+  };
+}
+
+function approvedLoopbackTarget(
+  value: string | null,
+): ApprovedSiteProbeTarget | null {
+  if (!value) return null;
+  const url = new URL(value);
+  const family = 4 as const;
+  return {
+    url: url.toString(),
+    protocol: url.protocol as "http:" | "https:",
+    hostname: url.hostname,
+    port: url.port ? Number(url.port) : url.protocol === "http:" ? 80 : 443,
+    hostHeader: url.host,
+    path: `${url.pathname}${url.search}`,
+    address: "127.0.0.1",
+    family,
+    addresses: [{ address: "127.0.0.1", family }],
   };
 }
 

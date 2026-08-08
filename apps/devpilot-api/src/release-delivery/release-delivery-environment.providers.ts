@@ -1,4 +1,5 @@
 import { SiteFinalProbeService } from "../site/site-final-probe.service";
+import { SiteProbeResolverService } from "../site/site-probe-resolver.service";
 import { SiteRouteActivationService } from "../site/site-route-activation.service";
 import { SiteProbePort, SiteRouteActivationPort } from "../site/site-route-activation.types";
 import { SiteRouteSwitchEvidenceRepository } from "../site/site-route-switch-evidence.repository";
@@ -25,6 +26,7 @@ export const releaseDeliveryEnvironmentProviders = [
   EnvironmentVersionGateEvidenceRepository,
   SiteRouteActivationService,
   SiteFinalProbeService,
+  SiteProbeResolverService,
   SiteRouteSwitchEvidenceRepository,
   UnconfiguredSiteRouteSwitchProvider,
   { provide: SiteRouteActivationPort, useExisting: SiteRouteActivationService },

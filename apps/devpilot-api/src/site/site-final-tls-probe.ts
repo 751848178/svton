@@ -1,18 +1,20 @@
 import { connect as tlsConnect } from "node:tls";
 import type { ConnectionOptions, PeerCertificate, TLSSocket } from "node:tls";
 import type { SiteProbeTlsBlock } from "./site-route-activation.types";
+import { createPinnedLookup } from "./site-pinned-lookup";
 import { probeError } from "./site-probe-error";
 
 export interface FinalTlsProbeOptions {
   ca?: ConnectionOptions["ca"];
-  connectHost?: string;
+  pinnedAddress: string;
+  family: 4 | 6;
   port?: number;
 }
 
 export function probeFinalTls(
   hostname: string | null,
   timeoutMs: number,
-  options: FinalTlsProbeOptions = {},
+  options: FinalTlsProbeOptions,
 ): Promise<SiteProbeTlsBlock> {
   const checkedAt = new Date().toISOString();
   const port = options.port ?? 443;
@@ -26,13 +28,15 @@ export function probeFinalTls(
     });
   }
   return new Promise((resolve) => {
+    const pinned = { address: options.pinnedAddress, family: options.family };
     const socket = tlsConnect(
       {
-        host: options.connectHost ?? hostname,
+        host: hostname,
         port,
         servername: hostname,
         rejectUnauthorized: true,
         ca: options.ca,
+        lookup: createPinnedLookup(pinned),
       },
       () => {
         const raw = socket.getPeerCertificate();

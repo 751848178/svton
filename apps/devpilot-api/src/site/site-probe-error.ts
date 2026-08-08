@@ -16,7 +16,10 @@ export function withProbeTimeout<T>(
   code: string,
 ): Promise<T> {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(code)), ms);
+    const timer = setTimeout(
+      () => reject(Object.assign(new Error(code), { code })),
+      ms,
+    );
     promise.then(
       (value) => {
         clearTimeout(timer);

@@ -1,57 +1,66 @@
-import { createServer, type Server } from "node:http";
-import type { AddressInfo } from "node:net";
+import { EventEmitter } from "node:events";
+import type { ClientRequest, IncomingMessage } from "node:http";
+import { PassThrough } from "node:stream";
 import type { SiteProbeInput } from "./site-route-activation.types";
-import { probeFinalHttp } from "./site-final-http-probe";
+import {
+  probeFinalHttp,
+  type SiteProbeHttpTransport,
+  type SiteProbeRequestOptions,
+} from "./site-final-http-probe";
+import type { ApprovedSiteProbeTarget } from "./site-probe-target.types";
 
 describe("final site HTTP proof", () => {
-  const servers: Server[] = [];
-
-  afterEach(async () => {
-    await Promise.all(servers.splice(0).map(closeServer));
-  });
-
   it("proves proxyTarget is not part of the probe contract", () => {
-    type HasProxyTarget = "proxyTarget" extends keyof SiteProbeInput
-      ? true
-      : false;
+    type HasProxyTarget = "proxyTarget" extends keyof SiteProbeInput ? true : false;
     const hasProxyTarget: HasProxyTarget = false;
     expect(hasProxyTarget).toBe(false);
   });
 
-  it("passes only the exact final URL 2xx and hashes the complete body", async () => {
-    const server = await listen(200, "exact-final-body");
-    const finalUrl = serverUrl(server, "/release");
+  it("uses original Host and a lookup pinned to the approved peer", async () => {
+    let captured = {} as SiteProbeRequestOptions;
+    const transport = responseTransport(200, "exact-final-body", (options) => {
+      captured = options;
+    });
 
-    await expect(probeFinalHttp(finalUrl, 1000)).resolves.toMatchObject({
+    await expect(probeFinalHttp(target(), 100, transport)).resolves.toMatchObject({
       status: "passed",
-      url: finalUrl,
-      finalUrl,
       statusCode: 200,
       bodySignature:
         "sha256:058659e48a5bcdab8263c697d0f34fc177e53e427124a23219b6e0eac967e069",
     });
-  });
 
-  it.each([302, 404, 500])("rejects HTTP %i", async (statusCode) => {
-    const server = await listen(statusCode, "not-final-success");
-    const result = await probeFinalHttp(serverUrl(server), 1000);
-    expect(result).toMatchObject({ status: "failed", statusCode });
-  });
-
-  it("does not let an unrelated 200 endpoint rescue an unreachable final URL", async () => {
-    let unrelatedHits = 0;
-    const unrelated = await listen(200, "unrelated", () => unrelatedHits++);
-    const unreachable = await closedServerUrl();
-
-    const result = await probeFinalHttp(unreachable, 200);
-
-    expect(result).toMatchObject({
-      status: "unavailable",
-      url: unreachable,
-      finalUrl: unreachable,
+    expect(captured).toMatchObject({
+      hostname: "release.example.com",
+      servername: "release.example.com",
+      headers: { Host: "release.example.com:8443" },
     });
-    expect(unrelatedHits).toBe(0);
-    expect(serverUrl(unrelated)).not.toBe(unreachable);
+    const pinned = jest.fn();
+    const lookup = captured.lookup as unknown as (
+      host: string,
+      options: object,
+      callback: typeof pinned,
+    ) => void;
+    lookup("release.example.com", {}, pinned);
+    expect(pinned).toHaveBeenCalledWith(null, "8.8.8.8", 4);
+  });
+
+  it.each([302, 404, 500])("rejects HTTP %i without redirect follow", async (status) => {
+    const transport = jest.fn(responseTransport(status, "not-success"));
+    await expect(probeFinalHttp(target(), 100, transport)).resolves.toMatchObject({
+      status: "failed",
+      statusCode: status,
+    });
+    expect(transport).toHaveBeenCalledTimes(1);
+  });
+
+  it("aborts a response that exceeds the body bound", async () => {
+    const body = Buffer.alloc(64 * 1024 + 1, "x");
+    await expect(
+      probeFinalHttp(target(), 100, responseTransport(200, body)),
+    ).resolves.toMatchObject({
+      status: "unavailable",
+      error: { code: "HTTP_BODY_TOO_LARGE" },
+    });
   });
 
   it("fails closed when final URL is missing", async () => {
@@ -62,39 +71,45 @@ describe("final site HTTP proof", () => {
       error: { code: "NO_URL" },
     });
   });
-
-  function listen(status: number, body: string, onRequest?: () => void) {
-    return new Promise<Server>((resolve) => {
-      const server = createServer((_request, response) => {
-        onRequest?.();
-        response.writeHead(status, { "content-type": "text/plain" });
-        response.end(body);
-      });
-      server.listen(0, "127.0.0.1", () => {
-        servers.push(server);
-        resolve(server);
-      });
-    });
-  }
 });
 
-function serverUrl(server: Server, path = "/") {
-  const address = server.address() as AddressInfo;
-  return `http://127.0.0.1:${address.port}${path}`;
+function target(): ApprovedSiteProbeTarget {
+  return {
+    url: "https://release.example.com:8443/release",
+    protocol: "https:",
+    hostname: "release.example.com",
+    port: 8443,
+    hostHeader: "release.example.com:8443",
+    path: "/release",
+    address: "8.8.8.8",
+    family: 4,
+    addresses: [{ address: "8.8.8.8", family: 4 }],
+  };
 }
 
-async function closedServerUrl() {
-  const server = await new Promise<Server>((resolve) => {
-    const candidate = createServer();
-    candidate.listen(0, "127.0.0.1", () => resolve(candidate));
-  });
-  const url = serverUrl(server);
-  await closeServer(server);
-  return url;
-}
-
-function closeServer(server: Server) {
-  return new Promise<void>((resolve, reject) => {
-    server.close((error) => (error ? reject(error) : resolve()));
-  });
+function responseTransport(
+  statusCode: number,
+  body: string | Buffer,
+  inspect?: (options: SiteProbeRequestOptions) => void,
+): SiteProbeHttpTransport {
+  return (_protocol, options, onResponse) => {
+    inspect?.(options);
+    const request = new EventEmitter() as ClientRequest;
+    request.end = () => {
+      const stream = new PassThrough();
+      const response = stream as unknown as IncomingMessage;
+      response.statusCode = statusCode;
+      response.headers = {};
+      process.nextTick(() => {
+        onResponse(response);
+        stream.end(body);
+      });
+      return request;
+    };
+    request.destroy = (error?: Error) => {
+      if (error) process.nextTick(() => request.emit("error", error));
+      return request;
+    };
+    return request;
+  };
 }
