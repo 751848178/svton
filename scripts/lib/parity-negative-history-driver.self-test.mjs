@@ -14,6 +14,14 @@ const binding = await readFile(
   new URL("./parity-negative-history-db-binding.mjs", import.meta.url),
   "utf8",
 );
+const contract = await readFile(
+  new URL("./parity-negative-history-contract.mjs", import.meta.url),
+  "utf8",
+);
+const checkContract = await readFile(
+  new URL("./parity-negative-history-check-contract.mjs", import.meta.url),
+  "utf8",
+);
 
 for (const name of [
   "F456_EVIDENCE_PATH",
@@ -30,5 +38,17 @@ assert.doesNotMatch(adapter, /fixedIds/);
 assert.doesNotMatch(adapter, /\/tmp\/codex-tool-runs\/svton\/f456/);
 assert.match(adapter, /parseNegativeHistoryEvidence\(bytes, input\)/);
 assert.doesNotMatch(binding, /\.(create|update|upsert|delete|deleteMany)\s*\(/);
+assert.match(contract, /canonicalHistoryStepValid\(stepName, step\)/);
+assert.match(
+  contract,
+  /canonicalHistoryStepValid\("base-state-rows", baseStep\)/,
+);
+assert.match(
+  checkContract,
+  /historyStepChecks\(name, step\?\.result \|\| \{\}\)/,
+);
+for (const field of ["name", "pass", "actual", "expected"]) {
+  assert.match(checkContract, new RegExp(`item\\.${field}`));
+}
 
 process.stdout.write("negative history driver static self-test passed\n");

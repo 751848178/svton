@@ -1,5 +1,9 @@
 import { createHash } from "node:crypto";
 import { HISTORY_AC_MAPPING } from "./parity-history-e2e-evidence.mjs";
+import {
+  canonicalHistoryStepValid,
+  sameJsonValue,
+} from "./parity-negative-history-check-contract.mjs";
 
 export const HISTORY_WORKER = "f456-version-history-e2e";
 export const HISTORY_OBJECTIVE =
@@ -81,34 +85,37 @@ function validateCapturedAt(value, input) {
 function validateAcceptance(document) {
   const ac = document.ac;
   const expectedIds = Object.keys(HISTORY_AC_MAPPING).sort();
-  if (!isObject(ac) || !sameArray(Object.keys(ac).sort(), expectedIds))
+  if (!isObject(ac) || !sameJsonValue(Object.keys(ac).sort(), expectedIds))
     return false;
   return expectedIds.every((acId) => {
     const entry = ac[acId];
     const sourceSteps = HISTORY_AC_MAPPING[acId];
     if (
       entry?.ok !== true ||
-      !sameArray(entry.sourceSteps, sourceSteps) ||
+      !sameJsonValue(entry.sourceSteps, sourceSteps) ||
       entry.failures !== undefined
     )
       return false;
     const expanded = [];
     for (const stepName of sourceSteps) {
       const step = document.steps?.[stepName];
-      if (!validStep(step)) return false;
+      if (!canonicalHistoryStepValid(stepName, step)) return false;
       expanded.push(...step.checks.map((item) => `${stepName}:${item.name}`));
     }
     return (
-      uniqueStrings(entry.checkNames) &&
-      uniqueStrings(expanded) &&
-      sameArray(entry.checkNames, expanded)
+      Array.isArray(entry.checkNames) &&
+      entry.checkNames.length > 0 &&
+      sameJsonValue(entry.checkNames, expanded)
     );
   });
 }
 
 function manifestContext(document, context) {
   const baseStep = document.steps?.["base-state-rows"];
-  requireValue(validStep(baseStep), "history base step invalid");
+  requireValue(
+    canonicalHistoryStepValid("base-state-rows", baseStep),
+    "history base step invalid",
+  );
   const base = baseStep.result;
   const build2 = document.steps?.["build-2"]?.result;
   const manifest1 = base?.manifests?.[0];
@@ -152,35 +159,6 @@ function manifestContext(document, context) {
     manifestM2Digest: build2.manifestDigest,
     buildRunM2: build2.buildRunId,
   };
-}
-
-function validStep(step) {
-  return (
-    step?.ok === true &&
-    step.status === "passed" &&
-    step.verified === true &&
-    Array.isArray(step.checks) &&
-    step.checks.length > 0 &&
-    step.checks.every((item) => nonEmpty(item?.name) && item.pass === true) &&
-    uniqueStrings(step.checks.map((item) => item.name))
-  );
-}
-
-function uniqueStrings(values) {
-  return (
-    Array.isArray(values) &&
-    values.length > 0 &&
-    values.every(nonEmpty) &&
-    new Set(values).size === values.length
-  );
-}
-
-function sameArray(actual, expected) {
-  return (
-    Array.isArray(actual) &&
-    actual.length === expected.length &&
-    actual.every((value, index) => value === expected[index])
-  );
 }
 
 function digest(value) {

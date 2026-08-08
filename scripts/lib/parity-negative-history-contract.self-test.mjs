@@ -5,14 +5,14 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadNegativeHistoryContext } from "./parity-negative-e2e-context.mjs";
-import {
-  HISTORY_OBJECTIVE,
-  HISTORY_WORKER,
-  parseNegativeHistoryEvidence,
-} from "./parity-negative-history-contract.mjs";
+import { parseNegativeHistoryEvidence } from "./parity-negative-history-contract.mjs";
 import { HISTORY_AC_MAPPING } from "./parity-history-e2e-evidence.mjs";
+import {
+  acceptanceFromSteps,
+  historyDocumentFixture,
+} from "./parity-negative-history-contract-fixture.mjs";
 
-const document = historyDocument();
+const document = historyDocumentFixture();
 const bytes = Buffer.from(JSON.stringify(document));
 const parsed = parseNegativeHistoryEvidence(bytes, historyInput(bytes));
 assert.equal(parsed.historyContractValid, true);
@@ -72,6 +72,59 @@ for (const [label, mutate] of [
   rejectHistory(label, mutate);
 }
 
+const canonicalSteps = [...new Set(Object.values(HISTORY_AC_MAPPING).flat())];
+for (const stepName of canonicalSteps) {
+  rejectHistory(`coherent claim substitution: ${stepName}`, (value) => {
+    value.steps[stepName].checks = [
+      { name: "claim", pass: true, actual: true, expected: true },
+    ];
+    value.ac = acceptanceFromSteps(value.steps);
+  });
+}
+
+for (const [label, mutate] of [
+  ["canonical check order", (value) => value.steps["build-2"].checks.reverse()],
+  [
+    "canonical check actual",
+    (value) => (value.steps.login.checks[0].actual = "claimed"),
+  ],
+  [
+    "canonical check expected",
+    (value) => (value.steps.login.checks[0].expected = "claimed"),
+  ],
+  [
+    "canonical check missing field",
+    (value) => delete value.steps.login.checks[0].actual,
+  ],
+  [
+    "canonical check extra field",
+    (value) => (value.steps.login.checks[0].claim = true),
+  ],
+  [
+    "semantic result drift",
+    (value) => (value.steps.login.result.source = "claimed"),
+  ],
+  [
+    "base step claim substitution",
+    (value) =>
+      (value.steps["base-state-rows"].checks = [
+        { name: "claim", pass: true, actual: true, expected: true },
+      ]),
+  ],
+]) {
+  rejectHistory(label, (value) => {
+    mutate(value);
+    value.ac = acceptanceFromSteps(value.steps);
+  });
+}
+
+const productionChecks = document.steps["production-upgrade-execute"].checks;
+assert.ok(
+  new Set(productionChecks.map((item) => item.name)).size <
+    productionChecks.length,
+  "valid canonical duplicate names must be exercised",
+);
+
 for (const name of [
   "evidencePath",
   "expectedSha256",
@@ -85,77 +138,6 @@ for (const name of [
 
 process.stdout.write("negative history contract self-test passed\n");
 
-function historyDocument() {
-  const context = {
-    teamId: "team",
-    projectId: "project",
-    orderId: "order",
-    stagingEnvId: "staging",
-    productionEnvId: "production",
-    buildRunId: "build-1",
-    manifestId: "manifest-1",
-    manifestDigest: `sha256:${"a".repeat(64)}`,
-    stagingDeploymentRunId: "deploy-1",
-    stagingCurrentVersionId: "staging-v1",
-    productionCurrentVersionId: "production-v1",
-    productionConfigRevisionId: "config-1",
-    productionTargetRef: "target",
-    pinnedCommit: "a".repeat(40),
-  };
-  const steps = Object.fromEntries(
-    [...new Set(Object.values(HISTORY_AC_MAPPING).flat())].map((name) => [
-      name,
-      passedStep(),
-    ]),
-  );
-  steps["base-state-rows"] = passedStep({
-    buildRuns: [{ id: context.buildRunId }],
-    manifests: [
-      {
-        id: context.manifestId,
-        digest: context.manifestDigest,
-        buildRunId: context.buildRunId,
-      },
-    ],
-    expected: context,
-  });
-  steps["build-2"].result = {
-    status: "succeeded",
-    buildRunId: "build-2",
-    manifestId: "manifest-2",
-    manifestDigest: `sha256:${"b".repeat(64)}`,
-  };
-  const ac = Object.fromEntries(
-    Object.entries(HISTORY_AC_MAPPING).map(([id, sourceSteps]) => [
-      id,
-      {
-        ok: true,
-        sourceSteps,
-        checkNames: sourceSteps.map((name) => `${name}:verified`),
-      },
-    ]),
-  );
-  return {
-    worker: HISTORY_WORKER,
-    objective: HISTORY_OBJECTIVE,
-    status: "passed",
-    capturedAt: "2026-08-08T00:00:00Z",
-    context,
-    steps,
-    ac,
-  };
-}
-
-function passedStep(result = {}) {
-  return {
-    ok: true,
-    status: "passed",
-    verified: true,
-    checks: [{ name: "verified", pass: true }],
-    result,
-  };
-}
-
 function historyInput(value) {
   return {
     evidencePath: "/explicit/history.json",
@@ -167,7 +149,7 @@ function historyInput(value) {
 }
 
 function rejectHistory(label, mutate, overrides = {}) {
-  const value = historyDocument();
+  const value = historyDocumentFixture();
   mutate(value);
   const candidate = Buffer.from(JSON.stringify(value));
   assert.throws(
