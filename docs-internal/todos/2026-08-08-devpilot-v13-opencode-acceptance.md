@@ -94,6 +94,10 @@ Every row requires correct data plus applicable empty/loading/blocked/running/su
 
 The F464+ ledger below is source/current-run verified. Duplicate findings from the three workers are merged under one ID.
 
+### C5 current-stack safety gate (2026-08-08)
+
+The requested F547+F544, F531 and F532 browser/evidence rerun was not started. The only local parity compose has fixed `parity-*` container names, fixed loopback ports (including 4131, 4132 and 4334), and a fixed `devpilot_parity` database; the corresponding containers were already running. Its web/API images expose no OCI revision or source labels, so they cannot prove current-HEAD provenance. In addition, the negative driver scans every `awaiting_approval` run in the shared production environment before execution rather than a run-owned cleanup journal. F476, F494 and F518 therefore remain concrete prerequisites: no shared stack was stopped, restarted, seeded, browsed or claimed as current evidence; C5 is `needs_context` pending an owned namespace, unique ports/database, current image provenance and scoped cleanup arming.
+
 ## Pending Confirmation
 
 - Full signed-in UI/Demo parity re-audit remains pending F493; no F458 MINOR delta is accepted yet.
