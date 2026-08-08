@@ -93,6 +93,76 @@ assert.equal(credentialUrl.includes("F539-USER-12"), false);
 assert.equal(credentialUrl.includes("F539-PASS-13"), false);
 assert.match(credentialUrl, /view=history/);
 
+const sanitizedEvents = capture([
+  exception("Authorization: Custom F544-EXCEPTION-SECRET", {
+    url: "https://example.test/error?token=F544-EXCEPTION-URL&safe=yes",
+    description: "Cookie: sid=F544-DESCRIPTION-SECRET",
+  }),
+  {
+    method: "Runtime.consoleAPICalled",
+    params: {
+      type: "error",
+      args: [
+        { value: "Cookie: sid=F544-CONSOLE-SECRET" },
+        {
+          value: { authorization: "F544-OBJECT-SECRET" },
+          description: "Authorization: Custom F544-CONSOLE-DESCRIPTION",
+          preview: { description: "F544-PREVIEW-SECRET" },
+        },
+      ],
+    },
+  },
+  {
+    method: "Log.entryAdded",
+    params: {
+      entry: {
+        level: "error",
+        text: "Set-Cookie: sid=F544-LOG-SECRET",
+        url: "https://example.test/log?token=F544-LOG-URL&safe=yes",
+      },
+    },
+  },
+  {
+    method: "Network.requestWillBeSent",
+    params: {
+      requestId: "failed-secret",
+      type: "Fetch",
+      request: {
+        url: "https://bob:pw@failed.example.test/?token=F544-FAILED-URL",
+      },
+    },
+  },
+  {
+    method: "Network.responseReceived",
+    params: {
+      requestId: "response-secret",
+      type: "Fetch",
+      response: {
+        url: "https://alice:pass@api.example.test/?token=F544-RESPONSE-URL&safe=yes",
+        status: 200,
+      },
+    },
+  },
+  {
+    method: "Network.loadingFailed",
+    params: {
+      requestId: "failed-secret",
+      type: "Fetch",
+      errorText: "Authorization: Custom F544-FAILED-ERROR",
+    },
+  },
+]);
+const eventReport = JSON.stringify(sanitizedEvents);
+assert.doesNotMatch(eventReport, /F544-|alice|bob|pass@|pw@/);
+assert.deepEqual(sanitizedEvents.console[0].args, [
+  "Cookie: [REDACTED]",
+  "Authorization: [REDACTED]",
+]);
+assert.match(sanitizedEvents.console[1].url, /safe=yes/);
+assert.equal(sanitizedEvents.httpResponses[0].host, "api.example.test");
+assert.match(sanitizedEvents.httpResponses[0].url, /safe=yes/);
+assert.equal(sanitizedEvents.failedRequests[0].host, "failed.example.test");
+
 const ordinaryText = "ReferenceError: ordinary boom at app.js:1";
 const ordinaryException = capture([exception(ordinaryText)]);
 assert.equal(ordinaryException.runtimeExceptions[0].text, ordinaryText);
