@@ -21,7 +21,7 @@ export const HISTORY_RESULT_KEY_INVENTORY = Object.freeze({
     "expectedManifestDigest inputHash manifestDigest manifestFrozen snapshot",
   ),
   "production-confirm": keys(
-    "approvalAction approvalId approvalStatus awaitingApproval expectedManifestDigest expectedManifestId manifestId mode releaseRunId status verifiedDigest verifiedDigestMatches",
+    "approvalAction approvalId approvalStatus awaitingApproval expectedInputHash expectedManifestDigest expectedManifestId manifestId mode releaseRunId status verifiedDigest verifiedDigestMatches",
   ),
   "production-approve": keys(
     "approvalId decision reviewedAt reviewerId status",
@@ -33,7 +33,7 @@ export const HISTORY_RESULT_KEY_INVENTORY = Object.freeze({
     "expectedManifestDigest expectedManifestId expectedSourceVersionId inputHash snapshot sourceManifestDigest sourceManifestId sourceReleaseRunId sourceVersionId sourceVersionKind",
   ),
   "production-recovery-confirm": keys(
-    "approvalAction approvalId approvalStatus awaitingApproval expectedManifestDigest expectedManifestId manifestId mode recoveryReleaseRunId releaseRunId sourceReleaseRunId status verifiedDigest verifiedDigestMatches",
+    "approvalAction approvalId approvalStatus awaitingApproval expectedInputHash expectedManifestDigest expectedManifestId manifestId mode recoveryReleaseRunId releaseRunId sourceReleaseRunId sourceVersionId status verifiedDigest verifiedDigestMatches",
   ),
   "production-recovery-approve": keys(
     "approvalId decision reviewedAt reviewerId status",

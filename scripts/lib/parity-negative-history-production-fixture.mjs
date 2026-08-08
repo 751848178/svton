@@ -70,10 +70,12 @@ function confirmFixture(a, mode) {
     verifiedDigest: digest,
     expectedManifestDigest: digest,
     verifiedDigestMatches: true,
+    expectedInputHash: recovery ? "c".repeat(64) : "b".repeat(64),
   };
   if (recovery) {
     result.recoveryReleaseRunId = releaseRunId;
     result.sourceReleaseRunId = a.productionReleaseRunId;
+    result.sourceVersionId = a.productionCurrentVersionId;
   }
   return result;
 }

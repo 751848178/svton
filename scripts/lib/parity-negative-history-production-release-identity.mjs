@@ -49,9 +49,20 @@ export function validateProductionConfirm(
   digest,
   mode,
   sourceReleaseRunId,
+  expectedInputHash,
+  sourceVersionId,
 ) {
   requireIdentity(nonEmpty(result.releaseRunId), `${mode}-confirm:release`);
   requireIdentity(nonEmpty(result.approvalId), `${mode}-confirm:approval`);
+  requireIdentity(
+    /^[a-f0-9]{64}$/.test(result.expectedInputHash || ""),
+    `${mode}-confirm:hash`,
+  );
+  requireEqual(
+    result.expectedInputHash,
+    expectedInputHash,
+    `${mode}-confirm:hash-continuity`,
+  );
   requireEqual(
     [result.status, result.awaitingApproval, result.mode],
     ["awaiting_approval", true, mode],
@@ -85,6 +96,11 @@ export function validateProductionConfirm(
       [result.recoveryReleaseRunId, result.sourceReleaseRunId],
       [result.releaseRunId, sourceReleaseRunId],
       "recovery-confirm:source",
+    );
+    requireEqual(
+      result.sourceVersionId,
+      sourceVersionId,
+      "recovery-confirm:source-version",
     );
   }
   return { releaseRunId: result.releaseRunId, approvalId: result.approvalId };

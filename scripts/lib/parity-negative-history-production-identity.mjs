@@ -24,6 +24,8 @@ export function validateProductionIdentity(steps, staging) {
     staging.manifestM2,
     staging.manifestM2Digest,
     "standard",
+    undefined,
+    standardPreview.inputHash,
   );
   validateProductionApproval(
     historyResult(steps, "production-approve"),
@@ -76,6 +78,8 @@ export function validateProductionIdentity(steps, staging) {
     staging.manifestDigest,
     "recovery",
     staging.productionReleaseRunId,
+    recoveryPreview.inputHash,
+    staging.productionCurrentVersionId,
   );
   validateProductionApproval(
     historyResult(steps, "production-recovery-approve"),

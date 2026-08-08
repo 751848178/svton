@@ -61,6 +61,7 @@ import {
   buildProductionRouteExpectation,
   productionRouteEvidence,
 } from "./lib/parity-production-route-evidence.mjs";
+import { productionConfirmResult } from "./lib/parity-negative-history-confirm-result.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = "/tmp/codex-tool-runs/svton/f456";
@@ -513,20 +514,11 @@ async function main() {
     );
     R2 = confirm;
     A2 = confirm.operationApproval?.id;
-    return {
-      releaseRunId: R2.id,
-      status: R2.status,
-      awaitingApproval: R2.status === "awaiting_approval",
-      mode: R2.mode,
-      approvalId: A2,
-      approvalStatus: confirm.operationApproval?.status,
-      approvalAction: confirm.operationApproval?.action,
-      manifestId: confirm.artifactManifestId,
+    return productionConfirmResult(confirm, "standard", {
       expectedManifestId: M2.id,
-      verifiedDigest: confirm.verifiedDigest,
       expectedManifestDigest: M2.digest,
-      verifiedDigestMatches: confirm.verifiedDigest === M2.digest,
-    };
+      expectedInputHash: inputHashProd,
+    });
   });
   await step("production-approve", async () => {
     const reviewed = await api(
@@ -647,22 +639,12 @@ async function main() {
     );
     R3 = confirm;
     A3 = confirm.operationApproval?.id;
-    return {
-      recoveryReleaseRunId: R3.id,
-      releaseRunId: R3.id,
-      status: R3.status,
-      mode: R3.mode,
-      awaitingApproval: R3.status === "awaiting_approval",
-      sourceReleaseRunId: R3.sourceReleaseRunId,
-      approvalId: A3,
-      approvalStatus: confirm.operationApproval?.status,
-      approvalAction: confirm.operationApproval?.action,
-      manifestId: confirm.artifactManifestId,
+    return productionConfirmResult(confirm, "recovery", {
       expectedManifestId: M1.id,
-      verifiedDigest: confirm.verifiedDigest,
       expectedManifestDigest: M1.digest,
-      verifiedDigestMatches: confirm.verifiedDigest === M1.digest,
-    };
+      expectedInputHash: inputHashRecovery,
+      sourceVersionId: Vprod1.id,
+    });
   });
   await step("production-recovery-approve", async () => {
     const reviewed = await api(
