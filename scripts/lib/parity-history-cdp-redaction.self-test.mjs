@@ -75,6 +75,37 @@ for (const [text, secret] of separatorKeyCredentials) {
 const crossLine = sanitizeCdpText("api\nkey: F545-CROSSLINE-NOPE");
 assert.match(crossLine, /F545-CROSSLINE-NOPE/);
 
+// F546: bounded marker keys still redact; ordinary marker-substring words do not.
+const boundedRedactKeys = [
+  "token",
+  "password",
+  "secret",
+  "access_token",
+  "client_secret",
+  "apisecret",
+  "sessiontoken",
+  "tokenv2",
+  "accesstoken",
+  "refreshtoken",
+];
+for (const key of boundedRedactKeys) {
+  const sanitized = sanitizeCdpText(`${key}: F546-LEAK`);
+  assert.equal(sanitized.includes("F546-LEAK"), false, key);
+}
+const boundedSafeKeys = [
+  "tokenizer",
+  "secretary",
+  "passwordless",
+  "tokenize",
+  "secretly",
+  "secrets",
+  "tokener",
+];
+for (const key of boundedSafeKeys) {
+  const sanitized = sanitizeCdpText(`${key}: F546-VISIBLE`);
+  assert.match(sanitized, /F546-VISIBLE/, key);
+}
+
 const queryKeys = [
   "session",
   "sessionid",
@@ -96,6 +127,14 @@ for (const [index, key] of queryKeys.entries()) {
     `https://example.test/callback?${key}=${secret}&safe=yes`,
   );
   assert.equal(sanitized.includes(secret), false, key);
+  assert.match(sanitized, /safe=yes/);
+}
+// F546: ordinary marker-substring query keys must keep their value visible.
+for (const key of ["tokenizer", "secretary", "passwordless", "tokenize"]) {
+  const sanitized = sanitizeCdpUrl(
+    `https://example.test/callback?${key}=F546-QUERY-VISIBLE&safe=yes`,
+  );
+  assert.match(sanitized, /F546-QUERY-VISIBLE/, key);
   assert.match(sanitized, /safe=yes/);
 }
 

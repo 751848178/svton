@@ -10,7 +10,16 @@ const MAX_CAPTURE_LENGTH = 4_000;
 // separator is zero-or-more to also keep no-separator forms (e.g. `apikey`).
 const KEY_SEPARATOR = String.raw`[-_. \t]*`;
 const COOKIE_KEY_SOURCE = String.raw`(?:cookie|set[-_]?cookie)`;
-const CREDENTIAL_KEY_SOURCE = String.raw`(?:authorization|proxy[-_]?authorization|${COOKIE_KEY_SOURCE}|session(?:${KEY_SEPARATOR}id)?|x${KEY_SEPARATOR}api${KEY_SEPARATOR}key|api${KEY_SEPARATOR}key|access${KEY_SEPARATOR}key|signature|credentials?|[a-z0-9_-]*(?:token|password|secret)[a-z0-9_-]*)`;
+// Token/secret/password keys are bounded so the marker stands as a complete lexeme:
+// only closed credential-meaning prefixes/suffixes may attach via a separator. This
+// stops ordinary words (tokenizer, secretary, passwordless, tokenize, secretly) from
+// matching while real fields (token, access_token, client_secret, apisecret, tokenv2)
+// still hit. `credentials?` is its own alternative (not marker-driven).
+const CREDENTIAL_MARKER = String.raw`(?:token|password|secret)`;
+const CREDENTIAL_PREFIX = String.raw`(?:access|auth(?:entication)?|client|consumer|user|api|app|db|database|bearer|session|refresh|reset|oauth|jwt|identity|verify|verification|service|server|admin|master|new|old|current|private|public|shared|integration|tenant|project|org|account|login|signin|signup)`;
+const CREDENTIAL_SUFFIX = String.raw`(?:id|value|v2|hash|key|code|string|field|param|parameter|input|data|bytes|redacted|plain|text)?`;
+const MARKER_KEY = String.raw`(?:${CREDENTIAL_PREFIX}${KEY_SEPARATOR})?${CREDENTIAL_MARKER}(?:${KEY_SEPARATOR}${CREDENTIAL_SUFFIX})?`;
+const CREDENTIAL_KEY_SOURCE = String.raw`(?:authorization|proxy[-_]?authorization|${COOKIE_KEY_SOURCE}|session(?:${KEY_SEPARATOR}id)?|x${KEY_SEPARATOR}api${KEY_SEPARATOR}key|api${KEY_SEPARATOR}key|access${KEY_SEPARATOR}key|signature|credentials?|${MARKER_KEY})`;
 const CREDENTIAL_KEY = new RegExp(`^${CREDENTIAL_KEY_SOURCE}$`, "i");
 const CREDENTIAL_KEY_VALUE = new RegExp(
   `(["']?\\b${CREDENTIAL_KEY_SOURCE}\\b["']?\\s*[:=]\\s*)("(?:\\\\.|[^"\\\\])*"|'(?:\\\\.|[^'\\\\])*'|[^\\r\\n,;}\\]]+)`,
