@@ -40,40 +40,29 @@ export function validateHistorySummary(steps, anchors) {
   );
 
   const production = result.production?.chain;
-  requireIdentity(Array.isArray(production), "summary:production-chain");
-  const rootIndex = production.findIndex(
-    (row) => row.id === anchors.productionCurrentVersionId,
-  );
-  const suffix = production.slice(rootIndex);
-  requireIdentity(
-    rootIndex >= 0 && suffix.length === 3,
-    "summary:production-suffix",
-  );
   requireEqual(
-    suffix.map(({ id, kind, manifest }) => ({ id, kind, manifest })),
+    production,
     [
       {
         id: anchors.productionCurrentVersionId,
         kind: "upgrade",
+        prev: null,
         manifest: anchors.manifestId,
       },
       {
         id: anchors.productionVersionV2,
         kind: "upgrade",
+        prev: anchors.productionCurrentVersionId,
         manifest: anchors.manifestM2,
       },
       {
         id: anchors.productionVersionV3,
         kind: "recovery",
+        prev: anchors.productionVersionV2,
         manifest: anchors.manifestId,
       },
     ],
-    "summary:production-identities",
-  );
-  requireEqual(
-    [suffix[1].prev, suffix[2].prev],
-    [anchors.productionCurrentVersionId, anchors.productionVersionV2],
-    "summary:production-links",
+    "summary:production-chain",
   );
 
   const expectedReleaseRuns = [
