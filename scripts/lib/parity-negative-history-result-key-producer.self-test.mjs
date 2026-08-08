@@ -83,8 +83,8 @@ function projAssign(source) {
 }
 
 function browserKeys(source) {
-  const start = source.indexOf("async function browserPassPinned(");
-  assert.ok(start >= 0, "browserPassPinned not found");
+  const start = source.indexOf("async function browserPass(");
+  assert.ok(start >= 0, "browserPass not found");
   const returnAt = source.indexOf("return {", start);
   assert.ok(returnAt >= 0, "browser return object not found");
   return objectKeys(source, returnAt + 7).sort();
