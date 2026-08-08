@@ -1,6 +1,5 @@
-import { writeFileSync } from "node:fs";
-import path from "node:path";
 import { artifactMetadata } from "./parity-history-browser-artifacts.mjs";
+import { writeExclusiveBrowserOutput } from "./parity-history-browser-output-writer.mjs";
 
 const ACTION_TYPES = new Set([
   "wait",
@@ -95,7 +94,7 @@ async function screenshot(cdp, outDir, name, pause) {
   await pause(400);
   const shot = await cdp.call("Page.captureScreenshot", { format: "png" });
   const buffer = Buffer.from(shot.data, "base64");
-  writeArtifact("screenshot", outDir, name, buffer);
+  await writeArtifact("screenshot", outDir, name, buffer);
 }
 
 async function textDump(cdp, outDir, name) {
@@ -103,7 +102,12 @@ async function textDump(cdp, outDir, name) {
     expression: 'document.body ? document.body.innerText : ""',
     returnByValue: true,
   });
-  writeArtifact("text", outDir, name, Buffer.from(result.result.value || ""));
+  await writeArtifact(
+    "text",
+    outDir,
+    name,
+    Buffer.from(result.result.value || ""),
+  );
 }
 
 async function domDump(cdp, outDir, name) {
@@ -111,13 +115,17 @@ async function domDump(cdp, outDir, name) {
     expression: "document.documentElement.outerHTML",
     returnByValue: true,
   });
-  writeArtifact("dom", outDir, name, Buffer.from(result.result.value || ""));
+  await writeArtifact(
+    "dom",
+    outDir,
+    name,
+    Buffer.from(result.result.value || ""),
+  );
 }
 
-function writeArtifact(kind, outDir, name, buffer) {
-  const file = path.join(outDir, name);
+async function writeArtifact(kind, outDir, name, buffer) {
   const metadata = artifactMetadata(kind, buffer);
-  writeFileSync(file, buffer);
+  const { file } = await writeExclusiveBrowserOutput(outDir, name, buffer);
   process.stdout.write(`${JSON.stringify({ [kind]: file, ...metadata })}\n`);
 }
 

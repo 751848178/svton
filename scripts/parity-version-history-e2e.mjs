@@ -33,9 +33,10 @@
 //
 // Evidence: /tmp/codex-tool-runs/svton/f456/f456-version-history-evidence.json
 import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { writeFileSync, rmSync } from "node:fs";
+import { mkdir, readFile, realpath, writeFile } from "node:fs/promises";
+import { writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -47,15 +48,11 @@ import {
 import { extractPositiveHistoryContext } from "./lib/parity-history-context.mjs";
 import { readBackBrowserArtifacts } from "./lib/parity-history-browser-artifacts.mjs";
 import {
-  assertBrowserOutputDirectoryForMutation,
   assertPinnedBrowserOutputDirectory,
   closePinnedBrowserOutputDirectory,
-  pinBrowserOutputDirectory,
 } from "./lib/parity-history-safe-directory.mjs";
-import {
-  prepareBrowserFilesForPin,
-  readPinnedBrowserFile,
-} from "./lib/parity-history-safe-file.mjs";
+import { createPinnedBrowserRunDirectory } from "./lib/parity-history-browser-run-directory.mjs";
+import { readPinnedBrowserFile } from "./lib/parity-history-safe-file.mjs";
 import { summarizeBrowserFailures } from "./lib/parity-history-cdp-capture.mjs";
 import {
   productionGateEvidence,
@@ -67,8 +64,7 @@ import {
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = "/tmp/codex-tool-runs/svton/f456";
-const browserOut = `${outDir}/browser`;
-const browserTrustedRoot = "/tmp";
+const browserTrustedRoot = await realpath(tmpdir());
 const apiBase = "http://127.0.0.1:4132/api";
 let teamId;
 let projectId;
@@ -121,7 +117,6 @@ function sha256File(buffer) {
 
 async function main() {
   await mkdir(outDir, { recursive: true });
-  await mkdir(browserOut, { recursive: true });
   evidence.capturedAt = new Date().toISOString();
 
   // ---------------------------------------------------------------- preflight
@@ -872,16 +867,13 @@ async function main() {
 // ----------------------------------------------------------------------------
 async function browserPass(ids) {
   const actions = browserActions(ids);
-  await assertBrowserOutputDirectoryForMutation(browserOut, browserTrustedRoot);
-  rmSync(`${browserOut}/profile`, { recursive: true, force: true });
-  await mkdir(`${browserOut}/profile`, { recursive: true });
-  await prepareBrowserOutputFiles(actions);
-  const directoryPin = await pinBrowserOutputDirectory(
-    browserOut,
-    browserTrustedRoot,
-  );
+  const { pin: directoryPin, outputNames } =
+    await createPinnedBrowserRunDirectory(
+      browserTrustedRoot,
+      actions,
+    );
   try {
-    return await browserPassPinned(actions, directoryPin);
+    return await browserPassPinned(actions, directoryPin, outputNames);
   } finally {
     await closePinnedBrowserOutputDirectory(directoryPin);
   }
@@ -939,14 +931,7 @@ function browserActions(ids) {
   ];
 }
 
-async function prepareBrowserOutputFiles(actions) {
-  const names = actions
-    .filter((action) => /^(?:shot|text|dom):/.test(action))
-    .map((action) => action.slice(action.indexOf(":") + 1));
-  await prepareBrowserFilesForPin(browserOut, ["cdp-evidence.json", ...names]);
-}
-
-async function browserPassPinned(actions, directoryPin) {
+async function browserPassPinned(actions, directoryPin, outputNames) {
   await assertPinnedBrowserOutputDirectory(directoryPin);
   const proc = spawnSync(
     process.execPath,
@@ -1011,15 +996,7 @@ async function browserPassPinned(actions, directoryPin) {
     failedRequests: cdpEvidence.failedRequests,
     runtimeExceptions: cdpEvidence.runtimeExceptions,
     artifacts,
-    requiredArtifacts: [
-      "01-after-login.png", "01-after-login.txt",
-      "02-release-detail.txt", "02-release-detail.html", "02-release-detail.png",
-      "02b-staging-step.txt", "02b-staging-step.png",
-      "03-build-log-drawer.txt", "03-build-log-drawer.png",
-      "04-staging-run-log.txt", "04-staging-run-log.png",
-      "05-production-recovery-log.txt", "05-production-recovery-log.png",
-      "06-env-versions.txt", "06-env-versions.html", "06-env-versions.png",
-    ],
+    requiredArtifacts: outputNames,
     releaseDetailEvidence: {
       twoBuildsStep02: /BuildRun 2 个/.test(releaseText),
       manifestCount2: /Manifest 2 个/.test(releaseText),

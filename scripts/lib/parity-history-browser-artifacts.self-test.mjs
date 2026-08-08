@@ -184,17 +184,18 @@ const browserSource = driver.slice(
   driver.indexOf("async function browserPass"),
 );
 assertInOrder(browserSource, [
-  "assertBrowserOutputDirectoryForMutation(browserOut, browserTrustedRoot)",
-  "rmSync(`${browserOut}/profile`",
-  "await mkdir(`${browserOut}/profile`",
-  "prepareBrowserOutputFiles(actions)",
-  "pinBrowserOutputDirectory(",
+  "createPinnedBrowserRunDirectory(",
   "browserTrustedRoot",
+  "actions",
   "try {",
-  "return await browserPassPinned(actions, directoryPin)",
+  "return await browserPassPinned(actions, directoryPin, outputNames)",
   "finally {",
   "closePinnedBrowserOutputDirectory(directoryPin)",
 ]);
+assert.doesNotMatch(
+  browserSource,
+  /assertBrowserOutputDirectoryForMutation|prepareBrowserOutputFiles|rmSync\(/,
+);
 const pinnedSource = browserSource.slice(
   browserSource.indexOf("async function browserPassPinned"),
 );

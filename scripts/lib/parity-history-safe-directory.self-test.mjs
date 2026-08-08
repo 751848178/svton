@@ -13,7 +13,6 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  assertBrowserOutputDirectoryForMutation,
   assertPinnedBrowserOutputDirectory,
   closePinnedBrowserOutputDirectory,
   pinBrowserOutputDirectory,
@@ -25,7 +24,7 @@ await writeFile(precreatedLeaf, "");
 const validPin = await pinBrowserOutputDirectory(valid.browserOut, valid.root);
 assert.equal(Object.isFrozen(validPin), true);
 assert.equal(await assertPinnedBrowserOutputDirectory(validPin), true);
-for (const field of ["dev", "ino", "nlink", "mode"]) {
+for (const field of ["dev", "ino", "uid", "gid", "mode"]) {
   assert.match(validPin.identity[field], /^\d+$/);
 }
 await mkdir(join(valid.profile, "descendant"));
@@ -42,7 +41,6 @@ const leafLink = await createFixture();
 const outsideLeaf = await mkdtemp(join(tmpdir(), "f540-outside-leaf-"));
 await rm(leafLink.browserOut, { recursive: true });
 await symlink(outsideLeaf, leafLink.browserOut, "dir");
-await rejectsBeforeMutation(leafLink.browserOut, leafLink.root);
 await rejectsPin(leafLink.browserOut, leafLink.root);
 await cleanup(leafLink, outsideLeaf);
 
@@ -51,7 +49,6 @@ const realAncestor = join(ancestorLink.root, "real");
 const alias = join(ancestorLink.root, "alias");
 await mkdir(join(realAncestor, "browser"), { recursive: true });
 await symlink(realAncestor, alias, "dir");
-await rejectsBeforeMutation(join(alias, "browser"), ancestorLink.root);
 await rejectsPin(join(alias, "browser"), ancestorLink.root);
 await cleanup(ancestorLink);
 
@@ -101,10 +98,6 @@ await rejectsPinnedMutation(async ({ browserOut }) => {
   await chmod(browserOut, 0o000);
   return () => chmod(browserOut, 0o755);
 });
-await rejectsPinnedMutation(async ({ browserOut }) =>
-  mkdir(join(browserOut, "unexpected-directory")),
-);
-
 process.stdout.write("history safe directory self-test passed\n");
 
 async function createFixture(withBrowser = true) {
@@ -120,28 +113,6 @@ async function rejectsPin(path, root) {
     pinBrowserOutputDirectory(path, root),
     /E2E_BROWSER_DIRECTORY_INVALID/,
   );
-}
-
-async function rejectsBeforeMutation(path, root) {
-  const calls = { remove: 0, write: 0 };
-  await assert.rejects(
-    guardedMutation(path, root, {
-      remove: () => {
-        calls.remove += 1;
-      },
-      write: () => {
-        calls.write += 1;
-      },
-    }),
-    /E2E_BROWSER_DIRECTORY_INVALID/,
-  );
-  assert.deepEqual(calls, { remove: 0, write: 0 });
-}
-
-async function guardedMutation(path, root, hooks) {
-  await assertBrowserOutputDirectoryForMutation(path, root);
-  await hooks.remove();
-  await hooks.write();
 }
 
 async function rejectsPinnedMutation(mutate) {

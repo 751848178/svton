@@ -2,41 +2,22 @@ import { constants } from "node:fs";
 import { lstat, open, realpath } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
-const IDENTITY_FIELDS = ["dev", "ino", "nlink", "mode"];
+const IDENTITY_FIELDS = ["dev", "ino", "uid", "gid", "mode"];
 const DIRECTORY_PIN = Symbol("browser-output-directory-pin");
 
-export async function assertBrowserOutputDirectoryForMutation(
+export async function pinBrowserOutputDirectory(
   path,
   trustedRoot,
+  options = {},
 ) {
-  const lexicalPath = resolve(path);
-  const lexicalRoot = resolve(trustedRoot);
+  let handle;
   try {
+    const lexicalPath = resolve(path);
+    const lexicalRoot = resolve(trustedRoot);
     requireDescendant(lexicalPath, lexicalRoot, "outside-trusted-root");
     await assertDirectoryComponents(lexicalRoot, lexicalPath);
     const canonicalRoot = await realpath(lexicalRoot);
     const canonicalPath = await realpath(lexicalPath);
-    requireDescendant(canonicalPath, canonicalRoot, "canonical-escape");
-    return Object.freeze({
-      lexicalPath,
-      lexicalRoot,
-      canonicalPath,
-      canonicalRoot,
-    });
-  } catch (error) {
-    if (isDirectoryError(error)) throw error;
-    throw directoryError(error?.code || error?.message || "preflight-failed");
-  }
-}
-
-export async function pinBrowserOutputDirectory(path, trustedRoot) {
-  let handle;
-  try {
-    const paths = await assertBrowserOutputDirectoryForMutation(
-      path,
-      trustedRoot,
-    );
-    const { lexicalPath, lexicalRoot, canonicalPath, canonicalRoot } = paths;
     requireFlags();
     const pathStats = await lstat(lexicalPath, { bigint: true });
     requireDirectory(pathStats, "pin-path-nondirectory");
@@ -58,6 +39,7 @@ export async function pinBrowserOutputDirectory(path, trustedRoot) {
       lexicalRoot,
       canonicalRoot,
       identity,
+      filePolicy: options.filePolicy || null,
       handle,
     });
   } catch (error) {
@@ -120,6 +102,7 @@ export async function closePinnedBrowserOutputDirectory(pin) {
 
 async function assertDirectoryComponents(root, path) {
   requireDescendant(path, root, "outside-trusted-root");
+  requireDirectory(await lstat(root, { bigint: true }), "root-nondirectory");
   let current = root;
   for (const part of relative(root, path).split(sep)) {
     current = join(current, part);

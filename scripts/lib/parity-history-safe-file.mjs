@@ -1,46 +1,21 @@
 import { constants } from "node:fs";
 import { lstat, open } from "node:fs/promises";
-import { basename, dirname, resolve } from "node:path";
+import { basename, resolve } from "node:path";
 import {
   assertPinnedBrowserChild,
   assertPinnedBrowserOutputDirectory,
 } from "./parity-history-safe-directory.mjs";
 
-const IDENTITY_FIELDS = ["dev", "ino", "size", "mtime", "ctime"];
-
-export async function prepareBrowserFilesForPin(directory, names) {
-  requireValue(
-    Array.isArray(names) && new Set(names).size === names.length,
-    "invalid-prepare-list",
-  );
-  for (const name of names) {
-    requireValue(
-      typeof name === "string" && name.length > 0 && basename(name) === name,
-      "invalid-prepare-name",
-    );
-    const path = resolve(directory, name);
-    requireValue(
-      dirname(path) === resolve(directory),
-      "invalid-prepare-parent",
-    );
-    let handle;
-    try {
-      const flags =
-        constants.O_WRONLY |
-        constants.O_CREAT |
-        constants.O_TRUNC |
-        constants.O_NOFOLLOW |
-        constants.O_NONBLOCK;
-      handle = await open(path, flags, 0o600);
-      requireRegular(await handle.stat({ bigint: true }), "prepare-nonregular");
-    } catch (error) {
-      if (error?.message?.startsWith("E2E_BROWSER_")) throw error;
-      throw fileError(error?.code || error?.message || "prepare-failed");
-    } finally {
-      await handle?.close();
-    }
-  }
-}
+const IDENTITY_FIELDS = [
+  "dev",
+  "ino",
+  "size",
+  "nlink",
+  "uid",
+  "mode",
+  "mtime",
+  "ctime",
+];
 
 export async function readPinnedBrowserFile(pin, name, options = {}) {
   requireValue(
@@ -55,6 +30,7 @@ export async function readPinnedBrowserFile(pin, name, options = {}) {
   };
   const snapshot = await readStableBrowserFile(path, {
     ...options,
+    exclusivePolicy: pin.filePolicy === "exclusive-0600-single-link",
     parentGuard: guard,
   });
   await guard("complete");
@@ -68,7 +44,7 @@ export async function readStableBrowserFile(path, options = {}) {
   try {
     await options.parentGuard?.("before");
     const pathBefore = await lstatFile(path, { bigint: true });
-    requireRegular(pathBefore, "pre-open-nonregular");
+    requireRegular(pathBefore, "pre-open-nonregular", options.exclusivePolicy);
     requireValue(
       Number.isInteger(constants.O_NOFOLLOW),
       "no-follow-not-supported",
@@ -77,7 +53,7 @@ export async function readStableBrowserFile(path, options = {}) {
       constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK;
     handle = await openFile(path, flags);
     const before = await handle.stat({ bigint: true });
-    requireRegular(before, "opened-nonregular");
+    requireRegular(before, "opened-nonregular", options.exclusivePolicy);
     requireValue(sameIdentity(pathBefore, before), "pre-open-replaced");
     await options.parentGuard?.("opened");
     await options.afterOpen?.({ path, handle, before });
@@ -85,8 +61,12 @@ export async function readStableBrowserFile(path, options = {}) {
     await options.afterRead?.({ path, handle, before, buffer });
     const after = await handle.stat({ bigint: true });
     const pathAfter = await lstatFile(path, { bigint: true });
-    requireRegular(after, "post-read-nonregular");
-    requireRegular(pathAfter, "post-read-path-nonregular");
+    requireRegular(after, "post-read-nonregular", options.exclusivePolicy);
+    requireRegular(
+      pathAfter,
+      "post-read-path-nonregular",
+      options.exclusivePolicy,
+    );
     requireValue(sameIdentity(before, after), "file-changed-during-read");
     requireValue(sameIdentity(after, pathAfter), "path-replaced-during-read");
     requireValue(
@@ -103,9 +83,14 @@ export async function readStableBrowserFile(path, options = {}) {
   }
 }
 
-function requireRegular(stats, reason) {
+function requireRegular(stats, reason, exclusivePolicy = false) {
   requireValue(stats?.isFile() === true, reason);
   requireValue(stats.isSymbolicLink?.() !== true, reason);
+  if (exclusivePolicy) {
+    requireValue(stats.nlink === 1n, reason);
+    requireValue(stats.uid === BigInt(process.geteuid()), reason);
+    requireValue((stats.mode & 0o777n) === 0o600n, reason);
+  }
 }
 
 function sameIdentity(left, right) {
@@ -121,6 +106,9 @@ function identityOf(stats) {
     dev: stats?.dev,
     ino: stats?.ino,
     size: stats?.size,
+    nlink: stats?.nlink,
+    uid: stats?.uid,
+    mode: stats?.mode,
     mtime: stats?.mtimeNs ?? stats?.mtimeMs ?? stats?.mtime?.getTime?.(),
     ctime: stats?.ctimeNs ?? stats?.ctimeMs ?? stats?.ctime?.getTime?.(),
   };

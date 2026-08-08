@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { lstatSync, mkdirSync } from "node:fs";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { describeCdpActions } from "./parity-history-cdp-action-evidence.mjs";
 import { runCdpActions } from "./parity-history-cdp-actions.mjs";
+import { writeExclusiveBrowserOutput } from "./parity-history-browser-output-writer.mjs";
 import {
   createCdpCapture,
   validateCdpEvidence,
@@ -22,8 +23,8 @@ main().catch((error) => {
 async function main() {
   const { options, rawActions } = parseArgs(process.argv.slice(2));
   const actionDescriptors = describeCdpActions(rawActions);
-  mkdirSync(options.out, { recursive: true });
-  const chrome = startChrome(options.out);
+  const profile = createProfile(options.out);
+  const chrome = startChrome(profile);
   try {
     const cdp = await connectCdp(PORT);
     await Promise.all([
@@ -39,7 +40,7 @@ async function main() {
       viewport: { width: options.width, height: options.height },
       ...capture.snapshot(actionDescriptors),
     });
-    writeEvidence(options.out, evidence);
+    await writeEvidence(options.out, evidence);
   } finally {
     chrome.kill("SIGTERM");
   }
@@ -47,7 +48,7 @@ async function main() {
 
 function parseArgs(args) {
   const options = {
-    out: "/tmp/codex-tool-runs/svton/f456/browser",
+    out: null,
     width: 1484,
     height: 1324,
   };
@@ -59,10 +60,26 @@ function parseArgs(args) {
     else if (value === "--height") options.height = Number(args[++index]);
     else rawActions.push(value);
   }
+  if (!options.out) throw new Error("E2E_CDP_DRIVER_OUT_REQUIRED");
   return { options, rawActions };
 }
 
-function startChrome(outDir) {
+function createProfile(outDir) {
+  const profile = path.join(outDir, "profile");
+  mkdirSync(profile, { recursive: false, mode: 0o700 });
+  const stats = lstatSync(profile, { bigint: true });
+  if (
+    !stats.isDirectory() ||
+    stats.isSymbolicLink() ||
+    stats.uid !== BigInt(process.geteuid()) ||
+    (stats.mode & 0o777n) !== 0o700n
+  ) {
+    throw new Error("E2E_CDP_PROFILE_INVALID");
+  }
+  return profile;
+}
+
+function startChrome(profile) {
   return spawn(
     CHROME,
     [
@@ -71,18 +88,22 @@ function startChrome(outDir) {
       "--no-sandbox",
       "--disable-dev-shm-usage",
       `--remote-debugging-port=${PORT}`,
-      `--user-data-dir=${path.join(outDir, "profile")}`,
+      `--user-data-dir=${profile}`,
       "about:blank",
     ],
     { stdio: "ignore" },
   );
 }
 
-function writeEvidence(outDir, evidence) {
-  const file = path.join(outDir, "cdp-evidence.json");
-  writeFileSync(file, JSON.stringify(evidence, null, 2));
+async function writeEvidence(outDir, evidence) {
+  const buffer = Buffer.from(JSON.stringify(evidence, null, 2));
+  const { file } = await writeExclusiveBrowserOutput(
+    outDir,
+    "cdp-evidence.json",
+    buffer,
+  );
   process.stdout.write(
-    `${JSON.stringify({ evidence: file, sha256: sha256(readFileSync(file)) })}\n`,
+    `${JSON.stringify({ evidence: file, sha256: sha256(buffer) })}\n`,
   );
 }
 

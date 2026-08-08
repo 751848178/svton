@@ -2,6 +2,8 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import {
+  chmod,
+  link,
   mkdtemp,
   open,
   rename,
@@ -11,47 +13,49 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  prepareBrowserFilesForPin,
-  readStableBrowserFile,
-} from "./parity-history-safe-file.mjs";
+import { readStableBrowserFile } from "./parity-history-safe-file.mjs";
 
 const directory = await mkdtemp(join(tmpdir(), "f533-safe-file-"));
 const path = join(directory, "proof.txt");
 const original = Buffer.from("stable snapshot marker");
-await writeFile(path, original);
-const valid = await readStableBrowserFile(path);
+await writeFile(path, original, { mode: 0o600 });
+const valid = await readStableBrowserFile(path, { exclusivePolicy: true });
 assert.deepEqual(valid.buffer, original);
-for (const field of ["dev", "ino", "size", "mtime", "ctime"]) {
+for (const field of [
+  "dev",
+  "ino",
+  "size",
+  "nlink",
+  "uid",
+  "mode",
+  "mtime",
+  "ctime",
+]) {
   assert.match(valid.identity[field], /^\d+$/);
 }
 
-const link = join(directory, "proof-link.txt");
-await symlink(path, link);
-await rejects(link, /pre-open-nonregular/);
+const linkPath = join(directory, "proof-link.txt");
+await symlink(path, linkPath);
+await rejects(linkPath, /pre-open-nonregular/);
 await rejects(directory, /pre-open-nonregular/);
 
 const fifo = join(directory, "proof.fifo");
 const fifoCreated = spawnSync("mkfifo", [fifo], { encoding: "utf8" });
 assert.equal(fifoCreated.status, 0, fifoCreated.stderr);
 await rejects(fifo, /pre-open-nonregular/);
-await prepareBrowserFilesForPin(directory, ["prepared.txt"]);
-assert.equal(
-  (await readStableBrowserFile(join(directory, "prepared.txt"))).buffer.length,
-  0,
-);
+const linked = join(directory, "linked.txt");
+await link(path, linked);
 await assert.rejects(
-  prepareBrowserFilesForPin(directory, ["proof-link.txt"]),
-  /E2E_BROWSER_FILE_INVALID/,
+  readStableBrowserFile(path, { exclusivePolicy: true }),
+  /pre-open-nonregular/,
 );
+await rm(linked);
+await chmod(path, 0o644);
 await assert.rejects(
-  prepareBrowserFilesForPin(directory, ["proof.fifo"]),
-  /E2E_BROWSER_FILE_INVALID/,
+  readStableBrowserFile(path, { exclusivePolicy: true }),
+  /pre-open-nonregular/,
 );
-await assert.rejects(
-  prepareBrowserFilesForPin(directory, ["../outside.txt"]),
-  /E2E_BROWSER_FILE_INVALID/,
-);
+await chmod(path, 0o600);
 
 await writeFile(path, original);
 const replaced = join(directory, "proof-original.txt");
@@ -59,7 +63,7 @@ await assert.rejects(
   readStableBrowserFile(path, {
     afterOpen: async () => {
       await rename(path, replaced);
-      await writeFile(path, Buffer.from("replacement bytes"));
+      await writeFile(path, Buffer.from("replacement bytes"), { mode: 0o600 });
     },
   }),
   /(?:file-changed|path-replaced)-during-read/,
