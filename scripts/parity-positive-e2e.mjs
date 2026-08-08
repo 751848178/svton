@@ -34,6 +34,10 @@ import {
   finishEvidence,
   predicate,
 } from "./lib/parity-e2e-evidence.mjs";
+import {
+  productionGateEvidence,
+  productionGateEvidenceChecks,
+} from "./lib/parity-production-gate-evidence.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const outDir = "/tmp/codex-tool-runs/svton/f455";
@@ -632,6 +636,7 @@ async function main() {
       throw new Error(`production deploy not completed: ${JSON.stringify(row)}`);
     }
     const result = row.result || {};
+    const finalGateKey = `final:${releaseRunId}:${runId}`;
     const [productionRunCount, productionGate] = await Promise.all([
       prisma.deploymentRun.count({
         where: {
@@ -640,10 +645,29 @@ async function main() {
           artifactManifestId: manifestId,
         },
       }),
-      prisma.releaseGateDecision.findFirst({
-        where: { releaseOrderId: orderId, stage: "production" },
-        orderBy: { createdAt: "desc" },
-        select: { allowed: true, blockerGateIds: true },
+      prisma.releaseGateDecision.findUnique({
+        where: {
+          releaseOrderId_stage_requestKey: {
+            releaseOrderId: orderId,
+            stage: "production",
+            requestKey: finalGateKey,
+          },
+        },
+        select: {
+          id: true,
+          releaseOrderId: true,
+          stage: true,
+          phase: true,
+          requestKey: true,
+          allowed: true,
+          inputHash: true,
+          inputSnapshot: true,
+          blockerGateIds: true,
+          integrityErrors: true,
+          actionRunType: true,
+          actionRunId: true,
+          consumedAt: true,
+        },
       }),
     ]);
     return {
@@ -661,7 +685,19 @@ async function main() {
       artifactVerified: result.artifactVerified,
       gateDecision: result.gateDecision,
       productionRunCount,
-      productionGate,
+      productionGate: productionGateEvidence(productionGate, result.gateDecision, {
+        releaseOrderId: orderId,
+        releaseRunId,
+        deploymentRunId: runId,
+        environmentId: "parity-env-production",
+        manifestId,
+        buildRunId,
+        configRevisionId: productionR2?.revision?.id,
+        finalGateKey,
+        deploymentReleaseRunId: row.releaseRunId,
+        deploymentEnvironmentId: row.environmentId,
+        deploymentManifestId: row.artifactManifestId,
+      }),
     };
   });
 
@@ -1045,8 +1081,7 @@ function productionExecutionChecks(result) {
     predicate("finalUrl", Boolean(finalUrl), finalUrl), check("siteProbeStatus", result.siteProbe?.http?.status, "passed"),
     check("exactFinalUrl", result.siteProbe?.http?.url, finalUrl), check("tlsStatus", result.siteProbe?.tls?.status, "valid"),
     check("routeSwitchStatus", result.routeSwitch?.status, "switched"), predicate("providerReceipt", Boolean(receipt), receipt),
-    check("productionGateAllowed", result.productionGate?.allowed, true),
-    predicate("noProductionBlockers", (result.productionGate?.blockerGateIds || []).length === 0, result.productionGate?.blockerGateIds),
+    ...productionGateEvidenceChecks(result.productionGate),
   ];
 }
 
