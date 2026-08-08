@@ -936,15 +936,18 @@ async function browserPass(ids) {
       }
     })
     .filter(Boolean);
-  const artifacts = await readBackBrowserArtifacts(shaLines, browserOut, readFile);
+  const { artifacts, contents } = await readBackBrowserArtifacts(
+    shaLines,
+    browserOut,
+  );
   const cdpEvidence = JSON.parse(await readFile(`${browserOut}/cdp-evidence.json`, "utf8"));
   const browserFailures = summarizeBrowserFailures(cdpEvidence);
-  const releaseText = await readFile(`${browserOut}/02-release-detail.txt`, "utf8");
-  const stagingStepText = await readFile(`${browserOut}/02b-staging-step.txt`, "utf8");
-  const envVersionsText = await readFile(`${browserOut}/06-env-versions.txt`, "utf8");
-  const buildLogText = await readFile(`${browserOut}/03-build-log-drawer.txt`, "utf8");
-  const stagingLogText = await readFile(`${browserOut}/04-staging-run-log.txt`, "utf8");
-  const productionLogText = await readFile(`${browserOut}/05-production-recovery-log.txt`, "utf8");
+  const releaseText = contents["02-release-detail.txt"].toString("utf8");
+  const stagingStepText = contents["02b-staging-step.txt"].toString("utf8");
+  const envVersionsText = contents["06-env-versions.txt"].toString("utf8");
+  const buildLogText = contents["03-build-log-drawer.txt"].toString("utf8");
+  const stagingLogText = contents["04-staging-run-log.txt"].toString("utf8");
+  const productionLogText = contents["05-production-recovery-log.txt"].toString("utf8");
   return {
     driver: cdpDriver,
     driverExit: proc.status,

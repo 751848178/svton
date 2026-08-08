@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { basename, dirname, resolve } from "node:path";
+import { readStableBrowserFile } from "./parity-history-safe-file.mjs";
 
 export const ARTIFACT_MIN_BYTES = {
   screenshot: 128,
@@ -20,9 +21,10 @@ export function artifactMetadata(kind, buffer) {
   };
 }
 
-export async function readBackBrowserArtifacts(entries, browserOut, readFile) {
+export async function readBackBrowserArtifacts(entries, browserOut) {
   const outputDirectory = resolve(browserOut);
   const artifacts = {};
+  const contents = {};
   for (const entry of entries) {
     const fields = ["screenshot", "dom", "text"].filter(
       (field) => entry?.[field] !== undefined,
@@ -42,7 +44,8 @@ export async function readBackBrowserArtifacts(entries, browserOut, readFile) {
     }
     if (Object.hasOwn(artifacts, name)) throw artifactError("duplicate");
     if (entry.kind !== field) throw artifactError("kind-field-mismatch");
-    const actual = artifactMetadata(entry.kind, await readFile(controlledPath));
+    const snapshot = await readStableBrowserFile(controlledPath);
+    const actual = artifactMetadata(entry.kind, snapshot.buffer);
     if (!browserArtifactsValid([name], { [name]: actual })) {
       throw artifactError("filename-kind-mismatch");
     }
@@ -54,8 +57,9 @@ export async function readBackBrowserArtifacts(entries, browserOut, readFile) {
       throw artifactError("metadata-mismatch");
     }
     artifacts[name] = actual;
+    contents[name] = snapshot.buffer;
   }
-  return artifacts;
+  return { artifacts, contents };
 }
 
 export function validateArtifactBuffer(kind, buffer) {
