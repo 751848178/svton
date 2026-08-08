@@ -2,6 +2,7 @@ import {
   sanitizeCdpText,
   sanitizeCdpUrl,
 } from "./parity-history-cdp-redaction.mjs";
+import { validateHttpResponses } from "./parity-history-cdp-response-schema.mjs";
 
 const CAPTURED_TYPES = new Set(["Document", "Fetch", "XHR"]);
 export const CDP_EVIDENCE_SCHEMA = "devpilot.parity-history.cdp-evidence";
@@ -93,7 +94,7 @@ export function summarizeBrowserFailures(evidence = {}) {
         (event.source === "log" && event.level === "error"),
     ),
     badResponses: evidence.httpResponses.filter(
-      (response) => Number(response.status) >= 400,
+      (response) => response.status >= 400,
     ),
     failedRequests: evidence.failedRequests,
     runtimeExceptions: evidence.runtimeExceptions,
@@ -111,6 +112,13 @@ export function validateCdpEvidence(evidence) {
     "runtimeExceptions",
   ]) {
     if (!Array.isArray(evidence?.[field])) invalid.push(field);
+  }
+  if (!invalid.includes("httpResponses")) {
+    try {
+      validateHttpResponses(evidence.httpResponses);
+    } catch {
+      invalid.push("httpResponses");
+    }
   }
   if (invalid.length > 0) {
     throw new Error(`E2E_CDP_EVIDENCE_SCHEMA_INVALID: ${invalid.join(",")}`);

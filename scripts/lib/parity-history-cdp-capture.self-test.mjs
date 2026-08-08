@@ -27,6 +27,7 @@ const runtimeException = capture([
     columnNumber: 34,
     description: "ReferenceError: boom password=secret",
   }),
+  response("Document", 200, "/"),
 ]);
 assert.ok(failedChecks(runtimeException).length > 0);
 assert.deepEqual(runtimeException.runtimeExceptions, [
@@ -61,7 +62,9 @@ assert.equal(clean.schema, CDP_EVIDENCE_SCHEMA);
 assert.equal(clean.version, CDP_EVIDENCE_VERSION);
 assert.deepEqual(clean.runtimeExceptions, []);
 assert.deepEqual(failedChecks(clean), []);
-assert.deepEqual(failedChecks(capture([])), []);
+rejectsSchema(clean, (evidence) => {
+  evidence.httpResponses = [];
+});
 assert.deepEqual(
   clean.httpResponses.map(({ host, type, status }) => ({ host, type, status })),
   [
@@ -92,7 +95,10 @@ rejectsSchema(clean, (evidence) => {
 process.stdout.write("history CDP capture self-test passed\n");
 
 function assertRejected(events) {
-  assert.ok(failedChecks(capture(events)).length > 0);
+  assert.ok(
+    failedChecks(capture([...events, response("Document", 200, "/")])).length >
+      0,
+  );
 }
 
 function failedChecks(evidence) {
