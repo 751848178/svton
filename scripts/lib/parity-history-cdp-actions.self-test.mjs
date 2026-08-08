@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runCdpActions } from "./parity-history-cdp-actions.mjs";
+import { buildValidScreenshotPng } from "./parity-history-png-fixture.mjs";
 
 const outputDirectory = await mkdtemp(join(tmpdir(), "f547-actions-"));
 const password = "F547-EXECUTION-SECRET@@@tail";
@@ -54,7 +55,10 @@ assert.deepEqual(
   receipts.map(({ kind }) => kind),
   ["screenshot", "text", "dom"],
 );
-assert.equal((await readFile(join(outputDirectory, "proof.png"))).length, 128);
+assert.equal(
+  (await readFile(join(outputDirectory, "proof.png"))).length,
+  pngFixture().length,
+);
 assert.match(
   await readFile(join(outputDirectory, "proof.txt"), "utf8"),
   /visible text/,
@@ -108,9 +112,9 @@ function fakeCdp(calls, setValuePass) {
 }
 
 function pngFixture() {
-  const buffer = Buffer.alloc(128);
-  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(buffer);
-  return buffer;
+  // A real, structurally valid minimal PNG so the F534 structural parse in
+  // artifactMetadata accepts the screenshot captured by runCdpActions.
+  return buildValidScreenshotPng();
 }
 
 async function captureStdout(action) {

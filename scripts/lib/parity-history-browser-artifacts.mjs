@@ -2,16 +2,14 @@ import { createHash } from "node:crypto";
 import { basename, dirname, resolve } from "node:path";
 import { assertPinnedBrowserOutputDirectory } from "./parity-history-safe-directory.mjs";
 import { readPinnedBrowserFile } from "./parity-history-safe-file.mjs";
+import { hasValidPngStructure } from "./parity-history-png-structure.mjs";
+import { hasValidArtifactContent } from "./parity-history-artifact-content.mjs";
 
 export const ARTIFACT_MIN_BYTES = {
   screenshot: 128,
   dom: 64,
   text: 16,
 };
-
-const PNG_SIGNATURE = Buffer.from([
-  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
-]);
 
 export function artifactMetadata(kind, buffer) {
   validateArtifactBuffer(kind, buffer);
@@ -74,13 +72,17 @@ export async function readBackBrowserArtifacts(
 
 export function validateArtifactBuffer(kind, buffer) {
   const minimum = ARTIFACT_MIN_BYTES[kind];
-  const signatureValid = kind !== "screenshot" || hasPngSignature(buffer);
   if (
     !Buffer.isBuffer(buffer) ||
     !Number.isInteger(minimum) ||
-    buffer.length < minimum ||
-    !signatureValid
+    buffer.length < minimum
   ) {
+    throw new Error(`E2E_ARTIFACT_CONTENT_INVALID: ${kind}`);
+  }
+  if (kind === "screenshot" && !hasValidPngStructure(buffer)) {
+    throw new Error(`E2E_ARTIFACT_CONTENT_INVALID: ${kind}`);
+  }
+  if (!hasValidArtifactContent(kind, buffer)) {
     throw new Error(`E2E_ARTIFACT_CONTENT_INVALID: ${kind}`);
   }
   return buffer;
@@ -112,14 +114,6 @@ function kindForName(name) {
   if (name.endsWith(".html")) return "dom";
   if (name.endsWith(".txt")) return "text";
   return null;
-}
-
-function hasPngSignature(buffer) {
-  return (
-    Buffer.isBuffer(buffer) &&
-    buffer.length >= PNG_SIGNATURE.length &&
-    buffer.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)
-  );
 }
 
 function artifactError(reason) {

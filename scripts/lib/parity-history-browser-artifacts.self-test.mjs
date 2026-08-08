@@ -21,12 +21,10 @@ import {
   pinBrowserOutputDirectory,
 } from "./parity-history-safe-directory.mjs";
 import { readPinnedBrowserFile } from "./parity-history-safe-file.mjs";
+import { buildValidScreenshotPng } from "./parity-history-png-fixture.mjs";
 
 const buffers = {
-  screenshot: Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    Buffer.alloc(ARTIFACT_MIN_BYTES.screenshot - 8, 1),
-  ]),
+  screenshot: buildValidScreenshotPng(),
   dom: Buffer.from(
     `<!doctype html><html><body>${"d".repeat(64)}</body></html>`,
   ),
