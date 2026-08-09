@@ -25,6 +25,7 @@ describe("F454 isolated parity compose stack", () => {
       '"127.0.0.1:${PARITY_REDIS_PORT:-4384}:6379"',
       '"127.0.0.1:${PARITY_SSH_PORT:-4222}:2222"',
       '"127.0.0.1:${PARITY_TARGET_PORT:-43992}:80"',
+      '"127.0.0.1:${PARITY_ROUTE_CONTROL_PORT:-43993}:8080"',
       "MYSQL_DATABASE: ${PARITY_DATABASE_NAME:-devpilot_parity}",
       "org.opencontainers.image.revision:",
       "io.svton.devpilot.source-tree-sha256:",
@@ -51,6 +52,7 @@ describe("F454 isolated parity compose stack", () => {
       '"127.0.0.1:${PARITY_REDIS_PORT:-4384}:6379"',
       '"127.0.0.1:${PARITY_SSH_PORT:-4222}:2222"',
       '"127.0.0.1:${PARITY_TARGET_PORT:-43992}:80"',
+      '"127.0.0.1:${PARITY_ROUTE_CONTROL_PORT:-43993}:8080"',
     ]) {
       expect(source).toContain(port);
     }
@@ -79,7 +81,9 @@ describe("F454 isolated parity compose stack", () => {
       'RELEASE_STAGING_DEPLOYMENT_TIMEOUT_MS: "120000"',
       "SITE_ROUTE_SWITCH_PROVIDER_PROFILE: http-route-control-v1",
       "SITE_ROUTE_SWITCH_HTTP_ENDPOINT: http://route-control:8080",
-      "parity-route-control-provider.mjs:/app/scripts/parity-route-control-provider.mjs:ro",
+      "dockerfile: scripts/parity-route-control.Dockerfile",
+      "image: ${PARITY_ROUTE_CONTROL_IMAGE:-devpilot-parity-route-control:local}",
+      'command: ["node", "/app/parity-route-control-provider.mjs"]',
       "REPOSITORY_ANALYSIS_LOCAL_ROOTS: /read-only-repositories",
       "devpilot-parity-release-build:/var/lib/devpilot/release-build",
       "devpilot-parity-deployments:/var/lib/devpilot/release-build/deployments",
@@ -91,5 +95,8 @@ describe("F454 isolated parity compose stack", () => {
     }
     // The parity deploy target must NOT mount the host docker socket.
     expect(source).not.toContain("docker.sock");
+    expect(source).not.toContain(
+      "parity-route-control-provider.mjs:/app/scripts/parity-route-control-provider.mjs:ro",
+    );
   });
 });
