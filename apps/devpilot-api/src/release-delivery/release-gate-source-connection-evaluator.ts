@@ -30,13 +30,6 @@ export function evaluateReleaseGateSource(
         : "No required CI and code-review provider is connected",
     );
   }
-  if (context.decisionTarget?.sourceResolution === "unavailable") {
-    return unavailable(
-      "repository_source_resolution_failed",
-      "无法解析当前主分支的精确 Commit",
-      "The exact Commit for the current default branch could not be resolved",
-    );
-  }
   const checkedAt = connection.verifiedAt ?? connection.updatedAt;
   const reference = `repository-connection:${connection.id}`;
   if (connection.status === "failed") {
@@ -50,6 +43,13 @@ export function evaluateReleaseGateSource(
       ttlMs: SOURCE_TTL_MS,
       now,
     });
+  }
+  if (context.decisionTarget?.sourceResolution === "unavailable") {
+    return unavailable(
+      "repository_source_resolution_failed",
+      "无法解析当前主分支的精确 Commit",
+      "The exact Commit for the current default branch could not be resolved",
+    );
   }
   if (connection.status !== "connected" || !connection.verifiedAt) {
     return evaluated({
