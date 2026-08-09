@@ -47,7 +47,9 @@ assert.match(
   adapter,
   /parseNegativeHistoryEvidence\(trusted\.bytes, trusted\.parserInput\)/,
 );
-assert.match(adapter, /evidenceFd: 3, receiptFd: 4/);
+assert.match(adapter, /evidenceFd: 3/);
+assert.match(adapter, /receiptFd: 4/);
+assert.match(adapter, /expectedRunRoot: env\[HISTORY_CHAIN_RUN_ROOT\]/);
 assert.doesNotMatch(adapter, /readFile/);
 assert.doesNotMatch(binding, /\.(create|update|upsert|delete|deleteMany)\s*\(/);
 assert.match(contract, /canonicalHistoryStepValid\(stepName, step\)/);

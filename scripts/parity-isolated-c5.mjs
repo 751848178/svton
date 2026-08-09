@@ -40,7 +40,11 @@ async function runIsolatedAcceptance() {
   const { environment, manifestPath } = context;
   let routeAudit;
   try {
-    const history = await runHistoryChain({ args: [], env: environment });
+    const history = await runHistoryChain({
+      args: [],
+      env: environment,
+      parentDirectory: context.runDirectory,
+    });
     routeAudit = await captureIsolatedC5RouteAudit(root, context);
     if (routeAudit.receipt.status !== "verified") {
       throw new Error("isolated C5 route-control audit was not verified");

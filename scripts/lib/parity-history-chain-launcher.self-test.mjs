@@ -5,13 +5,16 @@ import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import {
   mkdir,
+  mkdtemp,
   readFile,
+  realpath,
   rm,
   symlink,
   utimes,
   writeFile,
 } from "node:fs/promises";
-import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { openHistoryChainArtifact } from "./parity-history-chain-artifact.mjs";
 import { runHistoryChain } from "./parity-history-chain-launcher.mjs";
 import { negativeHistoryInputFromEnvironment } from "./parity-negative-e2e-context.mjs";
@@ -67,9 +70,13 @@ assert.match(
 
 const calls = [];
 let successfulRunRoot;
+const ownedParent = await realpath(
+  await mkdtemp(join(await realpath(tmpdir()), "f537-owned-parent-")),
+);
 const result = await runHistoryChain({
   args: [],
   env: {},
+  parentDirectory: ownedParent,
   spawn(_command, args, options) {
     calls.push(args[0]);
     const runRoot = options.env.DEVPILOT_HISTORY_CHAIN_RUN_ROOT;
@@ -86,6 +93,7 @@ const result = await runHistoryChain({
       evidenceFd: options.stdio[3],
       receiptFd: options.stdio[4],
       parentPid: process.pid,
+      expectedRunRoot: runRoot,
     });
     assert.equal(JSON.parse(trusted.bytes).status, "passed");
     assert.throws(
@@ -94,6 +102,7 @@ const result = await runHistoryChain({
           evidenceFd: options.stdio[3],
           receiptFd: options.stdio[4],
           parentPid: process.pid,
+          expectedRunRoot: runRoot,
           nowMs: Date.parse(trusted.receipt.consumerDeadlineAt) + 1,
         }),
       /consumer-observation-delayed/,
@@ -106,7 +115,8 @@ assert.deepEqual(calls, [
   "scripts/parity-negative-e2e.mjs",
 ]);
 assert.equal(result.status, "passed");
-await rm(successfulRunRoot, { recursive: true, force: true });
+assert.equal(dirname(successfulRunRoot), ownedParent);
+await rm(ownedParent, { recursive: true, force: true });
 
 await staleArtifactRejects();
 await symlinkArtifactRejects();

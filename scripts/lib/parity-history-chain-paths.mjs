@@ -16,8 +16,15 @@ export const LEGACY_HISTORY_INPUTS = Object.freeze([
   "F456_CAPTURED_NOT_AFTER",
 ]);
 
-export async function createHistoryChainPaths() {
-  const canonicalTempRoot = await realpath(tmpdir());
+export async function createHistoryChainPaths(options = {}) {
+  const requestedParent = options.parentDirectory ?? tmpdir();
+  const canonicalTempRoot = await realpath(requestedParent);
+  if (
+    options.parentDirectory !== undefined &&
+    resolve(requestedParent) !== canonicalTempRoot
+  ) {
+    throw new Error("F537_HISTORY_CHAIN_PATH_INVALID: parent not canonical");
+  }
   const runRoot = await mkdtemp(join(canonicalTempRoot, "svton-f537-"));
   return freezePaths(canonicalTempRoot, runRoot);
 }

@@ -25,7 +25,9 @@ export async function runHistoryChain(options = {}) {
   const spawn = options.spawn ?? spawnSync;
   const now = options.now ?? Date.now;
   assertPublicHistoryChainInvocation(args, environment);
-  const paths = await (options.createPaths ?? createHistoryChainPaths)();
+  const paths = await (options.createPaths ?? createHistoryChainPaths)({
+    parentDirectory: options.parentDirectory,
+  });
   const producerStartedAtMs = now();
   const producer = spawnChild(
     spawn,

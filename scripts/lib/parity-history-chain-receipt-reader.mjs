@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
-import { fstatSync, readSync, realpathSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { basename, dirname, isAbsolute, join, relative } from "node:path";
+import { fstatSync, readSync } from "node:fs";
+import { validateOwnedHistoryPaths } from "./parity-history-chain-receipt-paths.mjs";
 
 const IDENTITY_KEYS = [
   "ctimeNs",
@@ -33,7 +32,7 @@ export function readHistoryChainReceipt(input) {
     receipt.launcherPid === (input.parentPid ?? process.ppid),
     "launcher-parent-mismatch",
   );
-  validateOwnedPaths(receipt);
+  validateOwnedHistoryPaths(receipt, input.expectedRunRoot);
   const evidence = readStableFd(input.evidenceFd, false);
   requireValue(
     sameIdentity(evidence.identity, receipt.f456.identity),
@@ -107,40 +106,6 @@ function validateReceiptShape(receipt) {
     Number.isInteger(receipt.launcherPid) &&
       Number.isInteger(receipt.producerPid),
     "receipt-pid",
-  );
-}
-
-function validateOwnedPaths(receipt) {
-  requireValue(
-    receipt.canonicalTempRoot === realpathSync(tmpdir()),
-    "temp-root-mismatch",
-  );
-  requireValue(isAbsolute(receipt.canonicalRunRoot), "run-root-relative");
-  requireValue(
-    dirname(receipt.canonicalRunRoot) === receipt.canonicalTempRoot,
-    "run-root-not-direct-child",
-  );
-  requireValue(
-    basename(receipt.canonicalRunRoot) === receipt.runId,
-    "run-id-mismatch",
-  );
-  requireValue(
-    receipt.f455.path ===
-      join(receipt.canonicalRunRoot, "f455", "f455-positive-e2e-evidence.json"),
-    "f455-path",
-  );
-  requireValue(
-    receipt.f456.path ===
-      join(
-        receipt.canonicalRunRoot,
-        "f456",
-        "f456-version-history-evidence.json",
-      ),
-    "f456-path",
-  );
-  requireValue(
-    !relative(receipt.canonicalRunRoot, receipt.f456.path).startsWith(".."),
-    "path-outside-root",
   );
 }
 

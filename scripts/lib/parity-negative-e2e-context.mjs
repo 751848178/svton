@@ -1,6 +1,7 @@
 import { parseNegativeHistoryEvidence } from "./parity-negative-history-contract.mjs";
 import {
   HISTORY_CHAIN_CONSUMER,
+  HISTORY_CHAIN_RUN_ROOT,
   LEGACY_HISTORY_INPUTS,
 } from "./parity-history-chain-paths.mjs";
 import { readHistoryChainReceipt } from "./parity-history-chain-receipt-reader.mjs";
@@ -24,5 +25,9 @@ export function negativeHistoryInputFromEnvironment(env) {
     if (env[name] !== undefined)
       throw new Error(`legacy history input forbidden: ${name}`);
   }
-  return Object.freeze({ evidenceFd: 3, receiptFd: 4 });
+  return Object.freeze({
+    evidenceFd: 3,
+    receiptFd: 4,
+    expectedRunRoot: env[HISTORY_CHAIN_RUN_ROOT],
+  });
 }
