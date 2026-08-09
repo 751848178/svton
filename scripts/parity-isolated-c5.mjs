@@ -13,6 +13,7 @@ import {
 } from "./lib/parity-isolated-c5-context.mjs";
 import { runHistoryChain } from "./lib/parity-history-chain-launcher.mjs";
 import { captureIsolatedC5RouteAudit } from "./lib/parity-isolated-c5-route-audit.mjs";
+import { cleanupFailedIsolatedAcceptance } from "./lib/parity-isolated-c5-failure.mjs";
 import { parityRuntimeConfig } from "./lib/parity-runtime-config.mjs";
 import { assertNoRuntimeResources } from "./lib/parity-runtime-resource-ownership.mjs";
 
@@ -43,9 +44,14 @@ async function runIsolatedAcceptance() {
       `${JSON.stringify({ status: "passed", manifestPath, history, routeAudit })}\n`,
     );
   } catch (error) {
-    if (!routeAudit)
-      routeAudit = await captureIsolatedC5RouteAudit(root, context);
-    await failAndCleanup(context, error, routeAudit);
+    await cleanupFailedIsolatedAcceptance({
+      captureRouteAudit: captureIsolatedC5RouteAudit,
+      cleanup: failAndCleanup,
+      root,
+      context,
+      error,
+      routeAudit,
+    });
     throw error;
   }
 }
