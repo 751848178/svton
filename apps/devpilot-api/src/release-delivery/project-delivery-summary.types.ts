@@ -34,7 +34,12 @@ export interface ProjectDeliverySummaryResponse {
     ProjectDeliveryBaselineSummary | null
   >;
   resources: { bound: number; total: number };
-  entries: { active: number; total: number; unit: "site" };
+  entries: {
+    active: number;
+    total: number;
+    unit: "site";
+    productionDomain: string | null;
+  };
   currentVersions: Record<
     ProjectDeliveryBaselineRole,
     ProjectDeliveryCurrentVersionSummary | null

@@ -30,7 +30,7 @@ export function presentProjectDeliverySummary(
       .map(({ id }) => id),
   );
   const resources = resourceSummary(project, activeEnvironmentIds);
-  const entries = entrySummary(project, activeEnvironmentIds);
+  const entries = entrySummary(project, activeEnvironmentIds, production?.id);
   return {
     version: 1,
     scope: { teamId: project.teamId, actorId, projectId: project.id },
@@ -145,6 +145,7 @@ function resourceSummary(
 function entrySummary(
   project: ProjectDeliverySummaryRecord,
   activeEnvironmentIds: Set<string>,
+  productionEnvironmentId: string | undefined,
 ) {
   const sites = project.sites.filter(
     (site) =>
@@ -158,6 +159,14 @@ function entrySummary(
         activeEnvironmentIds.has(site.environmentId),
     ).length,
     total: sites.length,
+    productionDomain:
+      sites
+        .find(
+          (site) =>
+            site.status === "active" &&
+            site.environmentId === productionEnvironmentId,
+        )
+        ?.primaryDomain.trim() ?? null,
   };
 }
 

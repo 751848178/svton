@@ -19,7 +19,12 @@ export interface ProjectDeliverySummary {
     { id: string; key: string; name: string; ready: boolean } | null
   >;
   resources: { bound: number; total: number };
-  entries: { active: number; total: number; unit: 'site' };
+  entries: {
+    active: number;
+    total: number;
+    unit: 'site';
+    productionDomain: string | null;
+  };
   currentVersions: Record<
     ProjectDeliveryBaselineRole,
     {

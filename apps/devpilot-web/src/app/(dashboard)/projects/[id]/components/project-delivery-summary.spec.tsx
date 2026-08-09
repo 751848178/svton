@@ -69,7 +69,7 @@ function fixture(): ProjectDeliverySummary {
       production: { id: 'env-production', key: 'production', name: 'Production', ready: false },
     },
     resources: { bound: 0, total: 0 },
-    entries: { active: 0, total: 0, unit: 'site' },
+    entries: { active: 0, total: 0, unit: 'site', productionDomain: null },
     currentVersions: { staging: current('staging'), production: current('production') },
   };
 }

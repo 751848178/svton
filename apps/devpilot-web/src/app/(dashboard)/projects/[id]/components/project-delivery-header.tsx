@@ -46,6 +46,16 @@ export function ProjectDeliveryHeader({
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
+        {summary.entries.productionDomain ? (
+          <LinkButton
+            href={`https://${summary.entries.productionDomain}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            variant="outline"
+          >
+            {t('projectDeliveryProductionSite')}
+          </LinkButton>
+        ) : null}
         <LinkButton
           href={`/projects/${encodeURIComponent(projectId)}/settings`}
           variant="outline"

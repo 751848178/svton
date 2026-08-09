@@ -604,6 +604,7 @@
     "tabReleaseOrders": "Release Orders",
     "tabEnvironmentVersions": "Environment Versions",
     "manageProject": "Manage Project",
+    "projectDeliveryProductionSite": "Production site",
     "projectDeliveryDefaultBranch": "Default branch {branch}",
     "projectDeliveryRepositoryUnknown": "Canonical repository identity unavailable",
     "projectDeliveryRuntimeBaseline": "Project runtime baseline",

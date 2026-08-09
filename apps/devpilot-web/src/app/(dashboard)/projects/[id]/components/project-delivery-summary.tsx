@@ -23,7 +23,13 @@ export function ProjectDeliveryWeakSummary({ summary }: { summary: ProjectDelive
       t('projectDeliveryResourceBinding'),
       t('projectDeliveryResourceBindingValue', summary.resources),
     ],
-    [t('projectDeliverySiteEntries'), t('projectDeliverySiteEntriesValue', summary.entries)],
+    [
+      t('projectDeliverySiteEntries'),
+      t('projectDeliverySiteEntriesValue', {
+        active: summary.entries.active,
+        total: summary.entries.total,
+      }),
+    ],
   ];
   return (
     <section

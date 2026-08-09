@@ -604,6 +604,7 @@
     "tabReleaseOrders": "发布单",
     "tabEnvironmentVersions": "环境版本",
     "manageProject": "管理项目",
+    "projectDeliveryProductionSite": "正式站点",
     "projectDeliveryDefaultBranch": "默认分支 {branch}",
     "projectDeliveryRepositoryUnknown": "规范仓库身份尚不可用",
     "projectDeliveryRuntimeBaseline": "项目运行基线",

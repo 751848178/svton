@@ -23,7 +23,12 @@ describe("project delivery summary presenter", () => {
       },
       baselines: { staging: { ready: true }, production: { ready: true } },
       resources: { bound: 4, total: 6 },
-      entries: { active: 1, total: 2, unit: "site" },
+      entries: {
+        active: 1,
+        total: 2,
+        unit: "site",
+        productionDomain: "pay.example.com",
+      },
       currentVersions: {
         staging: {
           releaseVersion: "2.4.0-rc.1",
@@ -69,7 +74,12 @@ describe("project delivery summary presenter", () => {
     const result = presentProjectDeliverySummary(record, "actor-2");
 
     expect(result.resources).toEqual({ bound: 2, total: 4 });
-    expect(result.entries).toEqual({ active: 0, total: 1, unit: "site" });
+    expect(result.entries).toEqual({
+      active: 0,
+      total: 1,
+      unit: "site",
+      productionDomain: null,
+    });
     expect(result.baselines.staging?.ready).toBe(false);
     expect(result.scope.actorId).toBe("actor-2");
   });

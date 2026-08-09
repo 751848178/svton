@@ -61,7 +61,12 @@ describeIntegration("project delivery summary real MySQL integration", () => {
       },
       baselines: { staging: { ready: true }, production: { ready: true } },
       resources: { bound: 4, total: 6 },
-      entries: { active: 1, total: 2, unit: "site" },
+      entries: {
+        active: 1,
+        total: 2,
+        unit: "site",
+        productionDomain: "pay.example.com",
+      },
       currentVersions: {
         staging: { releaseVersion: "2.4.0-rc.1" },
         production: { releaseVersion: "2.3.2" },
