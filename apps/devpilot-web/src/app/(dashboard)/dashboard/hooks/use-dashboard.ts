@@ -26,6 +26,7 @@ import type {
   DashboardProject,
   DashboardResourceRequest,
 } from '../types';
+import { countActionableApprovals } from '../utils/dashboard-approval-stats.utils';
 
 /** 进行中部署状态。 */
 const ACTIVE_RUN_STATUSES = new Set(['queued', 'running']);
@@ -69,7 +70,7 @@ export function useDashboard() {
   const stats = useMemo(() => {
     const now = Date.now();
     return {
-      pendingApprovals: approvals.length,
+      pendingApprovals: countActionableApprovals(approvals),
       failedDeployments24h: runs.filter(
         (run) => run.status === 'failed' && now - new Date(run.startedAt).getTime() < DAY_MS,
       ).length,

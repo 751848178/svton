@@ -10,6 +10,9 @@
 export interface DashboardApproval {
   id: string;
   status: string;
+  capabilities?: {
+    review: boolean;
+  };
 }
 
 /** 项目（GET:/projects 的子集）。 */
