@@ -52,6 +52,19 @@ export async function runEnvironmentDeployment(
       logs,
       result: evidence,
     });
+    if (context.environment.baselineRole !== "production") {
+      return deps.completion.complete({
+        deploymentRunId: context.run.id,
+        kind: context.input.kind,
+        teamId: context.input.teamId,
+        actorId: context.input.actorId,
+        projectId: context.input.projectId,
+        releaseOrderId: context.manifest.releaseOrderId,
+        status: "completed",
+        logs,
+        result: evidence,
+      });
+    }
     return finalizeDeployedEnvironment(deps, context, logs, evidence);
   } catch (error) {
     return completeFailedEnvironment(deps, context, error);
