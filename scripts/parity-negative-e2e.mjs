@@ -340,7 +340,7 @@ async function main() {
       headers,
       {
         manifestId: MANIFEST_M2,
-        expectedInputHash: "f457-does-not-matter-capability-check-first",
+        expectedInputHash: "f".repeat(64),
         idempotencyKey: `f457-capability-${Date.now()}`,
         strategy: "blue_green",
       },
