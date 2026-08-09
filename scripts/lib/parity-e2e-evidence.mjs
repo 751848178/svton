@@ -1,4 +1,5 @@
 import { parityErrorEvidence } from "./parity-http-error.mjs";
+import { parityDeploymentErrorEvidence } from "./parity-deployment-failure.mjs";
 
 export function check(name, actual, expected) {
   return { name, pass: Object.is(actual, expected), actual, expected };
@@ -38,7 +39,7 @@ export async function checkedStep(evidence, name, action, verify, log = () => {}
       checks: sanitize(checks),
       result: sanitize(result),
       error: error.message || String(error),
-      errorDetail: sanitize(parityErrorEvidence(error)),
+      errorDetail: sanitize(parityDeploymentErrorEvidence(error) ?? parityErrorEvidence(error)),
     };
     evidence.status = "failed";
     log(`step ${name} FAILED: ${error.message || error}`);

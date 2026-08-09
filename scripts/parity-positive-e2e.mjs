@@ -53,6 +53,7 @@ import {
 } from "./lib/parity-positive-delivery-claim-step.mjs";
 import { parityRuntimeConfig } from "./lib/parity-runtime-config.mjs";
 import { parityApiError } from "./lib/parity-http-error.mjs";
+import { productionDeploymentFailure } from "./lib/parity-deployment-failure.mjs";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const runtime = parityRuntimeConfig();
 const outDir = historyChainOutputDirectory(
@@ -325,18 +326,8 @@ async function main() {
           },
         ],
         routeSnapshot: {
-          // F455: the frozen production route must be reachable from INSIDE
-          // the parity-api container (the site probe runs in-process):
-          // - Docker's embedded DNS answers parity.example.test with a 502 —
-          //   a definitive negative that the fail-closed probe policy rejects
-          //   (observed: SITE_HTTP_PROBE_FAILED), so tlsRequired=true points
-          //   the HTTP probe at the https:// final URL (unreachable in
-          //   container) and it falls back to the proxyTarget;
-          // - proxyTarget is the parity-network name of the target-workload
-          //   container (the brief's literal http://127.0.0.1:43992 is the
-          //   same workload's host-published port — reachable from the host,
-          //   not from inside the container). The browser pass loads
-          //   http://127.0.0.1:43992 (AC-E2E-015).
+          // Route-control applies this frozen target. The final public URL is
+          // probed independently; proxyTarget never substitutes for DNS/TLS.
           domains: ["parity.example.test"],
           proxyTarget: "http://parity-target-workload",
           tlsRequired: true,
@@ -616,14 +607,14 @@ async function main() {
         environmentId: true,
         artifactManifestId: true,
         releaseRunId: true,
-        params: true,
+        error: true,
         result: true,
         startedAt: true,
         finishedAt: true,
       },
     });
-    if (row.status !== "completed") {
-      throw new Error(`production deploy not completed: ${JSON.stringify(row)}`);
+    if (!row || row.status !== "completed") {
+      throw productionDeploymentFailure(row);
     }
     const result = row.result || {};
     const finalGateKey = `final:${releaseRunId}:${runId}`;
