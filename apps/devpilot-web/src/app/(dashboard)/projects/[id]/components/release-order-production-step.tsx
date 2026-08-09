@@ -3,7 +3,7 @@
 import { useMemo, useRef, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { LoadingState } from '@svton/ui';
-import { Button, EmptyState, ErrorBanner, LinkButton } from '@/components/ui';
+import { EmptyState, ErrorBanner } from '@/components/ui';
 import { useReleaseBuilds } from '../hooks/use-release-builds';
 import type { ReleaseOrderEvidenceHook } from '../hooks/use-release-order-evidence';
 import { useProductionReleases } from '../hooks/use-production-releases';
@@ -17,11 +17,13 @@ import { ReleaseProductionApprovalCard } from './release-production-approval-car
 import { ReleaseProductionConfirmDialog } from './release-production-confirm-dialog';
 import { ReleaseProductionEvidenceList } from './release-production-evidence-list';
 import { ReleaseProductionLogDrawer } from './release-production-log-drawer';
+import { ReleaseProductionPrimaryAction } from './release-production-primary-action';
 
 interface Props {
   projectId: string;
   releaseOrderId: string;
   releaseVersion: string;
+  productionArtifactFrozen: boolean;
   onChanged: () => Promise<unknown>;
   evidence: ReleaseOrderEvidenceHook;
   focusedReleaseRunId?: string;
@@ -60,6 +62,7 @@ export function ReleaseOrderProductionStep(props: Props) {
     props.releaseOrderId,
     manifestId,
     props.onChanged,
+    !props.productionArtifactFrozen,
   );
   const snapshot = production.preview?.snapshot;
   const stagingErrorKey = useMemo(
@@ -130,7 +133,19 @@ export function ReleaseOrderProductionStep(props: Props) {
   const stageTitle = stageTitleKey(approvalRun, succeededOnline);
   const stageDescription = t(stageTitle.descriptionKey);
 
-  const primaryAction = renderPrimaryAction();
+  const primaryAction = (
+    <ReleaseProductionPrimaryAction
+      frozen={props.productionArtifactFrozen}
+      needsRecovery={needsRecovery}
+      active={activeRun}
+      runStatus={approvalRun?.status}
+      approvalStatus={approvalRun?.operationApproval.status}
+      recoveryHref={props.recoveryHref}
+      snapshotReady={Boolean(snapshot)}
+      confirming={production.confirming}
+      onRequest={() => setDialogOpen(true)}
+    />
+  );
 
   return (
     <div className="space-y-4">
@@ -258,39 +273,6 @@ export function ReleaseOrderProductionStep(props: Props) {
       />
     </div>
   );
-
-  function renderPrimaryAction() {
-    if (needsRecovery) {
-      return (
-        <LinkButton
-          data-primary="true"
-          href={props.recoveryHref}
-        >
-          {t('releaseProductionRecoveryLink')}
-        </LinkButton>
-      );
-    }
-    if (activeRun) {
-      return (
-        <Button disabled>
-          {approvalRun?.status === 'running'
-            ? t('releaseProductionRunningDisabled')
-            : approvalRun?.operationApproval.status === 'approved'
-              ? t('releaseProductionAwaitingExecuteDisabled')
-              : t('releaseProductionAwaitingApprovalDisabled')}
-        </Button>
-      );
-    }
-    return (
-      <Button
-        data-primary="true"
-        onClick={() => setDialogOpen(true)}
-        disabled={!snapshot || production.confirming}
-      >
-        {t('requestProductionApproval')}
-      </Button>
-    );
-  }
 }
 
 function ContextStrip(props: {

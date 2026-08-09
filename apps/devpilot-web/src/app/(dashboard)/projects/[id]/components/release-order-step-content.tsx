@@ -60,6 +60,7 @@ export function ReleaseOrderStepContent(props: Props) {
       projectId={props.projectId}
       releaseOrderId={props.releaseOrderId}
       releaseVersion={props.detail.releaseVersion}
+      productionArtifactFrozen={props.detail.counts.releaseRuns > 0}
       evidence={props.evidence}
       focusedReleaseRunId={props.focusedReleaseRunId}
       focusedDeploymentRunId={props.focusedDeploymentRunId}

@@ -127,6 +127,7 @@ function props() {
     projectId: 'project-1',
     releaseOrderId: 'order-1',
     releaseVersion: 'v1.0.0',
+    productionArtifactFrozen: false,
     recoveryHref: '/projects/project-1?view=environment-versions',
     onOpenLog: vi.fn(),
     onCloseLog: vi.fn(),

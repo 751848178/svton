@@ -324,6 +324,26 @@ describe('ReleaseOrderProductionStep confirmation dialog', () => {
     expect(disabledRequest).not.toBeNull();
   });
 
+  it('does not offer a new production approval after the release artifact is frozen', async () => {
+    await act(async () =>
+      root.render(
+        <ReleaseOrderProductionStep
+          {...props()}
+          productionArtifactFrozen
+          focusedReleaseRunId={undefined}
+          focusedDeploymentRunId={undefined}
+          onFocus={vi.fn()}
+        />,
+      ),
+    );
+    expect(triggerButton()).toBeUndefined();
+    const frozen = Array.from(container.querySelectorAll('button')).find(
+      (item) => item.textContent === 'releaseProductionArtifactFrozen',
+    );
+    expect(frozen).not.toBeNull();
+    expect((frozen as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it('localizes the gate-denial error without leaking the internal stage token', async () => {
     const evidence = {
       evidence: {
@@ -444,6 +464,7 @@ describe('ReleaseOrderProductionStep confirmation dialog', () => {
       projectId: 'project-1',
       releaseOrderId: 'order-1',
       releaseVersion: 'v1.3.0',
+      productionArtifactFrozen: false,
       recoveryHref: '/projects/project-1?view=environment-versions',
       onOpenLog: vi.fn(),
       onCloseLog: vi.fn(),

@@ -19,10 +19,11 @@ export function useProductionReleases(
   releaseOrderId: string,
   manifestId: string,
   onChanged: () => Promise<unknown>,
+  enabled = true,
 ) {
   const actorId = useAuthStore().user?.id || '';
   const teamId = useTeamStore().currentTeam?.id || '';
-  const active = Boolean(actorId && teamId);
+  const active = Boolean(enabled && actorId && teamId);
   const scope = scopedRequestIdentity(actorId, teamId, projectId, releaseOrderId, manifestId);
   const { begin, isCurrent } = useScopedRequestGuard(scope);
   const [state, setState] = useState<ProductionState>(() => loadingState(scope));

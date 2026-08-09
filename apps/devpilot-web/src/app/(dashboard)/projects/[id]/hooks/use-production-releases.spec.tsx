@@ -21,6 +21,7 @@ vi.mock('@/store/hooks', () => ({
 describe('useProductionReleases scope ownership', () => {
   let root: Root;
   let latest: ReturnType<typeof useProductionReleases>;
+  let enabled: boolean;
 
   beforeEach(() => {
     (
@@ -30,6 +31,7 @@ describe('useProductionReleases scope ownership', () => {
     mocks.onChanged.mockReset().mockResolvedValue(undefined);
     mocks.actorId = 'actor-1';
     mocks.teamId = 'team-1';
+    enabled = true;
     root = createRoot(document.createElement('div'));
   });
 
@@ -81,12 +83,22 @@ describe('useProductionReleases scope ownership', () => {
     expect(mocks.onChanged).toHaveBeenCalledOnce();
   });
 
+  it('does not preview or confirm when the release is frozen', async () => {
+    enabled = false;
+    await render();
+
+    expect(mocks.apiRequest).not.toHaveBeenCalled();
+    expect(latest.preview).toBeNull();
+    await expect(latest.confirm()).resolves.toBeNull();
+    expect(mocks.apiRequest).not.toHaveBeenCalled();
+  });
+
   async function render() {
     await act(async () => root.render(<Probe />));
   }
 
   function Probe() {
-    latest = useProductionReleases('project-1', 'order-1', 'manifest-1', mocks.onChanged);
+    latest = useProductionReleases('project-1', 'order-1', 'manifest-1', mocks.onChanged, enabled);
     return null;
   }
 });
