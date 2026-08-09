@@ -45,8 +45,8 @@ export function Header() {
   const visibleSections = filterNavSectionsByRole(navigationSections, user?.role);
 
   return (
-    <header className="relative z-50 h-14 shrink-0 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="flex h-full w-full flex-wrap items-center gap-2 px-4 md:px-6 md:flex-nowrap">
+    <header className="relative z-50 shrink-0 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 md:h-14">
+      <div className="flex min-h-14 w-full flex-wrap items-center gap-2 px-4 md:h-full md:min-h-0 md:flex-nowrap md:px-6">
         <div className="mr-2 flex min-w-0 items-center gap-3 md:mr-4 md:gap-4">
           <Link
             href={isAuthenticated ? '/dashboard' : '/'}
@@ -107,8 +107,8 @@ export function Header() {
           )}
         </div>
         {isAuthenticated ? (
-          // 移动端折叠按钮:常驻 header 内;展开后的面板 absolute 浮在 main 之上(避免被 h-14 header 裁掉)
-          <div className="w-full shrink-0 md:hidden">
+          // 移动端折叠按钮占用独立行;展开面板从完整 header 底部浮在 main 之上。
+          <div className="w-full shrink-0 pb-2 md:hidden">
             <button
               type="button"
               aria-expanded={mobileMenuOpen}
@@ -119,7 +119,7 @@ export function Header() {
               <span aria-hidden="true">{mobileMenuOpen ? t('mobileMenuCollapse') : t('mobileMenuExpand')}</span>
             </button>
             {mobileMenuOpen ? (
-              <nav className="absolute inset-x-0 top-14 z-50 max-h-[60vh] overflow-y-auto border bg-background p-3 shadow-sm">
+              <nav className="absolute inset-x-0 top-full z-50 max-h-[60vh] overflow-y-auto border bg-background p-3 shadow-sm">
                 {visibleSections.map((section) => {
                   // 移动端面板与 sidebar 共用同一高亮规则(最长匹配)
                   const activeItem = findActiveNavItem(pathname, section.items);
