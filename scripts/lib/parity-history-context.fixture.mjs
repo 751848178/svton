@@ -37,11 +37,13 @@ export function positiveDocument() {
     frozenIdentity: { finalization: { id: "finalization" } },
     applicationContracts: [
       {
+        component: "web",
         applicationId: "web",
         staging: { id: "web-staging" },
         production: { id: "web-production" },
       },
       {
+        component: "api",
         applicationId: "api",
         staging: { id: "api-staging" },
         production: { id: "api-production" },
@@ -105,11 +107,13 @@ export function expectedPositiveContext(sourceEvidenceSha256) {
     repositoryIdentityId: "identity",
     applicationContracts: [
       {
+        component: "web",
         applicationId: "web",
         staging: { id: "web-staging" },
         production: { id: "web-production" },
       },
       {
+        component: "api",
         applicationId: "api",
         staging: { id: "api-staging" },
         production: { id: "api-production" },

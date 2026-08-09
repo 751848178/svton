@@ -87,7 +87,12 @@ export async function bindPositiveApplicationContracts(prisma, scope) {
       "production",
       canonicalName,
     );
-    bound.push({ applicationId: application.id, staging, production });
+    bound.push({
+      component: component.name,
+      applicationId: application.id,
+      staging,
+      production,
+    });
   }
   return bound;
 }

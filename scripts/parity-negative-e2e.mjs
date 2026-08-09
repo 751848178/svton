@@ -134,7 +134,7 @@ async function main() {
   productionWebServiceId = await requireActiveEnvironmentService(prisma, {
     projectId,
     environmentId: productionEnvId,
-    name: "web",
+    contract: historyContext.applicationContracts.find((item) => item.component === "web"),
   });
   MANIFEST_M1 = historyContext.manifestM1;
   MANIFEST_M2 = historyContext.manifestM2;

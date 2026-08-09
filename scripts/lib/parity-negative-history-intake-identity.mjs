@@ -25,8 +25,16 @@ export function trustedIntakeContextValid(context) {
 function applicationContractsValid(contracts) {
   if (!Array.isArray(contracts) || contracts.length !== 2) return false;
   const ids = [];
+  const components = [];
   for (const contract of contracts) {
-    if (!exactKeys(contract, ["applicationId", "production", "staging"])) {
+    if (
+      !exactKeys(contract, [
+        "applicationId",
+        "component",
+        "production",
+        "staging",
+      ])
+    ) {
       return false;
     }
     if (
@@ -40,8 +48,13 @@ function applicationContractsValid(contracts) {
       contract.staging.id,
       contract.production.id,
     );
+    components.push(contract.component);
   }
-  return ids.every(nonEmpty) && new Set(ids).size === ids.length;
+  return (
+    ids.every(nonEmpty) &&
+    new Set(ids).size === ids.length &&
+    JSON.stringify(components.sort()) === JSON.stringify(["api", "web"])
+  );
 }
 
 function exactKeys(value, keys) {

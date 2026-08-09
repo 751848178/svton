@@ -40,6 +40,10 @@ assert.deepEqual(result.map((entry) => entry.production.id).sort(), [
   "api-production",
   "web-production",
 ]);
+assert.deepEqual(
+  result.map((entry) => entry.component),
+  ["web", "api"],
+);
 console.log("positive application contract identity self-test passed");
 
 function application(id, name, repoPath, serviceId) {
