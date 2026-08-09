@@ -1,5 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
-import { spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { lstat, mkdir, realpath } from "node:fs/promises";
 import { join } from "node:path";
 import {
@@ -7,6 +6,7 @@ import {
   requireVerifiedRuntimeIdentity,
 } from "./parity-runtime-config.mjs";
 import { allocateDistinctLoopbackPorts } from "./parity-runtime-port-allocation.mjs";
+import { requireC5SourceIdentity } from "./parity-isolated-c5-source-identity.mjs";
 
 export {
   loadDestroyableC5Manifest,
@@ -23,12 +23,7 @@ export {
 } from "./parity-isolated-c5-resource-identity.mjs";
 
 export async function createIsolatedC5Context(root, runtimeRoot, baseEnv) {
-  requireCleanSource(root);
-  const revision = git(root, ["rev-parse", "HEAD"]).trim();
-  const trackedIndex = git(root, ["ls-files", "-s"]);
-  const treeSha256 = createHash("sha256")
-    .update(`${revision}\n${trackedIndex}`)
-    .digest("hex");
+  const { revision, treeSha256 } = requireC5SourceIdentity(root);
   const nonce = randomBytes(16).toString("hex");
   const runtimeId = `c5-${revision.slice(0, 8)}-${nonce}`;
   const cleanupOwnerToken = randomBytes(32).toString("hex");
@@ -87,16 +82,4 @@ export async function createIsolatedC5Context(root, runtimeRoot, baseEnv) {
     treeSha256,
     cleanupOwnerToken,
   });
-}
-
-function requireCleanSource(root) {
-  if (git(root, ["status", "--porcelain"]).trim()) {
-    throw new Error("PARITY_C5_SOURCE_INVALID: dirty-worktree");
-  }
-}
-
-function git(root, args) {
-  const result = spawnSync("git", args, { cwd: root, encoding: "utf8" });
-  if (result.status !== 0) throw new Error(result.stderr || "git failed");
-  return result.stdout;
 }

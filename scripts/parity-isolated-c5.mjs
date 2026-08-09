@@ -18,6 +18,7 @@ import { captureIsolatedC5RouteAudit } from "./lib/parity-isolated-c5-route-audi
 import { cleanupFailedIsolatedAcceptance } from "./lib/parity-isolated-c5-failure.mjs";
 import { runOwnedBuilderLifecycle } from "./lib/parity-isolated-c5-builder-lifecycle.mjs";
 import { buildC5WorkspaceClosures } from "./lib/parity-isolated-c5-workspace-builds.mjs";
+import { requireC5SourceIdentity } from "./lib/parity-isolated-c5-source-identity.mjs";
 import { cleanupPreparedC5Runtime } from "./lib/parity-isolated-c5-cleanup-runtime.mjs";
 import {
   cleanupReceiptFor,
@@ -100,6 +101,7 @@ async function createPreparedRuntime() {
       runtime,
       action: async () => {
         buildC5WorkspaceClosures(run, context.environment);
+        requireC5SourceIdentity(root, context);
         run(
           process.execPath,
           ["scripts/parity-seed.mjs", "reset"],
@@ -187,8 +189,6 @@ function run(commandName, args, env, options = {}) {
   });
   if (result.status !== 0) {
     const failure = result.error?.code || result.signal || result.status;
-    throw new Error(
-      `${commandName} ${args.join(" ")} failed (${failure})`,
-    );
+    throw new Error(`${commandName} ${args.join(" ")} failed (${failure})`);
   }
 }
