@@ -61,6 +61,7 @@ import { productionConfirmResult } from "./lib/parity-negative-history-confirm-r
 import { versionRowResult } from "./lib/parity-negative-history-version-row-result.mjs";
 import { historyChainOutputDirectory } from "./lib/parity-history-chain-paths.mjs";
 import { parityRuntimeConfig } from "./lib/parity-runtime-config.mjs";
+import { POSITIVE_DELIVERY_FIXTURE_IDS } from "./lib/parity-positive-delivery-fixture-ids.mjs";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const runtime = parityRuntimeConfig();
 const outDir = historyChainOutputDirectory(process.env, "f456", "/tmp/codex-tool-runs/svton/f456");
@@ -716,7 +717,7 @@ async function main() {
     const [stagingVersions, productionVersions, envs, deploymentRuns, releaseRuns] =
       await Promise.all([
         prisma.environmentVersion.findMany({
-          where: { projectId, environmentId: stagingEnvId },
+          where: { projectId, environmentId: stagingEnvId, releaseOrderId: orderId },
           select: {
             id: true, kind: true, previousVersionId: true, artifactManifestId: true,
             deploymentRunId: true, releaseRunId: true, effectiveAt: true,
@@ -724,7 +725,7 @@ async function main() {
           orderBy: [{ effectiveAt: "asc" }, { id: "asc" }],
         }),
         prisma.environmentVersion.findMany({
-          where: { projectId, environmentId: productionEnvId },
+          where: { projectId, environmentId: productionEnvId, releaseOrderId: orderId },
           select: {
             id: true, kind: true, previousVersionId: true, artifactManifestId: true,
             deploymentRunId: true, releaseRunId: true, effectiveAt: true,
@@ -740,16 +741,16 @@ async function main() {
           select: { id: true, status: true },
         }),
         prisma.releaseRun.findMany({
-          where: { projectId },
+          where: { projectId, releaseOrderId: orderId },
           select: { id: true, mode: true, status: true },
         }),
       ]);
 
     const stagingEnv = envs.find((e) => e.id === stagingEnvId);
     const productionEnv = envs.find((e) => e.id === productionEnvId);
-    const chainOk = (versions) =>
+    const chainOk = (versions, baselineTailId) =>
       versions.every((v, index) => {
-        if (index === 0) return v.previousVersionId === null;
+        if (index === 0) return v.previousVersionId === baselineTailId;
         return v.previousVersionId === versions[index - 1].id;
       });
     const runCompleted = (versions) =>
@@ -761,7 +762,10 @@ async function main() {
     return {
       staging: {
         chain: stagingVersions.map((v) => ({ id: v.id, kind: v.kind, prev: v.previousVersionId, manifest: v.artifactManifestId })),
-        chainLinksValid: chainOk(stagingVersions),
+        chainLinksValid: chainOk(
+          stagingVersions,
+          POSITIVE_DELIVERY_FIXTURE_IDS.stagingEnvVersionPrevB,
+        ),
         everyDeploymentCompleted: runCompleted(stagingVersions),
         dbCurrentMatchesLatest: stagingEnv?.currentEnvironmentVersionId === stagingVersions[stagingVersions.length - 1]?.id,
         apiCurrentMatchesDb: apiStaging?.currentEnvironmentVersionId === stagingEnv?.currentEnvironmentVersionId,
@@ -769,7 +773,10 @@ async function main() {
       },
       production: {
         chain: productionVersions.map((v) => ({ id: v.id, kind: v.kind, prev: v.previousVersionId, manifest: v.artifactManifestId })),
-        chainLinksValid: chainOk(productionVersions),
+        chainLinksValid: chainOk(
+          productionVersions,
+          POSITIVE_DELIVERY_FIXTURE_IDS.envVersionPrevB,
+        ),
         everyDeploymentCompleted: runCompleted(productionVersions),
         dbCurrentMatchesLatest: productionEnv?.currentEnvironmentVersionId === productionVersions[productionVersions.length - 1]?.id,
         apiCurrentMatchesDb: apiProduction?.currentEnvironmentVersionId === productionEnv?.currentEnvironmentVersionId,
@@ -793,9 +800,17 @@ async function main() {
         prisma.buildRun.count({ where: { releaseOrderId: orderId } }),
         prisma.deploymentRun.count({ where: { environmentId: stagingEnvId, artifactManifest: { releaseOrderId: orderId } } }),
         prisma.deploymentRun.count({ where: { environmentId: productionEnvId, artifactManifest: { releaseOrderId: orderId } } }),
-        prisma.environmentVersion.count({ where: { projectId } }),
-        prisma.operationApproval.count({ where: { projectId } }),
-        prisma.releaseRun.count({ where: { projectId } }),
+        prisma.environmentVersion.count({
+          where: { projectId, releaseOrderId: orderId },
+        }),
+        prisma.operationApproval.count({
+          where: {
+            projectId,
+            targetType: "release_run",
+            targetId: { in: [Vprod1.releaseRunId, R2.id, R3.id] },
+          },
+        }),
+        prisma.releaseRun.count({ where: { projectId, releaseOrderId: orderId } }),
       ]);
     return {
       buildRunsOnOrder: builds,

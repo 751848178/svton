@@ -4,6 +4,7 @@ import {
   requireEqual,
   requireIdentity,
 } from "./parity-negative-history-identity-assert.mjs";
+import { POSITIVE_DELIVERY_FIXTURE_IDS } from "./parity-positive-delivery-fixture-ids.mjs";
 
 export function validateHistorySummary(steps, anchors) {
   const result = historyResult(steps, "version-chains");
@@ -14,7 +15,7 @@ export function validateHistorySummary(steps, anchors) {
       {
         id: anchors.stagingCurrentVersionId,
         kind: "deploy",
-        prev: null,
+        prev: POSITIVE_DELIVERY_FIXTURE_IDS.stagingEnvVersionPrevB,
         manifest: anchors.manifestId,
       },
       {
@@ -46,7 +47,7 @@ export function validateHistorySummary(steps, anchors) {
       {
         id: anchors.productionCurrentVersionId,
         kind: "upgrade",
-        prev: null,
+        prev: POSITIVE_DELIVERY_FIXTURE_IDS.envVersionPrevB,
         manifest: anchors.manifestId,
       },
       {

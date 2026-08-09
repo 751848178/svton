@@ -4,6 +4,7 @@ import {
   CDP_EVIDENCE_VERSION,
 } from "./parity-history-cdp-capture.mjs";
 import { cdpSessionFixture } from "./parity-history-cdp-session.fixture.mjs";
+import { POSITIVE_DELIVERY_FIXTURE_IDS } from "./parity-positive-delivery-fixture-ids.mjs";
 
 export function versionChainsFixture(a) {
   const valid = {
@@ -18,7 +19,7 @@ export function versionChainsFixture(a) {
     {
       id: a.stagingCurrentVersionId,
       kind: "deploy",
-      prev: null,
+      prev: POSITIVE_DELIVERY_FIXTURE_IDS.stagingEnvVersionPrevB,
       manifest: a.manifestId,
     },
     {
@@ -44,7 +45,7 @@ export function versionChainsFixture(a) {
     {
       id: a.productionCurrentVersionId,
       kind: "upgrade",
-      prev: null,
+      prev: POSITIVE_DELIVERY_FIXTURE_IDS.envVersionPrevB,
       manifest: a.manifestId,
     },
     {
