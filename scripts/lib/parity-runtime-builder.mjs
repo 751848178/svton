@@ -1,5 +1,8 @@
 import { spawnSync } from "node:child_process";
 
+export const BUILDKIT_IMAGE =
+  "moby/buildkit@sha256:2f5adac4ecd194d9f8c10b7b5d7bceb5186853db1b26e5abd3a657af0b7e26ec";
+
 export function createOwnedBuildxBuilder(runtime, execute = runDocker) {
   requireBuilderName(runtime);
   if (findBuilder(runtime.builderName, execute)) {
@@ -15,6 +18,8 @@ export function createOwnedBuildxBuilder(runtime, execute = runDocker) {
       "docker-container",
       "--driver-opt",
       "default-load=true",
+      "--driver-opt",
+      `image=${BUILDKIT_IMAGE}`,
       "--bootstrap",
     ]),
     "create",
@@ -60,7 +65,8 @@ function validateBuilder(builder, runtime) {
     builder.Driver !== "docker-container" ||
     !Array.isArray(builder.Nodes) ||
     builder.Nodes.length !== 1 ||
-    builder.Nodes[0]?.Name !== `${runtime.builderName}0`
+    builder.Nodes[0]?.Name !== `${runtime.builderName}0` ||
+    builder.Nodes[0]?.DriverOpts?.image !== BUILDKIT_IMAGE
   ) {
     throw builderError("identity-mismatch");
   }
@@ -69,6 +75,7 @@ function validateBuilder(builder, runtime) {
     name: builder.Name,
     driver: builder.Driver,
     node: builder.Nodes[0].Name,
+    image: BUILDKIT_IMAGE,
   });
 }
 

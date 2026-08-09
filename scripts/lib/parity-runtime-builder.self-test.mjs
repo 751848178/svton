@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import {
   assertNoOwnedBuildxBuilder,
+  BUILDKIT_IMAGE,
   createOwnedBuildxBuilder,
   destroyOwnedBuildxBuilder,
 } from "./parity-runtime-builder.mjs";
@@ -44,6 +45,7 @@ assert.equal(
   "verified_absent",
 );
 assert(calls.some((args) => args.includes("default-load=true")));
+assert(calls.some((args) => args.includes(`image=${BUILDKIT_IMAGE}`)));
 
 state.push(builder(runtime.builderName, "docker"));
 assert.throws(
@@ -58,6 +60,12 @@ function builder(name, driver) {
   return {
     Name: name,
     Driver: driver,
-    Nodes: [{ Name: `${name}0`, Status: "running" }],
+    Nodes: [
+      {
+        Name: `${name}0`,
+        Status: "running",
+        DriverOpts: { image: BUILDKIT_IMAGE },
+      },
+    ],
   };
 }
