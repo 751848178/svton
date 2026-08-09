@@ -177,15 +177,18 @@ function destroyRuntime(environment) {
   run(process.execPath, ["scripts/parity-seed.mjs", "destroy"], environment);
 }
 
-function run(commandName, args, env) {
+function run(commandName, args, env, options = {}) {
   const result = spawnSync(commandName, args, {
     cwd: root,
     env,
     stdio: "inherit",
+    timeout: options.timeoutMs,
+    killSignal: "SIGTERM",
   });
   if (result.status !== 0) {
+    const failure = result.error?.code || result.signal || result.status;
     throw new Error(
-      `${commandName} ${args.join(" ")} failed (${result.status})`,
+      `${commandName} ${args.join(" ")} failed (${failure})`,
     );
   }
 }
