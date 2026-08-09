@@ -965,6 +965,7 @@ async function seed() {
       },
       update: {
         status: "collected",
+        sampledAt: at,
         raw: {
           capacityFit: true,
           observability: { metrics: true, traces: true, alerts: true },
