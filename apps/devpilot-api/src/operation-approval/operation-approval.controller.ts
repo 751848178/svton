@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Post, Query, Request, UseGuards } from '@
 import { AuthzGuard, Roles } from '@svton/nestjs-authz';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ControlAccessPolicyService } from '../control-access-policy';
+import { MemberRole } from '../team/dto/team.dto';
 import {
   ListOperationApprovalsQueryDto,
   ReviewOperationApprovalDto,
@@ -11,6 +12,7 @@ import { OperationApprovalService } from './operation-approval.service';
 interface AuthRequest {
   user: { id: string };
   teamId: string;
+  teamRole: MemberRole;
 }
 
 type ReadableOperationApproval = {
@@ -67,6 +69,12 @@ export class OperationApprovalController {
       }),
     })));
 
-    return allowed.filter((item) => item.allowed).map((item) => item.approval);
+    const canReview = [MemberRole.OWNER, MemberRole.ADMIN].includes(req.teamRole);
+    return allowed
+      .filter((item) => item.allowed)
+      .map((item) => ({
+        ...item.approval,
+        capabilities: { review: canReview },
+      }));
   }
 }

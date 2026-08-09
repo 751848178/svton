@@ -3277,6 +3277,7 @@
     "processing": "处理中...",
     "approve": "批准",
     "reject": "拒绝",
+    "reviewRequiresAdmin": "仅团队管理员可审批",
     "requesterReason": "申请人理由",
     "reviewerComment": "审批人意见",
     "rejectReasonLabel": "驳回理由",

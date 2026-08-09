@@ -2,6 +2,7 @@ import { OperationApprovalController } from "./operation-approval.controller";
 
 const req = {
   teamId: "team-1",
+  teamRole: "admin",
   user: { id: "user-1" },
 };
 
@@ -73,7 +74,7 @@ describe("OperationApprovalController", () => {
 
     await expect(
       controller.list(req as any, { status: "pending" } as any),
-    ).resolves.toEqual([approvals[0]]);
+    ).resolves.toEqual([{ ...approvals[0], capabilities: { review: true } }]);
 
     expect(approvalService.list).toHaveBeenCalledWith("team-1", {
       status: "pending",
@@ -98,5 +99,20 @@ describe("OperationApprovalController", () => {
         risk: "medium",
       }),
     );
+  });
+
+  it("returns a fail-closed review capability for team members", async () => {
+    const approval = { id: "approval-visible", risk: "high" };
+    const controller = new OperationApprovalController(
+      { list: jest.fn().mockResolvedValue([approval]) } as any,
+      { canRead: jest.fn().mockResolvedValue(true) } as any,
+    );
+
+    await expect(
+      controller.list(
+        { ...req, teamRole: "member" } as any,
+        { status: "pending" } as any,
+      ),
+    ).resolves.toEqual([{ ...approval, capabilities: { review: false } }]);
   });
 });

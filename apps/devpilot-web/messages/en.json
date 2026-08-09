@@ -1729,6 +1729,7 @@
     "noRequests": "No requests",
     "approve": "Approve",
     "reject": "Reject",
+    "reviewRequiresAdmin": "Team admin approval required",
     "cancel": "Cancel",
     "status": "Status",
     "statusPending": "Pending",

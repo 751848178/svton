@@ -51,6 +51,7 @@ export function ApprovalCard({
     approval.category === 'release'
       ? t('categoryRelease')
       : categoryLabels[approval.category] || approval.category;
+  const canReview = approval.capabilities?.review === true;
 
   return (
     <div
@@ -119,7 +120,7 @@ export function ApprovalCard({
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          {approval.status === 'pending' ? (
+          {approval.status === 'pending' && canReview ? (
             <>
               <button
                 onClick={handleApprove}
@@ -136,6 +137,14 @@ export function ApprovalCard({
                 {actingId === `${approval.id}:rejected` ? t('processing') : t('reject')}
               </button>
             </>
+          ) : null}
+          {approval.status === 'pending' && !canReview ? (
+            <span
+              className="rounded-md border bg-muted/30 px-3 py-1.5 text-sm text-muted-foreground"
+              role="status"
+            >
+              {t('reviewRequiresAdmin')}
+            </span>
           ) : null}
           {approval.status === 'approved' && !approval.consumedAt ? (
             approval.category === 'release' ? (
