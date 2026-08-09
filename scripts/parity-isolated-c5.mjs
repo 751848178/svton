@@ -24,28 +24,15 @@ const runtimeRoot = join(
 const command = process.argv[2] || "run";
 
 if (command === "run") await runIsolatedAcceptance();
+else if (command === "prepare") await prepareBrowserRuntime();
 else if (command === "destroy") await destroyFromManifest(process.argv[3]);
 else throw new Error(`unknown isolated C5 command: ${command}`);
 
 async function runIsolatedAcceptance() {
-  const context = await createIsolatedC5Context(root, runtimeRoot, process.env);
+  const context = await createPreparedRuntime();
   const { environment, manifestPath } = context;
-  let started = false;
   let routeAudit;
-  await writePreparedC5Manifest(context);
   try {
-    run(
-      "corepack",
-      ["pnpm", "--filter", "@svton/devpilot-api", "build"],
-      environment,
-    );
-    run(
-      "corepack",
-      ["pnpm", "--filter", "@svton/devpilot-web", "build"],
-      environment,
-    );
-    started = true;
-    run(process.execPath, ["scripts/parity-seed.mjs", "reset"], environment);
     const history = await runHistoryChain({ args: [], env: environment });
     routeAudit = await captureIsolatedC5RouteAudit(root, context);
     if (routeAudit.receipt.status !== "verified") {
@@ -56,32 +43,77 @@ async function runIsolatedAcceptance() {
       `${JSON.stringify({ status: "passed", manifestPath, history, routeAudit })}\n`,
     );
   } catch (error) {
-    let cleanupError;
-    let cleanupReceipt;
-    try {
-      if (started && !routeAudit) {
-        routeAudit = await captureIsolatedC5RouteAudit(root, context);
-      }
-      if (started) destroyRuntime(environment);
-      await rm(environment.PARITY_FIXTURE_GIT_ROOT, {
-        recursive: true,
-        force: true,
-      });
-      const runtime = parityRuntimeConfig(environment);
-      const residualResources = assertNoRuntimeResources(runtime);
-      cleanupReceipt = cleanupReceiptFor(runtime, residualResources);
-    } catch (failure) {
-      cleanupError = failure;
-      cleanupReceipt = {
-        status: "cleanup_failed",
-        verifiedAt: new Date().toISOString(),
-        error: failure instanceof Error ? failure.message : String(failure),
-      };
-    }
-    await markC5ManifestFailed(context, error, cleanupReceipt, routeAudit);
-    if (cleanupError) throw new AggregateError([error, cleanupError]);
+    if (!routeAudit)
+      routeAudit = await captureIsolatedC5RouteAudit(root, context);
+    await failAndCleanup(context, error, routeAudit);
     throw error;
   }
+}
+
+async function prepareBrowserRuntime() {
+  const context = await createPreparedRuntime();
+  try {
+    const prepared = {
+      status: "prepared_browser_acceptance",
+      preparedAt: new Date().toISOString(),
+    };
+    await writeRunningC5Manifest(context, prepared, null);
+    const runtime = parityRuntimeConfig(context.environment);
+    process.stdout.write(
+      `${JSON.stringify({ status: "prepared", manifestPath: context.manifestPath, runtime: publicRuntime(runtime) })}\n`,
+    );
+  } catch (error) {
+    await failAndCleanup(context, error);
+    throw error;
+  }
+}
+
+async function createPreparedRuntime() {
+  const context = await createIsolatedC5Context(root, runtimeRoot, process.env);
+  await writePreparedC5Manifest(context);
+  try {
+    build("@svton/devpilot-api", context.environment);
+    build("@svton/devpilot-web", context.environment);
+    run(
+      process.execPath,
+      ["scripts/parity-seed.mjs", "reset"],
+      context.environment,
+    );
+    return context;
+  } catch (error) {
+    await failAndCleanup(context, error);
+    throw error;
+  }
+}
+
+function build(project, environment) {
+  run("corepack", ["pnpm", "--filter", project, "build"], environment);
+}
+
+async function failAndCleanup(context, error, routeAudit) {
+  let cleanupError;
+  let cleanupReceipt;
+  try {
+    destroyRuntime(context.environment);
+    await rm(context.environment.PARITY_FIXTURE_GIT_ROOT, {
+      recursive: true,
+      force: true,
+    });
+    const runtime = parityRuntimeConfig(context.environment);
+    cleanupReceipt = cleanupReceiptFor(
+      runtime,
+      assertNoRuntimeResources(runtime),
+    );
+  } catch (failure) {
+    cleanupError = failure;
+    cleanupReceipt = {
+      status: "cleanup_failed",
+      verifiedAt: new Date().toISOString(),
+      error: failure instanceof Error ? failure.message : String(failure),
+    };
+  }
+  await markC5ManifestFailed(context, error, cleanupReceipt, routeAudit);
+  if (cleanupError) throw new AggregateError([error, cleanupError]);
 }
 
 async function destroyFromManifest(manifestPath) {
@@ -114,6 +146,25 @@ function cleanupReceiptFor(runtime, residualResources) {
     goalId: runtime.goalId,
     cleanupOwnerToken: runtime.cleanupOwnerToken,
     residualResources,
+  };
+}
+
+function publicRuntime(runtime) {
+  return {
+    composeProject: runtime.composeProject,
+    databaseName: runtime.databaseName,
+    ports: runtime.ports,
+    apiImage: runtime.apiImage,
+    webImage: runtime.webImage,
+    routeControlImage: runtime.routeControlImage,
+    apiBase: runtime.apiBase,
+    webOrigin: runtime.webOrigin,
+    targetOrigin: runtime.targetOrigin,
+    routeControlOrigin: runtime.routeControlOrigin,
+    sourceRevision: runtime.sourceRevision,
+    sourceTreeSha256: runtime.sourceTreeSha256,
+    runtimeId: runtime.runtimeId,
+    goalId: runtime.goalId,
   };
 }
 
