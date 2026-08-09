@@ -148,6 +148,12 @@ describe('EnvironmentVersionsPanel Demo-aligned read model', () => {
     expect(html).toContain('environmentVersionKindRecovery');
     expect(html).toContain('environmentVersionResultSuccess');
     expect(html).toContain('environmentVersionResultHistory');
+    expect(html).toContain(
+      'data-environment-role="staging" data-version-kind="upgrade" data-version-id="version-staging-current" data-version-current="true"',
+    );
+    expect(html).toContain(
+      'data-environment-role="production" data-version-kind="recovery" data-version-id="version-production-history" data-version-current="false"',
+    );
   });
 
   it('shows the source release order with id and release version in the card facts', () => {

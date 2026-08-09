@@ -47,6 +47,7 @@ import {
 } from "./lib/parity-history-e2e-evidence.mjs";
 import { extractPositiveHistoryContext } from "./lib/parity-history-context.mjs";
 import { browserSecretReference, runHistoryBrowserSession } from "./lib/parity-history-browser-session.mjs";
+import { environmentVersionMarkers } from "./lib/parity-history-environment-version-markers.mjs";
 import {
   productionGateEvidence,
 } from "./lib/parity-production-gate-evidence.mjs";
@@ -809,6 +810,7 @@ async function main() {
       upgradeReleaseRunId: R2.id,
       recoveryReleaseRunId: R3.id,
       recoveryDeploymentRunId: Vprod3.deploymentRunId,
+      environmentVersionIds: { stagingUpgradeVersionId: Vst3.id, stagingRecoveryVersionId: Vst4.id, productionUpgradeVersionId: Vprod2.id, productionRecoveryVersionId: Vprod3.id },
     }),
   );
 
@@ -849,6 +851,7 @@ async function browserPass(ids) {
   const releaseText = contents["02-release-detail.txt"].toString("utf8");
   const stagingStepText = contents["02b-staging-step.txt"].toString("utf8");
   const envVersionsText = contents["06-env-versions.txt"].toString("utf8");
+  const envVersionsHtml = contents["06-env-versions.html"].toString("utf8");
   const buildLogText = contents["03-build-log-drawer.txt"].toString("utf8");
   const stagingLogText = contents["04-staging-run-log.txt"].toString("utf8");
   const productionLogText = contents["05-production-recovery-log.txt"].toString("utf8");
@@ -887,15 +890,7 @@ async function browserPass(ids) {
       note:
         "UI totals ALL staging DeploymentRuns on the order (F455 deploy + repeat deploy + upgrade + recovery = 4); the AC-E2E-017 two-runs-on-the-SAME-manifest evidence is the staging-deploy-repeat API/DB step (2 DeploymentRuns on M1, build count unchanged).",
     },
-    envVersionsEvidence: {
-      pageTitle: envVersionsText.includes("环境版本"),
-      changeLogTable: envVersionsText.includes("环境变更记录"),
-      stagingUpgradeKind: envVersionsText.includes("升级"),
-      stagingRecoveryKind: envVersionsText.includes("回退"),
-      productionUpgradeKind: envVersionsText.includes("升级"),
-      productionRecoveryKind: envVersionsText.includes("回退"),
-      currentSuccess: envVersionsText.includes("成功"),
-    },
+    envVersionsEvidence: environmentVersionMarkers({ text: envVersionsText, html: envVersionsHtml, expected: ids.environmentVersionIds }),
     buildLogDrawer: {
       opened: buildLogText.includes(buildRunId),
       hasBuildRunTitle: /BuildRun #2/.test(buildLogText),
