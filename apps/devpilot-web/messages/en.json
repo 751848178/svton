@@ -3503,7 +3503,7 @@
     "unknownProject": "Unknown Project",
     "quickActionsTitle": "Quick Actions",
     "quickNewProject": "New Project",
-    "quickNewProjectDescription": "Create a new project from scratch",
+    "quickNewProjectDescription": "Connect a repository and detect its default branch and deployment baseline",
     "quickRequestResource": "Request Resource",
     "quickRequestResourceDescription": "Request new resources for a project",
     "quickAddCredential": "Add Credential",

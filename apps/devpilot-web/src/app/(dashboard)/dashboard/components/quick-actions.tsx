@@ -14,7 +14,7 @@ export function QuickActions() {
 
   const actions = [
     {
-      href: '/projects/new',
+      href: '/projects/create',
       title: t('quickNewProject'),
       description: t('quickNewProjectDescription'),
     },

@@ -3502,7 +3502,7 @@
     "unknownProject": "未知项目",
     "quickActionsTitle": "快捷操作",
     "quickNewProject": "新建项目",
-    "quickNewProjectDescription": "从零开始创建一个新项目",
+    "quickNewProjectDescription": "接入代码仓库并识别主分支与部署基线",
     "quickRequestResource": "申请资源",
     "quickRequestResourceDescription": "为项目申请新的资源",
     "quickAddCredential": "添加凭证",
