@@ -109,7 +109,7 @@ export const NEGATIVE_CHECKS_A = {
       r.decisionBlockers?.includes("C01"),
       r.decisionBlockers,
     ),
-    eq("c01Status", r.c01?.status, "failed"),
+    eq("c01Status", r.c01?.status, "blocked"),
     eq("c01Reason", r.c01?.reasonCode, "repository_verification_failed"),
     zero("dbBuildRunDelta", r.dbBuildRunDelta),
   ],
