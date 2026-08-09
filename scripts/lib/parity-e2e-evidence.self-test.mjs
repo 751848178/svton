@@ -38,6 +38,51 @@ async function permitsExpectedFalse() {
   assert.equal(evidence.steps["expected-false"].ok, true);
 }
 
+async function preservesBoundedApiFailureIdentity() {
+  const evidence = freshEvidence();
+  const error = new Error("production gate blocked");
+  Object.assign(error, {
+    status: 422,
+    code: "RELEASE_GATE_BLOCKED",
+    requestIdentity: { method: "POST", path: "/environment-versions/prod/actions" },
+    decision: {
+      id: "decision-1",
+      stage: "production",
+      phase: "deploy",
+      allowed: false,
+      inputHash: "a".repeat(64),
+      blockerGateIds: ["D10", "D11"],
+      manualGateIds: [],
+      deferredGateIds: ["D14"],
+      secret: "must-not-persist",
+    },
+  });
+  await assert.rejects(
+    checkedStep(evidence, "production-execute", async () => { throw error; }),
+    /production gate blocked/,
+  );
+  assert.deepEqual(evidence.steps["production-execute"].errorDetail, {
+    status: 422,
+    code: "RELEASE_GATE_BLOCKED",
+    requestIdentity: { method: "POST", path: "/environment-versions/prod/actions" },
+    decision: {
+      id: "decision-1",
+      stage: "production",
+      phase: "deploy",
+      allowed: false,
+      inputHash: "a".repeat(64),
+      decidedAt: null,
+      blockerGateIds: ["D10", "D11"],
+      manualGateIds: [],
+      confirmedManualGateIds: [],
+      warningGateIds: [],
+      deferredGateIds: ["D14"],
+      integrityErrors: [],
+    },
+  });
+  assert.doesNotMatch(JSON.stringify(evidence), /must-not-persist/);
+}
+
 function rejectsInvalidAcceptanceSources() {
   for (const steps of [
     {},
@@ -95,6 +140,7 @@ if (process.argv.includes("--false-fixture")) {
 } else {
   await rejectsFalsePayload();
   await permitsExpectedFalse();
+  await preservesBoundedApiFailureIdentity();
   rejectsInvalidAcceptanceSources();
   await finishNeverMasksFailure();
   await guardsHardcodedAcceptance();

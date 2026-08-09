@@ -32,6 +32,7 @@ import { createRequire } from "node:module";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { checkedStep, finishEvidence } from "./lib/parity-e2e-evidence.mjs";
+import { parityApiError } from "./lib/parity-http-error.mjs";
 import {
   NEGATIVE_AC_MAPPING,
   negativeStepChecks,
@@ -1444,13 +1445,7 @@ async function api(method, path, headers, body) {
   });
   const json = await res.json();
   if (!res.ok) {
-    const err = new Error(
-      `API ${method} ${path} failed (${res.status}): ${JSON.stringify(json)}`,
-    );
-    err.status = res.status;
-    err.code = json.code;
-    err.message = json.message || err.message;
-    throw err;
+    throw parityApiError(method, path, res.status, json);
   }
   return json.data;
 }
