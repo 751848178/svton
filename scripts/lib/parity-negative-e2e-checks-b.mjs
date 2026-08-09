@@ -27,7 +27,7 @@ export const NEGATIVE_CHECKS_B = {
     yes("nowCurrent", r.nowCurrent),
   ],
   "ac-029-old-confirm-execute-rejected": (r) => [
-    ...rejected(r, undefined, /漂移|未批准/),
+    ...rejected(r, 422, /漂移|未批准/),
     zero("dbDeploymentRunWithRun", r.dbDeploymentRunWithRun),
     yes("currentPointerUnchanged", r.currentPointerUnchanged),
   ],

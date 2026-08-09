@@ -20,6 +20,50 @@ async function mustReject(name, result) {
   );
 }
 
+function mustPass(name, result) {
+  const failed = negativeStepChecks(name, result).filter(
+    (check) => check.pass !== true,
+  );
+  assert.deepEqual(failed, [], `${name} should pass canonical result`);
+}
+
+const driftRejection = {
+  status: 422,
+  code: 422,
+  message: "Production ReleaseRun 未批准、已使用或输入已漂移",
+  dbDeploymentRunWithRun: 0,
+  currentPointerUnchanged: true,
+};
+mustPass("ac-029-old-confirm-execute-rejected", driftRejection);
+await mustReject("ac-029-old-confirm-execute-rejected", {
+  ...driftRejection,
+  code: undefined,
+});
+
+const approvalRejection = {
+  executeStatus: 422,
+  code: 422,
+  dbDeploymentRunWithRun: 0,
+  approvalStatus: "rejected",
+  runStatusBeforeCleanup: "awaiting_approval",
+  runCanceled: true,
+};
+mustPass("ac-030-rejected-approval", approvalRejection);
+mustPass("ac-030-expired-approval", {
+  ...approvalRejection,
+  approvalStatus: "approved",
+  approvalExpired: true,
+});
+mustPass("ac-030-consumed-approval", {
+  ...approvalRejection,
+  approvalStatus: "approved",
+  approvalConsumedAtSet: true,
+});
+await mustReject("ac-030-rejected-approval", {
+  ...approvalRejection,
+  code: undefined,
+});
+
 await mustReject("ac-024-build-no-repo-rejected", {
   status: 200,
   code: "RELEASE_GATE_BLOCKED",

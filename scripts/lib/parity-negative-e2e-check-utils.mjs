@@ -17,7 +17,7 @@ export const rejected = (result, code, message) => [
 export function approvalCase(result, expectedStatus) {
   return [
     eq("executeStatus", result.executeStatus, 422),
-    eq("code", result.code, undefined),
+    eq("code", result.code, 422),
     zero("dbDeploymentRunWithRun", result.dbDeploymentRunWithRun),
     eq("approvalStatus", result.approvalStatus, expectedStatus),
     eq(
