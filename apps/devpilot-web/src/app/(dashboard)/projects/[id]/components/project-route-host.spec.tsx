@@ -70,4 +70,17 @@ describe('ProjectRouteHost', () => {
     expect(html).toContain('href="/projects/project-1"');
     expect(html).not.toContain('/settings');
   });
+
+  it('renders settings with one page header and one return action', () => {
+    mocks.useProjectDetail.mockReturnValue({
+      loading: false,
+      project: { id: 'project-1' },
+      error: '',
+    });
+    const html = renderToStaticMarkup(<ProjectRouteHost mode="settings" />);
+
+    expect(html).toContain('settings');
+    expect(html).not.toContain('detail-header');
+    expect(html).not.toContain('backToProjectDelivery');
+  });
 });

@@ -88,6 +88,8 @@ function ProjectDetailRoute({
     );
   }
 
+  if (mode === 'settings') return <ProjectSettingsContent detail={detail} />;
+
   return (
     <div className="space-y-6">
       <ProjectDetailHeader
@@ -101,18 +103,14 @@ function ProjectDetailRoute({
           </LinkButton>
         }
       />
-      {mode === 'settings' ? (
-        <ProjectSettingsContent detail={detail} />
-      ) : (
-        <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">{t('professionalDeploymentView')}</p>
-          <ReleaseDeliveryCompatibilityBanner projectId={projectId} />
-          <DeploymentsTab
-            detail={detail}
-            focusedRunId={searchParams.get('runId')?.trim() || undefined}
-          />
-        </div>
-      )}
+      <div className="space-y-4">
+        <p className="text-sm text-muted-foreground">{t('professionalDeploymentView')}</p>
+        <ReleaseDeliveryCompatibilityBanner projectId={projectId} />
+        <DeploymentsTab
+          detail={detail}
+          focusedRunId={searchParams.get('runId')?.trim() || undefined}
+        />
+      </div>
     </div>
   );
 }
