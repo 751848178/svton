@@ -45,7 +45,7 @@ export async function writePreparedC5Manifest(context) {
   await writeManifest(context.manifestPath, manifest, "wx");
 }
 
-export async function writeRunningC5Manifest(context, history) {
+export async function writeRunningC5Manifest(context, history, routeAudit) {
   const loaded = await loadManifest(
     context.manifestPath,
     dirname(context.runDirectory),
@@ -55,6 +55,7 @@ export async function writeRunningC5Manifest(context, history) {
   loaded.manifest.status = "running_verified";
   loaded.manifest.startedAt = new Date().toISOString();
   loaded.manifest.history = history;
+  loaded.manifest.routeAudit = routeAudit;
   await writeManifest(loaded.manifestPath, loaded.manifest);
 }
 
@@ -66,7 +67,12 @@ export function loadDestroyableC5Manifest(value, runtimeRoot, baseEnv) {
   ]);
 }
 
-export async function markC5ManifestFailed(context, error, cleanupReceipt) {
+export async function markC5ManifestFailed(
+  context,
+  error,
+  cleanupReceipt,
+  routeAudit,
+) {
   const manifest = JSON.parse(await readFile(context.manifestPath, "utf8"));
   manifest.status =
     cleanupReceipt.status === "verified_zero_residuals"
@@ -75,6 +81,7 @@ export async function markC5ManifestFailed(context, error, cleanupReceipt) {
   manifest.failedAt = new Date().toISOString();
   manifest.failure = error instanceof Error ? error.message : String(error);
   manifest.cleanupReceipt = cleanupReceipt;
+  manifest.routeAudit = routeAudit ?? null;
   await writeManifest(context.manifestPath, manifest);
 }
 

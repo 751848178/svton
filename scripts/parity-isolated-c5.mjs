@@ -12,6 +12,7 @@ import {
   writeRunningC5Manifest,
 } from "./lib/parity-isolated-c5-context.mjs";
 import { runHistoryChain } from "./lib/parity-history-chain-launcher.mjs";
+import { captureIsolatedC5RouteAudit } from "./lib/parity-isolated-c5-route-audit.mjs";
 import { parityRuntimeConfig } from "./lib/parity-runtime-config.mjs";
 import { assertNoRuntimeResources } from "./lib/parity-runtime-resource-ownership.mjs";
 
@@ -30,6 +31,7 @@ async function runIsolatedAcceptance() {
   const context = await createIsolatedC5Context(root, runtimeRoot, process.env);
   const { environment, manifestPath } = context;
   let started = false;
+  let routeAudit;
   await writePreparedC5Manifest(context);
   try {
     run(
@@ -45,14 +47,21 @@ async function runIsolatedAcceptance() {
     started = true;
     run(process.execPath, ["scripts/parity-seed.mjs", "reset"], environment);
     const history = await runHistoryChain({ args: [], env: environment });
-    await writeRunningC5Manifest(context, history);
+    routeAudit = await captureIsolatedC5RouteAudit(root, context);
+    if (routeAudit.receipt.status !== "verified") {
+      throw new Error("isolated C5 route-control audit was not verified");
+    }
+    await writeRunningC5Manifest(context, history, routeAudit);
     process.stdout.write(
-      `${JSON.stringify({ status: "passed", manifestPath, history })}\n`,
+      `${JSON.stringify({ status: "passed", manifestPath, history, routeAudit })}\n`,
     );
   } catch (error) {
     let cleanupError;
     let cleanupReceipt;
     try {
+      if (started && !routeAudit) {
+        routeAudit = await captureIsolatedC5RouteAudit(root, context);
+      }
       if (started) destroyRuntime(environment);
       await rm(environment.PARITY_FIXTURE_GIT_ROOT, {
         recursive: true,
@@ -69,7 +78,7 @@ async function runIsolatedAcceptance() {
         error: failure instanceof Error ? failure.message : String(failure),
       };
     }
-    await markC5ManifestFailed(context, error, cleanupReceipt);
+    await markC5ManifestFailed(context, error, cleanupReceipt, routeAudit);
     if (cleanupError) throw new AggregateError([error, cleanupError]);
     throw error;
   }
