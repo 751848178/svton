@@ -46,7 +46,7 @@ networks:
 
 services:
   mysql:
-    image: mysql:8.4
+    image: mysql@sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb
     restart: unless-stopped
     labels: *runtime-labels
     environment:
@@ -64,7 +64,7 @@ services:
       retries: 30
 
   redis:
-    image: redis:7-alpine
+    image: redis@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2
     restart: unless-stopped
     labels: *runtime-labels
     ports:
@@ -203,7 +203,11 @@ services:
       retries: 20
 
   deploy-target:
-    image: lscr.io/linuxserver/openssh-server:latest
+    build:
+      context: .
+      dockerfile: scripts/parity-deploy-target.Dockerfile
+      labels: *runtime-labels
+    image: ${PARITY_DEPLOY_TARGET_IMAGE:-devpilot-parity-deploy-target:local}
     restart: unless-stopped
     labels: *runtime-labels
     ports:
@@ -217,9 +221,6 @@ services:
       PUID: "1000"
       PGID: "1000"
     volumes:
-      # Install docker-cli/git/nginx/curl before sshd accepts connections. The
-      # parity stack is self-contained: no host docker socket is mounted.
-      - ./scripts/deploy-target-parity-init.sh:/custom-cont-init.d/99-install-tools.sh:ro
       - devpilot-parity-deploy-target-data:/config
     healthcheck:
       test: ["CMD-SHELL", "nc -z 127.0.0.1 2222 || exit 1"]
@@ -232,13 +233,15 @@ services:
   # route-control provider proxies through target-workload:80 on this
   # run-owned Compose network.
   target-workload:
-    image: nginx:alpine
+    build:
+      context: .
+      dockerfile: scripts/parity-target-workload.Dockerfile
+      labels: *runtime-labels
+    image: ${PARITY_TARGET_WORKLOAD_IMAGE:-devpilot-parity-target-workload:local}
     restart: unless-stopped
     labels: *runtime-labels
     ports:
       - "127.0.0.1:${PARITY_TARGET_PORT:-43992}:80"
-    volumes:
-      - ./fixtures/parity-target-site:/usr/share/nginx/html:ro
     networks:
       default:
         aliases:

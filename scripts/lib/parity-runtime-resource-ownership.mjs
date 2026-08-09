@@ -67,6 +67,8 @@ export function assertRunningRuntimeProvenance(
     api: runtime.apiImage,
     web: runtime.webImage,
     "route-control": runtime.routeControlImage,
+    "deploy-target": runtime.deployTargetImage,
+    "target-workload": runtime.targetWorkloadImage,
   })) {
     const currentImageId = resolveRuntimeImageId(image, execute);
     if (

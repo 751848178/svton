@@ -18,6 +18,8 @@ export function publicRuntime(runtime) {
     apiImage: runtime.apiImage,
     webImage: runtime.webImage,
     routeControlImage: runtime.routeControlImage,
+    deployTargetImage: runtime.deployTargetImage,
+    targetWorkloadImage: runtime.targetWorkloadImage,
     builderName: runtime.builderName,
     apiBase: runtime.apiBase,
     webOrigin: runtime.webOrigin,

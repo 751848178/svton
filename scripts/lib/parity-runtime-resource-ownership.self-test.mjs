@@ -12,6 +12,8 @@ const runtime = {
   apiImage: "devpilot-parity-api:a1b2c3d4-1234abcd",
   webImage: "devpilot-parity-web:a1b2c3d4-1234abcd",
   routeControlImage: "devpilot-parity-route-control:a1b2c3d4-1234abcd",
+  deployTargetImage: "devpilot-parity-deploy-target:a1b2c3d4-1234abcd",
+  targetWorkloadImage: "devpilot-parity-target-workload:a1b2c3d4-1234abcd",
   sourceRevision: "a".repeat(40),
   sourceTreeSha256: "b".repeat(64),
   runtimeId: "c5-a1b2c3d4-1234abcd",
@@ -30,6 +32,8 @@ const expectedImageIds = {
   api: `sha256:${"1".repeat(64)}`,
   web: `sha256:${"2".repeat(64)}`,
   "route-control": `sha256:${"3".repeat(64)}`,
+  "deploy-target": `sha256:${"4".repeat(64)}`,
+  "target-workload": `sha256:${"5".repeat(64)}`,
 };
 
 function executor(inventory) {
@@ -79,13 +83,11 @@ function executor(inventory) {
 
 const owned = {
   containers: [
-    ...["mysql", "redis", "deploy-target", "target-workload"].map(
-      (service) => ({
-        id: `${service}-container`,
-        labels: { ...labels, "com.docker.compose.service": service },
-        imageId: `${service}-image`,
-      }),
-    ),
+    ...["mysql", "redis"].map((service) => ({
+      id: `${service}-container`,
+      labels: { ...labels, "com.docker.compose.service": service },
+      imageId: `${service}-image`,
+    })),
     ...[
       ["api", runtime.apiImage, expectedImageIds.api],
       ["web", runtime.webImage, expectedImageIds.web],
@@ -93,6 +95,16 @@ const owned = {
         "route-control",
         runtime.routeControlImage,
         expectedImageIds["route-control"],
+      ],
+      [
+        "deploy-target",
+        runtime.deployTargetImage,
+        expectedImageIds["deploy-target"],
+      ],
+      [
+        "target-workload",
+        runtime.targetWorkloadImage,
+        expectedImageIds["target-workload"],
       ],
     ].map(([service, , imageId]) => ({
       id: `${service}-container`,
@@ -110,6 +122,16 @@ const owned = {
       tag: runtime.routeControlImage,
       labels,
     },
+    {
+      id: expectedImageIds["deploy-target"],
+      tag: runtime.deployTargetImage,
+      labels,
+    },
+    {
+      id: expectedImageIds["target-workload"],
+      tag: runtime.targetWorkloadImage,
+      labels,
+    },
   ],
 };
 assert.equal(
@@ -125,7 +147,7 @@ assert.throws(
   () =>
     assertRunningRuntimeProvenance(
       runtime,
-      { ...expectedImageIds, api: `sha256:${"4".repeat(64)}` },
+      { ...expectedImageIds, api: `sha256:${"6".repeat(64)}` },
       executor(owned),
     ),
   /api-running-image-mismatch/,
@@ -133,7 +155,7 @@ assert.throws(
 assert.equal(
   removeOwnedRuntimeImages(runtime, executor(owned), expectedImageIds).images
     .length,
-  3,
+  5,
 );
 assert.throws(
   () =>
@@ -159,7 +181,7 @@ assert.throws(
 );
 
 const substituted = {
-  id: `sha256:${"4".repeat(64)}`,
+  id: `sha256:${"6".repeat(64)}`,
   tag: runtime.apiImage,
   labels: { ...labels, [RUNTIME_LABELS.owner]: "d".repeat(64) },
 };

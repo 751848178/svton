@@ -38,6 +38,9 @@ const environment = {
   PARITY_API_IMAGE: "devpilot-parity-api:a1b2c3d4-1234abcd",
   PARITY_WEB_IMAGE: "devpilot-parity-web:a1b2c3d4-1234abcd",
   PARITY_ROUTE_CONTROL_IMAGE: "devpilot-parity-route-control:a1b2c3d4-1234abcd",
+  PARITY_DEPLOY_TARGET_IMAGE: "devpilot-parity-deploy-target:a1b2c3d4-1234abcd",
+  PARITY_TARGET_WORKLOAD_IMAGE:
+    "devpilot-parity-target-workload:a1b2c3d4-1234abcd",
   PARITY_SOURCE_REVISION: `a1b2c3d4${"a".repeat(32)}`,
   PARITY_SOURCE_TREE_SHA256: "b".repeat(64),
   PARITY_RUNTIME_ID: runtimeId,
@@ -69,6 +72,8 @@ const builtImageIds = {
   api: `sha256:${"1".repeat(64)}`,
   web: `sha256:${"2".repeat(64)}`,
   "route-control": `sha256:${"3".repeat(64)}`,
+  "deploy-target": `sha256:${"4".repeat(64)}`,
+  "target-workload": `sha256:${"5".repeat(64)}`,
 };
 await recordC5BuiltImageIds(
   manifestPath,

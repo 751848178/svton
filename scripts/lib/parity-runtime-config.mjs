@@ -43,6 +43,16 @@ export function parityRuntimeConfig(env = process.env) {
     IMAGE_PATTERN,
     "route-control-image",
   );
+  const deployTargetImage = requireMatch(
+    env.PARITY_DEPLOY_TARGET_IMAGE || "devpilot-parity-deploy-target:local",
+    IMAGE_PATTERN,
+    "deploy-target-image",
+  );
+  const targetWorkloadImage = requireMatch(
+    env.PARITY_TARGET_WORKLOAD_IMAGE || "devpilot-parity-target-workload:local",
+    IMAGE_PATTERN,
+    "target-workload-image",
+  );
   const builderName = env.PARITY_BUILDX_BUILDER
     ? requireMatch(
         env.PARITY_BUILDX_BUILDER,
@@ -57,6 +67,8 @@ export function parityRuntimeConfig(env = process.env) {
     apiImage,
     webImage,
     routeControlImage,
+    deployTargetImage,
+    targetWorkloadImage,
     builderName,
     apiOrigin: `http://127.0.0.1:${ports.api}`,
     apiBase: `http://127.0.0.1:${ports.api}/api`,
@@ -88,6 +100,8 @@ export function parityComposeEnvironment(config, env = process.env) {
     PARITY_API_IMAGE: config.apiImage,
     PARITY_WEB_IMAGE: config.webImage,
     PARITY_ROUTE_CONTROL_IMAGE: config.routeControlImage,
+    PARITY_DEPLOY_TARGET_IMAGE: config.deployTargetImage,
+    PARITY_TARGET_WORKLOAD_IMAGE: config.targetWorkloadImage,
     PARITY_SOURCE_REVISION: config.sourceRevision,
     PARITY_SOURCE_TREE_SHA256: config.sourceTreeSha256,
     PARITY_RUNTIME_ID: config.runtimeId,
@@ -127,7 +141,9 @@ export function requireVerifiedRuntimeIdentity(config) {
   if (
     config.apiImage !== `devpilot-parity-api:${suffix}` ||
     config.webImage !== `devpilot-parity-web:${suffix}` ||
-    config.routeControlImage !== `devpilot-parity-route-control:${suffix}`
+    config.routeControlImage !== `devpilot-parity-route-control:${suffix}` ||
+    config.deployTargetImage !== `devpilot-parity-deploy-target:${suffix}` ||
+    config.targetWorkloadImage !== `devpilot-parity-target-workload:${suffix}`
   ) {
     throw configError("image-runtime-mismatch");
   }

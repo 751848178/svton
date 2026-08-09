@@ -59,6 +59,8 @@ export async function createIsolatedC5Context(root, runtimeRoot, baseEnv) {
     PARITY_API_IMAGE: `devpilot-parity-api:${revision.slice(0, 8)}-${nonce}`,
     PARITY_WEB_IMAGE: `devpilot-parity-web:${revision.slice(0, 8)}-${nonce}`,
     PARITY_ROUTE_CONTROL_IMAGE: `devpilot-parity-route-control:${revision.slice(0, 8)}-${nonce}`,
+    PARITY_DEPLOY_TARGET_IMAGE: `devpilot-parity-deploy-target:${revision.slice(0, 8)}-${nonce}`,
+    PARITY_TARGET_WORKLOAD_IMAGE: `devpilot-parity-target-workload:${revision.slice(0, 8)}-${nonce}`,
     PARITY_SOURCE_REVISION: revision,
     PARITY_SOURCE_TREE_SHA256: treeSha256,
     PARITY_RUNTIME_ID: runtimeId,

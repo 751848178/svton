@@ -82,14 +82,17 @@ describe("F454 isolated parity compose stack", () => {
       "SITE_ROUTE_SWITCH_PROVIDER_PROFILE: http-route-control-v1",
       "SITE_ROUTE_SWITCH_HTTP_ENDPOINT: http://route-control:8080",
       "dockerfile: scripts/parity-route-control.Dockerfile",
+      "dockerfile: scripts/parity-deploy-target.Dockerfile",
+      "dockerfile: scripts/parity-target-workload.Dockerfile",
       "image: ${PARITY_ROUTE_CONTROL_IMAGE:-devpilot-parity-route-control:local}",
+      "image: ${PARITY_DEPLOY_TARGET_IMAGE:-devpilot-parity-deploy-target:local}",
+      "image: ${PARITY_TARGET_WORKLOAD_IMAGE:-devpilot-parity-target-workload:local}",
       'command: ["node", "/app/parity-route-control-provider.mjs"]',
       "REPOSITORY_ANALYSIS_LOCAL_ROOTS: /read-only-repositories",
       "devpilot-parity-release-build:/var/lib/devpilot/release-build",
       "devpilot-parity-deployments:/var/lib/devpilot/release-build/deployments",
       'PASSWORD_ACCESS: "true"',
       "USER_PASSWORD: devpilot-test",
-      "/custom-cont-init.d/99-install-tools.sh:ro",
     ]) {
       expect(source).toContain(expected);
     }
@@ -97,6 +100,45 @@ describe("F454 isolated parity compose stack", () => {
     expect(source).not.toContain("docker.sock");
     expect(source).not.toContain(
       "parity-route-control-provider.mjs:/app/scripts/parity-route-control-provider.mjs:ro",
+    );
+    expect(source).not.toContain(
+      "deploy-target-parity-init.sh:/custom-cont-init.d",
+    );
+    expect(source).not.toContain(
+      "./fixtures/parity-target-site:/usr/share/nginx/html",
+    );
+    expect(source).toContain(
+      "mysql@sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb",
+    );
+    expect(source).toContain(
+      "redis@sha256:e7723ff73d963f5cc6d9c4643ea3d989527a402a319239054e9472a7fb9219a2",
+    );
+    expect(source).not.toMatch(
+      /image: (mysql:8\.4|redis:7-alpine|lscr\.io\/linuxserver\/openssh-server:latest|nginx:alpine)/,
+    );
+    await expect(
+      readFile(
+        resolve(root, "scripts/parity-deploy-target.Dockerfile"),
+        "utf8",
+      ),
+    ).resolves.toContain(
+      "lscr.io/linuxserver/openssh-server@sha256:96b9a4d3b5106746d08d43a6911650d4d21f7d5c7f2ac9660e792bdb5e63157c",
+    );
+    await expect(
+      readFile(
+        resolve(root, "scripts/parity-deploy-target.Dockerfile"),
+        "utf8",
+      ),
+    ).resolves.toContain(
+      "COPY --chmod=755 scripts/deploy-target-parity-init.sh /custom-cont-init.d/99-install-tools.sh",
+    );
+    await expect(
+      readFile(
+        resolve(root, "scripts/parity-target-workload.Dockerfile"),
+        "utf8",
+      ),
+    ).resolves.toContain(
+      "nginx@sha256:4a73073bd557c65b759505da037898b61f1be6cbcc3c2c3aeac22d2a470c1752",
     );
   });
 });

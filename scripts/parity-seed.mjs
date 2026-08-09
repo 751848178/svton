@@ -182,12 +182,21 @@ export async function main() {
 }
 
 async function prepareVerifiedRuntimeImages() {
-  await compose(["build", "api", "web", "route-control"]);
+  await compose([
+    "build",
+    "api",
+    "web",
+    "route-control",
+    "deploy-target",
+    "target-workload",
+  ]);
   const expected = expectedRuntimeImageLabels(runtime);
   const images = {
     api: runtime.apiImage,
     web: runtime.webImage,
     "route-control": runtime.routeControlImage,
+    "deploy-target": runtime.deployTargetImage,
+    "target-workload": runtime.targetWorkloadImage,
   };
   const imageIds = {};
   for (const [service, image] of Object.entries(images)) {

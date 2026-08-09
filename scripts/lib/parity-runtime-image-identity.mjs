@@ -1,4 +1,10 @@
-const SERVICE_NAMES = Object.freeze(["api", "web", "route-control"]);
+const SERVICE_NAMES = Object.freeze([
+  "api",
+  "web",
+  "route-control",
+  "deploy-target",
+  "target-workload",
+]);
 const IMAGE_ID_PATTERN = /^sha256:[0-9a-f]{64}$/;
 
 export function requireRuntimeImageIds(value) {
@@ -20,6 +26,8 @@ export function runtimeImageReferences(runtime) {
     api: runtime.apiImage,
     web: runtime.webImage,
     "route-control": runtime.routeControlImage,
+    "deploy-target": runtime.deployTargetImage,
+    "target-workload": runtime.targetWorkloadImage,
   };
 }
 
