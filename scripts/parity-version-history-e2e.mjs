@@ -1,36 +1,11 @@
 #!/usr/bin/env node
 // F456 version/history E2E driver over the RUNNING parity stack.
 //
-// Chain (each AC-E2E-016..023 mapped to checked F455 context evidence):
-//   0.  preflight: stack health (api / web / target-workload / mysql) + login
-//   1.  base state: isolated reset+bootstrap support primitives without the
-//       legacy fixed project (parity-seed.mjs reset-bootstrap) + rerun the
-//       F455 positive chain (parity-positive-e2e.mjs) -> exactly 1 BuildRun +
-//       1 Manifest + 1 Staging deploy + 1 Production release + current env
-//       versions (documented reuse; the rerun overwrites the F455 evidence
-//       file, so the original F455 evidence is preserved first).
-//   2.  second build on the checked release order -> NEW BuildRun + NEW Manifest,
-//       deterministic digest vs the first build (AC-E2E-016).
-//   3.  deploy the FIRST manifest to Staging a second time -> two Staging
-//       DeploymentRuns on the same Manifest, BuildRun count unchanged
-//       (AC-E2E-017).
-//   4.  Staging upgrade (actions: kind upgrade + candidate manifest) -> new
-//       EnvironmentVersion kind upgrade (AC-E2E-018).
-//   5.  Staging rollback (actions: kind recovery + historical version) -> new
-//       EnvironmentVersion kind recovery (AC-E2E-019).
-//   6.  Production upgrade: preview -> confirm (standard ReleaseRun +
-//       approval) -> approve -> execute -> new Production EnvironmentVersion
-//       + pointer move (AC-E2E-020).
-//   7.  Production rollback: recovery preview -> recovery confirm (recovery
-//       ReleaseRun + approval) -> approve -> execute -> new recovery
-//       EnvironmentVersion + pointer move (AC-E2E-021).
-//   8.  current/history/previousVersion chains verified on every
-//       EnvironmentVersion (AC-E2E-022).
-//   9.  browser pass (1484x1324, authenticated, parity web 4131): release
-//       detail shows multiple BuildRuns + multiple Staging DeploymentRuns +
-//       Production ReleaseRuns (upgrade + recovery); env-versions view shows
-//       the upgrade/recovery history chains; build log drawer + staging run
-//       log + production run log + env-version change log (AC-E2E-023).
+// Chain (AC-E2E-016..023): preflight and the fresh-intake F455 base chain;
+// a second deterministic build; repeated Staging deployment without rebuild;
+// Staging upgrade/recovery; Production preview/approval/upgrade/recovery;
+// exact current/history/previousVersion identity checks; and an authenticated
+// 1484x1324 browser pass over release details, environment versions and logs.
 //
 // Evidence: /tmp/codex-tool-runs/svton/f456/f456-version-history-evidence.json
 import { createHash } from "node:crypto";
@@ -49,6 +24,7 @@ import {
 } from "./lib/parity-history-e2e-evidence.mjs";
 import { extractPositiveHistoryContext } from "./lib/parity-history-context.mjs";
 import { browserSecretReference, runHistoryBrowserSession } from "./lib/parity-history-browser-session.mjs";
+import { persistHistoryBrowserEvidence } from "./lib/parity-history-browser-evidence-persistence.mjs";
 import { environmentVersionMarkers } from "./lib/parity-history-environment-version-markers.mjs";
 import {
   productionGateEvidence,
@@ -59,13 +35,13 @@ import {
 } from "./lib/parity-production-route-evidence.mjs";
 import { productionConfirmResult } from "./lib/parity-negative-history-confirm-result.mjs";
 import { versionRowResult } from "./lib/parity-negative-history-version-row-result.mjs";
-import { historyChainOutputDirectory } from "./lib/parity-history-chain-paths.mjs";
+import { HISTORY_CHAIN_RUN_ROOT, historyChainOutputDirectory } from "./lib/parity-history-chain-paths.mjs";
 import { parityRuntimeConfig } from "./lib/parity-runtime-config.mjs";
 import { POSITIVE_DELIVERY_FIXTURE_IDS } from "./lib/parity-positive-delivery-fixture-ids.mjs";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const runtime = parityRuntimeConfig();
 const outDir = historyChainOutputDirectory(process.env, "f456", "/tmp/codex-tool-runs/svton/f456");
-const browserTrustedRoot = await realpath(tmpdir());
+const browserTrustedRoot = await realpath(process.env[HISTORY_CHAIN_RUN_ROOT] || tmpdir());
 const apiBase = runtime.apiBase;
 let teamId;
 let projectId;
@@ -846,14 +822,7 @@ async function main() {
 async function browserPass(ids) {
   const actions = browserActions(ids);
   const logPath = `${outDir}/f456-browser-driver.log`;
-  const {
-    artifacts,
-    contents,
-    cdpEvidence,
-    browserFailures,
-    outputNames,
-    driverExit,
-  } = await runHistoryBrowserSession({
+  const session = await runHistoryBrowserSession({
     actions, secrets: { "admin-password": adminPassword },
     trustedRoot: browserTrustedRoot,
     driver: cdpDriver,
@@ -862,6 +831,17 @@ async function browserPass(ids) {
     timeout: 420000,
     logPath,
   });
+  await persistHistoryBrowserEvidence({
+    runRoot: process.env[HISTORY_CHAIN_RUN_ROOT], outputDirectory: outDir, session,
+  });
+  const {
+    artifacts,
+    contents,
+    cdpEvidence,
+    browserFailures,
+    outputNames,
+    driverExit,
+  } = session;
   const {
     buildRunId,
     stagingRunId,
