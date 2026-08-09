@@ -65,7 +65,7 @@ export function ApprovalsContent({
           onRetry={handleRetry}
         />
       ) : null}
-      <div className="grid gap-4 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5 md:gap-4">
         <MetricCard
           label={t('metricCurrentList')}
           value={stats.total}
