@@ -3482,6 +3482,7 @@
     "pageDescription": "全局待办、部署与资源状态一览",
     "todoSectionTitle": "待处理事项",
     "todoAllClear": "暂无待处理事项，一切正常",
+    "todoIncomplete": "部分数据暂不可用，无法确认当前没有待处理事项",
     "todoItemClear": "暂无",
     "todoPendingApprovals": "待我审批",
     "todoPendingApprovalsHint": "有操作等待你的审批决策",

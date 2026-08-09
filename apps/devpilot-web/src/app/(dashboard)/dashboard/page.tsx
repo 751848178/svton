@@ -23,17 +23,32 @@ import { QuickActions } from './components/quick-actions';
 export default function DashboardPage() {
   const t = useTranslations('dashboard');
   const tc = useTranslations('common');
-  const { stats, recentRuns, recentRequests, loading, hasAnyData, error, partialFailureCount, retry } =
-    useDashboard();
+  const {
+    stats,
+    recentRuns,
+    recentRequests,
+    loading,
+    hasAnyData,
+    error,
+    partialFailureCount,
+    retry,
+  } = useDashboard();
 
   const fullErrorMessage = error ? t('loadFailedWithMessage', { message: error.message }) : '';
 
   return (
     <div className="space-y-6">
-      <PageHeader title={t('pageTitle')} description={t('pageDescription')} />
+      <PageHeader
+        title={t('pageTitle')}
+        description={t('pageDescription')}
+      />
 
       {error && !hasAnyData ? (
-        <ErrorBanner message={fullErrorMessage} onRetry={retry} retryLabel={tc('retry')} />
+        <ErrorBanner
+          message={fullErrorMessage}
+          onRetry={retry}
+          retryLabel={tc('retry')}
+        />
       ) : loading && !hasAnyData ? (
         <LoadingState text={tc('loading')} />
       ) : (
@@ -51,6 +66,7 @@ export default function DashboardPage() {
             pendingApprovals={stats.pendingApprovals}
             failedDeployments={stats.failedDeployments24h}
             firingAlerts={stats.firingAlerts}
+            incomplete={partialFailureCount > 0}
           />
 
           {/* 第 2 层：全局指标卡 */}

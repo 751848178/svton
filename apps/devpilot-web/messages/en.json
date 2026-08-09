@@ -3483,6 +3483,7 @@
     "pageDescription": "Global action items, deployments, and resource status at a glance",
     "todoSectionTitle": "Action Items",
     "todoAllClear": "No pending items. All clear.",
+    "todoIncomplete": "Some data is unavailable, so an all-clear status cannot be confirmed.",
     "todoItemClear": "None",
     "todoPendingApprovals": "Pending My Approval",
     "todoPendingApprovalsHint": "Operations are waiting for your approval decision",
