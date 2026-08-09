@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { LinkButton, StatusTag } from '@/components/ui';
+import { ErrorBanner, LinkButton } from '@/components/ui';
 import { useEnvironmentVersions } from '../hooks/use-environment-versions';
 import type { RecoveryCreateResult } from '../hooks/use-recovery-confirm';
 import type { EnvironmentVersionEnvironment } from '../types/environment-version.types';
@@ -11,6 +11,8 @@ import { releaseOrderHref } from '../utils/project-route.utils';
 import { EnvironmentChangeRow } from './environment-change-row';
 import { EnvironmentRecoveryDialog } from './environment-recovery-dialog';
 import { approvedEnvironmentVersionRun, EnvironmentVersionCard } from './environment-version-card';
+import { EnvironmentVersionsHeader } from './environment-versions-header';
+import { EnvironmentVersionsRequestState } from './environment-versions-request-state';
 
 interface RecoveryTarget {
   environment: EnvironmentVersionEnvironment;
@@ -24,27 +26,29 @@ export function EnvironmentVersionsPanel({ projectId }: { projectId: string }) {
   const versions = useEnvironmentVersions(projectId);
   const [selection, setSelection] = useState<Record<string, string>>({});
   const [recoveryTarget, setRecoveryTarget] = useState<RecoveryTarget | null>(null);
-  return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold">{t('environmentVersionPageTitle')}</h2>
-          <p className="text-sm text-muted-foreground">{t('environmentVersionsDescription')}</p>
-        </div>
-        <StatusTag
-          status="success"
-          label={t('environmentVersionEnvironmentCount', {
-            count: versions.environments.length,
-          })}
+  const hasEnvironments = versions.environments.length > 0;
+  if (versions.loading || !hasEnvironments) {
+    return (
+      <div className="space-y-5">
+        <EnvironmentVersionsHeader />
+        <EnvironmentVersionsRequestState
+          projectId={projectId}
+          loading={versions.loading}
+          error={versions.error}
+          onRetry={() => void versions.load()}
         />
       </div>
+    );
+  }
+  return (
+    <div className="space-y-5">
+      <EnvironmentVersionsHeader count={versions.environments.length} />
       {versions.error ? (
-        <p
-          className="text-sm text-destructive"
-          role="alert"
-        >
-          {versions.error}
-        </p>
+        <ErrorBanner
+          message={versions.error}
+          onRetry={() => void versions.load()}
+          retryLabel={t('environmentVersionsRetry')}
+        />
       ) : null}
       <div className="grid gap-4 xl:grid-cols-2">
         {versions.environments.map((environment) => {

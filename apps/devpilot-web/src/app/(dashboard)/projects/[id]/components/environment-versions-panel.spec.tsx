@@ -15,10 +15,13 @@ import { EnvironmentVersionsPanel } from './environment-versions-panel';
 
 const mocks = vi.hoisted(() => ({
   execute: vi.fn(),
+  load: vi.fn(),
   push: vi.fn(),
   versions: {
     environments: [] as EnvironmentVersionEnvironment[],
     candidates: { staging: [], production: [] } as EnvironmentVersionCandidates,
+    loading: false,
+    error: '',
   },
 }));
 vi.mock('next/navigation', () => ({
@@ -50,17 +53,49 @@ vi.mock('@/components/ui', () => ({
     <a href={href}>{children}</a>
   ),
   StatusTag: ({ label }: { label: string }) => <span>{label}</span>,
+  ErrorBanner: ({
+    message,
+    onRetry,
+    retryLabel,
+  }: {
+    message: string;
+    onRetry?: () => void;
+    retryLabel?: string;
+  }) => (
+    <div role="alert">
+      {message}
+      {onRetry ? <button onClick={onRetry}>{retryLabel}</button> : null}
+    </div>
+  ),
 }));
 vi.mock('../hooks/use-environment-versions', () => ({
   useEnvironmentVersions: () => ({
     environments: mocks.versions.environments,
     candidates: mocks.versions.candidates,
+    loading: mocks.versions.loading,
     executing: false,
-    error: '',
+    error: mocks.versions.error,
+    load: mocks.load,
     execute: mocks.execute,
   }),
 }));
 vi.mock('@svton/ui', () => ({
+  LoadingState: ({ text }: { text?: React.ReactNode }) => <div role="status">{text}</div>,
+  EmptyState: ({
+    text,
+    description,
+    action,
+  }: {
+    text?: React.ReactNode;
+    description?: React.ReactNode;
+    action?: React.ReactNode;
+  }) => (
+    <div>
+      {text}
+      {description}
+      {action}
+    </div>
+  ),
   Dialog: ({
     children,
     title,
@@ -95,14 +130,18 @@ describe('EnvironmentVersionsPanel Demo-aligned read model', () => {
 
   beforeEach(() => {
     (globalThis as typeof globalThis & { React: typeof React }).React = React;
-    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
-      true;
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
     container = document.createElement('div');
     root = createRoot(container);
     mocks.execute.mockReset();
+    mocks.load.mockReset();
     mocks.push.mockReset();
     mocks.versions.environments = environments();
     mocks.versions.candidates = candidates();
+    mocks.versions.loading = false;
+    mocks.versions.error = '';
   });
 
   afterEach(async () => act(async () => root.unmount()));
@@ -113,6 +152,42 @@ describe('EnvironmentVersionsPanel Demo-aligned read model', () => {
     expect(html).toContain('environmentVersionPageTitle');
     expect(html).toContain('environmentVersionsDescription');
     expect(html).toContain('&quot;count&quot;:2');
+  });
+
+  it('renders a distinct loading state without a zero count or empty table', () => {
+    mocks.versions.environments = [];
+    mocks.versions.loading = true;
+    const html = renderToStaticMarkup(<EnvironmentVersionsPanel projectId="project-1" />);
+
+    expect(html).toContain('environmentVersionsLoading');
+    expect(html).not.toContain('environmentVersionEnvironmentCount');
+    expect(html).not.toContain('environmentVersionChangeLog');
+  });
+
+  it('renders an actionable empty state without the environment table', () => {
+    mocks.versions.environments = [];
+    const html = renderToStaticMarkup(<EnvironmentVersionsPanel projectId="project-1" />);
+
+    expect(html).toContain('environmentVersionsEmptyTitle');
+    expect(html).toContain('environmentVersionsEmptyDescription');
+    expect(html).toContain('manageEnvironmentConfiguration');
+    expect(html).not.toContain('environmentVersionEnvironmentCount');
+    expect(html).not.toContain('environmentVersionChangeLog');
+  });
+
+  it('renders a retryable error state without stale success content', async () => {
+    mocks.versions.environments = [];
+    mocks.versions.error = 'request failed';
+    await renderPanel();
+
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('request failed');
+    expect(container.textContent).not.toContain('environmentVersionChangeLog');
+    await act(async () => {
+      [...container.querySelectorAll('button')]
+        .find((button) => button.textContent === 'environmentVersionsRetry')!
+        .click();
+    });
+    expect(mocks.load).toHaveBeenCalledTimes(1);
   });
 
   it('renders per-environment cards with the four facts and rollback/upgrade actions', () => {
@@ -189,17 +264,17 @@ describe('EnvironmentVersionsPanel Demo-aligned read model', () => {
       'manifest-1',
       'manifest-2',
     ]);
-    expect([...productionSelect.options].map((option) => option.value)).toEqual([
-      'manifest-1',
-    ]);
+    expect([...productionSelect.options].map((option) => option.value)).toEqual(['manifest-1']);
   });
 
   it('carries the staging-proof suffix only on Production candidate options', async () => {
     await renderPanel();
     const [stagingSelect, productionSelect] = [...container.querySelectorAll('select')];
-    expect([...stagingSelect.options].every(
-      (option) => !option.textContent.includes('environmentVersionCandidateProductionSuffix'),
-    )).toBe(true);
+    expect(
+      [...stagingSelect.options].every(
+        (option) => !option.textContent.includes('environmentVersionCandidateProductionSuffix'),
+      ),
+    ).toBe(true);
     expect(productionSelect.options[0].textContent).toContain(
       'environmentVersionCandidateProductionSuffix',
     );
@@ -229,8 +304,9 @@ describe('EnvironmentVersionsPanel Demo-aligned read model', () => {
     await act(async () => {
       rollback.click();
     });
-    expect(container.querySelector('[data-dialog-title="environmentVersionRecoveryDialogTitle"]'))
-      .not.toBeNull();
+    expect(
+      container.querySelector('[data-dialog-title="environmentVersionRecoveryDialogTitle"]'),
+    ).not.toBeNull();
     const confirm = container.querySelector('[data-testid="dialog-confirm"]') as HTMLButtonElement;
     await act(async () => {
       confirm.click();
@@ -251,15 +327,14 @@ describe('EnvironmentVersionsPanel Demo-aligned read model', () => {
     await act(async () => {
       rollback.click();
     });
-    expect(container.querySelector('[data-dialog-title="environmentVersionRecoveryDialogTitle"]'))
-      .not.toBeNull();
+    expect(
+      container.querySelector('[data-dialog-title="environmentVersionRecoveryDialogTitle"]'),
+    ).not.toBeNull();
     expect(container.textContent).toContain('environmentVersionRecoveryDefaultRecommend');
   });
 
   async function renderPanel() {
-    await act(async () =>
-      root.render(<EnvironmentVersionsPanel projectId="project-1" />),
-    );
+    await act(async () => root.render(<EnvironmentVersionsPanel projectId="project-1" />));
   }
 });
 
