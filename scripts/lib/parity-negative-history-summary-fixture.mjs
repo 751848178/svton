@@ -3,6 +3,7 @@ import {
   CDP_EVIDENCE_SCHEMA,
   CDP_EVIDENCE_VERSION,
 } from "./parity-history-cdp-capture.mjs";
+import { cdpSessionFixture } from "./parity-history-cdp-session.fixture.mjs";
 
 export function versionChainsFixture(a) {
   const valid = {
@@ -99,6 +100,7 @@ export function browserPassFixture() {
     },
     cdpSchema: CDP_EVIDENCE_SCHEMA,
     cdpVersion: CDP_EVIDENCE_VERSION,
+    cdpSessionIdentity: cdpSessionFixture(),
     consoleEvents: [],
     consoleErrors: [],
     badResponses: [],

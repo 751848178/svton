@@ -17,7 +17,6 @@ import { connectCdp } from "./parity-history-cdp-client.mjs";
 import { readBrowserSecretsFd } from "./parity-history-browser-secret-capability.mjs";
 
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-const PORT = 9333;
 
 main().catch((error) => {
   process.stderr.write(`CDP_DRIVER_ERROR ${safeErrorMessage(error)}\n`);
@@ -31,8 +30,10 @@ async function main() {
   const profile = createBrowserProfile();
   let chrome;
   try {
+    const startedAtMs = Date.now();
     chrome = startChrome(profile.path);
-    const cdp = await connectCdp(PORT);
+    const session = await connectCdp({ profile, chrome, startedAtMs });
+    const cdp = session.client;
     await Promise.all([
       cdp.call("Page.enable"),
       cdp.call("Runtime.enable"),
@@ -43,6 +44,7 @@ async function main() {
     cdp.onEvent(capture.record);
     await runCdpActions(cdp, rawActions, options);
     const evidence = validateCdpEvidence({
+      session: session.identity,
       viewport: { width: options.width, height: options.height },
       ...capture.snapshot(actionDescriptors),
     });
@@ -110,9 +112,9 @@ function startChrome(profile) {
     [
       "--headless=new",
       "--disable-gpu",
-      "--no-sandbox",
       "--disable-dev-shm-usage",
-      `--remote-debugging-port=${PORT}`,
+      "--enable-automation",
+      "--remote-debugging-port=0",
       `--user-data-dir=${profile}`,
       "about:blank",
     ],

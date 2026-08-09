@@ -8,6 +8,7 @@ import {
   createCdpCapture,
   summarizeBrowserFailures,
 } from "./parity-history-cdp-capture.mjs";
+import { cdpSessionFixture } from "./parity-history-cdp-session.fixture.mjs";
 
 const ACTIONS = [{ index: 0, type: "wait", milliseconds: 0 }];
 
@@ -115,6 +116,7 @@ function failedChecks(evidence) {
     },
     cdpSchema: evidence.schema,
     cdpVersion: evidence.version,
+    cdpSessionIdentity: evidence.session,
     consoleEvents: evidence.console,
     consoleErrors: failures.consoleErrors,
     badResponses: failures.badResponses,
@@ -147,7 +149,7 @@ function markerFixture() {
 function capture(events) {
   const collector = createCdpCapture();
   events.forEach(collector.record);
-  return collector.snapshot(ACTIONS);
+  return { ...collector.snapshot(ACTIONS), session: cdpSessionFixture() };
 }
 
 function response(type, status, pathname) {

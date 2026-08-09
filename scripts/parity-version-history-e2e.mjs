@@ -858,7 +858,7 @@ async function browserPass(ids) {
     viewport: { width: 1484, height: 1324 },
     log: logPath,
     cdpSchema: cdpEvidence.schema,
-    cdpVersion: cdpEvidence.version,
+    cdpVersion: cdpEvidence.version, cdpSessionIdentity: cdpEvidence.session,
     consoleEvents: cdpEvidence.console,
     httpResponses: cdpEvidence.httpResponses,
     consoleErrors: browserFailures.consoleErrors.slice(0, 10),

@@ -8,10 +8,11 @@ import {
   sanitizeRuntimeException,
 } from "./parity-history-cdp-event-sanitizer.mjs";
 import { validateHttpResponses } from "./parity-history-cdp-response-schema.mjs";
+import { validateCdpSessionIdentity } from "./parity-history-cdp-session-identity.mjs";
 
 const CAPTURED_TYPES = new Set(["Document", "Fetch", "XHR"]);
 export const CDP_EVIDENCE_SCHEMA = "devpilot.parity-history.cdp-evidence";
-export const CDP_EVIDENCE_VERSION = 2;
+export const CDP_EVIDENCE_VERSION = 3;
 
 export function createCdpCapture() {
   const consoleEvents = [];
@@ -83,6 +84,11 @@ export function validateCdpEvidence(evidence) {
     validateCdpActionDescriptors(evidence?.actions);
   } catch {
     invalid.push("actions");
+  }
+  try {
+    validateCdpSessionIdentity(evidence?.session);
+  } catch {
+    invalid.push("session");
   }
   for (const field of [
     "console",

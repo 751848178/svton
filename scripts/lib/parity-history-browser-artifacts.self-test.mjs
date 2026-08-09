@@ -200,7 +200,7 @@ const captureSource = session.slice(
 );
 assertInOrder(captureSource, [
   "assertPinnedBrowserOutputDirectory(pin)",
-  "const proc = spawn(",
+  "proc = spawn(",
   "assertPinnedBrowserOutputDirectory(pin)",
   "parseDriverStdout(",
   "readBackBrowserArtifacts(",

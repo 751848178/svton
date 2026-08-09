@@ -1,74 +1,136 @@
-import http from "node:http";
+import { readCdpActiveEndpoint } from "./parity-history-cdp-endpoint.mjs";
+import { cdpSessionIdentity } from "./parity-history-cdp-session-identity.mjs";
+import {
+  openCdpSocket,
+  requestCdpJson,
+} from "./parity-history-cdp-transport.mjs";
 
-export class CdpClient {
-  constructor(socket) {
-    this.socket = socket;
-    this.id = 0;
-    this.pending = new Map();
-    this.listeners = [];
-    socket.addEventListener("message", (event) => this.receive(event));
-  }
-
-  onEvent(listener) {
-    this.listeners.push(listener);
-  }
-
-  call(method, params = {}) {
-    const id = ++this.id;
-    this.socket.send(JSON.stringify({ id, method, params }));
-    return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
-    });
-  }
-
-  receive(event) {
-    const message = JSON.parse(event.data);
-    if (message.id !== undefined) {
-      const pending = this.pending.get(message.id);
-      if (!pending) return;
-      this.pending.delete(message.id);
-      if (message.error)
-        pending.reject(new Error(JSON.stringify(message.error)));
-      else pending.resolve(message.result);
-      return;
-    }
-    if (message.method) this.listeners.forEach((listener) => listener(message));
-  }
+export async function connectCdp(options, runtime = {}) {
+  const getJson = runtime.getJson || requestCdpJson;
+  const openSocket = runtime.openSocket || openCdpSocket;
+  const endpoint = await waitForEndpoint(options, runtime);
+  const origin = `http://127.0.0.1:${endpoint.port}`;
+  const versionDocument = await getJson(`${origin}/json/version`);
+  requireWebSocket(
+    versionDocument.webSocketDebuggerUrl,
+    endpoint.port,
+    endpoint.browserPath,
+    "browser-endpoint",
+  );
+  const browser = await openSocket(versionDocument.webSocketDebuggerUrl);
+  const [version, processResult, commandLine] = await Promise.all([
+    browser.call("Browser.getVersion"),
+    browser.call("SystemInfo.getProcessInfo"),
+    browser.call("Browser.getBrowserCommandLine"),
+  ]);
+  requireChromeIdentity(options, processResult, commandLine);
+  const created = await browser.call("Target.createTarget", {
+    url: "about:blank",
+  });
+  requireValue(validId(created?.targetId), "created-target");
+  const info = await browser.call("Target.getTargetInfo", {
+    targetId: created.targetId,
+  });
+  requireValue(
+    info?.targetInfo?.targetId === created.targetId &&
+      info.targetInfo.type === "page" &&
+      info.targetInfo.url === "about:blank",
+    "target-info",
+  );
+  const targets = await getJson(`${origin}/json/list`);
+  const page = targets.find(
+    (target) => target.id === created.targetId && target.type === "page",
+  );
+  requireValue(page, "target-list");
+  requireWebSocket(
+    page.webSocketDebuggerUrl,
+    endpoint.port,
+    `/devtools/page/${created.targetId}`,
+    "page-endpoint",
+  );
+  const client = await openSocket(page.webSocketDebuggerUrl);
+  assertChromeRunning(options.chrome);
+  return Object.freeze({
+    client,
+    identity: cdpSessionIdentity({
+      chromePid: options.chrome.pid,
+      port: endpoint.port,
+      profile: { ...options.profile.identity },
+      browserTargetId: endpoint.browserPath.split("/").at(-1),
+      pageTargetId: created.targetId,
+      product: version.product,
+      protocolVersion: version.protocolVersion,
+    }),
+  });
 }
 
-export async function connectCdp(port) {
-  for (let attempt = 0; attempt < 60; attempt += 1) {
+async function waitForEndpoint(options, runtime) {
+  const readEndpoint = runtime.readEndpoint || readCdpActiveEndpoint;
+  const pause =
+    runtime.sleep ||
+    ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    assertChromeRunning(options.chrome);
     try {
-      const targets = await getJson(`http://127.0.0.1:${port}/json`);
-      const page = targets.find((target) => target.type === "page");
-      if (page) return await openSocket(page.webSocketDebuggerUrl);
-    } catch {
-      // Chrome can take several polling intervals to expose its first page.
+      return readEndpoint(options.profile, options.startedAtMs);
+    } catch (error) {
+      if (!notReady(error)) throw error;
     }
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await pause(250);
   }
-  throw new Error("Chrome CDP not reachable");
+  throw new Error("E2E_CDP_SESSION_INVALID:endpoint-timeout");
 }
 
-function getJson(url) {
-  return new Promise((resolve, reject) => {
-    http
-      .get(url, (response) => {
-        let body = "";
-        response.on("data", (chunk) => {
-          body += chunk;
-        });
-        response.on("end", () => resolve(JSON.parse(body)));
-      })
-      .on("error", reject);
-  });
+function requireChromeIdentity(options, result, commandLine) {
+  assertChromeRunning(options.chrome);
+  const browser = result?.processInfo?.find((item) => item.type === "browser");
+  requireValue(browser?.id === options.chrome.pid, "process-pid");
+  requireValue(Array.isArray(commandLine?.arguments), "command-line");
+  requireValue(
+    commandLine.arguments.includes("--remote-debugging-port=0"),
+    "dynamic-port-argument",
+  );
+  requireValue(
+    commandLine.arguments.includes(`--user-data-dir=${options.profile.path}`),
+    "profile-argument",
+  );
 }
 
-async function openSocket(url) {
-  const socket = new WebSocket(url);
-  await new Promise((resolve, reject) => {
-    socket.addEventListener("open", resolve);
-    socket.addEventListener("error", reject);
-  });
-  return new CdpClient(socket);
+function requireWebSocket(value, port, path, reason) {
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    requireValue(false, reason);
+  }
+  requireValue(url.protocol === "ws:", reason);
+  requireValue(
+    ["127.0.0.1", "localhost", "[::1]"].includes(url.hostname),
+    reason,
+  );
+  requireValue(Number(url.port) === port && url.pathname === path, reason);
+  requireValue(
+    !url.username && !url.password && !url.search && !url.hash,
+    reason,
+  );
+}
+
+function assertChromeRunning(chrome) {
+  requireValue(Number.isInteger(chrome?.pid) && chrome.pid > 1, "chrome-pid");
+  requireValue(
+    chrome.exitCode === null && chrome.signalCode === null,
+    "chrome-exited",
+  );
+}
+
+function notReady(error) {
+  return error?.code === "ENOENT" || error?.code === "EBUSY";
+}
+
+function validId(value) {
+  return typeof value === "string" && /^[A-Za-z0-9-]{8,128}$/.test(value);
+}
+
+function requireValue(value, reason) {
+  if (!value) throw new Error(`E2E_CDP_SESSION_INVALID:${reason}`);
 }

@@ -5,6 +5,7 @@ import {
   summarizeBrowserFailures,
   validateCdpEvidence,
 } from "./parity-history-cdp-capture.mjs";
+import { cdpSessionFixture } from "./parity-history-cdp-session.fixture.mjs";
 
 const ACTIONS = [{ index: 0, type: "wait", milliseconds: 0 }];
 
@@ -68,7 +69,7 @@ function rejects(mutate) {
 function capture(events) {
   const collector = createCdpCapture();
   events.forEach(collector.record);
-  return collector.snapshot(ACTIONS);
+  return { ...collector.snapshot(ACTIONS), session: cdpSessionFixture() };
 }
 
 function response(type, status, url) {

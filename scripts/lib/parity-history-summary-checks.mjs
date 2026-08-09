@@ -6,6 +6,7 @@ import {
 import { browserArtifactsValid } from "./parity-history-browser-artifacts.mjs";
 import { browserMarkerGroupsValid } from "./parity-history-browser-marker-contract.mjs";
 import { validateHttpResponses } from "./parity-history-cdp-response-schema.mjs";
+import { validateCdpSessionIdentity } from "./parity-history-cdp-session-identity.mjs";
 
 export const SUMMARY_HISTORY_STEP_CHECKS = {
   "version-chains": (r) => [
@@ -60,6 +61,11 @@ function browserChecks(r) {
     predicate("requiredArtifacts", artifactsValid, r.artifacts),
     check("cdpSchema", r.cdpSchema, CDP_EVIDENCE_SCHEMA),
     check("cdpVersion", r.cdpVersion, CDP_EVIDENCE_VERSION),
+    predicate(
+      "cdpSessionIdentity",
+      validSession(r.cdpSessionIdentity),
+      r.cdpSessionIdentity,
+    ),
     predicate("consoleArray", Array.isArray(r.consoleEvents), r.consoleEvents),
     check("consoleErrors", r.consoleErrors?.length, 0),
     check("badResponses", r.badResponses?.length, 0),
@@ -90,6 +96,15 @@ function browserChecks(r) {
     ),
     predicate("markerGroups", browserMarkerGroupsValid(r), r),
   ];
+}
+
+function validSession(identity) {
+  try {
+    validateCdpSessionIdentity(identity);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function httpResponsesPass(responses) {

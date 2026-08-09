@@ -21,6 +21,7 @@ import {
   createCdpCapture,
   summarizeBrowserFailures,
 } from "./parity-history-cdp-capture.mjs";
+import { cdpSessionFixture } from "./parity-history-cdp-session.fixture.mjs";
 
 const ACTIONS = [{ index: 0, type: "wait", milliseconds: 0 }];
 const DOCUMENT_HOST = "localhost:4131";
@@ -160,7 +161,7 @@ function request(requestId, type, url) {
 function capture(events) {
   const collector = createCdpCapture();
   events.forEach(collector.record);
-  return collector.snapshot(ACTIONS);
+  return { ...collector.snapshot(ACTIONS), session: cdpSessionFixture() };
 }
 
 function failedBrowserChecks(evidence) {
@@ -173,6 +174,7 @@ function failedBrowserChecks(evidence) {
     },
     cdpSchema: CDP_EVIDENCE_SCHEMA,
     cdpVersion: CDP_EVIDENCE_VERSION,
+    cdpSessionIdentity: evidence.session,
     consoleEvents: evidence.console,
     consoleErrors: failures.consoleErrors,
     badResponses: failures.badResponses,

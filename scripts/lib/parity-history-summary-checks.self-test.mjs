@@ -8,6 +8,7 @@ import {
   CDP_EVIDENCE_SCHEMA,
   CDP_EVIDENCE_VERSION,
 } from "./parity-history-cdp-capture.mjs";
+import { cdpSessionFixture } from "./parity-history-cdp-session.fixture.mjs";
 import { SUMMARY_HISTORY_STEP_CHECKS } from "./parity-history-summary-checks.mjs";
 
 const validMarkers = markerFixture();
@@ -95,6 +96,7 @@ function browserResult(markers) {
     },
     cdpSchema: CDP_EVIDENCE_SCHEMA,
     cdpVersion: CDP_EVIDENCE_VERSION,
+    cdpSessionIdentity: cdpSessionFixture(),
     consoleEvents: [],
     consoleErrors: [],
     badResponses: [],

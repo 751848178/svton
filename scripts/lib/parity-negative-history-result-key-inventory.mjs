@@ -45,6 +45,6 @@ export const HISTORY_RESULT_KEY_INVENTORY = Object.freeze({
     "expectedReleaseRuns production productionRecoverySourcePresent releaseRuns staging stagingRecoverySourcePresent",
   ),
   "browser-pass": keys(
-    "artifacts badResponses buildLogDrawer cdpSchema cdpVersion consoleErrors consoleEvents driver driverExit envVersionsEvidence failedRequests httpResponses log productionRunLog releaseDetailEvidence requiredArtifacts runtimeExceptions stagingRunLog stagingStepEvidence viewport",
+    "artifacts badResponses buildLogDrawer cdpSchema cdpSessionIdentity cdpVersion consoleErrors consoleEvents driver driverExit envVersionsEvidence failedRequests httpResponses log productionRunLog releaseDetailEvidence requiredArtifacts runtimeExceptions stagingRunLog stagingStepEvidence viewport",
   ),
 });

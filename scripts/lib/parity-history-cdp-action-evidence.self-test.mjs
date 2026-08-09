@@ -10,6 +10,7 @@ import {
   CDP_EVIDENCE_VERSION,
   validateCdpEvidence,
 } from "./parity-history-cdp-capture.mjs";
+import { cdpSessionFixture } from "./parity-history-cdp-session.fixture.mjs";
 
 const password = "F547-PASSWORD-SECRET@@@tail";
 const navigation =
@@ -136,6 +137,7 @@ function evidenceFixture(descriptors) {
   return {
     schema: CDP_EVIDENCE_SCHEMA,
     version: CDP_EVIDENCE_VERSION,
+    session: cdpSessionFixture(),
     actions: structuredClone(descriptors),
     viewport: { width: 100, height: 100 },
     console: [],
