@@ -73,6 +73,7 @@ describeIntegration("EnvironmentVersion production recovery integration", () => 
     expect(confirmed.sourceReleaseRunId).toBe(firstReleaseRunId);
     expect(confirmed.operationApproval).toMatchObject({
       status: "pending",
+      action: "project.release_order.deploy_production_recovery",
       inputHash: preview.inputHash,
     });
     const approval = await f.prisma.operationApproval.findUniqueOrThrow({

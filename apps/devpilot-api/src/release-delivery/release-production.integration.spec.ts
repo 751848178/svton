@@ -45,6 +45,7 @@ describeIntegration("ReleaseProduction integration", () => {
     expect(first.status).toBe("awaiting_approval");
     expect(first.operationApproval).toMatchObject({
       status: "pending",
+      action: "project.release_order.deploy_production",
       inputHash: preview.inputHash,
     });
     await expect(

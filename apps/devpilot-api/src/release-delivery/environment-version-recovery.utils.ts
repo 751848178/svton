@@ -1,6 +1,7 @@
 import { NotFoundException, UnprocessableEntityException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import type { PrismaService } from "../prisma/prisma.service";
+import { releaseOperationApprovalSelect } from "./release-operation-approval.select";
 
 export type RecoveryClient = Prisma.TransactionClient | PrismaService;
 
@@ -22,7 +23,7 @@ export interface RecoveryScope {
 
 export const recoveryRunInclude = {
   operationApproval: {
-    select: { id: true, status: true, inputHash: true, requestedAt: true },
+    select: releaseOperationApprovalSelect,
   },
   artifactManifest: {
     select: { id: true, digest: true, buildRunId: true },

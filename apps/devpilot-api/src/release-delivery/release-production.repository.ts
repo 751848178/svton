@@ -9,10 +9,11 @@ import {
   assertNoActiveReleaseRunForEnvironment,
   lockProductionEnvironmentForRelease,
 } from "./release-run-concurrency.utils";
+import { releaseOperationApprovalSelect } from "./release-operation-approval.select";
 
 const releaseRunInclude = {
   operationApproval: {
-    select: { id: true, status: true, inputHash: true, requestedAt: true },
+    select: releaseOperationApprovalSelect,
   },
   artifactManifest: {
     select: { id: true, digest: true, buildRunId: true },
