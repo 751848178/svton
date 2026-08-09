@@ -31,6 +31,9 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  requireConfigRevisionCreateResponse,
+} from "./lib/parity-config-revision-create-response.mjs";
 import { checkedStep, finishEvidence } from "./lib/parity-e2e-evidence.mjs";
 import { parityApiError } from "./lib/parity-http-error.mjs";
 import {
@@ -536,7 +539,8 @@ async function main() {
         changeSummary: "F457 negative e2e: production config drift (R3)",
       },
     );
-    r3ProductionId = r3.id;
+    const created = requireConfigRevisionCreateResponse(r3);
+    r3ProductionId = created.id;
     const current = (
       await prisma.projectEnvironment.findUnique({
         where: { id: productionEnvId },
@@ -544,9 +548,9 @@ async function main() {
       })
     ).currentConfigRevisionId;
     return {
-      r3RevisionId: r3.id,
-      revision: r3.revision,
-      nowCurrent: current === r3.id,
+      r3RevisionId: created.id,
+      revision: created.revision,
+      nowCurrent: current === created.id,
     };
   });
   await step("ac-029-old-confirm-execute-rejected", async () => {
