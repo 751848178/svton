@@ -1,10 +1,10 @@
 # Version control
 .git
 
-# Dependencies & build outputs
-# (dist / .next are NOT ignored: apps are compiled on the host and copied in)
+# Dependencies & host build outputs
+# API dist remains available to its image; Web is compiled inside its image.
 **/node_modules
-**/.next/cache
+**/.next
 **/.turbo
 .turbo
 out

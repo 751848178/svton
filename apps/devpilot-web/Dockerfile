@@ -20,10 +20,10 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 RUN pnpm rebuild --filter @svton/devpilot-web...
 
 # ---- web: Next.js frontend ----
-# .next/ is compiled on the host (turbo build) and already present in the
-# build context; nothing left to compile inside the container.
 FROM base AS web
 WORKDIR /app/apps/devpilot-web
 ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN pnpm build
 EXPOSE 3120
 CMD ["pnpm", "start"]
