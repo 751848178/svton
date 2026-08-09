@@ -16,7 +16,7 @@ export function parityApiError(method, path, status, payload = {}) {
   error.status = status;
   error.code = code;
   error.requestIdentity = { method, path };
-  error.decision = safeDecision(payload.decision);
+  error.decision = safeDecision(payload.data?.decision ?? payload.decision);
   return error;
 }
 

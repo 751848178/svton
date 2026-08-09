@@ -22,7 +22,7 @@ export class ReleaseGateBlockedException extends UnprocessableEntityException {
     super({
       code: "RELEASE_GATE_BLOCKED",
       message: `${decision.stage} 门禁未满足，服务端已拒绝执行`,
-      decision,
+      publicData: { decision },
     });
   }
 }

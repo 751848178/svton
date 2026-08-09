@@ -54,7 +54,7 @@ describe("ReleaseGateDecisionService", () => {
     expect(new ReleaseGateBlockedException(denied).getResponse()).toMatchObject(
       {
         code: "RELEASE_GATE_BLOCKED",
-        decision: denied,
+        publicData: { decision: denied },
       },
     );
   });

@@ -7,9 +7,10 @@ import {
   Logger,
   Inject,
   Optional,
-} from '@nestjs/common';
-import { HTTP_MODULE_OPTIONS } from '../constants';
-import { isPrismaError, mapPrismaError } from '../utils/prisma-error.util';
+} from "@nestjs/common";
+import { HTTP_MODULE_OPTIONS } from "../constants";
+import { isPrismaError, mapPrismaError } from "../utils/prisma-error.util";
+import { httpExceptionPublicData } from "./http-exception-public-data";
 
 interface HttpOptions {
   enableExceptionFilter?: boolean;
@@ -51,7 +52,9 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(GlobalExceptionFilter.name);
 
   constructor(
-    @Optional() @Inject(HTTP_MODULE_OPTIONS) private readonly options?: HttpOptions,
+    @Optional()
+    @Inject(HTTP_MODULE_OPTIONS)
+    private readonly options?: HttpOptions,
   ) {}
 
   catch(exception: unknown, host: ArgumentsHost) {
@@ -60,30 +63,35 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest<ExpressRequest>();
 
     let status: number = HttpStatus.INTERNAL_SERVER_ERROR;
-    let message = 'Internal server error';
+    let message = "Internal server error";
     let code: number | string = status;
+    let data: unknown = null;
 
     // 处理 HttpException
     if (exception instanceof HttpException) {
       status = exception.getStatus();
       const exceptionResponse = exception.getResponse();
 
-      if (typeof exceptionResponse === 'string') {
+      if (typeof exceptionResponse === "string") {
         message = exceptionResponse;
-      } else if (typeof exceptionResponse === 'object' && exceptionResponse !== null) {
+      } else if (
+        typeof exceptionResponse === "object" &&
+        exceptionResponse !== null
+      ) {
         const resp = exceptionResponse as Record<string, unknown>;
         message = (resp.message as string) || exception.message;
         if (Array.isArray(resp.message)) {
-          message = resp.message.join(', ');
+          message = resp.message.join(", ");
         }
         // CR-3-F3：保留业务字符串 code（如 RELEASE_PLAN_STALE）。
         // 旧实现只读 resp.message，code 恒为 HTTP status 数字 → 前端
         // classifyReleaseError 永远拿不到字符串 code → autoRepreview 不触发。
-        if (typeof resp.code === 'string' && resp.code.length > 0) {
+        if (typeof resp.code === "string" && resp.code.length > 0) {
           code = resp.code;
         }
+        data = httpExceptionPublicData(resp);
       }
-      if (typeof code !== 'string') code = status;
+      if (typeof code !== "string") code = status;
     }
     // 处理 Prisma 错误
     else if (isPrismaError(exception)) {
@@ -95,18 +103,23 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     // 处理普通 Error
     else if (exception instanceof Error) {
       message = exception.message;
-      this.logger.error(`Unhandled error: ${exception.message}`, exception.stack);
+      this.logger.error(
+        `Unhandled error: ${exception.message}`,
+        exception.stack,
+      );
     }
 
     // 获取 traceId
     const traceId = this.options?.getTraceId?.(request) || request.id;
 
-    const errorResponse: ApiResponseType<null> = {
+    const errorResponse: ApiResponseType<unknown> = {
       code,
       message,
-      data: null,
+      data,
       ...(traceId && { traceId }),
-      ...(this.options?.includeTimestamp !== false && { timestamp: new Date().toISOString() }),
+      ...(this.options?.includeTimestamp !== false && {
+        timestamp: new Date().toISOString(),
+      }),
     };
 
     // 记录错误日志
