@@ -2,6 +2,8 @@ export const RUNTIME_LABELS = Object.freeze({
   revision: "org.opencontainers.image.revision",
   tree: "io.svton.devpilot.source-tree-sha256",
   runtime: "io.svton.devpilot.runtime-id",
+  goal: "io.svton.devpilot.goal-id",
+  owner: "io.svton.devpilot.cleanup-owner-token",
 });
 
 export function assertRuntimeImageLabels(labels, expected) {
@@ -21,6 +23,8 @@ export function expectedRuntimeImageLabels(runtime) {
     revision: runtime.sourceRevision,
     tree: runtime.sourceTreeSha256,
     runtime: runtime.runtimeId,
+    goal: runtime.goalId,
+    owner: runtime.cleanupOwnerToken,
   });
 }
 

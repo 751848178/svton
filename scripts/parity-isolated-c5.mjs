@@ -1,21 +1,24 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
 import { realpath, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   createIsolatedC5Context,
-  loadRunningC5Manifest,
+  loadDestroyableC5Manifest,
   markC5ManifestDestroyed,
+  markC5ManifestFailed,
+  writePreparedC5Manifest,
   writeRunningC5Manifest,
 } from "./lib/parity-isolated-c5-context.mjs";
 import { runHistoryChain } from "./lib/parity-history-chain-launcher.mjs";
+import { parityRuntimeConfig } from "./lib/parity-runtime-config.mjs";
+import { assertNoRuntimeResources } from "./lib/parity-runtime-resource-ownership.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const runtimeRoot = join(
-  await realpath(tmpdir()),
-  "codex-tool-runs/svton/c5-runtime",
+  await realpath("/tmp"),
+  "codex-tool-runs/svton/long-goals/devpilot-v13-opencode-acceptance/final-runtime-acceptance/runs",
 );
 const command = process.argv[2] || "run";
 
@@ -25,8 +28,9 @@ else throw new Error(`unknown isolated C5 command: ${command}`);
 
 async function runIsolatedAcceptance() {
   const context = await createIsolatedC5Context(root, runtimeRoot, process.env);
-  const { environment, manifestPath, runDirectory } = context;
+  const { environment, manifestPath } = context;
   let started = false;
+  await writePreparedC5Manifest(context);
   try {
     run(
       "corepack",
@@ -47,21 +51,32 @@ async function runIsolatedAcceptance() {
     );
   } catch (error) {
     let cleanupError;
-    if (started) {
-      try {
-        destroyRuntime(environment);
-      } catch (failure) {
-        cleanupError = failure;
-      }
+    let cleanupReceipt;
+    try {
+      if (started) destroyRuntime(environment);
+      await rm(environment.PARITY_FIXTURE_GIT_ROOT, {
+        recursive: true,
+        force: true,
+      });
+      const runtime = parityRuntimeConfig(environment);
+      const residualResources = assertNoRuntimeResources(runtime);
+      cleanupReceipt = cleanupReceiptFor(runtime, residualResources);
+    } catch (failure) {
+      cleanupError = failure;
+      cleanupReceipt = {
+        status: "cleanup_failed",
+        verifiedAt: new Date().toISOString(),
+        error: failure instanceof Error ? failure.message : String(failure),
+      };
     }
-    await rm(runDirectory, { recursive: true, force: true });
+    await markC5ManifestFailed(context, error, cleanupReceipt);
     if (cleanupError) throw new AggregateError([error, cleanupError]);
     throw error;
   }
 }
 
 async function destroyFromManifest(manifestPath) {
-  const loaded = await loadRunningC5Manifest(
+  const loaded = await loadDestroyableC5Manifest(
     manifestPath,
     runtimeRoot,
     process.env,
@@ -71,10 +86,26 @@ async function destroyFromManifest(manifestPath) {
     recursive: true,
     force: true,
   });
-  await markC5ManifestDestroyed(loaded);
+  const runtime = parityRuntimeConfig(loaded.environment);
+  const residualResources = assertNoRuntimeResources(runtime);
+  await markC5ManifestDestroyed(
+    loaded,
+    cleanupReceiptFor(runtime, residualResources),
+  );
   process.stdout.write(
     `${JSON.stringify({ status: "destroyed", manifestPath: loaded.manifestPath })}\n`,
   );
+}
+
+function cleanupReceiptFor(runtime, residualResources) {
+  return {
+    status: "verified_zero_residuals",
+    verifiedAt: new Date().toISOString(),
+    runtimeId: runtime.runtimeId,
+    goalId: runtime.goalId,
+    cleanupOwnerToken: runtime.cleanupOwnerToken,
+    residualResources,
+  };
 }
 
 function destroyRuntime(environment) {

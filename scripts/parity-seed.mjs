@@ -17,15 +17,13 @@
 // and prints the allowlist before acting. It NEVER touches devpilot_g003_*,
 // devpilot_resource_pool, the manual stack volumes, or any other project.
 import { spawnSync } from "node:child_process";
-import { createCipheriv, createHash, randomBytes, scryptSync } from "node:crypto";
 import {
-  cp,
-  mkdir,
-  mkdtemp,
-  readFile,
-  rm,
-  writeFile,
-} from "node:fs/promises";
+  createCipheriv,
+  createHash,
+  randomBytes,
+  scryptSync,
+} from "node:crypto";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -39,6 +37,15 @@ import {
   assertRuntimeImageLabels,
   expectedRuntimeImageLabels,
 } from "./lib/parity-runtime-provenance.mjs";
+import {
+  assertNoComposeResources,
+  assertNoRuntimeResources,
+  assertOwnedRuntimeResources,
+  assertRunningRuntimeProvenance,
+  removeOwnedRuntimeImages,
+} from "./lib/parity-runtime-resource-ownership.mjs";
+import { printParitySeedInventory } from "./lib/parity-seed-inventory.mjs";
+import { createParitySeedRuntimeOperations } from "./lib/parity-seed-runtime-operations.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const composeFile = resolve(root, "docker-compose.devpilot-parity.yml");
@@ -49,6 +56,7 @@ const fixtureGitRoot =
   "/tmp/codex-tool-runs/svton/f454/parity-app-git";
 const dbName = runtime.databaseName;
 const dbUrl = runtime.databaseUrl;
+let verifiedRuntimeImageIds;
 
 // Deterministic fixture IDs (AC-E2E-006): the same IDs are used across the
 // seed, the DB, the API and the runtime evidence.
@@ -98,13 +106,26 @@ const IDS = {
   envVersionPrevB: "parity-env-version-prev-b-0001",
 };
 
+const PrismaClient = createRequire(
+  resolve(root, "apps/devpilot-api/package.json"),
+)("@prisma/client").PrismaClient;
+const printInventory = () =>
+  printParitySeedInventory({ PrismaClient, dbUrl, dbName, ids: IDS });
+const {
+  dropCreateDb,
+  migrateDeploy,
+  repairApiFixtureMount,
+  waitApiHealthy,
+  waitMysqlHealthy,
+} = createParitySeedRuntimeOperations({ compose, run, dbName, dbUrl });
+
 const command = process.argv[2] || "up";
 
 export async function main() {
   if (process.env.PARITY_REQUIRE_VERIFIED_RUNTIME === "1") {
     requireVerifiedRuntimeIdentity(runtime);
     if (["up", "reset"].includes(command)) {
-      await prepareVerifiedRuntimeImages();
+      verifiedRuntimeImageIds = await prepareVerifiedRuntimeImages();
     }
   }
   if (command === "fixture") await ensureFixtureRepo();
@@ -112,12 +133,22 @@ export async function main() {
     // Bring up infra first, migrate BEFORE the api container boots (its
     // onModuleInit queries tables), then bring up the rest and seed.
     await ensureFixtureRepo();
-    await compose(["up", "-d", "mysql", "redis", "deploy-target", "target-workload"]);
+    await compose([
+      "up",
+      "-d",
+      "mysql",
+      "redis",
+      "deploy-target",
+      "target-workload",
+    ]);
     await waitMysqlHealthy();
     await migrateDeploy();
     await compose(["up", "-d", "api", "web"]);
     await repairApiFixtureMount();
     await waitApiHealthy();
+    if (verifiedRuntimeImageIds) {
+      assertRunningRuntimeProvenance(runtime, verifiedRuntimeImageIds);
+    }
     await seed();
     await printInventory();
   } else if (command === "reset") {
@@ -126,7 +157,10 @@ export async function main() {
     await compose(["down", "--remove-orphans"]);
   } else if (command === "destroy") {
     requireVerifiedRuntimeIdentity(runtime);
+    assertOwnedRuntimeResources(runtime);
     await compose(["down", "--volumes", "--remove-orphans"]);
+    removeOwnedRuntimeImages(runtime);
+    assertNoRuntimeResources(runtime);
   } else if (command === "inventory") {
     await printInventory();
   } else {
@@ -135,9 +169,15 @@ export async function main() {
 }
 
 async function prepareVerifiedRuntimeImages() {
-  await compose(["build", "api", "web"]);
+  await compose(["build", "api", "web", "route-control"]);
   const expected = expectedRuntimeImageLabels(runtime);
-  for (const image of [runtime.apiImage, runtime.webImage]) {
+  const images = {
+    api: runtime.apiImage,
+    web: runtime.webImage,
+    "route-control": runtime.routeControlImage,
+  };
+  const imageIds = {};
+  for (const [service, image] of Object.entries(images)) {
     const out = run("docker", [
       "image",
       "inspect",
@@ -145,7 +185,14 @@ async function prepareVerifiedRuntimeImages() {
       "--format={{json .Config.Labels}}",
     ]);
     assertRuntimeImageLabels(JSON.parse(out.stdout), expected);
+    imageIds[service] = run("docker", [
+      "image",
+      "inspect",
+      image,
+      "--format={{.Id}}",
+    ]).stdout.trim();
   }
+  return Object.freeze(imageIds);
 }
 
 main().catch((error) => {
@@ -227,7 +274,15 @@ async function reset() {
     `[parity-seed] RESET namespace: project=${runtime.composeProject} DB=${dbName}`,
   );
   await compose(["down", "--volumes", "--remove-orphans"]);
-  await compose(["up", "-d", "mysql", "redis", "deploy-target", "target-workload"]);
+  assertNoComposeResources(runtime);
+  await compose([
+    "up",
+    "-d",
+    "mysql",
+    "redis",
+    "deploy-target",
+    "target-workload",
+  ]);
   await waitMysqlHealthy();
   await dropCreateDb();
   // Migrate BEFORE the api container boots (its onModuleInit queries tables).
@@ -235,79 +290,11 @@ async function reset() {
   await compose(["up", "-d", "api", "web"]);
   await repairApiFixtureMount();
   await waitApiHealthy();
+  if (verifiedRuntimeImageIds) {
+    assertRunningRuntimeProvenance(runtime, verifiedRuntimeImageIds);
+  }
   await seed();
   await printInventory();
-}
-
-// Docker Desktop bind mounts can go stale when the host dir handle changes;
-// if the api container sees an empty fixture mount, force-recreate it.
-async function repairApiFixtureMount() {
-  const out = compose([
-    "exec",
-    "-T",
-    "api",
-    "sh",
-    "-lc",
-    "test -f /read-only-repositories/parity-app/package.json && echo OK || echo MISSING",
-  ], { check: false });
-  if (out.stdout.trim() === "OK") return;
-  console.log("[parity-seed] api fixture mount empty; force-recreating api");
-  await compose(["up", "-d", "--force-recreate", "api"]);
-}
-
-async function dropCreateDb() {
-  await compose([
-    "exec",
-    "-T",
-    "mysql",
-    "sh",
-    "-lc",
-    `mysql -uroot -ppassword -e 'DROP DATABASE IF EXISTS ${dbName}; CREATE DATABASE ${dbName};'`,
-  ]);
-  console.log(`[parity-seed] recreated database ${dbName}`);
-}
-
-// Host-side migrate deploy (same approach as scripts/devpilot-docker-staging.mjs)
-async function migrateDeploy() {
-  await run("corepack", [
-    "pnpm",
-    "--filter",
-    "@svton/devpilot-api",
-    "exec",
-    "prisma",
-    "migrate",
-    "deploy",
-  ], { env: { ...process.env, DATABASE_URL: dbUrl } });
-  console.log(`[parity-seed] prisma migrate deploy applied on ${dbName}`);
-}
-
-async function waitMysqlHealthy() {
-  for (let i = 0; i < 60; i += 1) {
-    const state = containerHealth("mysql");
-    if (state === "healthy") return;
-    await sleep(2000);
-  }
-  throw new Error("parity mysql did not become healthy");
-}
-
-async function waitApiHealthy() {
-  for (let i = 0; i < 90; i += 1) {
-    const state = containerHealth("api");
-    if (state === "healthy") return;
-    await sleep(2000);
-  }
-  throw new Error("parity api did not become healthy");
-}
-
-function containerHealth(service) {
-  const container = compose(["ps", "-q", service], { check: false }).stdout.trim();
-  if (!container) return "missing";
-  const out = run("docker", [
-    "inspect",
-    container,
-    "--format={{.State.Health.Status}}",
-  ], { check: false });
-  return out.stdout.trim();
 }
 
 // ---------------------------------------------------------------------------
@@ -442,7 +429,9 @@ async function seed() {
       [IDS.envProduction, "production-target"],
     ]) {
       await prisma.projectEnvironmentServer.upsert({
-        where: { environmentId_serverId: { environmentId: envId, serverId: server.id } },
+        where: {
+          environmentId_serverId: { environmentId: envId, serverId: server.id },
+        },
         create: {
           teamId: IDS.team,
           projectId: IDS.project,
@@ -819,7 +808,8 @@ async function seed() {
         name: "web",
         deployConfig: {
           workingDirectory: "apps/web",
-          buildCommand: "node scripts/build.mjs && mkdir -p dist-production && cp -f dist/index.html dist-production/index.html",
+          buildCommand:
+            "node scripts/build.mjs && mkdir -p dist-production && cp -f dist/index.html dist-production/index.html",
           artifactPaths: ["apps/web/dist-production"],
           workloadExecutionMode: "managed-command-v1",
           deployCommand: "test -f dist-production/index.html",
@@ -833,7 +823,8 @@ async function seed() {
         name: "api",
         deployConfig: {
           workingDirectory: "apps/api",
-          buildCommand: "node scripts/build.mjs && mkdir -p dist-production && cp -f dist/server.js dist-production/server.js",
+          buildCommand:
+            "node scripts/build.mjs && mkdir -p dist-production && cp -f dist/server.js dist-production/server.js",
           artifactPaths: ["apps/api/dist-production"],
           workloadExecutionMode: "managed-command-v1",
           deployCommand: "test -f dist-production/server.js",
@@ -875,13 +866,17 @@ async function seed() {
         environmentId: IDS.envStaging,
         createdById: IDS.user,
         revision: 1,
-        snapshotHash: createHash("sha256").update("parity-staging-v1").digest("hex"),
+        snapshotHash: createHash("sha256")
+          .update("parity-staging-v1")
+          .digest("hex"),
         plainVariables: { HTTP_PLAIN_PARITY: "staging" },
-        secretReferences: [
-          { id: IDS.secret, key: "PARITY_API_KEY" },
-        ],
+        secretReferences: [{ id: IDS.secret, key: "PARITY_API_KEY" }],
         resourceReferences: [
-          { id: IDS.resourceInstance, kind: "resource_instance", name: "parity-target-workload" },
+          {
+            id: IDS.resourceInstance,
+            kind: "resource_instance",
+            name: "parity-target-workload",
+          },
         ],
         routeSnapshot: {
           domains: ["staging.parity.example.test"],
@@ -900,13 +895,17 @@ async function seed() {
         environmentId: IDS.envProduction,
         createdById: IDS.user,
         revision: 1,
-        snapshotHash: createHash("sha256").update("parity-production-v1").digest("hex"),
+        snapshotHash: createHash("sha256")
+          .update("parity-production-v1")
+          .digest("hex"),
         plainVariables: { HTTP_PLAIN_PARITY: "production" },
-        secretReferences: [
-          { id: IDS.secret, key: "PARITY_API_KEY" },
-        ],
+        secretReferences: [{ id: IDS.secret, key: "PARITY_API_KEY" }],
         resourceReferences: [
-          { id: IDS.resourceInstance, kind: "resource_instance", name: "parity-target-workload" },
+          {
+            id: IDS.resourceInstance,
+            kind: "resource_instance",
+            name: "parity-target-workload",
+          },
         ],
         routeSnapshot: {
           domains: ["parity.example.test"],
@@ -970,7 +969,10 @@ async function seed() {
         endpoint: "http://parity-target-workload:80",
         metadata: { parity: true, fixture: true },
       },
-      update: { status: "active", endpoint: "http://parity-target-workload:80" },
+      update: {
+        status: "active",
+        endpoint: "http://parity-target-workload:80",
+      },
     });
     await prisma.resourceConnectionRun.upsert({
       where: { id: IDS.connectionRun },
@@ -1114,8 +1116,22 @@ async function seed() {
       update: {},
     });
     const previousHistory = [
-      { build: IDS.buildPrevA, manifest: IDS.manifestPrevA, deploy: IDS.deployPrevA, version: IDS.envVersionPrevA, digest: digestA, at: new Date(at.getTime() - 14 * 86400_000) },
-      { build: IDS.buildPrevB, manifest: IDS.manifestPrevB, deploy: IDS.deployPrevB, version: IDS.envVersionPrevB, digest: digestB, at: new Date(at.getTime() - 7 * 86400_000) },
+      {
+        build: IDS.buildPrevA,
+        manifest: IDS.manifestPrevA,
+        deploy: IDS.deployPrevA,
+        version: IDS.envVersionPrevA,
+        digest: digestA,
+        at: new Date(at.getTime() - 14 * 86400_000),
+      },
+      {
+        build: IDS.buildPrevB,
+        manifest: IDS.manifestPrevB,
+        deploy: IDS.deployPrevB,
+        version: IDS.envVersionPrevB,
+        digest: digestB,
+        at: new Date(at.getTime() - 7 * 86400_000),
+      },
     ];
     let prevAId = null;
     for (const entry of previousHistory) {
@@ -1130,8 +1146,13 @@ async function seed() {
           revision: entry === previousHistory[0] ? 1 : 2,
           sourceBranch: "main",
           sourceCommitSha: pinnedCommit,
-          inputSnapshot: { repositoryUrl: "/read-only-repositories/parity-app", branch: "main" },
-          inputHash: createHash("sha256").update(`parity-prev-${entry.build}`).digest("hex"),
+          inputSnapshot: {
+            repositoryUrl: "/read-only-repositories/parity-app",
+            branch: "main",
+          },
+          inputHash: createHash("sha256")
+            .update(`parity-prev-${entry.build}`)
+            .digest("hex"),
           status: "succeeded",
           gateSummary: { build: { status: "passed", components: 2 } },
           startedAt: entry.at,
@@ -1153,7 +1174,12 @@ async function seed() {
         update: { digest: entry.digest },
       });
       await prisma.artifactManifestItem.upsert({
-        where: { manifestId_componentKey: { manifestId: entry.manifest, componentKey: "project-bundle" } },
+        where: {
+          manifestId_componentKey: {
+            manifestId: entry.manifest,
+            componentKey: "project-bundle",
+          },
+        },
         create: {
           id: `parity-manifest-prev-item-${entry === previousHistory[0] ? "a" : "b"}-0001`,
           manifestId: entry.manifest,
@@ -1186,7 +1212,10 @@ async function seed() {
           branch: "main",
           commitSha: pinnedCommit,
           params: { version: 1, manifestId: entry.manifest },
-          result: { artifactVerified: true, providerKey: "local-filesystem-v1" },
+          result: {
+            artifactVerified: true,
+            providerKey: "local-filesystem-v1",
+          },
           startedAt: entry.at,
           finishedAt: entry.at,
         },
@@ -1215,47 +1244,9 @@ async function seed() {
       data: { currentEnvironmentVersionId: IDS.envVersionPrevB },
     });
 
-    console.log(`[parity-seed] seeded ${dbName} (pinned fixture commit ${pinnedCommit})`);
-  } finally {
-    await prisma.$disconnect();
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Inventory: row counts + fixed IDs, used as idempotency evidence
-// (reset+seed twice -> same counts and IDs).
-async function printInventory() {
-  const prisma = new (createRequire(
-    resolve(root, "apps/devpilot-api/package.json"),
-  )("@prisma/client").PrismaClient)({
-    datasources: { db: { url: dbUrl } },
-  });
-  try {
-    const counts = {
-      project: await prisma.project.count({ where: { id: IDS.project } }),
-      environment: await prisma.projectEnvironment.count({ where: { projectId: IDS.project } }),
-      releaseOrder: await prisma.releaseOrder.count({ where: { id: IDS.order } }),
-      buildRun: await prisma.buildRun.count({ where: { projectId: IDS.project } }),
-      deploymentRun: await prisma.deploymentRun.count({ where: { projectId: IDS.project } }),
-      repositoryConnection: await prisma.repositoryConnection.count({ where: { projectId: IDS.project } }),
-      repositoryAnalysisRun: await prisma.repositoryAnalysisRun.count({ where: { projectId: IDS.project } }),
-      site: await prisma.site.count({ where: { id: IDS.site } }),
-      secretKey: await prisma.secretKey.count({ where: { id: IDS.secret } }),
-      resourceInstance: await prisma.resourceInstance.count({ where: { id: IDS.resourceInstance } }),
-      server: await prisma.server.count({ where: { id: IDS.server } }),
-      configRevision: await prisma.environmentConfigRevision.count({ where: { projectId: IDS.project } }),
-      application: await prisma.application.count({ where: { projectId: IDS.project } }),
-      applicationService: await prisma.applicationService.count({ where: { projectId: IDS.project } }),
-      fixedIds: Object.values(IDS),
-    };
-    const inventory = {
-      database: dbName,
-      capturedAt: new Date().toISOString(),
-      counts,
-      fixedIds: Object.values(IDS),
-    };
-    console.log(`[parity-seed] inventory ${JSON.stringify(inventory)}`);
-    return inventory;
+    console.log(
+      `[parity-seed] seeded ${dbName} (pinned fixture commit ${pinnedCommit})`,
+    );
   } finally {
     await prisma.$disconnect();
   }
@@ -1297,8 +1288,4 @@ function run(cmd, args, options = {}) {
     );
   }
   return out;
-}
-
-function sleep(ms) {
-  return new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 }

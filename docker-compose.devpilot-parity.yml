@@ -10,38 +10,45 @@
 # for the exact env matrix vs the fail-closed base defaults in
 # docker-compose.devpilot-app.yml).
 #
-# Ports (all host-side, isolated from the manual stack):
-#   web 4131 -> 3120 (inside container; `pnpm start` runs `next start -p 3120`)
-#   api 4132 -> 4132
-#   mysql 4334 -> 3306
-#   redis 4384 -> 6379
-#   deploy-target 4222 -> 2222 (password auth)
-#   target-workload 43992 -> 80 (static parity site workload + probe target)
-#
-# The web container's internal port is fixed by `next start -p 3120` in
-# apps/devpilot-web/package.json; the host-facing parity port is 4131 only.
-#
 # Bring up:
 #   node scripts/parity-seed.mjs up        # ensure fixture git repo, up, migrate, seed
 #   node scripts/parity-seed.mjs reset     # down + prune parity volumes/network (allowlisted) + reseed
+x-runtime-labels: &runtime-labels
+  org.opencontainers.image.revision: ${PARITY_SOURCE_REVISION:-unverified}
+  io.svton.devpilot.source-tree-sha256: ${PARITY_SOURCE_TREE_SHA256:-unverified}
+  io.svton.devpilot.runtime-id: ${PARITY_RUNTIME_ID:-default}
+  io.svton.devpilot.goal-id: ${PARITY_GOAL_ID:-unverified}
+  io.svton.devpilot.cleanup-owner-token: ${PARITY_CLEANUP_OWNER_TOKEN:-unverified}
+
 name: ${PARITY_COMPOSE_PROJECT:-devpilot-parity}
 
 volumes:
   devpilot-parity-mysql:
     name: ${PARITY_COMPOSE_PROJECT:-devpilot-parity}-mysql
+    labels: *runtime-labels
   devpilot-parity-redis:
     name: ${PARITY_COMPOSE_PROJECT:-devpilot-parity}-redis
+    labels: *runtime-labels
   devpilot-parity-release-build:
     name: ${PARITY_COMPOSE_PROJECT:-devpilot-parity}-release-build
+    labels: *runtime-labels
   devpilot-parity-deployments:
     name: ${PARITY_COMPOSE_PROJECT:-devpilot-parity}-deployments
+    labels: *runtime-labels
   devpilot-parity-deploy-target-data:
     name: ${PARITY_COMPOSE_PROJECT:-devpilot-parity}-deploy-target-data
+    labels: *runtime-labels
+
+networks:
+  default:
+    name: ${PARITY_COMPOSE_PROJECT:-devpilot-parity}-network
+    labels: *runtime-labels
 
 services:
   mysql:
     image: mysql:8.4
     restart: unless-stopped
+    labels: *runtime-labels
     environment:
       MYSQL_ROOT_PASSWORD: password
       MYSQL_DATABASE: ${PARITY_DATABASE_NAME:-devpilot_parity}
@@ -59,6 +66,7 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    labels: *runtime-labels
     ports:
       - "127.0.0.1:${PARITY_REDIS_PORT:-4384}:6379"
     volumes:
@@ -74,15 +82,9 @@ services:
       context: .
       dockerfile: apps/devpilot-api/Dockerfile
       target: api
-      labels:
-        org.opencontainers.image.revision: ${PARITY_SOURCE_REVISION:-unverified}
-        io.svton.devpilot.source-tree-sha256: ${PARITY_SOURCE_TREE_SHA256:-unverified}
-        io.svton.devpilot.runtime-id: ${PARITY_RUNTIME_ID:-default}
+      labels: *runtime-labels
     image: ${PARITY_API_IMAGE:-devpilot-parity-api:local}
-    labels:
-      org.opencontainers.image.revision: ${PARITY_SOURCE_REVISION:-unverified}
-      io.svton.devpilot.source-tree-sha256: ${PARITY_SOURCE_TREE_SHA256:-unverified}
-      io.svton.devpilot.runtime-id: ${PARITY_RUNTIME_ID:-default}
+    labels: *runtime-labels
     restart: unless-stopped
     ports:
       - "127.0.0.1:${PARITY_API_PORT:-4132}:4132"
@@ -158,15 +160,9 @@ services:
       context: .
       dockerfile: apps/devpilot-web/Dockerfile
       target: web
-      labels:
-        org.opencontainers.image.revision: ${PARITY_SOURCE_REVISION:-unverified}
-        io.svton.devpilot.source-tree-sha256: ${PARITY_SOURCE_TREE_SHA256:-unverified}
-        io.svton.devpilot.runtime-id: ${PARITY_RUNTIME_ID:-default}
+      labels: *runtime-labels
     image: ${PARITY_WEB_IMAGE:-devpilot-parity-web:local}
-    labels:
-      org.opencontainers.image.revision: ${PARITY_SOURCE_REVISION:-unverified}
-      io.svton.devpilot.source-tree-sha256: ${PARITY_SOURCE_TREE_SHA256:-unverified}
-      io.svton.devpilot.runtime-id: ${PARITY_RUNTIME_ID:-default}
+    labels: *runtime-labels
     restart: unless-stopped
     ports:
       - "127.0.0.1:${PARITY_WEB_PORT:-4131}:3120"
@@ -181,18 +177,19 @@ services:
       - api
 
   route-control:
-    image: node:22-alpine
+    build:
+      context: .
+      dockerfile: scripts/parity-route-control.Dockerfile
+      labels: *runtime-labels
+    image: ${PARITY_ROUTE_CONTROL_IMAGE:-devpilot-parity-route-control:local}
     restart: unless-stopped
-    labels:
-      org.opencontainers.image.revision: ${PARITY_SOURCE_REVISION:-unverified}
-      io.svton.devpilot.source-tree-sha256: ${PARITY_SOURCE_TREE_SHA256:-unverified}
-      io.svton.devpilot.runtime-id: ${PARITY_RUNTIME_ID:-default}
+    labels: *runtime-labels
+    ports:
+      - "127.0.0.1:${PARITY_ROUTE_CONTROL_PORT:-43993}:8080"
     environment:
       PORT: "8080"
       ROUTE_CONTROL_TOKEN: ${PARITY_ROUTE_CONTROL_TOKEN:-devpilot-parity-route-control-token-0001}
-    command: ["node", "/app/scripts/parity-route-control-provider.mjs"]
-    volumes:
-      - ./scripts/parity-route-control-provider.mjs:/app/scripts/parity-route-control-provider.mjs:ro
+    command: ["node", "/app/parity-route-control-provider.mjs"]
     healthcheck:
       test:
         [
@@ -208,6 +205,7 @@ services:
   deploy-target:
     image: lscr.io/linuxserver/openssh-server:latest
     restart: unless-stopped
+    labels: *runtime-labels
     ports:
       - "127.0.0.1:${PARITY_SSH_PORT:-4222}:2222"
     environment:
@@ -236,6 +234,7 @@ services:
   target-workload:
     image: nginx:alpine
     restart: unless-stopped
+    labels: *runtime-labels
     ports:
       - "127.0.0.1:${PARITY_TARGET_PORT:-43992}:80"
     volumes:
