@@ -100,6 +100,13 @@ describe("F454 isolated parity compose stack", () => {
     ]) {
       expect(source).toContain(expected);
     }
+    const routeDockerfile = await readFile(
+      resolve(root, "scripts/parity-route-control.Dockerfile"),
+      "utf8",
+    );
+    expect(routeDockerfile).toContain(
+      "COPY scripts/lib/parity-route-control-domain.mjs /app/lib/parity-route-control-domain.mjs",
+    );
     // The parity deploy target must NOT mount the host docker socket.
     expect(source).not.toContain("docker.sock");
     expect(source).not.toContain(
