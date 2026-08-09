@@ -44,7 +44,7 @@ export async function detachParitySeedProject(PrismaClient, databaseUrl) {
           data: { projectId: null, environmentId: null },
         }),
       ]);
-      await tx.project.deleteMany({ where: { id: FIXED_PROJECT_ID } });
+      await deleteLegacySeedProjectGraph(tx, FIXED_PROJECT_ID);
     });
     const [fixedProjects, projects, primitives] = await Promise.all([
       prisma.project.count({ where: { id: FIXED_PROJECT_ID } }),
@@ -73,6 +73,24 @@ export async function detachParitySeedProject(PrismaClient, databaseUrl) {
   } finally {
     await prisma.$disconnect();
   }
+}
+
+export async function deleteLegacySeedProjectGraph(tx, projectId) {
+  const projectScope = { projectId };
+  await tx.projectEnvironment.updateMany({
+    where: projectScope,
+    data: {
+      currentEnvironmentVersionId: null,
+      currentConfigRevisionId: null,
+    },
+  });
+  await tx.environmentVersion.deleteMany({ where: projectScope });
+  await tx.releaseRun.deleteMany({ where: projectScope });
+  await tx.deploymentRun.deleteMany({ where: projectScope });
+  await tx.artifactManifest.deleteMany({ where: projectScope });
+  await tx.buildRun.deleteMany({ where: projectScope });
+  await tx.projectIntakeFinalization.deleteMany({ where: projectScope });
+  await tx.project.deleteMany({ where: { id: projectId } });
 }
 
 function bootstrapError(reason) {
