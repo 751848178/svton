@@ -15,10 +15,11 @@ export default function CreateProjectPage() {
   const tc = useTranslations('common');
   const router = useRouter();
   const intake = useProjectIntake();
-  const credentialReady = intake.form.visibility === 'public'
-    || (intake.form.credentialMode === 'managed' && Boolean(intake.form.teamCredentialId))
-    || (intake.form.credentialMode === 'inline'
-      && Boolean(intake.form.credentialName.trim() && intake.form.credentialSecret));
+  const credentialReady =
+    intake.form.visibility === 'public' ||
+    (intake.form.credentialMode === 'managed' && Boolean(intake.form.teamCredentialId)) ||
+    (intake.form.credentialMode === 'inline' &&
+      Boolean(intake.form.credentialName.trim() && intake.form.credentialSecret));
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -44,7 +45,7 @@ export default function CreateProjectPage() {
             href="/projects"
             className="link text-sm"
           >
-            {tc('cancel')}
+            {t('intakeCancel')}
           </Link>
         }
       />

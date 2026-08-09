@@ -29,14 +29,20 @@ export function ConnectRepositoryStep({ intake }: { intake: ProjectIntakeHook })
             ]}
           />
         </Field>
-        <Field label={t('nameLabel')} helper={t('intakeNameHelper')}>
+        <Field
+          label={t('intakeProjectName')}
+          helper={t('intakeNameHelper')}
+        >
           <Input
             value={form.name}
             onChange={(event) => updateForm({ name: event.target.value })}
             placeholder={t('intakeNamePlaceholder')}
           />
         </Field>
-        <Field label={t('branchLabel')} helper={t('intakeBranchHelper')}>
+        <Field
+          label={t('branchLabel')}
+          helper={t('intakeBranchHelper')}
+        >
           <Input
             value={form.branch}
             onChange={(event) => updateForm({ branch: event.target.value })}
@@ -44,7 +50,10 @@ export function ConnectRepositoryStep({ intake }: { intake: ProjectIntakeHook })
           />
         </Field>
         <div className="sm:col-span-2">
-          <Field label={t('gitRepoLabel')} helper={t('intakeRepositoryHelper')}>
+          <Field
+            label={t('intakeRepositoryAddress')}
+            helper={t('intakeRepositoryHelper')}
+          >
             <Input
               required
               value={form.repositoryUrl}
@@ -79,7 +88,9 @@ function PrivateCredentialFields({ intake }: { intake: ProjectIntakeHook }) {
         <Field label={t('intakeCredentialMode')}>
           <Select
             value={form.credentialMode}
-            onChange={(event) => updateForm({ credentialMode: event.target.value as 'managed' | 'inline' })}
+            onChange={(event) =>
+              updateForm({ credentialMode: event.target.value as 'managed' | 'inline' })
+            }
             options={[
               { label: t('intakeCredentialManaged'), value: 'managed' },
               { label: t('intakeCredentialInline'), value: 'inline' },
@@ -94,46 +105,51 @@ function PrivateCredentialFields({ intake }: { intake: ProjectIntakeHook }) {
               onChange={(event) => updateForm({ teamCredentialId: event.target.value })}
               options={[
                 { label: t('intakeCredentialSelect'), value: '' },
-                ...intake.credentialOptions.map((option) => ({ label: option.label, value: option.id })),
+                ...intake.credentialOptions.map((option) => ({
+                  label: option.label,
+                  value: option.id,
+                })),
               ]}
             />
           </Field>
         ) : null}
-        {form.credentialMode === 'inline' ? <>
-        <Field label={t('intakeCredentialType')}>
-          <Select
-            value={form.credentialType}
-            onChange={(event) =>
-              updateForm({ credentialType: event.target.value as 'https_token' | 'ssh_key' })
-            }
-            options={[
-              { label: 'HTTPS Token', value: 'https_token' },
-              { label: 'SSH Key', value: 'ssh_key' },
-            ]}
-          />
-        </Field>
-        <Field label={t('intakeCredentialName')}>
-          <Input
-            required
-            value={form.credentialName}
-            onChange={(event) => updateForm({ credentialName: event.target.value })}
-          />
-        </Field>
-        <Field label={t('intakeCredentialUsername')}>
-          <Input
-            value={form.credentialUsername}
-            onChange={(event) => updateForm({ credentialUsername: event.target.value })}
-          />
-        </Field>
-        <Field label={t('intakeCredentialSecret')}>
-          <Input
-            required
-            type="password"
-            value={form.credentialSecret}
-            onChange={(event) => updateForm({ credentialSecret: event.target.value })}
-          />
-        </Field>
-        </> : null}
+        {form.credentialMode === 'inline' ? (
+          <>
+            <Field label={t('intakeCredentialType')}>
+              <Select
+                value={form.credentialType}
+                onChange={(event) =>
+                  updateForm({ credentialType: event.target.value as 'https_token' | 'ssh_key' })
+                }
+                options={[
+                  { label: 'HTTPS Token', value: 'https_token' },
+                  { label: 'SSH Key', value: 'ssh_key' },
+                ]}
+              />
+            </Field>
+            <Field label={t('intakeCredentialName')}>
+              <Input
+                required
+                value={form.credentialName}
+                onChange={(event) => updateForm({ credentialName: event.target.value })}
+              />
+            </Field>
+            <Field label={t('intakeCredentialUsername')}>
+              <Input
+                value={form.credentialUsername}
+                onChange={(event) => updateForm({ credentialUsername: event.target.value })}
+              />
+            </Field>
+            <Field label={t('intakeCredentialSecret')}>
+              <Input
+                required
+                type="password"
+                value={form.credentialSecret}
+                onChange={(event) => updateForm({ credentialSecret: event.target.value })}
+              />
+            </Field>
+          </>
+        ) : null}
       </div>
     </div>
   );
@@ -152,7 +168,9 @@ function Field({
     <label className="block space-y-1.5 text-sm font-medium">
       <span>{label}</span>
       {children}
-      {helper ? <small className="block text-xs font-normal text-muted-foreground">{helper}</small> : null}
+      {helper ? (
+        <small className="block text-xs font-normal text-muted-foreground">{helper}</small>
+      ) : null}
     </label>
   );
 }
