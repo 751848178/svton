@@ -53,7 +53,7 @@ export function settingsDraftFromRevision(
   return {
     secretIds: (revision.secretReferences ?? []).map((item) => item.id),
     policyIds: (revision.policyReferences ?? []).map((item) => item.id),
-    resources: revision.resourceReferences ?? [],
+    resources: resourcesFromRevision(revision.resourceReferences),
     route: {
       domains: (revision.routeSnapshot?.domains ?? []).join('\n'),
       dnsProvider: revision.routeSnapshot?.dnsProvider ?? '',
@@ -63,6 +63,17 @@ export function settingsDraftFromRevision(
     },
     summary: '',
   };
+}
+
+function resourcesFromRevision(resources: EnvironmentConfigResourceReference[] | null) {
+  return (resources ?? []).map((reference) => ({
+    ...reference,
+    sharedEnvironmentIds: Array.isArray(reference.sharedEnvironmentIds)
+      ? reference.sharedEnvironmentIds
+      : [],
+    risk: ['low', 'medium', 'high'].includes(reference.risk) ? reference.risk : 'medium',
+    impact: typeof reference.impact === 'string' ? reference.impact : '',
+  }));
 }
 
 /**

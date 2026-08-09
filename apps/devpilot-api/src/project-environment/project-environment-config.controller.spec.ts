@@ -24,17 +24,22 @@ describe("ProjectEnvironmentConfigController", () => {
 
   it("normalizes legacy null JSON collections before returning the list schema", async () => {
     const revision = {
-      plainVariables: null, secretReferences: null, resourceReferences: null,
+      plainVariables: null, secretReferences: null,
+      resourceReferences: [{ id: "resource-1", kind: "resource_instance", name: "DB" }],
       routeSnapshot: null, policyReferences: null,
     };
     const controller = new ProjectEnvironmentConfigController(
       { getAccessScope: jest.fn().mockResolvedValue(scope) } as never,
-      { list: jest.fn().mockResolvedValue({ revisions: [revision] }) } as never,
+      { list: jest.fn().mockResolvedValue({ environmentId: "env-1", revisions: [revision] }) } as never,
       { assertCanReadEnvironment: jest.fn() } as never, {} as never,
     );
     await expect(controller.list(request, "env-1")).resolves.toMatchObject({
       revisions: [{
-        plainVariables: {}, secretReferences: [], resourceReferences: [],
+        plainVariables: {}, secretReferences: [],
+        resourceReferences: [{
+          id: "resource-1", kind: "resource_instance", name: "DB",
+          sharedEnvironmentIds: ["env-1"], risk: "medium", impact: "",
+        }],
         routeSnapshot: {}, policyReferences: [],
       }],
     });

@@ -6,9 +6,14 @@ type RevisionJsonFields = {
   policyReferences: unknown;
 };
 
+type RevisionList = {
+  environmentId: string;
+  revisions: RevisionJsonFields[];
+};
+
 /** Keep legacy JSON nulls from escaping through the revision response schema. */
 export function normalizeEnvironmentConfigRevisionList<
-  T extends { revisions: RevisionJsonFields[] },
+  T extends RevisionList,
 >(response: T) {
   return {
     ...response,
@@ -16,11 +21,31 @@ export function normalizeEnvironmentConfigRevisionList<
       ...revision,
       plainVariables: recordOrEmpty(revision.plainVariables),
       secretReferences: arrayOrEmpty(revision.secretReferences),
-      resourceReferences: arrayOrEmpty(revision.resourceReferences),
+      resourceReferences: normalizeResourceReferences(
+        revision.resourceReferences,
+        response.environmentId,
+      ),
       routeSnapshot: recordOrEmpty(revision.routeSnapshot),
       policyReferences: arrayOrEmpty(revision.policyReferences),
     })),
   };
+}
+
+function normalizeResourceReferences(value: unknown, environmentId: string) {
+  return arrayOrEmpty(value).map((entry) => {
+    const reference = recordOrEmpty(entry);
+    return {
+      ...reference,
+      name: typeof reference.name === "string" ? reference.name : String(reference.id ?? ""),
+      sharedEnvironmentIds: Array.isArray(reference.sharedEnvironmentIds)
+        ? reference.sharedEnvironmentIds.filter((id): id is string => typeof id === "string")
+        : [environmentId],
+      risk: ["low", "medium", "high"].includes(String(reference.risk))
+        ? reference.risk
+        : "medium",
+      impact: typeof reference.impact === "string" ? reference.impact : "",
+    };
+  });
 }
 
 function arrayOrEmpty(value: unknown): unknown[] {

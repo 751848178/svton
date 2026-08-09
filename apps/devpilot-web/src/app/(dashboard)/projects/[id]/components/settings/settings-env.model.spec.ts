@@ -80,11 +80,14 @@ describe('settings-env.model F448 route entries round-trip', () => {
     const draft = settingsDraftFromRevision({
       ...revision({}),
       secretReferences: null,
-      resourceReferences: null,
+      resourceReferences: [{ id: 'resource-1', kind: 'resource_instance', name: 'DB' }],
       policyReferences: null,
     } as never)!;
     expect(draft.secretIds).toEqual([]);
-    expect(draft.resources).toEqual([]);
+    expect(draft.resources).toEqual([{
+      id: 'resource-1', kind: 'resource_instance', name: 'DB',
+      sharedEnvironmentIds: [], risk: 'medium', impact: '',
+    }]);
     expect(draft.policyIds).toEqual([]);
   });
 
