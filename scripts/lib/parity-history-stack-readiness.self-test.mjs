@@ -5,7 +5,7 @@ import { waitForHistoryStackReadiness } from "./parity-history-stack-readiness.m
 
 const urls = {
   apiHealthUrl: "http://127.0.0.1:4101/health",
-  webUrl: "http://127.0.0.1:4102/",
+  webUrl: "http://localhost:4102/",
   targetUrl: "http://127.0.0.1:4103/",
 };
 let round = 0;
