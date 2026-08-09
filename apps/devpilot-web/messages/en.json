@@ -83,6 +83,7 @@
     "import": "Import",
     "domain": "Domains",
     "createProject": "Create Project",
+    "projectSettings": "Project Settings",
     "myProjects": "My Projects",
     "presets": "Config Presets",
     "proxyConfigs": "Proxy Configs",

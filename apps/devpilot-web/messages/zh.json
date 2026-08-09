@@ -83,6 +83,7 @@
     "import": "导入",
     "domain": "域名",
     "createProject": "创建项目",
+    "projectSettings": "项目设置",
     "myProjects": "我的项目",
     "presets": "配置预设",
     "proxyConfigs": "代理配置",
