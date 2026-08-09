@@ -1,5 +1,6 @@
 import { artifactMetadata } from "./parity-history-browser-artifacts.mjs";
 import { writeBrowserOutputFd } from "./parity-history-browser-output-fd.mjs";
+import { resolveBrowserSecret } from "./parity-history-browser-secret-capability.mjs";
 
 const ACTION_TYPES = new Set([
   "wait",
@@ -31,7 +32,7 @@ export async function runCdpActions(cdp, actions, options, runtime = {}) {
 async function executeAction(cdp, options, kind, value, pause) {
   if (kind === "wait") await pause(Number(value));
   else if (kind === "navigate") await navigate(cdp, value, pause);
-  else if (kind === "setValue") await setValue(cdp, value, pause);
+  else if (kind === "setValue") await setValue(cdp, options, value, pause);
   else if (kind === "click") await click(cdp, value, pause);
   else if (kind === "waitText") await waitText(cdp, value, pause);
   else if (kind === "shot") await screenshot(cdp, options, value, pause);
@@ -45,9 +46,9 @@ async function navigate(cdp, url, pause) {
   await pause(1200);
 }
 
-async function setValue(cdp, value, pause) {
+async function setValue(cdp, options, value, pause) {
   const [selector, ...parts] = value.split("@@@");
-  const input = parts.join("@@@");
+  const input = resolveBrowserSecret(parts.join("@@@"), options.secrets || {});
   const result = await cdp.call("Runtime.evaluate", {
     expression: `(() => {
       const element = document.querySelector(${JSON.stringify(selector)});

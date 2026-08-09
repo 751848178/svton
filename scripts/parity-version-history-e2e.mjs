@@ -46,7 +46,7 @@ import {
   historyStepChecks,
 } from "./lib/parity-history-e2e-evidence.mjs";
 import { extractPositiveHistoryContext } from "./lib/parity-history-context.mjs";
-import { runHistoryBrowserSession } from "./lib/parity-history-browser-session.mjs";
+import { browserSecretReference, runHistoryBrowserSession } from "./lib/parity-history-browser-session.mjs";
 import {
   productionGateEvidence,
 } from "./lib/parity-production-gate-evidence.mjs";
@@ -832,7 +832,7 @@ async function browserPass(ids) {
     outputNames,
     driverExit,
   } = await runHistoryBrowserSession({
-    actions,
+    actions, secrets: { "admin-password": adminPassword },
     trustedRoot: browserTrustedRoot,
     driver: cdpDriver,
     width: 1484,
@@ -924,7 +924,7 @@ function browserActions(ids) {
     "navigate:" + webBase + "/login?redirect=%2Fteams",
     "wait:1500",
     "setValue:input[type=email]@@@" + adminEmail,
-    "setValue:input[type=password]@@@" + adminPassword,
+    "setValue:input[type=password]@@@" + browserSecretReference("admin-password"),
     "click:button[type=submit]",
     "waitText:Parity Team",
     "wait:1500",

@@ -5,6 +5,7 @@ import { mkdtemp, open, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runCdpActions } from "./parity-history-cdp-actions.mjs";
+import { browserSecretReference } from "./parity-history-browser-secret-capability.mjs";
 import { buildValidScreenshotPng } from "./parity-history-png-fixture.mjs";
 
 const outputDirectory = await mkdtemp(join(tmpdir(), "f547-actions-"));
@@ -30,7 +31,7 @@ const navigation =
 const actions = [
   "wait:25",
   `navigate:${navigation}`,
-  `setValue:input[type=password]@@@${password}`,
+  `setValue:input[type=password]@@@${browserSecretReference("password")}`,
   "click:button[type=submit]",
   "waitText:Welcome: account",
   "shot:proof.png",
@@ -43,7 +44,7 @@ const output = await captureStdout(() =>
   runCdpActions(
     cdp,
     actions,
-    { outputs, runNonce, width: 1200, height: 800 },
+    { outputs, runNonce, width: 1200, height: 800, secrets: { password } },
     { sleep: async () => {} },
   ),
 );
@@ -103,6 +104,15 @@ const failureOutput = await captureStdout(async () => {
   );
 });
 assert.doesNotMatch(failureOutput, new RegExp(failureSecret));
+await assert.rejects(
+  runCdpActions(
+    fakeCdp([], true),
+    [`setValue:input[type=password]@@@${browserSecretReference("missing")}`],
+    { outputs: {}, runNonce, width: 1, height: 1, secrets: {} },
+    { sleep: async () => {} },
+  ),
+  /E2E_CDP_ACTION_FAILED:0:setValue/,
+);
 await Promise.all(handles.map((handle) => handle.close()));
 await rm(outputDirectory, { recursive: true });
 

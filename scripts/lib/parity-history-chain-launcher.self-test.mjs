@@ -21,6 +21,7 @@ import {
   HISTORY_CHAIN_RUN_ROOT,
   LEGACY_HISTORY_INPUTS,
 } from "./parity-history-chain-paths.mjs";
+import { NODE_CODE_INJECTION_ENV } from "./parity-trusted-node-environment.mjs";
 import { readHistoryChainReceipt } from "./parity-history-chain-receipt-reader.mjs";
 
 assert.throws(
@@ -30,6 +31,12 @@ assert.throws(
 for (const name of [...LEGACY_HISTORY_INPUTS, HISTORY_CHAIN_RUN_ROOT]) {
   assert.throws(
     () => assertPublicHistoryChainInvocation([], { [name]: "forged" }),
+    new RegExp(name),
+  );
+}
+for (const name of NODE_CODE_INJECTION_ENV) {
+  assert.throws(
+    () => assertPublicHistoryChainInvocation([], { [name]: "injected" }),
     new RegExp(name),
   );
 }

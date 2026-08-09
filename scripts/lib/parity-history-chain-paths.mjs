@@ -1,6 +1,10 @@
 import { mkdtemp, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
+import {
+  assertTrustedNodeEnvironment,
+  trustedNodeChildEnvironment,
+} from "./parity-trusted-node-environment.mjs";
 
 export const HISTORY_CHAIN_CHILD = "DEVPILOT_HISTORY_CHAIN_CHILD";
 export const HISTORY_CHAIN_CONSUMER = "DEVPILOT_HISTORY_CHAIN_CONSUMER";
@@ -29,6 +33,7 @@ export function historyChainOutputDirectory(env, stage, fallback) {
 
 export function assertPublicHistoryChainInvocation(args, env) {
   requireValue(args.length === 0, "launcher accepts no arguments");
+  assertTrustedNodeEnvironment(env);
   for (const name of [
     ...LEGACY_HISTORY_INPUTS,
     HISTORY_CHAIN_CHILD,
@@ -40,7 +45,7 @@ export function assertPublicHistoryChainInvocation(args, env) {
 }
 
 export function chainChildEnvironment(env, runRoot) {
-  const child = { ...env };
+  const child = trustedNodeChildEnvironment(env);
   for (const name of LEGACY_HISTORY_INPUTS) delete child[name];
   child[HISTORY_CHAIN_CHILD] = "1";
   child[HISTORY_CHAIN_RUN_ROOT] = runRoot;

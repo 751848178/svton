@@ -17,6 +17,17 @@ import {
 import { assertEvidenceReceiptMatches } from "./parity-history-driver-evidence-receipt.mjs";
 import { parseDriverStdout } from "./parity-history-driver-stdout-parser.mjs";
 import { summarizeBrowserFailures } from "./parity-history-cdp-capture.mjs";
+import {
+  browserSecretReference,
+  cleanupBrowserSecretCapability,
+  createBrowserSecretCapability,
+} from "./parity-history-browser-secret-capability.mjs";
+import {
+  assertTrustedNodeEnvironment,
+  trustedNodeChildEnvironment,
+} from "./parity-trusted-node-environment.mjs";
+
+export { browserSecretReference };
 
 export async function runHistoryBrowserSession(options) {
   const { pin, outputNames } = await createPinnedBrowserRunDirectory(
@@ -35,25 +46,37 @@ export async function runHistoryBrowserSession(options) {
 async function captureSession(options, pin, outputNames, capability) {
   const spawn = options.runtime?.spawnSync || spawnSync;
   const writeLog = options.runtime?.writeFile || writeFile;
+  const environment = options.runtime?.env || process.env;
+  assertTrustedNodeEnvironment(environment);
+  const secrets = await createBrowserSecretCapability(pin, options.secrets);
   await assertPinnedBrowserOutputDirectory(pin);
-  const proc = spawn(
-    process.execPath,
-    [
-      options.driver,
-      "--output-plan",
-      capability.encodedPlan,
-      "--width",
-      String(options.width),
-      "--height",
-      String(options.height),
-      ...options.actions,
-    ],
-    {
-      encoding: "utf8",
-      timeout: options.timeout,
-      stdio: capability.stdio,
-    },
-  );
+  let proc;
+  try {
+    const secretFd = capability.stdio.length;
+    proc = spawn(
+      process.execPath,
+      [
+        options.driver,
+        "--output-plan",
+        capability.encodedPlan,
+        "--secret-fd",
+        String(secretFd),
+        "--width",
+        String(options.width),
+        "--height",
+        String(options.height),
+        ...options.actions,
+      ],
+      {
+        encoding: "utf8",
+        env: trustedNodeChildEnvironment(environment),
+        timeout: options.timeout,
+        stdio: [...capability.stdio, secrets.handle.fd],
+      },
+    );
+  } finally {
+    await cleanupBrowserSecretCapability(secrets);
+  }
   await assertPinnedBrowserOutputDirectory(pin);
   const stdout = proc.stdout || "";
   const stderr = proc.stderr || "";

@@ -14,6 +14,7 @@ import {
   validateCdpEvidence,
 } from "./parity-history-cdp-capture.mjs";
 import { connectCdp } from "./parity-history-cdp-client.mjs";
+import { readBrowserSecretsFd } from "./parity-history-browser-secret-capability.mjs";
 
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const PORT = 9333;
@@ -25,6 +26,7 @@ main().catch((error) => {
 
 async function main() {
   const { options, rawActions } = parseArgs(process.argv.slice(2));
+  options.secrets = readBrowserSecretsFd(options.secretFd);
   const actionDescriptors = describeCdpActions(rawActions);
   const profile = createBrowserProfile();
   let chrome;
@@ -83,6 +85,7 @@ async function stopChrome(chrome) {
 function parseArgs(args) {
   const options = {
     outputPlan: null,
+    secretFd: null,
     width: 1484,
     height: 1324,
   };
@@ -90,6 +93,7 @@ function parseArgs(args) {
   for (let index = 0; index < args.length; index += 1) {
     const value = args[index];
     if (value === "--output-plan") options.outputPlan = args[++index];
+    else if (value === "--secret-fd") options.secretFd = Number(args[++index]);
     else if (value === "--width") options.width = Number(args[++index]);
     else if (value === "--height") options.height = Number(args[++index]);
     else rawActions.push(value);
