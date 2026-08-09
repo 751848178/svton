@@ -1733,6 +1733,7 @@
     "noRequests": "暂无申请",
     "approve": "通过",
     "reject": "驳回",
+    "reviewRequiresAdmin": "需要团队管理员审批",
     "cancel": "取消",
     "status": "状态",
     "statusPending": "待审批",

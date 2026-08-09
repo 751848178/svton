@@ -3283,6 +3283,7 @@
     "processing": "Processing...",
     "approve": "Approve",
     "reject": "Reject",
+    "reviewRequiresAdmin": "Team admin approval required",
     "requesterReason": "Requester reason",
     "reviewerComment": "Reviewer comment",
     "rejectReasonLabel": "Reject reason",
