@@ -17,12 +17,7 @@
 // and prints the allowlist before acting. It NEVER touches devpilot_g003_*,
 // devpilot_resource_pool, the manual stack volumes, or any other project.
 import { spawnSync } from "node:child_process";
-import {
-  createCipheriv,
-  createHash,
-  randomBytes,
-  scryptSync,
-} from "node:crypto";
+import { createCipheriv, randomBytes, scryptSync } from "node:crypto";
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
@@ -47,6 +42,7 @@ import {
 import { printParitySeedInventory } from "./lib/parity-seed-inventory.mjs";
 import { seedParityConfigRevisions } from "./lib/parity-seed-config-revisions.mjs";
 import { createParitySeedRuntimeOperations } from "./lib/parity-seed-runtime-operations.mjs";
+import { materializeParityHistoryArtifacts } from "./lib/parity-seed-version-history-artifacts.mjs";
 import { seedParityVersionHistory } from "./lib/parity-seed-version-history.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -887,8 +883,11 @@ async function seed() {
     //     backup, D18 observability, D19 previous stable version) evaluate
     //     REAL evidence rows — same approach as the F437 MySQL fixture — so
     //     the parity Production DeploymentRun shows genuinely checked gates.
-    const digestA = `sha256:${"a".repeat(64)}`;
-    const digestB = `sha256:${"b".repeat(64)}`;
+    const [digestA, digestB] = await materializeParityHistoryArtifacts(
+      root,
+      compose,
+      IDS,
+    );
     const managed = await prisma.managedResource.upsert({
       where: {
         teamId_sourceType_provider_externalId: {

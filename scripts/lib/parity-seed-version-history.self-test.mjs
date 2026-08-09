@@ -4,6 +4,7 @@ import {
   buildParityVersionHistoryRecords,
   parityHistoryOrderCreatedAt,
 } from "./parity-seed-version-history-records.mjs";
+import { parityHistoryArtifactItem } from "./parity-seed-version-history.mjs";
 import {
   parityHistoryApprovalData,
   parityHistoryDeploymentData,
@@ -44,6 +45,15 @@ assert.equal(records[1].releaseRunId, "release-b");
 assert.notEqual(records[0].inputHash, records[1].inputHash);
 assert.ok(records[0].effectiveAt < records[1].effectiveAt);
 assert.ok(parityHistoryOrderCreatedAt(records) < records[0].effectiveAt);
+assert.deepEqual(parityHistoryArtifactItem(records[0]), {
+  id: records[0].manifestItemId,
+  manifestId: records[0].manifestId,
+  componentKey: "project-bundle",
+  artifactType: "zip",
+  uri: "release-artifact://build-a/bundle.zip",
+  digest: records[0].digest,
+  metadata: { seededBaseline: true },
+});
 
 const scope = { teamId: "team", projectId: "project" };
 const staging = parityHistoryDeploymentData(

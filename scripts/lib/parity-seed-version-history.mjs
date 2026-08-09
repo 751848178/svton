@@ -93,13 +93,15 @@ async function seedBuildArtifact(prisma, ids, scope, record) {
     releaseOrderId: ids.orderPrev,
     buildRunId: record.buildId,
     digest: record.digest,
-    provenance: { fixture: true, sourceCommitSha: record.pinnedCommit },
+    provenance: { seededBaseline: true, sourceCommitSha: record.pinnedCommit },
   };
   await prisma.artifactManifest.upsert({
     where: { id: record.manifestId },
     create: { id: record.manifestId, ...manifest },
     update: manifest,
   });
+  const item = parityHistoryArtifactItem(record);
+  const { id, manifestId, ...mutableItem } = item;
   await prisma.artifactManifestItem.upsert({
     where: {
       manifestId_componentKey: {
@@ -107,17 +109,21 @@ async function seedBuildArtifact(prisma, ids, scope, record) {
         componentKey: "project-bundle",
       },
     },
-    create: {
-      id: record.manifestItemId,
-      manifestId: record.manifestId,
-      componentKey: "project-bundle",
-      artifactType: "static_bundle",
-      uri: `file:///var/lib/devpilot/release-build/artifacts/${record.buildId}/bundle.tar.gz`,
-      digest: record.digest,
-      metadata: { fixture: true },
-    },
-    update: { digest: record.digest },
+    create: item,
+    update: mutableItem,
   });
+}
+
+export function parityHistoryArtifactItem(record) {
+  return {
+    id: record.manifestItemId,
+    manifestId: record.manifestId,
+    componentKey: "project-bundle",
+    artifactType: "zip",
+    uri: `release-artifact://${record.buildId}/bundle.zip`,
+    digest: record.digest,
+    metadata: { seededBaseline: true },
+  };
 }
 
 async function seedStaging(prisma, ids, scope, record, previousVersionId) {
