@@ -235,6 +235,21 @@ const longException = capture([exception("x".repeat(5_000))]);
 assert.equal(longException.runtimeExceptions[0].text.length, 4_000);
 assert.doesNotThrow(() => JSON.stringify(longException));
 
+for (const [key, sentinel] of [
+  ["code", "OAUTH-SENTINEL"],
+  ["X-Amz-Signature", "AWS-SENTINEL"],
+  ["key", "GENERIC-SENTINEL"],
+  ["X-Goog-Credential", "GOOGLE-SENTINEL"],
+  ["sig", "AZURE-SENTINEL"],
+]) {
+  const sanitized = sanitizeCdpUrl(
+    `https://signed.example.test/path?${key}=${sentinel}&safe=yes`,
+  );
+  assert.doesNotMatch(sanitized, new RegExp(sentinel));
+  assert.match(sanitized, /%5BREDACTED%5D/);
+  assert.match(sanitized, /safe=yes/);
+}
+
 process.stdout.write("history CDP redaction self-test passed\n");
 
 function capture(events) {

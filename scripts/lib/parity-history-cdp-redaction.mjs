@@ -25,6 +25,25 @@ const CREDENTIAL_KEY_VALUE = new RegExp(
   `(["']?\\b${CREDENTIAL_KEY_SOURCE}\\b["']?\\s*[:=]\\s*)("(?:\\\\.|[^"\\\\])*"|'(?:\\\\.|[^'\\\\])*'|[^\\r\\n,;}\\]]+)`,
   "gi",
 );
+const URL_QUERY_CREDENTIAL_KEYS = new Set([
+  "accesskeyid",
+  "auth",
+  "code",
+  "credential",
+  "idtoken",
+  "key",
+  "keypairid",
+  "nonce",
+  "policy",
+  "refreshtoken",
+  "sig",
+  "state",
+  "xamzcredential",
+  "xamzsecuritytoken",
+  "xamzsignature",
+  "xgoogcredential",
+  "xgoogsignature",
+]);
 
 export function sanitizeCdpText(value) {
   if (typeof value !== "string") return value;
@@ -42,7 +61,7 @@ export function sanitizeCdpUrl(value) {
     if (url.username) url.username = "[REDACTED]";
     if (url.password) url.password = "[REDACTED]";
     for (const key of new Set(url.searchParams.keys())) {
-      if (credentialKey(key)) {
+      if (credentialKey(key) || credentialQueryKey(key)) {
         url.searchParams.set(key, "[REDACTED]");
       }
     }
@@ -59,6 +78,12 @@ function redactFragment(url) {
 
 function credentialKey(value) {
   return CREDENTIAL_KEY.test(value);
+}
+
+function credentialQueryKey(value) {
+  return URL_QUERY_CREDENTIAL_KEYS.has(
+    value.toLowerCase().replace(/[-_. \t]/g, ""),
+  );
 }
 
 function genericCredentialValueSpans(value) {

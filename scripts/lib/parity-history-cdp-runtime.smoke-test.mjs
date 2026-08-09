@@ -17,9 +17,10 @@ const server = spawn(
 
 try {
   const port = await readPort(server);
+  const querySecrets = ["OAUTH-SENTINEL", "AWS-SENTINEL", "GENERIC-SENTINEL"];
   const result = await runHistoryBrowserSession({
     actions: [
-      `navigate:http://127.0.0.1:${port}/`,
+      `navigate:http://127.0.0.1:${port}/?code=${querySecrets[0]}&X-Amz-Signature=${querySecrets[1]}&key=${querySecrets[2]}&safe=yes`,
       "waitText:F570 session identity",
       "shot:proof.png",
       "text:proof.txt",
@@ -38,6 +39,12 @@ try {
     /F570 session identity/,
   );
   const identity = result.cdpEvidence.session;
+  const persistedEvidence = JSON.stringify(result.cdpEvidence);
+  for (const sentinel of querySecrets) {
+    assert.doesNotMatch(persistedEvidence, new RegExp(sentinel));
+  }
+  assert.match(persistedEvidence, /%5BREDACTED%5D/);
+  assert.match(persistedEvidence, /safe=yes/);
   assert.ok(identity.chromePid > 1);
   assert.ok(identity.port >= 1024 && identity.port <= 65535);
   assert.notEqual(identity.port, 9333);
