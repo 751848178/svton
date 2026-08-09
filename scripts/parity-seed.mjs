@@ -46,6 +46,7 @@ import {
 } from "./lib/parity-runtime-resource-ownership.mjs";
 import { printParitySeedInventory } from "./lib/parity-seed-inventory.mjs";
 import { createParitySeedRuntimeOperations } from "./lib/parity-seed-runtime-operations.mjs";
+import { seedParityVersionHistory } from "./lib/parity-seed-version-history.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const composeFile = resolve(root, "docker-compose.devpilot-parity.yml");
@@ -93,13 +94,20 @@ const IDS = {
   backupRun: "parity-backup-run-0001",
   logStream: "parity-log-stream-0001",
   logRun: "parity-log-run-0001",
-  // Previous production releases (the parity site ran 0.8.0 -> 0.9.0 before
-  // parity-order-0001 deploys 1.0.0) — D19 needs a previous stable version.
+  // Coherent previous Staging -> approved Production history used by D19.
   orderPrev: "parity-order-prev-0001",
   buildPrevA: "parity-build-prev-a-0001",
   buildPrevB: "parity-build-prev-b-0001",
   manifestPrevA: "parity-manifest-prev-a-0001",
   manifestPrevB: "parity-manifest-prev-b-0001",
+  stagingDeployPrevA: "parity-deploy-staging-prev-a-0001",
+  stagingDeployPrevB: "parity-deploy-staging-prev-b-0001",
+  stagingEnvVersionPrevA: "parity-env-version-staging-prev-a-0001",
+  stagingEnvVersionPrevB: "parity-env-version-staging-prev-b-0001",
+  approvalPrevA: "parity-approval-prev-a-0001",
+  approvalPrevB: "parity-approval-prev-b-0001",
+  releasePrevA: "parity-release-prev-a-0001",
+  releasePrevB: "parity-release-prev-b-0001",
   deployPrevA: "parity-deploy-prev-a-0001",
   deployPrevB: "parity-deploy-prev-b-0001",
   envVersionPrevA: "parity-env-version-prev-a-0001",
@@ -1099,149 +1107,15 @@ async function seed() {
       },
     });
 
-    // 13b. Previous production releases (0.8.0 -> 0.9.0) on their own release
-    //      order so parity-order-0001 keeps 0 BuildRun/0 Manifest at creation
-    //      (AC-E2E-010). D19 needs a verifiable previous stable version both
-    //      before and after the real 1.0.0 deploy.
-    await prisma.releaseOrder.upsert({
-      where: { id: IDS.orderPrev },
-      create: {
-        id: IDS.orderPrev,
-        teamId: IDS.team,
-        projectId: IDS.project,
-        createdById: IDS.user,
-        releaseVersion: "0.9.0",
-        status: "draft",
-      },
-      update: {},
-    });
-    const previousHistory = [
-      {
-        build: IDS.buildPrevA,
-        manifest: IDS.manifestPrevA,
-        deploy: IDS.deployPrevA,
-        version: IDS.envVersionPrevA,
-        digest: digestA,
-        at: new Date(at.getTime() - 14 * 86400_000),
-      },
-      {
-        build: IDS.buildPrevB,
-        manifest: IDS.manifestPrevB,
-        deploy: IDS.deployPrevB,
-        version: IDS.envVersionPrevB,
-        digest: digestB,
-        at: new Date(at.getTime() - 7 * 86400_000),
-      },
-    ];
-    let prevAId = null;
-    for (const entry of previousHistory) {
-      await prisma.buildRun.upsert({
-        where: { id: entry.build },
-        create: {
-          id: entry.build,
-          teamId: IDS.team,
-          projectId: IDS.project,
-          releaseOrderId: IDS.orderPrev,
-          triggeredById: IDS.user,
-          revision: entry === previousHistory[0] ? 1 : 2,
-          sourceBranch: "main",
-          sourceCommitSha: pinnedCommit,
-          inputSnapshot: {
-            repositoryUrl: "/read-only-repositories/parity-app",
-            branch: "main",
-          },
-          inputHash: createHash("sha256")
-            .update(`parity-prev-${entry.build}`)
-            .digest("hex"),
-          status: "succeeded",
-          gateSummary: { build: { status: "passed", components: 2 } },
-          startedAt: entry.at,
-          finishedAt: entry.at,
-        },
-        update: { status: "succeeded", finishedAt: entry.at },
-      });
-      await prisma.artifactManifest.upsert({
-        where: { id: entry.manifest },
-        create: {
-          id: entry.manifest,
-          teamId: IDS.team,
-          projectId: IDS.project,
-          releaseOrderId: IDS.orderPrev,
-          buildRunId: entry.build,
-          digest: entry.digest,
-          provenance: { fixture: true },
-        },
-        update: { digest: entry.digest },
-      });
-      await prisma.artifactManifestItem.upsert({
-        where: {
-          manifestId_componentKey: {
-            manifestId: entry.manifest,
-            componentKey: "project-bundle",
-          },
-        },
-        create: {
-          id: `parity-manifest-prev-item-${entry === previousHistory[0] ? "a" : "b"}-0001`,
-          manifestId: entry.manifest,
-          componentKey: "project-bundle",
-          artifactType: "static_bundle",
-          uri: `file:///var/lib/devpilot/release-build/artifacts/${entry.build}/bundle.tar.gz`,
-          digest: entry.digest,
-          metadata: { fixture: true },
-        },
-        update: { digest: entry.digest },
-      });
-      await prisma.deploymentRun.upsert({
-        where: { id: entry.deploy },
-        create: {
-          id: entry.deploy,
-          teamId: IDS.team,
-          projectId: IDS.project,
-          actorId: IDS.user,
-          environmentId: IDS.envProduction,
-          artifactManifestId: entry.manifest,
-          environment: "production",
-          mode: "deploy",
-          source: "release_order",
-          trigger: "api",
-          targetType: "server",
-          executorKey: "parity-fixture",
-          adapterKey: "parity-copy",
-          dryRun: false,
-          status: "completed",
-          branch: "main",
-          commitSha: pinnedCommit,
-          params: { version: 1, manifestId: entry.manifest },
-          result: {
-            artifactVerified: true,
-            providerKey: "local-filesystem-v1",
-          },
-          startedAt: entry.at,
-          finishedAt: entry.at,
-        },
-        update: { status: "completed", dryRun: false, finishedAt: entry.at },
-      });
-      await prisma.environmentVersion.upsert({
-        where: { id: entry.version },
-        create: {
-          id: entry.version,
-          teamId: IDS.team,
-          projectId: IDS.project,
-          environmentId: IDS.envProduction,
-          releaseOrderId: IDS.orderPrev,
-          artifactManifestId: entry.manifest,
-          deploymentRunId: entry.deploy,
-          previousVersionId: prevAId,
-          kind: "deploy",
-          effectiveAt: entry.at,
-        },
-        update: { previousVersionId: prevAId },
-      });
-      prevAId = entry.version;
-    }
-    await prisma.projectEnvironment.update({
-      where: { id: IDS.envProduction },
-      data: { currentEnvironmentVersionId: IDS.envVersionPrevB },
+    // 13b. A complete prior identity graph on its own release order keeps
+    //      parity-order-0001 empty while making browser history contract-valid.
+    await seedParityVersionHistory({
+      prisma,
+      ids: IDS,
+      pinnedCommit,
+      digestA,
+      digestB,
+      capturedAt: at,
     });
 
     console.log(
