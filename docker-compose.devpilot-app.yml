@@ -77,6 +77,8 @@ services:
       context: .
       dockerfile: apps/devpilot-web/Dockerfile
       target: web
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:3121
     image: devpilot-app-web:local
     container_name: devpilot-app-web
     restart: unless-stopped

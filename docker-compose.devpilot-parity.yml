@@ -169,6 +169,8 @@ services:
       context: .
       dockerfile: apps/devpilot-web/Dockerfile
       target: web
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:${PARITY_API_PORT:-4132}
       labels: *runtime-labels
     image: ${PARITY_WEB_IMAGE:-devpilot-parity-web:local}
     labels: *runtime-labels

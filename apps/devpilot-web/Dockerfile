@@ -22,8 +22,10 @@ RUN pnpm rebuild --filter @svton/devpilot-web...
 # ---- web: Next.js frontend ----
 FROM base AS web
 WORKDIR /app/apps/devpilot-web
+ARG NEXT_PUBLIC_API_URL
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-RUN pnpm build
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+RUN test -n "$NEXT_PUBLIC_API_URL" && pnpm build
 EXPOSE 3120
 CMD ["pnpm", "start"]

@@ -2,19 +2,38 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-const [dockerignore, dockerfile] = await Promise.all([
-  readFile(new URL("../../.dockerignore", import.meta.url), "utf8"),
-  readFile(
-    new URL("../../apps/devpilot-web/Dockerfile", import.meta.url),
-    "utf8",
-  ),
-]);
+const [dockerignore, dockerfile, parityCompose, appCompose] = await Promise.all(
+  [
+    readFile(new URL("../../.dockerignore", import.meta.url), "utf8"),
+    readFile(
+      new URL("../../apps/devpilot-web/Dockerfile", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../../docker-compose.devpilot-parity.yml", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../../docker-compose.devpilot-app.yml", import.meta.url),
+      "utf8",
+    ),
+  ],
+);
 assert.match(dockerignore, /^\*\*\/\.next$/m);
 assert.doesNotMatch(dockerignore, /^!.*\.next/m);
 
 const webStage = dockerfile.slice(dockerfile.indexOf("FROM base AS web"));
 assert.ok(webStage.startsWith("FROM base AS web"));
 assert.match(webStage, /ENV NEXT_TELEMETRY_DISABLED=1/);
-assert.ok(webStage.indexOf("RUN pnpm build") < webStage.indexOf("CMD ["));
+assert.match(webStage, /ARG NEXT_PUBLIC_API_URL/);
+assert.match(webStage, /RUN test -n "\$NEXT_PUBLIC_API_URL" && pnpm build/);
 assert.doesNotMatch(webStage, /compiled on the host/i);
+assert.match(
+  parityCompose,
+  /args:\n\s+NEXT_PUBLIC_API_URL: http:\/\/localhost:\$\{PARITY_API_PORT:-4132\}/,
+);
+assert.match(
+  appCompose,
+  /args:\n\s+NEXT_PUBLIC_API_URL: http:\/\/localhost:3121/,
+);
 process.stdout.write("parity Web image build contract self-test passed\n");
