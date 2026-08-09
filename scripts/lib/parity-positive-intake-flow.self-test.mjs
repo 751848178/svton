@@ -6,6 +6,7 @@ const responses = [
   { id: "fresh-project" },
   { project: { id: "fresh-project", onboardingStatus: "draft" } },
   {
+    id: "connection-1",
     provider: "local",
     selectedBranch: "main",
     commitSha: "a".repeat(40),
@@ -27,7 +28,12 @@ const responses = [
     dependencies: [{ suggestionId: "resource", kind: "resource_requirement" }],
   },
   { snapshot: { id: "snapshot", hash: "b".repeat(64) } },
-  { projectId: "fresh-project" },
+  {
+    projectId: "fresh-project",
+    repositoryIdentityId: "identity-1",
+    onboardingRevision: 4,
+    environments: [],
+  },
   { project: { id: "fresh-project", onboardingStatus: "ready" } },
 ];
 const flow = createPositiveIntakeFlow({
@@ -45,6 +51,13 @@ assert.equal((await flow.contract()).suggestionCount, 2);
 assert.equal((await flow.review()).reviewSnapshotId, "snapshot");
 assert.equal((await flow.finalize()).status, "ready");
 assert.equal(flow.projectId(), "fresh-project");
+assert.deepEqual(flow.context(), {
+  projectId: "fresh-project",
+  connectionId: "connection-1",
+  analysisRunId: "fresh-analysis",
+  reviewSnapshotId: "snapshot",
+  reviewSnapshotHash: "b".repeat(64),
+});
 assert.deepEqual(calls[6].body.items, [
   { suggestionId: "overview", decision: "accept" },
   { suggestionId: "resource", decision: "reject" },

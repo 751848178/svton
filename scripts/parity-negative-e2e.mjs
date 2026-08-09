@@ -43,6 +43,7 @@ import {
 import { bindNegativeHistoryContext } from "./lib/parity-negative-history-db-binding.mjs";
 import { historyChainOutputDirectory } from "./lib/parity-history-chain-paths.mjs";
 import { assertNoPreexistingActiveRuns } from "./lib/parity-negative-run-ownership.mjs";
+import { requireActiveEnvironmentService } from "./lib/parity-negative-service-context.mjs";
 import { createParityComposeCapture } from "./lib/parity-compose-capture.mjs";
 import { parityRuntimeConfig } from "./lib/parity-runtime-config.mjs";
 
@@ -68,6 +69,7 @@ const negStagingEnvId = `parity-negative-staging-${runStamp}`;
 const negProductionEnvId = `parity-negative-production-${runStamp}`;
 let stagingEnvId;
 let productionEnvId;
+let productionWebServiceId;
 const adminEmail = "admin@parity.local";
 // Bootstrap password is read from docker-compose.devpilot-parity.yml (the
 // documented seed source); it is ONLY used in-memory and never written to
@@ -128,11 +130,16 @@ async function main() {
   orderId = historyContext.orderId;
   stagingEnvId = historyContext.stagingEnvId;
   productionEnvId = historyContext.productionEnvId;
+  productionWebServiceId = await requireActiveEnvironmentService(prisma, {
+    projectId,
+    environmentId: productionEnvId,
+    name: "web",
+  });
   MANIFEST_M1 = historyContext.manifestM1;
   MANIFEST_M2 = historyContext.manifestM2;
   CROSS_ORDER_MANIFEST = historyContext.crossOrderManifestId;
   evidence.fixedIds = { teamId, projectId, orderId, negProjectId, negOrderId };
-  evidence.context = historyContext;
+  evidence.context = { ...historyContext, productionWebServiceId };
 
   // ---------------------------------------------------------------- preflight
   await step("preflight", async () => {
@@ -505,14 +512,14 @@ async function main() {
           {
             id: "parity-resource-0001",
             kind: "resource_instance",
-            sharedEnvironmentIds: ["parity-env-production"],
+            sharedEnvironmentIds: [productionEnvId],
             risk: "low",
             impact: "parity target workload (production)",
           },
           {
             id: "parity-resource-managed-0001",
             kind: "managed_resource",
-            sharedEnvironmentIds: ["parity-env-production"],
+            sharedEnvironmentIds: [productionEnvId],
             risk: "low",
             impact:
               "parity target workload managed resource (production gate evidence)",
@@ -933,12 +940,12 @@ async function main() {
   let savedWebDeployConfig;
   await step("ac-032-setup-broken-health", async () => {
     const web = await prisma.applicationService.findUnique({
-      where: { id: "parity-svc-web" },
+      where: { id: productionWebServiceId },
       select: { deployConfig: true },
     });
     savedWebDeployConfig = web.deployConfig;
     await prisma.applicationService.update({
-      where: { id: "parity-svc-web" },
+      where: { id: productionWebServiceId },
       data: {
         deployConfig: {
           ...(savedWebDeployConfig || {}),
@@ -950,11 +957,11 @@ async function main() {
       },
     });
     const persisted = await prisma.applicationService.findUnique({
-      where: { id: "parity-svc-web" },
+      where: { id: productionWebServiceId },
       select: { deployConfig: true },
     });
     return {
-      serviceId: "parity-svc-web",
+      serviceId: productionWebServiceId,
       healthCheckUrl: "http://127.0.0.1:9/health",
       attempts: 2,
       persistedBrokenHealth:
@@ -1056,12 +1063,12 @@ async function main() {
   });
   await step("ac-032-restore-service", async () => {
     await prisma.applicationService.update({
-      where: { id: "parity-svc-web" },
+      where: { id: productionWebServiceId },
       data: { deployConfig: savedWebDeployConfig },
     });
     const restored = (
       await prisma.applicationService.findUnique({
-        where: { id: "parity-svc-web" },
+        where: { id: productionWebServiceId },
         select: { deployConfig: true },
       })
     ).deployConfig;
@@ -1095,14 +1102,14 @@ async function main() {
           {
             id: "parity-resource-0001",
             kind: "resource_instance",
-            sharedEnvironmentIds: ["parity-env-production"],
+            sharedEnvironmentIds: [productionEnvId],
             risk: "low",
             impact: "parity target workload (production)",
           },
           {
             id: "parity-resource-managed-0001",
             kind: "managed_resource",
-            sharedEnvironmentIds: ["parity-env-production"],
+            sharedEnvironmentIds: [productionEnvId],
             risk: "low",
             impact:
               "parity target workload managed resource (production gate evidence)",
@@ -1813,12 +1820,7 @@ async function runSecretScan() {
   });
 
   // 3. API container logs.
-  const apiLogs = composeCapture([
-    "logs",
-    "--tail",
-    "4000",
-    "api",
-  ]);
+  const apiLogs = composeCapture(["logs", "--tail", "4000", "api"]);
   await writeFile(
     `${outDir}/api-container.log`,
     `${apiLogs.stdout}\n---stderr---\n${apiLogs.stderr}`,
@@ -1831,12 +1833,7 @@ async function runSecretScan() {
   });
 
   // 4. Web container logs.
-  const webLogs = composeCapture([
-    "logs",
-    "--tail",
-    "2000",
-    "web",
-  ]);
+  const webLogs = composeCapture(["logs", "--tail", "2000", "web"]);
   await writeFile(
     `${outDir}/web-container.log`,
     `${webLogs.stdout}\n---stderr---\n${webLogs.stderr}`,

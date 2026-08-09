@@ -1,6 +1,3 @@
-const TEAM_ID = "parity-team-0001";
-const PROJECT_ID = "parity-project-0001";
-const ENVIRONMENT_ID = "parity-env-production";
 const PROVIDER_KEY = "http-route-control-v1";
 
 const ROUTE_SELECT = Object.freeze({
@@ -26,9 +23,9 @@ export function isolatedC5RouteQueryFor(identity) {
   requireIdentity(identity);
   return {
     where: {
-      teamId: TEAM_ID,
-      projectId: PROJECT_ID,
-      environmentId: ENVIRONMENT_ID,
+      teamId: identity.teamId,
+      projectId: identity.projectId,
+      environmentId: identity.environmentId,
       deploymentRunId: identity.deploymentRunId,
       releaseRunId: identity.releaseRunId,
       status: "switched",
@@ -45,9 +42,9 @@ export function routeExpectationFromDatabaseRow(row, expectedIdentity) {
   const receipt = record(route.receipt);
   const observed = record(receipt.observed);
   const pairs = [
-    [row.teamId, TEAM_ID, "row-team"],
-    [row.projectId, PROJECT_ID, "row-project"],
-    [row.environmentId, ENVIRONMENT_ID, "row-environment"],
+    [row.teamId, expectedIdentity.teamId, "row-team"],
+    [row.projectId, expectedIdentity.projectId, "row-project"],
+    [row.environmentId, expectedIdentity.environmentId, "row-environment"],
     [row.status, "switched", "row-status"],
     [
       row.deploymentRunId,
@@ -104,7 +101,13 @@ export function routeExpectationFromDatabaseRow(row, expectedIdentity) {
 }
 
 function requireIdentity(identity) {
-  for (const field of ["deploymentRunId", "releaseRunId"]) {
+  for (const field of [
+    "teamId",
+    "projectId",
+    "environmentId",
+    "deploymentRunId",
+    "releaseRunId",
+  ]) {
     if (
       typeof identity?.[field] !== "string" ||
       identity[field].length < 3 ||

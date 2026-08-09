@@ -11,7 +11,7 @@
 //       (GET targets), resource refs (parity-resource-0001), env vars + secret
 //       ref (parity-secret-0001), domain entries (parity-site-0001 domain ->
 //       proxyTarget http://127.0.0.1:43992) for staging AND production
-//   5.  release order parity-order-0001 (1.0.0): 0 BuildRun / 0 Manifest
+//   5.  create release order 1.0.0 through the API: 0 BuildRun / 0 Manifest
 //   6.  build main HEAD -> BuildRun succeeded + Manifest (pinned commit)
 //   7.  staging deploy same Manifest -> DeploymentRun completed, no
 //       git/checkout/pull/build
@@ -47,6 +47,10 @@ import { historyChainOutputDirectory } from "./lib/parity-history-chain-paths.mj
 import { requireFirstEnvironmentRevision } from "./lib/parity-environment-revision-list.mjs";
 import { requireEnvironmentTargets } from "./lib/parity-environment-targets.mjs";
 import { createPositiveIntakeFlow } from "./lib/parity-positive-intake-flow.mjs";
+import {
+  positiveDeliveryClaimChecks,
+  runPositiveDeliveryClaim,
+} from "./lib/parity-positive-delivery-claim-step.mjs";
 import { parityRuntimeConfig } from "./lib/parity-runtime-config.mjs";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const runtime = parityRuntimeConfig();
@@ -57,8 +61,10 @@ const outDir = historyChainOutputDirectory(
 );
 const apiBase = runtime.apiBase;
 const teamId = "parity-team-0001";
-const projectId = "parity-project-0001";
-const orderId = "parity-order-0001";
+let projectId;
+let orderId;
+let stagingEnvId;
+let productionEnvId;
 const adminEmail = "admin@parity.local";
 const adminPassword = "ParityDemo123!";
 const pinnedCommit = "2f0ec3246761537123c65ac415a14e503ebbfa38";
@@ -79,10 +85,10 @@ const evidence = {
     api: apiBase,
     mysql: runtime.mysqlEvidence,
     targetWorkload: runtime.targetOrigin,
-    fixtureRepo: "/read-only-repositories/parity-app",
+    fixtureRepo: "/read-only-repositories/parity-app-intake",
     pinnedCommit,
   },
-  fixedIds: { projectId, orderId, teamId },
+  context: { projectId: null, orderId: null, teamId },
   capturedAt: null,
   steps: {},
   ac: {},
@@ -142,9 +148,14 @@ async function main() {
   await step("intake-analyze", () => intakeFlow.analyze());
   await step("intake-contract", () => intakeFlow.contract());
   await step("intake-review", () => intakeFlow.review());
-  await step("intake-finalize", () => intakeFlow.finalize());
+  const finalization = await step("intake-finalize", () =>
+    intakeFlow.finalize(),
+  );
+  const intakeContext = intakeFlow.context();
+  runState.intakeContext = intakeContext;
+  runState.intakeFinalization = finalization;
   const intakeProjectId = intakeFlow.projectId();
-  await step("baselines-verified", async () => {
+  const baselines = await step("baselines-verified", async () => {
     const [staging, production] = await Promise.all([
       prisma.projectEnvironment.findFirst({
         where: { projectId: intakeProjectId, key: "staging", status: "active" },
@@ -178,16 +189,37 @@ async function main() {
       r1Count: revisions.filter((r) => r.revision === 1).length,
     };
   });
+  projectId = intakeProjectId;
+  stagingEnvId = baselines.stagingId;
+  productionEnvId = baselines.productionId;
+  const claim = await step("delivery-fixture-claim", () =>
+    runPositiveDeliveryClaim({
+      root,
+      runtime,
+      prisma,
+      teamId,
+      projectId,
+      stagingEnvId,
+      productionEnvId,
+      productionConfigRevisionId: baselines.productionCurrentConfigRevisionId,
+      pinnedCommit,
+      intakeContext,
+      request: api,
+      headers,
+    }),
+  );
+  if (claim.projectId !== projectId)
+    throw new Error("delivery fixture claim scope drift");
 
   // ------------------------------------------------------- env configuration
   const stagingRevisionList = await api(
     "GET",
-    `/project-environments/parity-env-staging/config-revisions`,
+    `/project-environments/${stagingEnvId}/config-revisions`,
     headers,
   );
   const productionRevisionList = await api(
     "GET",
-    `/project-environments/parity-env-production/config-revisions`,
+    `/project-environments/${productionEnvId}/config-revisions`,
     headers,
   );
   const stagingR1 = requireFirstEnvironmentRevision(stagingRevisionList);
@@ -202,8 +234,8 @@ async function main() {
   });
   await step("env-targets", async () => {
     const [stagingTargets, productionTargets] = await Promise.all([
-      api("GET", `/project-environments/parity-env-staging/targets`, headers),
-      api("GET", `/project-environments/parity-env-production/targets`, headers),
+      api("GET", `/project-environments/${stagingEnvId}/targets`, headers),
+      api("GET", `/project-environments/${productionEnvId}/targets`, headers),
     ]);
     const stagingTarget = requireEnvironmentTargets(stagingTargets);
     const productionTarget = requireEnvironmentTargets(productionTargets);
@@ -224,7 +256,7 @@ async function main() {
   await step("env-save-r2-staging", async () => {
     stagingR2 = await api(
       "POST",
-      `/project-environments/parity-env-staging/config-revisions`,
+      `/project-environments/${stagingEnvId}/config-revisions`,
       headers,
       {
         plainVariables: {
@@ -236,7 +268,7 @@ async function main() {
           {
             id: "parity-resource-0001",
             kind: "resource_instance",
-            sharedEnvironmentIds: ["parity-env-staging"],
+            sharedEnvironmentIds: [stagingEnvId],
             risk: "low",
             impact: "parity target workload (staging)",
           },
@@ -255,14 +287,19 @@ async function main() {
       id: stagingR2?.revision?.id,
       snapshotHash: stagingR2?.revision?.snapshotHash,
       cas: stagingR2?.revision?.revision === (stagingR1?.revision ?? 0) + 1,
-      current: await currentRevisionId("parity-env-staging"),
-      snapshot: pick(stagingR2?.revision, ["plainVariables", "secretReferences", "resourceReferences", "routeSnapshot"]),
+      current: await currentRevisionId(stagingEnvId),
+      snapshot: pick(stagingR2?.revision, [
+        "plainVariables",
+        "secretReferences",
+        "resourceReferences",
+        "routeSnapshot",
+      ]),
     };
   });
   await step("env-save-r2-production", async () => {
     productionR2 = await api(
       "POST",
-      `/project-environments/parity-env-production/config-revisions`,
+      `/project-environments/${productionEnvId}/config-revisions`,
       headers,
       {
         plainVariables: {
@@ -274,14 +311,14 @@ async function main() {
           {
             id: "parity-resource-0001",
             kind: "resource_instance",
-            sharedEnvironmentIds: ["parity-env-production"],
+            sharedEnvironmentIds: [productionEnvId],
             risk: "low",
             impact: "parity target workload (production)",
           },
           {
             id: "parity-resource-managed-0001",
             kind: "managed_resource",
-            sharedEnvironmentIds: ["parity-env-production"],
+            sharedEnvironmentIds: [productionEnvId],
             risk: "low",
             impact: "parity target workload managed resource (production gate evidence)",
           },
@@ -312,14 +349,31 @@ async function main() {
       revision: productionR2?.revision?.revision,
       id: productionR2?.revision?.id,
       snapshotHash: productionR2?.revision?.snapshotHash,
-      cas: productionR2?.revision?.revision === (productionR1?.revision ?? 0) + 1,
-      current: await currentRevisionId("parity-env-production"),
-      snapshot: pick(productionR2?.revision, ["plainVariables", "secretReferences", "resourceReferences", "routeSnapshot"]),
+      cas:
+        productionR2?.revision?.revision === (productionR1?.revision ?? 0) + 1,
+      current: await currentRevisionId(productionEnvId),
+      snapshot: pick(productionR2?.revision, [
+        "plainVariables",
+        "secretReferences",
+        "resourceReferences",
+        "routeSnapshot",
+      ]),
     };
   });
 
   // ------------------------------------------------------------ release order
   await step("release-order", async () => {
+    const created = await api(
+      "POST",
+      `/projects/${projectId}/delivery/releases`,
+      headers,
+      {
+        releaseVersion: "1.0.0",
+        note: `C5 ${runtime.goalId} ${runtime.sourceRevision} ${runtime.runtimeId}`,
+      },
+    );
+    orderId = created.id;
+    evidence.context = { teamId, projectId, orderId };
     const order = await api(
       "GET",
       `/projects/${projectId}/delivery/releases/${orderId}`,
@@ -539,15 +593,16 @@ async function main() {
           where: {
             teamId,
             projectId,
-            environmentId: "parity-env-production",
+            environmentId: productionEnvId,
             primaryDomain,
           },
           select: { id: true },
         })
       : [];
+    runState.productionSiteId = siteCandidates[0]?.id;
     const executed = await api(
       "POST",
-      `/projects/${projectId}/delivery/environment-versions/parity-env-production/actions`,
+      `/projects/${projectId}/delivery/environment-versions/${productionEnvId}/actions`,
       headers,
       { kind: "upgrade", manifestId, releaseRunId },
     );
@@ -574,7 +629,7 @@ async function main() {
     const expectedRoute = buildProductionRouteExpectation({
       teamId,
       projectId,
-      environmentId: "parity-env-production",
+      environmentId: productionEnvId,
       deploymentRunId: runId,
       releaseRunId,
       manifestId,
@@ -588,7 +643,7 @@ async function main() {
     const [productionRunCount, productionGate, routeRuns, releaseEvidence, siteCurrent] = await Promise.all([
       prisma.deploymentRun.count({
         where: {
-          environmentId: "parity-env-production",
+          environmentId: productionEnvId,
           releaseRunId,
           artifactManifestId: manifestId,
         },
@@ -621,7 +676,7 @@ async function main() {
         where: {
           teamId,
           projectId,
-          environmentId: "parity-env-production",
+          environmentId: productionEnvId,
           deploymentRunId: runId,
           releaseRunId,
         },
@@ -672,11 +727,11 @@ async function main() {
       gateDecision: result.gateDecision,
       productionRunCount,
       productionGate: productionGateEvidence(productionGate, result.gateDecision, {
-        releaseOrderId: orderId,
-        releaseRunId,
-        deploymentRunId: runId,
-        environmentId: "parity-env-production",
-        manifestId,
+          releaseOrderId: orderId,
+          releaseRunId,
+          deploymentRunId: runId,
+          environmentId: productionEnvId,
+          manifestId,
         buildRunId,
         configRevisionId: productionR2?.revision?.id,
         finalGateKey,
@@ -712,7 +767,7 @@ async function main() {
       headers,
     );
     const production = (versions.environments || []).find(
-      (e) => e.id === "parity-env-production",
+      (e) => e.id === productionEnvId,
     );
     const currentVersion = await prisma.environmentVersion.findUnique({
       where: { id: production?.currentEnvironmentVersionId ?? "" },
@@ -742,8 +797,9 @@ async function main() {
             releaseRunId: currentVersion.releaseRunId,
           }
         : null,
-      stagingCurrent: (versions.environments || []).find((e) => e.id === "parity-env-staging")
-        ?.currentEnvironmentVersionId,
+      stagingCurrent: (versions.environments || []).find(
+        (e) => e.id === stagingEnvId,
+      )?.currentEnvironmentVersionId,
     };
   });
 
@@ -803,14 +859,19 @@ async function main() {
   await step("final-site-http", async () => {
     const route = productionR2?.revision?.routeSnapshot || {};
     const primaryDomain = route.domains?.[0];
-    const configuredUrl = primaryDomain
+    const publicFinalUrl = primaryDomain
       ? `${route.tlsRequired === true ? "https" : "http"}://${primaryDomain}/`
       : null;
-    if (!configuredUrl) throw new Error("Production R2 has no configured final route URL");
-    const res = await httpGet(configuredUrl, { raw: true });
+    if (!publicFinalUrl || !runState.productionSiteId) {
+      throw new Error("Production route identity is incomplete");
+    }
+    const liveProxyUrl = `${runtime.routeControlOrigin}/sites/${encodeURIComponent(runState.productionSiteId)}/`;
+    const res = await httpGet(liveProxyUrl, { raw: true });
     const body = res.body || "";
     return {
-      configuredUrl,
+      publicFinalUrl,
+      publicSignoffRequired: true,
+      liveProxyUrl,
       observedUrl: res.url,
       status: res.status,
       ok: res.status >= 200 && res.status < 400,
@@ -825,13 +886,23 @@ async function main() {
       await Promise.all([
         prisma.buildRun.count({ where: { releaseOrderId: orderId } }),
         prisma.deploymentRun.count({
-          where: { environmentId: "parity-env-staging", artifactManifest: { releaseOrderId: orderId } },
+          where: {
+            environmentId: stagingEnvId,
+            artifactManifest: { releaseOrderId: orderId },
+          },
         }),
         prisma.deploymentRun.count({
-          where: { environmentId: "parity-env-production", artifactManifest: { releaseOrderId: orderId } },
+          where: {
+            environmentId: productionEnvId,
+            artifactManifest: { releaseOrderId: orderId },
+          },
         }),
-        prisma.environmentVersion.count({ where: { environmentId: "parity-env-production" } }),
-        prisma.operationApproval.count({ where: { projectId } }),
+        prisma.environmentVersion.count({
+          where: { environmentId: productionEnvId },
+        }),
+        prisma.operationApproval.count({
+          where: { projectId, targetId: releaseRunId },
+        }),
       ]);
     return {
       buildRunsOnOrder: builds,
@@ -870,8 +941,11 @@ const STEP_VERIFY = {
     predicate("notFinalized", !r.project?.onboardingFinalizedAt, r.project?.onboardingFinalizedAt),
   ],
   "intake-connect": (r) => [
-    check("status", r.status, "connected"), check("selectedBranch", r.selectedBranch, "main"),
-    check("commitSha", r.commitSha, pinnedCommit), predicate("provider", Boolean(r.provider), r.provider),
+    predicate("connectionId", Boolean(r.connectionId), r.connectionId),
+    check("status", r.status, "connected"),
+    check("selectedBranch", r.selectedBranch, "main"),
+    check("commitSha", r.commitSha, pinnedCommit),
+    predicate("provider", Boolean(r.provider), r.provider),
   ],
   "intake-analyze": (r) => [
     predicate("freshRunId", Boolean(r.runId) && r.runId !== "parity-analysis-0001", r.runId),
@@ -890,7 +964,28 @@ const STEP_VERIFY = {
   ],
   "intake-finalize": (r) => [
     check("expectedRefusal", r.expectedRefusal, false),
-    predicate("projectId", Boolean(r.projectId), r.projectId), check("status", r.status, "ready"),
+    predicate("projectId", Boolean(r.projectId), r.projectId),
+    check("status", r.status, "ready"),
+    predicate(
+      "repositoryIdentityId",
+      Boolean(r.repositoryIdentityId),
+      r.repositoryIdentityId,
+    ),
+    predicate(
+      "onboardingRevision",
+      Number.isInteger(r.onboardingRevision),
+      r.onboardingRevision,
+    ),
+    predicate(
+      "finalizedAt",
+      Number.isFinite(Date.parse(r.finalizedAt || "")),
+      r.finalizedAt,
+    ),
+    predicate(
+      "environments",
+      Array.isArray(r.environments) && r.environments.length === 2,
+      r.environments,
+    ),
   ],
   "baselines-verified": (r) => [
     check("stagingRole", r.staging, "staging"), check("productionRole", r.production, "production"),
@@ -898,6 +993,16 @@ const STEP_VERIFY = {
     predicate("stagingCurrentR1", r.revisions.some((x) => x.id === r.stagingCurrentConfigRevisionId && x.revision === 1), r.stagingCurrentConfigRevisionId),
     predicate("productionCurrentR1", r.revisions.some((x) => x.id === r.productionCurrentConfigRevisionId && x.revision === 1), r.productionCurrentConfigRevisionId),
   ],
+  "delivery-fixture-claim": (r) =>
+    positiveDeliveryClaimChecks(r, {
+      projectId,
+      stagingEnvId,
+      productionEnvId,
+      analysisRunId: runState.intakeContext?.analysisRunId,
+      reviewSnapshotId: runState.intakeContext?.reviewSnapshotId,
+      reviewSnapshotHash: runState.intakeContext?.reviewSnapshotHash,
+      repositoryIdentityId: runState.intakeFinalization?.repositoryIdentityId,
+    }),
   "env-r1-current": (r) => [
     predicate("stagingR1", Boolean(r.stagingR1), r.stagingR1),
     predicate("productionR1", Boolean(r.productionR1), r.productionR1),
@@ -923,9 +1028,12 @@ const STEP_VERIFY = {
     check("buildRunCount", r.buildRunCount, 1), check("manifestCount", r.manifestCount, 1),
   ],
   "staging-deploy": (r) => [
-    predicate("deploymentRunId", Boolean(r.deploymentRunId), r.deploymentRunId), check("status", r.status, "completed"),
-    check("environmentId", r.environmentId, "parity-env-staging"), check("sameManifest", r.sameManifest, true),
-    check("artifactVerified", r.artifactVerified, true), ...stagingCommandProofChecks(r.commandProof),
+    predicate("deploymentRunId", Boolean(r.deploymentRunId), r.deploymentRunId),
+    check("status", r.status, "completed"),
+    check("environmentId", r.environmentId, stagingEnvId),
+    check("sameManifest", r.sameManifest, true),
+    check("artifactVerified", r.artifactVerified, true),
+    ...stagingCommandProofChecks(r.commandProof),
   ],
   "production-preview": (r) => [
     predicate("inputHash", /^[a-f0-9]{64}$/.test(r.inputHash || ""), r.inputHash),
@@ -967,9 +1075,14 @@ const STEP_VERIFY = {
     predicate("noBlockers", r.every((x) => (x.blockerGateIds || []).length === 0), r),
   ],
   "final-site-http": (r) => [
-    predicate("configuredUrl", Boolean(r.configuredUrl), r.configuredUrl), check("observedUrl", r.observedUrl, r.configuredUrl),
-    predicate("status2xx", r.status >= 200 && r.status < 300, r.status), check("ok", r.ok, true),
-    predicate("bodySignature", Boolean(r.bodySignature), r.bodySignature), check("titleMarker", r.titleMarker, true),
+    predicate("publicFinalUrl", Boolean(r.publicFinalUrl), r.publicFinalUrl),
+    check("publicSignoffRequired", r.publicSignoffRequired, true),
+    predicate("liveProxyUrl", Boolean(r.liveProxyUrl), r.liveProxyUrl),
+    check("observedUrl", r.observedUrl, r.liveProxyUrl),
+    predicate("status2xx", r.status >= 200 && r.status < 300, r.status),
+    check("ok", r.ok, true),
+    predicate("bodySignature", Boolean(r.bodySignature), r.bodySignature),
+    check("titleMarker", r.titleMarker, true),
   ],
   "db-summary": (r) => [
     check("buildRunsOnOrder", r.buildRunsOnOrder, 1), check("stagingDeploymentRuns", r.stagingDeploymentRuns, 1),
@@ -1072,11 +1185,19 @@ function environmentR2Checks(result, role) {
 
 function productionExecutionChecks(result) {
   return [
-    predicate("deploymentRunId", Boolean(result.deploymentRunId), result.deploymentRunId),
-    check("status", result.status, "completed"), check("environmentId", result.environmentId, "parity-env-production"),
-    check("sameManifest", result.sameManifest, true), check("releaseRunId", result.releaseRunId, runState.releaseRunId),
-    check("artifactVerified", result.artifactVerified, true), check("productionRunCount", result.productionRunCount, 1),
-    predicate("workload", Boolean(result.workload), result.workload), check("healthProbe", result.healthProbe?.status, "passed"),
+    predicate(
+      "deploymentRunId",
+      Boolean(result.deploymentRunId),
+      result.deploymentRunId,
+    ),
+    check("status", result.status, "completed"),
+    check("environmentId", result.environmentId, productionEnvId),
+    check("sameManifest", result.sameManifest, true),
+    check("releaseRunId", result.releaseRunId, runState.releaseRunId),
+    check("artifactVerified", result.artifactVerified, true),
+    check("productionRunCount", result.productionRunCount, 1),
+    predicate("workload", Boolean(result.workload), result.workload),
+    check("healthProbe", result.healthProbe?.status, "passed"),
     ...productionRouteEvidenceChecks(result.routeEvidence),
     ...productionGateEvidenceChecks(result.productionGate),
   ];

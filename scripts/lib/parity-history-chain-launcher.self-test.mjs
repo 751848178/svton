@@ -116,6 +116,9 @@ assert.deepEqual(calls, [
 ]);
 assert.equal(result.status, "passed");
 assert.deepEqual(result.finalProductionIdentity, {
+  teamId: "team-1",
+  projectId: "project-1",
+  environmentId: "production-1",
   releaseRunId: "release-recovery-1",
   deploymentRunId: "deployment-recovery-1",
   environmentVersionId: "version-recovery-1",
@@ -146,7 +149,12 @@ function writeProducerFixtures(runRoot) {
     JSON.stringify({
       status: "passed",
       capturedAt,
-      context: { sourceEvidenceSha256: sha256 },
+      context: {
+        sourceEvidenceSha256: sha256,
+        teamId: "team-1",
+        projectId: "project-1",
+        productionEnvId: "production-1",
+      },
       steps: {
         "base-f455-chain-rerun": {
           result: { sourceEvidence: f455Path, sourceEvidenceSha256: sha256 },
@@ -156,6 +164,8 @@ function writeProducerFixtures(runRoot) {
           verified: true,
           result: {
             status: "completed",
+            environmentId: "production-1",
+            expectedEnvironmentId: "production-1",
             releaseRunId: "release-recovery-1",
             expectedReleaseRunId: "release-recovery-1",
             deploymentRunId: "deployment-recovery-1",

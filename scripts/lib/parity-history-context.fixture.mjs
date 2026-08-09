@@ -26,6 +26,28 @@ export function positiveDocument() {
   steps["env-targets"].result = {
     production: { current: { targetRef: "target" } },
   };
+  steps["intake-connect"].result = { connectionId: "connection" };
+  steps["intake-analyze"].result = { runId: "analysis" };
+  steps["intake-review"].result = {
+    reviewSnapshotId: "review",
+    reviewSnapshotHash: "b".repeat(64),
+  };
+  steps["intake-finalize"].result = { repositoryIdentityId: "identity" };
+  steps["delivery-fixture-claim"].result = {
+    frozenIdentity: { finalization: { id: "finalization" } },
+    applicationContracts: [
+      {
+        applicationId: "web",
+        staging: { id: "web-staging" },
+        production: { id: "web-production" },
+      },
+      {
+        applicationId: "api",
+        staging: { id: "api-staging" },
+        production: { id: "api-production" },
+      },
+    ],
+  };
   const ac = Object.fromEntries(
     Object.entries(POSITIVE_AC_MAPPING).map(([id, sourceSteps]) => [
       id,
@@ -72,6 +94,24 @@ export function expectedPositiveContext(sourceEvidenceSha256) {
     productionConfigRevisionId: "config-2",
     productionRouteSnapshot: { domains: ["example.test"] },
     productionTargetRef: "target",
+    repositoryConnectionId: "connection",
+    analysisRunId: "analysis",
+    reviewSnapshotId: "review",
+    reviewSnapshotHash: "b".repeat(64),
+    intakeFinalizationId: "finalization",
+    repositoryIdentityId: "identity",
+    applicationContracts: [
+      {
+        applicationId: "web",
+        staging: { id: "web-staging" },
+        production: { id: "web-production" },
+      },
+      {
+        applicationId: "api",
+        staging: { id: "api-staging" },
+        production: { id: "api-production" },
+      },
+    ],
     pinnedCommit: "a".repeat(40),
     sourceEvidenceSha256,
   };

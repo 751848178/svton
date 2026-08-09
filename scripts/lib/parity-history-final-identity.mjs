@@ -14,6 +14,12 @@ export function finalProductionIdentityFromHistory(document) {
     throw historyIdentityError("final-step");
   }
   const identity = {
+    teamId: requireId(document.context?.teamId, "team"),
+    projectId: requireId(document.context?.projectId, "project"),
+    environmentId: requireId(
+      document.context?.productionEnvId,
+      "production-environment",
+    ),
     releaseRunId: requireId(result.releaseRunId, "release-run"),
     deploymentRunId: requireId(result.deploymentRunId, "deployment-run"),
     environmentVersionId: requireId(
@@ -23,6 +29,12 @@ export function finalProductionIdentityFromHistory(document) {
   };
   if (result.expectedReleaseRunId !== identity.releaseRunId) {
     throw historyIdentityError("expected-release-run");
+  }
+  if (
+    result.environmentId !== identity.environmentId ||
+    result.expectedEnvironmentId !== identity.environmentId
+  ) {
+    throw historyIdentityError("expected-environment");
   }
   return Object.freeze(identity);
 }

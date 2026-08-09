@@ -1,11 +1,19 @@
 export function createPositiveIntakeFlow(options) {
   let projectId;
+  let connectionId;
   let analysisRunId;
   let contract;
   let reviewSnapshot;
 
   return Object.freeze({
     projectId: () => projectId,
+    context: () => ({
+      projectId,
+      connectionId,
+      analysisRunId,
+      reviewSnapshotId: reviewSnapshot?.id,
+      reviewSnapshotHash: reviewSnapshot?.hash,
+    }),
     async draft() {
       const draft = await options.request("POST", "/project-intake/drafts", {
         name: `Parity fresh intake ${options.runKey}`,
@@ -29,13 +37,17 @@ export function createPositiveIntakeFlow(options) {
           branch: "main",
         },
       );
-      return pick(connected, [
-        "provider",
-        "defaultBranch",
-        "selectedBranch",
-        "commitSha",
-        "status",
-      ]);
+      connectionId = requireId(connected?.id, "repository-connection");
+      return {
+        connectionId,
+        ...pick(connected, [
+          "provider",
+          "defaultBranch",
+          "selectedBranch",
+          "commitSha",
+          "status",
+        ]),
+      };
     },
     async analyze() {
       const started = await options.request(
@@ -111,8 +123,8 @@ export function createPositiveIntakeFlow(options) {
         `/project-intake/${projectId}`,
       );
       return {
+        ...finalized,
         expectedRefusal: false,
-        projectId: finalized.projectId,
         status: state.project?.onboardingStatus,
       };
     },

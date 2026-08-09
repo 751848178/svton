@@ -7,6 +7,9 @@ import {
 
 const row = validRow();
 const historyIdentity = {
+  teamId: "team-1",
+  projectId: "fresh-project-1",
+  environmentId: "fresh-production-1",
   deploymentRunId: "deployment-1",
   releaseRunId: "release-1",
 };
@@ -14,9 +17,9 @@ const expected = routeExpectationFromDatabaseRow(row, historyIdentity);
 assert.equal(expected.operationId, row.result.routeSwitch.operationId);
 assert.equal(expected.siteId, "site-1");
 assert.deepEqual(isolatedC5RouteQueryFor(historyIdentity).where, {
-  teamId: "parity-team-0001",
-  projectId: "parity-project-0001",
-  environmentId: "parity-env-production",
+  teamId: "team-1",
+  projectId: "fresh-project-1",
+  environmentId: "fresh-production-1",
   deploymentRunId: "deployment-1",
   releaseRunId: "release-1",
   status: "switched",
@@ -46,6 +49,9 @@ for (const mutate of [
 assert.throws(
   () =>
     routeExpectationFromDatabaseRow(row, {
+      teamId: "team-1",
+      projectId: "fresh-project-1",
+      environmentId: "fresh-production-1",
       deploymentRunId: "other-deployment",
       releaseRunId: "release-1",
     }),
@@ -56,9 +62,9 @@ function validRow() {
   const routeHash = "a".repeat(64);
   const route = {
     operationId: `site-route:deployment-1:${routeHash}`,
-    teamId: "parity-team-0001",
-    projectId: "parity-project-0001",
-    environmentId: "parity-env-production",
+    teamId: "team-1",
+    projectId: "fresh-project-1",
+    environmentId: "fresh-production-1",
     siteId: "site-1",
     deploymentRunId: "deployment-1",
     releaseRunId: "release-1",

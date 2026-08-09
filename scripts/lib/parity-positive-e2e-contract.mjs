@@ -8,7 +8,11 @@ export const POSITIVE_AC_MAPPING = Object.freeze({
     "intake-review",
     "intake-finalize",
   ]),
-  "AC-E2E-008": Object.freeze(["intake-finalize", "baselines-verified"]),
+  "AC-E2E-008": Object.freeze([
+    "intake-finalize",
+    "baselines-verified",
+    "delivery-fixture-claim",
+  ]),
   "AC-E2E-009": Object.freeze([
     "env-r1-current",
     "env-targets",

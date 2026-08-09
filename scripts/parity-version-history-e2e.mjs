@@ -3,7 +3,8 @@
 //
 // Chain (each AC-E2E-016..023 mapped to checked F455 context evidence):
 //   0.  preflight: stack health (api / web / target-workload / mysql) + login
-//   1.  base state: idempotent reset+seed (parity-seed.mjs reset) + rerun the
+//   1.  base state: isolated reset+bootstrap support primitives without the
+//       legacy fixed project (parity-seed.mjs reset-bootstrap) + rerun the
 //       F455 positive chain (parity-positive-e2e.mjs) -> exactly 1 BuildRun +
 //       1 Manifest + 1 Staging deploy + 1 Production release + current env
 //       versions (documented reuse; the rerun overwrites the F455 evidence
@@ -91,7 +92,7 @@ const evidence = {
     api: apiBase,
     mysql: runtime.mysqlEvidence,
     targetWorkload: runtime.targetOrigin,
-    fixtureRepo: "/read-only-repositories/parity-app",
+    fixtureRepo: "/read-only-repositories/parity-app-intake",
     pinnedCommit,
   },
   context: {},
@@ -137,9 +138,12 @@ async function main() {
 
   // ------------------------------------------------- base state: F455 rerun
   await step("base-reset-seed", async () => {
-    const out = runNode(["scripts/parity-seed.mjs", "reset"], "f456-seed-reset");
+    const out = runNode(
+      ["scripts/parity-seed.mjs", "reset-bootstrap"],
+      "f456-seed-reset-bootstrap",
+    );
     if (out.status !== 0) {
-      throw new Error(`parity-seed reset failed (${out.status})`);
+      throw new Error(`parity-seed reset-bootstrap failed (${out.status})`);
     }
     await waitStackReady();
     return { exit: out.status, log: out.logPath };

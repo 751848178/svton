@@ -6,6 +6,7 @@
 //   node scripts/parity-seed.mjs up        compose up + migrate + idempotent seed
 //   node scripts/parity-seed.mjs seed      idempotent seed (stack must be up; migrate is a no-op when applied)
 //   node scripts/parity-seed.mjs reset     down + prune ONLY devpilot-parity-* volumes/network + up + migrate + seed
+//   node scripts/parity-seed.mjs reset-bootstrap reset, then remove the legacy fixed project while retaining support primitives
 //   node scripts/parity-seed.mjs down      compose down (parity project only)
 //   node scripts/parity-seed.mjs destroy   verified isolated project down + volumes
 //   node scripts/parity-seed.mjs inventory print row counts + fixed IDs (idempotency evidence)
@@ -49,6 +50,7 @@ import { createParitySeedRuntimeOperations } from "./lib/parity-seed-runtime-ope
 import { downAfterVerifiedOwnership } from "./lib/parity-seed-reset-guard.mjs";
 import { materializeParityHistoryArtifacts } from "./lib/parity-seed-version-history-artifacts.mjs";
 import { seedParityVersionHistory } from "./lib/parity-seed-version-history.mjs";
+import { detachParitySeedProject } from "./lib/parity-seed-bootstrap.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const composeFile = resolve(root, "docker-compose.devpilot-parity.yml");
@@ -134,7 +136,7 @@ const command = process.argv[2] || "up";
 export async function main() {
   if (process.env.PARITY_REQUIRE_VERIFIED_RUNTIME === "1") {
     requireVerifiedRuntimeIdentity(runtime);
-    if (["up", "reset"].includes(command)) {
+    if (["up", "reset", "reset-bootstrap"].includes(command)) {
       verifiedRuntimeImageIds = await prepareVerifiedRuntimeImages();
     }
   }
@@ -163,6 +165,10 @@ export async function main() {
     await printInventory();
   } else if (command === "reset") {
     await reset();
+  } else if (command === "reset-bootstrap") {
+    await reset();
+    const receipt = await detachParitySeedProject(PrismaClient, dbUrl);
+    console.log(`[parity-seed] bootstrap-only ${JSON.stringify(receipt)}`);
   } else if (command === "down") {
     await compose(["down", "--remove-orphans"]);
   } else if (command === "destroy") {

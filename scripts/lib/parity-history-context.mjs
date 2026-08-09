@@ -13,6 +13,11 @@ export function extractPositiveHistoryContext(document, sourceSha256) {
   const versions = steps["production-current-version"]?.result || {};
   const productionConfig = steps["env-save-r2-production"]?.result || {};
   const targets = steps["env-targets"]?.result || {};
+  const intakeConnect = steps["intake-connect"]?.result || {};
+  const intakeAnalysis = steps["intake-analyze"]?.result || {};
+  const intakeReview = steps["intake-review"]?.result || {};
+  const intakeFinalization = steps["intake-finalize"]?.result || {};
+  const deliveryClaim = steps["delivery-fixture-claim"]?.result || {};
   const context = {
     teamId: ids.teamId,
     projectId: ids.projectId,
@@ -28,6 +33,13 @@ export function extractPositiveHistoryContext(document, sourceSha256) {
     productionConfigRevisionId: productionConfig.id,
     productionRouteSnapshot: productionConfig.snapshot?.routeSnapshot,
     productionTargetRef: targets.production?.current?.targetRef,
+    repositoryConnectionId: intakeConnect.connectionId,
+    analysisRunId: intakeAnalysis.runId,
+    reviewSnapshotId: intakeReview.reviewSnapshotId,
+    reviewSnapshotHash: intakeReview.reviewSnapshotHash,
+    intakeFinalizationId: deliveryClaim.frozenIdentity?.finalization?.id,
+    repositoryIdentityId: intakeFinalization.repositoryIdentityId,
+    applicationContracts: deliveryClaim.applicationContracts,
     pinnedCommit: document.stack?.pinnedCommit,
     sourceEvidenceSha256: sourceSha256,
   };
@@ -48,6 +60,12 @@ export function positiveContextChecks(document, context) {
     "productionCurrentVersionId",
     "productionConfigRevisionId",
     "productionTargetRef",
+    "repositoryConnectionId",
+    "analysisRunId",
+    "reviewSnapshotId",
+    "reviewSnapshotHash",
+    "intakeFinalizationId",
+    "repositoryIdentityId",
     "pinnedCommit",
   ];
   return [
@@ -76,6 +94,18 @@ export function positiveContextChecks(document, context) {
       "manifestDigest",
       /^sha256:[a-f0-9]{64}$/.test(context.manifestDigest || ""),
       context.manifestDigest,
+    ),
+    predicate(
+      "applicationContracts",
+      Array.isArray(context.applicationContracts) &&
+        context.applicationContracts.length === 2 &&
+        context.applicationContracts.every(
+          (entry) =>
+            Boolean(entry?.applicationId) &&
+            Boolean(entry?.staging?.id) &&
+            Boolean(entry?.production?.id),
+        ),
+      context.applicationContracts,
     ),
     predicate(
       "productionRouteSnapshot",
