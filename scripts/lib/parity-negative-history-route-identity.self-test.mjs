@@ -16,6 +16,7 @@ const roots = {
   productionConfigRevisionId: context.productionConfigRevisionId,
   productionTargetRef: context.productionTargetRef,
   productionRouteSnapshot: context.productionRouteSnapshot,
+  finalSitePort: context.finalSitePort,
 };
 validateProductionRouteIdentity(upgrade, roots, claimOf(upgrade));
 validateProductionRouteIdentity(recovery, roots, claimOf(recovery));

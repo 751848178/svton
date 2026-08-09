@@ -1,4 +1,8 @@
 import { canonicalHistoryStepValid } from "./parity-negative-history-check-contract.mjs";
+import {
+  TRUSTED_INTAKE_CONTEXT_FIELDS,
+  trustedIntakeContextValid,
+} from "./parity-negative-history-intake-identity.mjs";
 import { structuralEqual } from "./parity-negative-history-structural-equality.mjs";
 
 export const TRUSTED_BASE_CONTEXT_FIELDS = Object.freeze([
@@ -15,6 +19,7 @@ export const TRUSTED_BASE_CONTEXT_FIELDS = Object.freeze([
   "productionCurrentVersionId",
   "productionConfigRevisionId",
   "productionTargetRef",
+  ...TRUSTED_INTAKE_CONTEXT_FIELDS,
   "pinnedCommit",
   "productionRouteSnapshot",
   "sourceEvidenceSha256",
@@ -38,7 +43,7 @@ export function validateTrustedHistoryBase(step, context) {
   );
   for (const field of TRUSTED_BASE_CONTEXT_FIELDS) {
     requireValue(
-      field === "productionRouteSnapshot"
+      ["productionRouteSnapshot", "applicationContracts"].includes(field)
         ? structuralEqual(expected[field], context[field])
         : sameJson(expected[field], context[field]),
       `expected-${field}`,
@@ -127,10 +132,14 @@ function validateContext(context) {
     "context-fields",
   );
   for (const field of TRUSTED_BASE_CONTEXT_FIELDS) {
-    if (field !== "productionRouteSnapshot") {
+    if (
+      field !== "productionRouteSnapshot" &&
+      !TRUSTED_INTAKE_CONTEXT_FIELDS.includes(field)
+    ) {
       requireValue(nonEmpty(context[field]), `context-${field}`);
     }
   }
+  requireValue(trustedIntakeContextValid(context), "intake-context");
   requireValue(
     context.stagingEnvId !== context.productionEnvId,
     "environment-alias",

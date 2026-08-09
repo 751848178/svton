@@ -20,7 +20,26 @@ export function baseContextFixture() {
       tlsRequired: true,
     },
     productionTargetRef: "target",
+    repositoryConnectionId: "connection",
+    analysisRunId: "analysis",
+    reviewSnapshotId: "review",
+    reviewSnapshotHash: "b".repeat(64),
+    intakeFinalizationId: "finalization",
+    repositoryIdentityId: "identity",
+    applicationContracts: [
+      {
+        applicationId: "web",
+        staging: { id: "web-staging" },
+        production: { id: "web-production" },
+      },
+      {
+        applicationId: "api",
+        staging: { id: "api-staging" },
+        production: { id: "api-production" },
+      },
+    ],
     pinnedCommit: "a".repeat(40),
+    finalSitePort: 54321,
     sourceEvidenceSha256: "d".repeat(64),
   };
 }

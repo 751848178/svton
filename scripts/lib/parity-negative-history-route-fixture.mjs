@@ -75,6 +75,7 @@ function routeFixture(roots, action) {
     targetRef: roots.productionTargetRef,
     providerKey: "route-provider-v1",
     receiptVersion: 1,
+    finalSitePort: roots.finalSitePort,
   });
   const observedAt = "2026-08-08T00:00:05.000Z";
   const routeSwitch = routeSwitchFixture(expected, observedAt);
