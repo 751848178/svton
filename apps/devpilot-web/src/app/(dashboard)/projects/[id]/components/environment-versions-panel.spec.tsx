@@ -67,6 +67,35 @@ vi.mock('@/components/ui', () => ({
       {onRetry ? <button onClick={onRetry}>{retryLabel}</button> : null}
     </div>
   ),
+  ConfirmDialog: ({
+    open,
+    title,
+    confirmLabel,
+    onOpenChange,
+    onConfirm,
+  }: {
+    open: boolean;
+    title: string;
+    confirmLabel: string;
+    onOpenChange: (open: boolean) => void;
+    onConfirm: () => Promise<void>;
+  }) =>
+    open ? (
+      <div data-dialog-title={title}>
+        <button
+          data-testid="upgrade-cancel"
+          onClick={() => onOpenChange(false)}
+        >
+          cancel
+        </button>
+        <button
+          data-testid="upgrade-confirm"
+          onClick={onConfirm}
+        >
+          {confirmLabel}
+        </button>
+      </div>
+    ) : null,
 }));
 vi.mock('../hooks/use-environment-versions', () => ({
   useEnvironmentVersions: () => ({
@@ -265,6 +294,68 @@ describe('EnvironmentVersionsPanel Demo-aligned read model', () => {
       'manifest-2',
     ]);
     expect([...productionSelect.options].map((option) => option.value)).toEqual(['manifest-1']);
+  });
+
+  it('disables an upgrade when the selected manifest is already current', async () => {
+    await renderPanel();
+    const stagingCard = container.querySelectorAll('article')[0];
+    const upgrade = [...stagingCard.querySelectorAll('button')].find(
+      (button) => button.textContent === 'environmentVersionUpgradeShort',
+    )!;
+
+    expect(upgrade.disabled).toBe(true);
+  });
+
+  it('requires confirmation before upgrading to another manifest', async () => {
+    mocks.execute.mockResolvedValue({ environmentVersion: { id: 'version-new' } });
+    await renderPanel();
+    const stagingCard = container.querySelectorAll('article')[0];
+    const select = stagingCard.querySelector('select')!;
+    await act(async () => {
+      select.value = 'manifest-2';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    const upgrade = [...stagingCard.querySelectorAll('button')].find(
+      (button) => button.textContent === 'environmentVersionUpgradeShort',
+    )!;
+    expect(upgrade.disabled).toBe(false);
+    await act(async () => upgrade.click());
+
+    expect(mocks.execute).not.toHaveBeenCalled();
+    expect(
+      container.querySelector('[data-dialog-title="environmentVersionUpgradeDialogTitle"]'),
+    ).not.toBeNull();
+    await act(async () => {
+      (container.querySelector('[data-testid="upgrade-confirm"]') as HTMLButtonElement).click();
+    });
+    expect(mocks.execute).toHaveBeenCalledWith('environment-staging', {
+      kind: 'upgrade',
+      manifestId: 'manifest-2',
+      releaseRunId: undefined,
+    });
+  });
+
+  it('does not execute an upgrade when confirmation is cancelled', async () => {
+    await renderPanel();
+    const stagingCard = container.querySelectorAll('article')[0];
+    const select = stagingCard.querySelector('select')!;
+    await act(async () => {
+      select.value = 'manifest-2';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await act(async () => {
+      [...stagingCard.querySelectorAll('button')]
+        .find((button) => button.textContent === 'environmentVersionUpgradeShort')!
+        .click();
+    });
+    await act(async () => {
+      (container.querySelector('[data-testid="upgrade-cancel"]') as HTMLButtonElement).click();
+    });
+
+    expect(mocks.execute).not.toHaveBeenCalled();
+    expect(
+      container.querySelector('[data-dialog-title="environmentVersionUpgradeDialogTitle"]'),
+    ).toBeNull();
   });
 
   it('carries the staging-proof suffix only on Production candidate options', async () => {

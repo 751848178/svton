@@ -49,6 +49,15 @@ export function buildProjectDeliverySummaryCacheKey(
   return actorId && teamId && projectId ? ([actorId, teamId, projectId, endpoint] as const) : null;
 }
 
+export function isProjectDeliverySummaryCacheKey(key: unknown, projectId: string) {
+  return (
+    Array.isArray(key) &&
+    key.length === 4 &&
+    key[2] === projectId &&
+    key[3] === `GET:/projects/${projectId}/delivery/summary`
+  );
+}
+
 export function shouldUseInitialProjectDeliverySummary(
   projectId: string,
   actorId: string | null,

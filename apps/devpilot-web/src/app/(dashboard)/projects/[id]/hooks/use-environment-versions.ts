@@ -1,13 +1,16 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useSWRConfig } from 'swr';
 import { apiRequest } from '@/lib/api-client';
 import type {
   EnvironmentVersionActionResult,
   EnvironmentVersionsResponse,
 } from '../types/environment-version.types';
+import { isProjectDeliverySummaryCacheKey } from './use-project-delivery-summary';
 
 export function useEnvironmentVersions(projectId: string) {
+  const { mutate: mutateCache } = useSWRConfig();
   const [data, setData] = useState<EnvironmentVersionsResponse>({
     environments: [],
     candidates: { staging: [], production: [] },
@@ -53,7 +56,12 @@ export function useEnvironmentVersions(projectId: string) {
           `POST:/projects/${projectId}/delivery/environment-versions/${environmentId}/actions`,
           input,
         );
-        await load();
+        await Promise.all([
+          load(),
+          mutateCache((key) => isProjectDeliverySummaryCacheKey(key, projectId), undefined, {
+            revalidate: true,
+          }),
+        ]);
         return result;
       } catch (caught) {
         setError(message(caught));
@@ -62,7 +70,7 @@ export function useEnvironmentVersions(projectId: string) {
         setExecuting(false);
       }
     },
-    [load, projectId],
+    [load, mutateCache, projectId],
   );
 
   return { ...data, loading, executing, error, load, execute };

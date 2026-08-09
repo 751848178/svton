@@ -10,8 +10,8 @@ import type { EnvironmentVersionEnvironment } from '../types/environment-version
 import { releaseOrderHref } from '../utils/project-route.utils';
 import { EnvironmentChangeRow } from './environment-change-row';
 import { EnvironmentRecoveryDialog } from './environment-recovery-dialog';
-import { approvedEnvironmentVersionRun, EnvironmentVersionCard } from './environment-version-card';
 import { EnvironmentVersionsHeader } from './environment-versions-header';
+import { EnvironmentVersionsGrid } from './environment-versions-grid';
 import { EnvironmentVersionsRequestState } from './environment-versions-request-state';
 
 interface RecoveryTarget {
@@ -24,7 +24,6 @@ export function EnvironmentVersionsPanel({ projectId }: { projectId: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const versions = useEnvironmentVersions(projectId);
-  const [selection, setSelection] = useState<Record<string, string>>({});
   const [recoveryTarget, setRecoveryTarget] = useState<RecoveryTarget | null>(null);
   const hasEnvironments = versions.environments.length > 0;
   if (versions.loading || !hasEnvironments) {
@@ -50,34 +49,15 @@ export function EnvironmentVersionsPanel({ projectId }: { projectId: string }) {
           retryLabel={t('environmentVersionsRetry')}
         />
       ) : null}
-      <div className="grid gap-4 xl:grid-cols-2">
-        {versions.environments.map((environment) => {
-          const candidates = versions.candidates[environment.baselineRole] ?? [];
-          const selectedId = selection[environment.id] || candidates[0]?.id || '';
-          const candidate = candidates.find((item) => item.id === selectedId);
-          const releaseRunId = approvedEnvironmentVersionRun(candidate);
-          return (
-            <EnvironmentVersionCard
-              key={environment.id}
-              environment={environment}
-              candidates={candidates}
-              selectedId={selectedId}
-              executing={versions.executing}
-              productionBlocked={environment.baselineRole === 'production' && !releaseRunId}
-              onSelect={(id) => setSelection((current) => ({ ...current, [environment.id]: id }))}
-              onUpgrade={() =>
-                versions.execute(environment.id, {
-                  kind: 'upgrade',
-                  manifestId: selectedId,
-                  releaseRunId:
-                    environment.baselineRole === 'production' ? releaseRunId : undefined,
-                })
-              }
-              onRecovery={(sourceVersionId) => setRecoveryTarget({ environment, sourceVersionId })}
-            />
-          );
-        })}
-      </div>
+      <EnvironmentVersionsGrid
+        environments={versions.environments}
+        candidates={versions.candidates}
+        executing={versions.executing}
+        onExecute={versions.execute}
+        onRecovery={(environment, sourceVersionId) =>
+          setRecoveryTarget({ environment, sourceVersionId })
+        }
+      />
       <p className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
         {t('environmentVersionProductionCallout')}
       </p>

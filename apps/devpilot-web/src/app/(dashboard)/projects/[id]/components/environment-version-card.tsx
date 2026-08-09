@@ -27,6 +27,7 @@ export function EnvironmentVersionCard(props: {
   const previous = current
     ? env.environmentVersions.find((item) => item.id === current.previousVersionId)
     : null;
+  const currentManifestSelected = current?.artifactManifestId === props.selectedId;
   return (
     <article className="space-y-4 rounded-lg border p-5">
       <div className="flex items-center justify-between gap-3">
@@ -80,7 +81,12 @@ export function EnvironmentVersionCard(props: {
         <Button
           onClick={props.onUpgrade}
           loading={props.executing}
-          disabled={!props.selectedId || props.productionBlocked}
+          disabled={
+            !props.selectedId ||
+            props.executing ||
+            currentManifestSelected ||
+            props.productionBlocked
+          }
         >
           {t('environmentVersionUpgradeShort')}
         </Button>

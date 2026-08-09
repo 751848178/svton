@@ -7,6 +7,7 @@ vi.mock('@/store/hooks', () => ({
 
 import {
   buildProjectDeliverySummaryCacheKey,
+  isProjectDeliverySummaryCacheKey,
   shouldShowProjectDeliverySummaryLoading,
   shouldUseInitialProjectDeliverySummary,
 } from './use-project-delivery-summary';
@@ -21,6 +22,19 @@ describe('project delivery summary cache isolation', () => {
     expect(buildProjectDeliverySummaryCacheKey(endpoint, 'project-1', null, 'team-1')).toBeNull();
     expect(buildProjectDeliverySummaryCacheKey(endpoint, 'project-1', 'actor-1', null)).toBeNull();
     expect(buildProjectDeliverySummaryCacheKey(endpoint, '', 'actor-1', 'team-1')).toBeNull();
+  });
+
+  it('matches only the exact project delivery summary cache key', () => {
+    expect(
+      isProjectDeliverySummaryCacheKey(['actor-1', 'team-1', 'project-1', endpoint], 'project-1'),
+    ).toBe(true);
+    expect(
+      isProjectDeliverySummaryCacheKey(
+        ['actor-1', 'team-1', 'project-2', 'GET:/projects/project-2/delivery/summary'],
+        'project-1',
+      ),
+    ).toBe(false);
+    expect(isProjectDeliverySummaryCacheKey(endpoint, 'project-1')).toBe(false);
   });
 
   it('never reuses SSR fallback across actor, team, or project scope', () => {
