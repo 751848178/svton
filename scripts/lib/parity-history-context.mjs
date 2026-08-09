@@ -41,6 +41,7 @@ export function extractPositiveHistoryContext(document, sourceSha256) {
     repositoryIdentityId: intakeFinalization.repositoryIdentityId,
     applicationContracts: deliveryClaim.applicationContracts,
     pinnedCommit: document.stack?.pinnedCommit,
+    finalSitePort: portFromUrl(document.stack?.localFinalSite),
     sourceEvidenceSha256: sourceSha256,
   };
   return { context, checks: positiveContextChecks(document, context) };
@@ -113,7 +114,22 @@ export function positiveContextChecks(document, context) {
         context.productionRouteSnapshot.domains.length > 0,
       context.productionRouteSnapshot,
     ),
+    predicate(
+      "localFinalSitePort",
+      Number.isSafeInteger(context.finalSitePort) &&
+        context.finalSitePort >= 1024,
+      context.finalSitePort,
+    ),
   ];
+}
+
+function portFromUrl(value) {
+  try {
+    const port = Number(new URL(value).port);
+    return Number.isSafeInteger(port) ? port : null;
+  } catch {
+    return null;
+  }
 }
 
 function positiveAcceptanceValid(document) {

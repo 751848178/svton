@@ -5,6 +5,7 @@ import { probeFinalTls } from "./site-final-tls-probe";
 import { finalSiteUrl } from "./site-final-url";
 import { probeError } from "./site-probe-error";
 import { SiteProbeResolverService } from "./site-probe-resolver.service";
+import { SiteProbeLocalAcceptancePolicy } from "./site-probe-local-acceptance.policy";
 import type { ApprovedSiteProbeTarget } from "./site-probe-target.types";
 import type {
   SiteProbeHttpBlock,
@@ -20,11 +21,14 @@ const DEFAULT_TIMEOUT_MS = 5000;
 export class SiteFinalProbeService implements SiteProbePort {
   constructor(
     private readonly resolver: SiteProbeResolverService = new SiteProbeResolverService(),
+    private readonly localAcceptance: SiteProbeLocalAcceptancePolicy = new SiteProbeLocalAcceptancePolicy(),
   ) {}
 
   async probe(input: SiteProbeInput): Promise<SiteProbeResult> {
     const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-    const finalUrl = finalSiteUrl(input.primaryDomain, input.tlsRequired);
+    const finalUrl =
+      this.localAcceptance.finalUrl(input.primaryDomain, input.tlsRequired) ??
+      finalSiteUrl(input.primaryDomain, input.tlsRequired);
     const resolved = await this.resolve(finalUrl, timeoutMs);
     const dns = probeFinalDns(resolved.target, resolved.error);
     const [tls, http] = resolved.target
@@ -57,7 +61,10 @@ export class SiteFinalProbeService implements SiteProbePort {
       };
     }
     try {
-      return { target: await this.resolver.resolve(finalUrl, timeoutMs), error: null };
+      return {
+        target: await this.resolver.resolve(finalUrl, timeoutMs),
+        error: null,
+      };
     } catch (error) {
       return { target: null, error };
     }
@@ -70,7 +77,8 @@ export function probeTlsForFinalTarget(
   timeoutMs: number,
   probe: typeof probeFinalTls = probeFinalTls,
 ) {
-  if (tlsRequired === false) return Promise.resolve(notRequiredTls(target.hostname));
+  if (tlsRequired === false)
+    return Promise.resolve(notRequiredTls(target.hostname));
   return probe(target.hostname, timeoutMs, {
     port: target.port,
     pinnedAddress: target.address,
@@ -105,7 +113,10 @@ function unavailableTls(
   };
 }
 
-function unavailableHttp(finalUrl: string | null, error: unknown): SiteProbeHttpBlock {
+function unavailableHttp(
+  finalUrl: string | null,
+  error: unknown,
+): SiteProbeHttpBlock {
   return {
     status: "unavailable",
     url: finalUrl,

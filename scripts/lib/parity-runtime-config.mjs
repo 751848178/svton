@@ -76,6 +76,7 @@ export function parityRuntimeConfig(env = process.env) {
     targetOrigin: `http://127.0.0.1:${ports.target}`,
     routeProxyTarget: "http://target-workload:80",
     routeControlOrigin: `http://127.0.0.1:${ports.routeControl}`,
+    localAcceptanceOrigin: `http://parity.example.test:${ports.routeControl}`,
     databaseUrl: `mysql://root:password@127.0.0.1:${ports.mysql}/${databaseName}`,
     mysqlEvidence: `${composeProject}-mysql:${ports.mysql}`,
     sourceRevision: env.PARITY_SOURCE_REVISION || "unverified",

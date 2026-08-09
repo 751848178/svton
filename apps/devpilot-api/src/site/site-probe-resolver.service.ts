@@ -12,6 +12,7 @@ import type {
   SiteProbeAddress,
   SiteProbeLookup,
 } from "./site-probe-target.types";
+import { SiteProbeLocalAcceptancePolicy } from "./site-probe-local-acceptance.policy";
 
 const systemLookup: SiteProbeLookup = (hostname, options) =>
   dns.lookup(hostname, options) as Promise<SiteProbeAddress[]>;
@@ -19,9 +20,15 @@ const systemLookup: SiteProbeLookup = (hostname, options) =>
 @Injectable()
 export class SiteProbeResolverService {
   private readonly lookup: SiteProbeLookup;
+  private readonly localAcceptance: SiteProbeLocalAcceptancePolicy;
 
-  constructor(@Optional() lookup?: SiteProbeLookup) {
+  constructor(
+    @Optional() lookup?: SiteProbeLookup,
+    @Optional() localAcceptance?: SiteProbeLocalAcceptancePolicy,
+  ) {
     this.lookup = lookup ?? systemLookup;
+    this.localAcceptance =
+      localAcceptance ?? new SiteProbeLocalAcceptancePolicy();
   }
 
   async resolve(
@@ -34,13 +41,18 @@ export class SiteProbeResolverService {
       ? [{ address: target.hostname, family: family as 4 | 6 }]
       : await this.lookupOnce(target.hostname, timeoutMs);
     if (addresses.length === 0) {
-      throw targetError("SITE_PROBE_DNS_EMPTY", "site probe DNS answer is empty");
+      throw targetError(
+        "SITE_PROBE_DNS_EMPTY",
+        "site probe DNS answer is empty",
+      );
     }
+    const containsForbiddenAddress = addresses.some(
+      ({ address, family }) =>
+        isIP(address) !== family || !isPublicSiteProbeAddress(address),
+    );
     if (
-      addresses.some(
-        ({ address, family }) =>
-          isIP(address) !== family || !isPublicSiteProbeAddress(address),
-      )
+      containsForbiddenAddress &&
+      !this.localAcceptance.allows(target, addresses)
     ) {
       throw targetError(
         "SITE_PROBE_ADDRESS_FORBIDDEN",

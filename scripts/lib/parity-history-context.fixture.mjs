@@ -61,7 +61,10 @@ export function positiveDocument() {
   return {
     status: "passed",
     capturedAt: "2026-08-08T00:00:00.000Z",
-    stack: { pinnedCommit: "a".repeat(40) },
+    stack: {
+      pinnedCommit: "a".repeat(40),
+      localFinalSite: "http://parity.example.test:54321",
+    },
     context: { teamId: "team", projectId: "project", orderId: "order" },
     ac,
     steps,
@@ -113,6 +116,7 @@ export function expectedPositiveContext(sourceEvidenceSha256) {
       },
     ],
     pinnedCommit: "a".repeat(40),
+    finalSitePort: 54321,
     sourceEvidenceSha256,
   };
 }

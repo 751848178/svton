@@ -121,9 +121,18 @@ services:
       RELEASE_STAGING_DEPLOYMENT_TIMEOUT_MS: "120000"
       # ----- Real route-control provider + independent readback (F465) -----
       SITE_ROUTE_SWITCH_PROVIDER_PROFILE: http-route-control-v1
-      SITE_ROUTE_SWITCH_HTTP_ENDPOINT: http://route-control:8080
+      SITE_ROUTE_SWITCH_HTTP_ENDPOINT: http://route-control:${PARITY_ROUTE_CONTROL_PORT:-43993}
       SITE_ROUTE_SWITCH_HTTP_TOKEN: ${PARITY_ROUTE_CONTROL_TOKEN:-devpilot-parity-route-control-token-0001}
       SITE_ROUTE_SWITCH_HTTP_TIMEOUT_MS: "5000"
+      # Explicit isolated/local acceptance only. Empty defaults keep the
+      # production site-probe policy strict for every ordinary compose run.
+      SITE_PROBE_LOCAL_ACCEPTANCE_PROFILE: ${PARITY_LOCAL_ACCEPTANCE_PROFILE:-}
+      SITE_PROBE_LOCAL_ACCEPTANCE_HOSTNAME: ${PARITY_LOCAL_ACCEPTANCE_HOSTNAME:-}
+      SITE_PROBE_LOCAL_ACCEPTANCE_PORT: ${PARITY_ROUTE_CONTROL_PORT:-43993}
+      PARITY_REQUIRE_VERIFIED_RUNTIME: ${PARITY_REQUIRE_VERIFIED_RUNTIME:-0}
+      PARITY_GOAL_ID: ${PARITY_GOAL_ID:-unverified}
+      PARITY_RUNTIME_ID: ${PARITY_RUNTIME_ID:-default}
+      PARITY_SOURCE_REVISION: ${PARITY_SOURCE_REVISION:-unverified}
       # Allow the committed parity fixture repository (mounted read-only below)
       # to be connected/analyzed/build through the real git executor.
       REPOSITORY_ANALYSIS_LOCAL_ROOTS: /read-only-repositories
@@ -185,18 +194,22 @@ services:
     restart: unless-stopped
     labels: *runtime-labels
     ports:
-      - "127.0.0.1:${PARITY_ROUTE_CONTROL_PORT:-43993}:8080"
+      - "127.0.0.1:${PARITY_ROUTE_CONTROL_PORT:-43993}:${PARITY_ROUTE_CONTROL_PORT:-43993}"
     environment:
-      PORT: "8080"
+      PORT: ${PARITY_ROUTE_CONTROL_PORT:-43993}
       ROUTE_CONTROL_TOKEN: ${PARITY_ROUTE_CONTROL_TOKEN:-devpilot-parity-route-control-token-0001}
     command: ["node", "/app/parity-route-control-provider.mjs"]
+    networks:
+      default:
+        aliases:
+          - parity.example.test
     healthcheck:
       test:
         [
           "CMD",
           "node",
           "-e",
-          "fetch('http://127.0.0.1:8080/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+          "fetch('http://127.0.0.1:'+process.env.PORT+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
         ]
       interval: 5s
       timeout: 3s

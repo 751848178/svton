@@ -49,6 +49,8 @@ const environment = {
   PARITY_BUILDX_BUILDER: `devpilot-builder-${runtimeId}`,
   PARITY_ROUTE_CONTROL_PORT: "45993",
   PARITY_REQUIRE_VERIFIED_RUNTIME: "1",
+  PARITY_LOCAL_ACCEPTANCE_PROFILE: "parity-hosts-v1",
+  PARITY_LOCAL_ACCEPTANCE_HOSTNAME: "parity.example.test",
   PARITY_FIXTURE_GIT_ROOT: join(runDirectory, "fixture-repo"),
   PARITY_C5_MANIFEST_PATH: manifestPath,
   NEXT_PUBLIC_API_URL: "http://localhost:45132",
@@ -101,6 +103,7 @@ await recordC5BuilderLifecycle(
 await writeRunningC5Manifest(context, { status: "passed" });
 const source = await readFile(manifestPath, "utf8");
 assert.doesNotMatch(source, /must-not-persist|PARITY_ADMIN_PASSWORD/);
+assert.match(source, /parity-hosts-v1/);
 const loaded = await loadDestroyableC5Manifest(manifestPath, temp, {});
 assert.equal(loaded.manifest.runtimeId, runtimeId);
 assert.deepEqual(

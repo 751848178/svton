@@ -1,5 +1,9 @@
 import { createServer } from "node:http";
 import { timingSafeEqual } from "node:crypto";
+import {
+  requestRouteHostname,
+  validRouteDomains,
+} from "./lib/parity-route-control-domain.mjs";
 
 const MAX_BODY_BYTES = 64 * 1024;
 
@@ -9,6 +13,7 @@ export function createRouteControlServer({ token, fetchImpl = fetch }) {
   }
   const routes = new Map();
   const activeSites = new Map();
+  const activeDomains = new Map();
 
   return createServer(async (request, response) => {
     try {
@@ -32,6 +37,7 @@ export function createRouteControlServer({ token, fetchImpl = fetch }) {
           };
           routes.set(operationId, record);
           activeSites.set(input.siteId, record);
+          for (const domain of input.domains) activeDomains.set(domain, record);
           return json(response, 204, null);
         }
         if (request.method === "GET") {
@@ -41,6 +47,15 @@ export function createRouteControlServer({ token, fetchImpl = fetch }) {
             : json(response, 404, { error: "route_not_found" });
         }
       }
+      const domainRecord = activeDomains.get(requestRouteHostname(request));
+      if (request.method === "GET" && domainRecord) {
+        return await proxyRoute(
+          response,
+          domainRecord,
+          `${url.pathname}${url.search}`,
+          fetchImpl,
+        );
+      }
       const liveMatch = url.pathname.match(/^\/sites\/([^/]+)(\/.*)?$/);
       if (request.method === "GET" && liveMatch) {
         const siteId = decodeURIComponent(liveMatch[1]);
@@ -49,7 +64,7 @@ export function createRouteControlServer({ token, fetchImpl = fetch }) {
           return json(response, 404, { error: "site_route_not_found" });
         return await proxyRoute(
           response,
-          record.input.proxyTarget,
+          record,
           liveMatch[2] || "/",
           fetchImpl,
         );
@@ -83,7 +98,7 @@ function validateRoute(value, operationId) {
     throw new Error("operation_id_mismatch");
   if (!/^[a-f0-9]{64}$/.test(input.routeHash))
     throw new Error("invalid_route_hash");
-  if (!Array.isArray(input.domains) || input.domains.length === 0) {
+  if (!validRouteDomains(input.domains, input.primaryDomain)) {
     throw new Error("invalid_domains");
   }
   const target = new URL(input.proxyTarget);
@@ -106,8 +121,8 @@ function readback(record) {
   return { observedAt: record.observedAt, observed: record.observed };
 }
 
-async function proxyRoute(response, target, path, fetchImpl) {
-  const upstream = new URL(path, target);
+async function proxyRoute(response, record, path, fetchImpl) {
+  const upstream = new URL(path, record.input.proxyTarget);
   const result = await fetchImpl(upstream, { redirect: "manual" });
   const body = new Uint8Array(await result.arrayBuffer());
   response.statusCode = result.status;
@@ -116,6 +131,19 @@ async function proxyRoute(response, target, path, fetchImpl) {
     result.headers.get("content-type") || "application/octet-stream",
   );
   response.setHeader("x-route-control-upstream", upstream.origin);
+  response.setHeader("x-route-control-operation-id", record.input.operationId);
+  response.setHeader("x-route-control-site-id", record.input.siteId);
+  response.setHeader(
+    "x-route-control-deployment-run-id",
+    record.input.deploymentRunId,
+  );
+  if (record.input.releaseRunId) {
+    response.setHeader(
+      "x-route-control-release-run-id",
+      record.input.releaseRunId,
+    );
+  }
+  response.setHeader("x-route-control-route-hash", record.input.routeHash);
   response.end(body);
 }
 

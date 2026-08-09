@@ -1,5 +1,6 @@
 import { SiteFinalProbeService } from "../site/site-final-probe.service";
 import { SiteProbeResolverService } from "../site/site-probe-resolver.service";
+import { SiteProbeLocalAcceptancePolicy } from "../site/site-probe-local-acceptance.policy";
 import { SiteRouteActivationService } from "../site/site-route-activation.service";
 import {
   SiteProbePort,
@@ -35,6 +36,7 @@ export const releaseDeliveryEnvironmentProviders = [
   SiteRouteActivationService,
   SiteFinalProbeService,
   SiteProbeResolverService,
+  SiteProbeLocalAcceptancePolicy,
   SiteRouteSwitchEvidenceRepository,
   HttpSiteRouteSwitchProvider,
   UnconfiguredSiteRouteSwitchProvider,

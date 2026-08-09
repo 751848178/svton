@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createServer } from "node:http";
+import { createServer, request } from "node:http";
 import { once } from "node:events";
 import { createRouteControlServer } from "../parity-route-control-provider.mjs";
 
@@ -52,6 +52,30 @@ try {
     routeHash: input.routeHash,
   });
   assert.ok(Number.isFinite(Date.parse(readback.observedAt)));
+
+  const domainLive = await requestDomain(
+    providerPort,
+    `parity.example.test:${providerPort}`,
+  );
+  assert.equal(domainLive.statusCode, 200);
+  assert.equal(domainLive.body, "live-route-ok");
+  assert.equal(
+    domainLive.headers["x-route-control-operation-id"],
+    input.operationId,
+  );
+  assert.equal(domainLive.headers["x-route-control-site-id"], input.siteId);
+  assert.equal(
+    domainLive.headers["x-route-control-deployment-run-id"],
+    input.deploymentRunId,
+  );
+  assert.equal(
+    domainLive.headers["x-route-control-release-run-id"],
+    input.releaseRunId,
+  );
+  assert.equal(
+    domainLive.headers["x-route-control-route-hash"],
+    input.routeHash,
+  );
 
   const live = await fetch(`http://127.0.0.1:${providerPort}/sites/site/path`);
   assert.equal(live.status, 200);
@@ -107,6 +131,27 @@ function authorizationHeaders() {
 async function listen(server) {
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
+}
+
+function requestDomain(port, host) {
+  return new Promise((resolve, reject) => {
+    const req = request(
+      { hostname: "127.0.0.1", port, path: "/domain-path", headers: { host } },
+      (response) => {
+        const chunks = [];
+        response.on("data", (chunk) => chunks.push(chunk));
+        response.on("end", () =>
+          resolve({
+            statusCode: response.statusCode,
+            headers: response.headers,
+            body: Buffer.concat(chunks).toString("utf8"),
+          }),
+        );
+      },
+    );
+    req.on("error", reject);
+    req.end();
+  });
 }
 
 process.stdout.write("parity-route-control-provider self-test passed\n");

@@ -70,6 +70,8 @@ export async function createIsolatedC5Context(root, runtimeRoot, baseEnv) {
     PARITY_ROUTE_CONTROL_PORT: String(ports[6]),
     PARITY_ROUTE_CONTROL_TOKEN: randomBytes(32).toString("hex"),
     PARITY_REQUIRE_VERIFIED_RUNTIME: "1",
+    PARITY_LOCAL_ACCEPTANCE_PROFILE: "parity-hosts-v1",
+    PARITY_LOCAL_ACCEPTANCE_HOSTNAME: "parity.example.test",
     PARITY_FIXTURE_GIT_ROOT: join(runDirectory, "fixture-repo"),
     PARITY_C5_MANIFEST_PATH: manifestPath,
     NEXT_PUBLIC_API_URL: `http://localhost:${ports[1]}`,

@@ -6,8 +6,13 @@ export function buildProductionRouteExpectation(input) {
   const primaryDomain = route.domains?.[0];
   const domains = [...(route.domains || [])].sort();
   const tlsRequired = route.tlsRequired !== false;
+  const finalSitePort = validPort(input.finalSitePort)
+    ? `:${input.finalSitePort}`
+    : "";
   const configuredFinalUrl = primaryDomain
-    ? new URL(`${tlsRequired ? "https" : "http"}://${primaryDomain}`).toString()
+    ? new URL(
+        `${tlsRequired ? "https" : "http"}://${primaryDomain}${finalSitePort}`,
+      ).toString()
     : null;
   const canonical = {
     siteId: input.siteId,
@@ -128,6 +133,10 @@ function tlsChecksPass(tls, expected) {
 
 function validProvider(value) {
   return typeof value === "string" && value.length > 0 && value !== "unconfigured";
+}
+
+function validPort(value) {
+  return Number.isSafeInteger(value) && value >= 1024 && value <= 65535;
 }
 
 function validTime(value) {

@@ -25,7 +25,7 @@ describe("F454 isolated parity compose stack", () => {
       '"127.0.0.1:${PARITY_REDIS_PORT:-4384}:6379"',
       '"127.0.0.1:${PARITY_SSH_PORT:-4222}:2222"',
       '"127.0.0.1:${PARITY_TARGET_PORT:-43992}:80"',
-      '"127.0.0.1:${PARITY_ROUTE_CONTROL_PORT:-43993}:8080"',
+      '"127.0.0.1:${PARITY_ROUTE_CONTROL_PORT:-43993}:${PARITY_ROUTE_CONTROL_PORT:-43993}"',
       "MYSQL_DATABASE: ${PARITY_DATABASE_NAME:-devpilot_parity}",
       "org.opencontainers.image.revision:",
       "io.svton.devpilot.source-tree-sha256:",
@@ -52,7 +52,7 @@ describe("F454 isolated parity compose stack", () => {
       '"127.0.0.1:${PARITY_REDIS_PORT:-4384}:6379"',
       '"127.0.0.1:${PARITY_SSH_PORT:-4222}:2222"',
       '"127.0.0.1:${PARITY_TARGET_PORT:-43992}:80"',
-      '"127.0.0.1:${PARITY_ROUTE_CONTROL_PORT:-43993}:8080"',
+      '"127.0.0.1:${PARITY_ROUTE_CONTROL_PORT:-43993}:${PARITY_ROUTE_CONTROL_PORT:-43993}"',
     ]) {
       expect(source).toContain(port);
     }
@@ -80,7 +80,11 @@ describe("F454 isolated parity compose stack", () => {
       "RELEASE_STAGING_DEPLOYMENT_ROOT: /var/lib/devpilot/release-build/deployments",
       'RELEASE_STAGING_DEPLOYMENT_TIMEOUT_MS: "120000"',
       "SITE_ROUTE_SWITCH_PROVIDER_PROFILE: http-route-control-v1",
-      "SITE_ROUTE_SWITCH_HTTP_ENDPOINT: http://route-control:8080",
+      "SITE_ROUTE_SWITCH_HTTP_ENDPOINT: http://route-control:${PARITY_ROUTE_CONTROL_PORT:-43993}",
+      "SITE_PROBE_LOCAL_ACCEPTANCE_PROFILE: ${PARITY_LOCAL_ACCEPTANCE_PROFILE:-}",
+      "SITE_PROBE_LOCAL_ACCEPTANCE_HOSTNAME: ${PARITY_LOCAL_ACCEPTANCE_HOSTNAME:-}",
+      "PARITY_REQUIRE_VERIFIED_RUNTIME: ${PARITY_REQUIRE_VERIFIED_RUNTIME:-0}",
+      "- parity.example.test",
       "dockerfile: scripts/parity-route-control.Dockerfile",
       "dockerfile: scripts/parity-deploy-target.Dockerfile",
       "dockerfile: scripts/parity-target-workload.Dockerfile",

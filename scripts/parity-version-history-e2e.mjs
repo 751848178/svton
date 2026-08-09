@@ -1008,6 +1008,7 @@ async function collectProductionProof(row, seed, input) {
     targetRef: positiveContext.productionTargetRef,
     providerKey: parityRouteProviderKey,
     receiptVersion: 1,
+    finalSitePort: positiveContext.finalSitePort,
   });
   const finalGateKey = `final:${input.releaseRunId}:${row.id}`;
   const [gate, routeRuns, releaseRun, siteCurrent] = await Promise.all([

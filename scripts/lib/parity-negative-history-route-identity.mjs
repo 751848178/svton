@@ -42,6 +42,7 @@ export function validateProductionRouteIdentity(result, roots, expected) {
     targetRef: roots.productionTargetRef,
     providerKey,
     receiptVersion: 1,
+    finalSitePort: roots.finalSitePort,
   });
   requireEqual(claimed, rebuilt, `${label}:rebuilt`);
 }

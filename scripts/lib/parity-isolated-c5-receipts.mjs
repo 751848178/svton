@@ -25,6 +25,7 @@ export function publicRuntime(runtime) {
     webOrigin: runtime.webOrigin,
     targetOrigin: runtime.targetOrigin,
     routeControlOrigin: runtime.routeControlOrigin,
+    localAcceptanceOrigin: runtime.localAcceptanceOrigin,
     sourceRevision: runtime.sourceRevision,
     sourceTreeSha256: runtime.sourceTreeSha256,
     runtimeId: runtime.runtimeId,

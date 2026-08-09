@@ -19,7 +19,8 @@
 //       -> approve -> execute -> Production DeploymentRun completed with
 //       workload + probe
 //   9.  Production current EnvironmentVersion == run manifest/digest
-//  10.  final site http://127.0.0.1:43992 loads (HTTP 200 + body signature)
+//  10.  final hosts domain on the unique local Ingress loads and matches the
+//       applied route-control operation (HTTP 200 + body signature)
 //
 // Evidence: /tmp/codex-tool-runs/svton/f455/f455-positive-e2e-evidence.json
 import { createHash, randomUUID } from "node:crypto";
@@ -89,6 +90,7 @@ const evidence = {
     targetWorkload: runtime.targetOrigin,
     fixtureRepo: "/read-only-repositories/parity-app-intake",
     pinnedCommit,
+    localFinalSite: runtime.localAcceptanceOrigin,
   },
   context: { projectId: null, orderId: null, teamId },
   capturedAt: null,
@@ -330,7 +332,7 @@ async function main() {
           // probed independently; proxyTarget never substitutes for DNS/TLS.
           domains: ["parity.example.test"],
           proxyTarget: "http://parity-target-workload",
-          tlsRequired: true,
+          tlsRequired: false,
         },
         policyReferenceIds: [],
         expectedCurrentRevisionId: productionR1?.id,
@@ -631,7 +633,13 @@ async function main() {
       targetRef: runState.productionTargetRef,
       providerKey: parityRouteProviderKey,
       receiptVersion: 1,
+      finalSitePort: runtime.ports.routeControl,
     });
+    runState.productionRouteOperationId = expectedRoute.operationId;
+    runState.productionRouteHash = expectedRoute.routeHash;
+    runState.productionDeploymentRunId = runId;
+    runState.productionReleaseRunId = releaseRunId;
+    runState.productionProbeBodySignature = result.siteProbe?.http?.bodySignature;
     const [productionRunCount, productionGate, routeRuns, releaseEvidence, siteCurrent] = await Promise.all([
       prisma.deploymentRun.count({
         where: {
@@ -851,24 +859,26 @@ async function main() {
   await step("final-site-http", async () => {
     const route = productionR2?.revision?.routeSnapshot || {};
     const primaryDomain = route.domains?.[0];
-    const publicFinalUrl = primaryDomain
-      ? `${route.tlsRequired === true ? "https" : "http"}://${primaryDomain}/`
-      : null;
+    const publicFinalUrl = primaryDomain ? `${runtime.localAcceptanceOrigin}/` : null;
     if (!publicFinalUrl || !runState.productionSiteId) {
       throw new Error("Production route identity is incomplete");
     }
-    const liveProxyUrl = `${runtime.routeControlOrigin}/sites/${encodeURIComponent(runState.productionSiteId)}/`;
-    const res = await httpGet(liveProxyUrl, { raw: true });
+    const res = await httpGet(publicFinalUrl, { raw: true });
     const body = res.body || "";
     return {
       publicFinalUrl,
-      publicSignoffRequired: true,
-      liveProxyUrl,
+      publicSignoffRequired: false,
+      localAcceptanceProfile: "parity-hosts-v1",
       observedUrl: res.url,
       status: res.status,
       ok: res.status >= 200 && res.status < 400,
       bodySignature: body ? `sha256:${createHash("sha256").update(body).digest("hex")}` : null,
       titleMarker: /Parity Target Workload/.test(body),
+      routeOperationId: res.routeOperationId,
+      routeSiteId: res.routeSiteId,
+      routeDeploymentRunId: res.routeDeploymentRunId,
+      routeReleaseRunId: res.routeReleaseRunId,
+      routeHash: res.routeHash,
     };
   });
 
@@ -1068,13 +1078,19 @@ const STEP_VERIFY = {
   ],
   "final-site-http": (r) => [
     predicate("publicFinalUrl", Boolean(r.publicFinalUrl), r.publicFinalUrl),
-    check("publicSignoffRequired", r.publicSignoffRequired, true),
-    predicate("liveProxyUrl", Boolean(r.liveProxyUrl), r.liveProxyUrl),
-    check("observedUrl", r.observedUrl, r.liveProxyUrl),
+    check("publicSignoffRequired", r.publicSignoffRequired, false),
+    check("localAcceptanceProfile", r.localAcceptanceProfile, "parity-hosts-v1"),
+    check("observedUrl", r.observedUrl, r.publicFinalUrl),
     predicate("status2xx", r.status >= 200 && r.status < 300, r.status),
     check("ok", r.ok, true),
     predicate("bodySignature", Boolean(r.bodySignature), r.bodySignature),
     check("titleMarker", r.titleMarker, true),
+    check("routeOperationId", r.routeOperationId, runState.productionRouteOperationId),
+    check("routeSiteId", r.routeSiteId, runState.productionSiteId),
+    check("routeDeploymentRunId", r.routeDeploymentRunId, runState.productionDeploymentRunId),
+    check("routeReleaseRunId", r.routeReleaseRunId, runState.productionReleaseRunId),
+    check("routeHash", r.routeHash, runState.productionRouteHash),
+    check("probeBodySignature", r.bodySignature, runState.productionProbeBodySignature),
   ],
   "db-summary": (r) => [
     check("buildRunsOnOrder", r.buildRunsOnOrder, 1), check("stagingDeploymentRuns", r.stagingDeploymentRuns, 1),
@@ -1171,7 +1187,7 @@ function environmentR2Checks(result, role) {
     predicate("resourceReferences", jsonEqual(ids(snapshot.resourceReferences), expectedResources.sort()), ids(snapshot.resourceReferences)),
     predicate("domains", jsonEqual(snapshot.routeSnapshot?.domains, [`${production ? "" : "staging."}parity.example.test`]), snapshot.routeSnapshot?.domains),
     check("proxyTarget", snapshot.routeSnapshot?.proxyTarget, production ? "http://parity-target-workload" : runtime.targetOrigin),
-    check("tlsRequired", snapshot.routeSnapshot?.tlsRequired, production),
+    check("tlsRequired", snapshot.routeSnapshot?.tlsRequired, false),
   ];
 }
 
@@ -1306,7 +1322,16 @@ async function apiExpect(method, path, headers, body) {
 async function httpGet(url, options = {}) {
   const res = await fetch(url);
   const body = options.raw ? await res.text() : await res.json().catch(() => null);
-  return { status: res.status, body, url: res.url };
+  return {
+    status: res.status,
+    body,
+    url: res.url,
+    routeOperationId: res.headers.get("x-route-control-operation-id"),
+    routeSiteId: res.headers.get("x-route-control-site-id"),
+    routeDeploymentRunId: res.headers.get("x-route-control-deployment-run-id"),
+    routeReleaseRunId: res.headers.get("x-route-control-release-run-id"),
+    routeHash: res.headers.get("x-route-control-route-hash"),
+  };
 }
 
 async function mysqlPing() {
