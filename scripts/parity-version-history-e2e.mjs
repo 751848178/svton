@@ -886,7 +886,7 @@ async function browserPass(ids) {
     httpResponses: cdpEvidence.httpResponses,
     consoleErrors: browserFailures.consoleErrors.slice(0, 10),
     badResponses: browserFailures.badResponses.slice(0, 10),
-    failedRequests: cdpEvidence.failedRequests,
+    failedRequests: browserFailures.failedRequests,
     runtimeExceptions: cdpEvidence.runtimeExceptions,
     artifacts,
     requiredArtifacts: outputNames,

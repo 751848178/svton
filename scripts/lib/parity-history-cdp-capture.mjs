@@ -9,6 +9,7 @@ import {
 } from "./parity-history-cdp-event-sanitizer.mjs";
 import { validateHttpResponses } from "./parity-history-cdp-response-schema.mjs";
 import { validateCdpSessionIdentity } from "./parity-history-cdp-session-identity.mjs";
+import { unexpectedNetworkFailures } from "./parity-history-cdp-failure-policy.mjs";
 
 const CAPTURED_TYPES = new Set(["Document", "Fetch", "XHR"]);
 export const CDP_EVIDENCE_SCHEMA = "devpilot.parity-history.cdp-evidence";
@@ -70,7 +71,7 @@ export function summarizeBrowserFailures(evidence = {}) {
     badResponses: evidence.httpResponses.filter(
       (response) => response.status >= 400,
     ),
-    failedRequests: evidence.failedRequests,
+    failedRequests: unexpectedNetworkFailures(evidence),
     runtimeExceptions: evidence.runtimeExceptions,
   };
 }

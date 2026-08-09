@@ -138,6 +138,32 @@ assert.ok(
   "orphan loadingFailed should still fail the failedRequests step check",
 );
 
+// Next can cancel same-origin RSC prefetches during navigation. The raw event
+// remains in CDP evidence, but this exact canceled Fetch shape is not a runtime
+// failure. Cross-origin and non-RSC aborts remain fail-closed.
+const expectedRscAbort = capture([
+  documentResponse(200),
+  request("rsc", "Fetch", `http://${DOCUMENT_HOST}/projects?_rsc=abc`),
+  loadingFailed("rsc", true),
+]);
+assert.equal(expectedRscAbort.failedRequests.length, 1);
+assert.deepEqual(failedBrowserChecks(expectedRscAbort), []);
+
+for (const [label, url] of [
+  ["cross-origin", "https://other.example.test/projects?_rsc=abc"],
+  ["non-rsc", `http://${DOCUMENT_HOST}/api/projects`],
+]) {
+  const evidence = capture([
+    documentResponse(200),
+    request(label, "Fetch", url),
+    loadingFailed(label, true),
+  ]);
+  assert.ok(
+    failedBrowserChecks(evidence).includes("failedRequests"),
+    `${label} abort must remain a failure`,
+  );
+}
+
 process.stdout.write("history CDP adversarial self-test passed\n");
 
 function documentResponse(status) {
@@ -155,6 +181,18 @@ function request(requestId, type, url) {
   return {
     method: "Network.requestWillBeSent",
     params: { requestId, type, request: { url } },
+  };
+}
+
+function loadingFailed(requestId, canceled) {
+  return {
+    method: "Network.loadingFailed",
+    params: {
+      requestId,
+      type: "Fetch",
+      errorText: "net::ERR_ABORTED",
+      canceled,
+    },
   };
 }
 
