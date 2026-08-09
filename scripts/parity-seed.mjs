@@ -52,6 +52,7 @@ import { downAfterVerifiedOwnership } from "./lib/parity-seed-reset-guard.mjs";
 import { materializeParityHistoryArtifacts } from "./lib/parity-seed-version-history-artifacts.mjs";
 import { seedParityVersionHistory } from "./lib/parity-seed-version-history.mjs";
 import { detachParitySeedProject } from "./lib/parity-seed-bootstrap.mjs";
+import { buildRuntimeImagesSequentially } from "./lib/parity-runtime-image-build.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const composeFile = resolve(root, "docker-compose.devpilot-parity.yml");
@@ -194,15 +195,6 @@ export async function main() {
 }
 
 async function prepareVerifiedRuntimeImages() {
-  await compose([
-    "build",
-    "api",
-    "web",
-    "route-control",
-    "deploy-target",
-    "target-workload",
-  ]);
-  const expected = expectedRuntimeImageLabels(runtime);
   const images = {
     api: runtime.apiImage,
     web: runtime.webImage,
@@ -210,6 +202,10 @@ async function prepareVerifiedRuntimeImages() {
     "deploy-target": runtime.deployTargetImage,
     "target-workload": runtime.targetWorkloadImage,
   };
+  await buildRuntimeImagesSequentially(images, (service) =>
+    compose(["build", service]),
+  );
+  const expected = expectedRuntimeImageLabels(runtime);
   const imageIds = {};
   for (const [service, image] of Object.entries(images)) {
     const out = run("docker", [
