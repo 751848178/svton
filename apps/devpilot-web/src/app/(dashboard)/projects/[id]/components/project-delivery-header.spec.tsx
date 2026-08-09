@@ -35,6 +35,21 @@ describe('ProjectDeliveryHeader production site entry', () => {
     expect(withSite).toContain('projectDeliveryProductionSite');
     expect(withoutSite).not.toContain('projectDeliveryProductionSite');
   });
+
+  it('stacks identity and actions before the small-screen breakpoint', () => {
+    (globalThis as typeof globalThis & { React: typeof React }).React = React;
+    const markup = renderToStaticMarkup(
+      <ProjectDeliveryHeader
+        summary={summary('pay.example.com')}
+        showCreate
+        onCreate={vi.fn()}
+      />,
+    );
+
+    expect(markup).toContain('flex-col gap-4 sm:flex-row');
+    expect(markup).toContain('w-full min-w-0 sm:flex-1');
+    expect(markup).toContain('w-full flex-wrap items-center gap-2 sm:w-auto');
+  });
 });
 
 function summary(productionDomain: string | null): ProjectDeliverySummary {

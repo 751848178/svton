@@ -18,8 +18,8 @@ export function ProjectDeliveryHeader({
   const router = useRouter();
   const projectId = summary.project.id;
   return (
-    <header className="flex flex-wrap items-start justify-between gap-4">
-      <div className="min-w-0 flex-1">
+    <header className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+      <div className="w-full min-w-0 sm:flex-1">
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
@@ -29,12 +29,12 @@ export function ProjectDeliveryHeader({
           >
             <span aria-hidden="true">←</span>
           </Button>
-          <h1 className="text-2xl font-bold">{summary.project.name}</h1>
+          <h1 className="min-w-0 break-words text-2xl font-bold">{summary.project.name}</h1>
         </div>
         <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 pl-11 text-xs text-muted-foreground">
           {summary.repository ? (
             <>
-              <span className="break-all font-mono">{summary.repository.canonicalUrl}</span>
+              <span className="min-w-0 break-all font-mono">{summary.repository.canonicalUrl}</span>
               <span aria-hidden="true">·</span>
               <span>
                 {t('projectDeliveryDefaultBranch', { branch: summary.repository.defaultBranch })}
@@ -45,7 +45,7 @@ export function ProjectDeliveryHeader({
           )}
         </div>
       </div>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
         {summary.entries.productionDomain ? (
           <LinkButton
             href={`https://${summary.entries.productionDomain}`}
