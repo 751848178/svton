@@ -64,6 +64,36 @@ await mustReject("ac-030-rejected-approval", {
   code: undefined,
 });
 
+const sameKeyConcurrency = {
+  ok: true,
+  firstStatus: 201,
+  secondStatus: 201,
+  releaseRunCount: 1,
+};
+mustPass("ac-031-same-idempotency-key", sameKeyConcurrency);
+await mustReject("ac-031-same-idempotency-key", {
+  ...sameKeyConcurrency,
+  ok: false,
+  firstStatus: 200,
+  secondStatus: 200,
+});
+
+const differentKeyConcurrency = {
+  ok: true,
+  firstStatus: 201,
+  secondStatus: 409,
+  effectiveReleaseRunCount: 1,
+  environmentMaxOneRunEnforced: true,
+  winnerRunId: "release-run-winner",
+  winnerApprovalId: "approval-winner",
+};
+mustPass("ac-031-different-idempotency-keys", differentKeyConcurrency);
+await mustReject("ac-031-different-idempotency-keys", {
+  ...differentKeyConcurrency,
+  ok: false,
+  firstStatus: 200,
+});
+
 await mustReject("ac-024-build-no-repo-rejected", {
   status: 200,
   code: "RELEASE_GATE_BLOCKED",

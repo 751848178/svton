@@ -770,7 +770,7 @@ async function main() {
       select: { id: true, status: true },
     });
     const ok =
-      first.status === 200 && second.status === 200 && runs.length === 1;
+      first.status === 201 && second.status === 201 && runs.length === 1;
     for (const run of runs) await cancelReleaseRun(run.id);
     return {
       ok,
@@ -828,17 +828,17 @@ async function main() {
     });
     const winner = runs[0];
     const loser =
-      first.status === 200 && second.status === 200
+      first.status === 201 && second.status === 201
         ? null
-        : first.status === 200
+        : first.status === 201
           ? second
           : first;
     concurrentRunId = winner?.id;
     concurrentApprovalId = winner?.operationApprovalId;
     const ok =
       runs.length === 1 &&
-      ((first.status === 200 && second.status === 409) ||
-        (second.status === 200 && first.status === 409)) &&
+      ((first.status === 201 && second.status === 409) ||
+        (second.status === 201 && first.status === 409)) &&
       /已有进行中的发布运行/.test(loser?.message || "");
     return {
       ok,
@@ -850,8 +850,8 @@ async function main() {
       winnerApprovalId: concurrentApprovalId,
       environmentMaxOneRunEnforced:
         runs.length === 1 &&
-        ((first.status === 200 && second.status === 409) ||
-          (second.status === 200 && first.status === 409)),
+        ((first.status === 201 && second.status === 409) ||
+          (second.status === 201 && first.status === 409)),
     };
   });
   await step("ac-031-approve-winner", async () => {

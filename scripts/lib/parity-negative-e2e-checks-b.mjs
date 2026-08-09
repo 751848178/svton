@@ -42,20 +42,22 @@ export const NEGATIVE_CHECKS_B = {
     yes("approvalConsumedAtSet", r.approvalConsumedAtSet),
   ],
   "ac-031-same-idempotency-key": (r) => [
-    eq("firstStatus", r.firstStatus, 200),
-    eq("secondStatus", r.secondStatus, 200),
+    eq("firstStatus", r.firstStatus, 201),
+    eq("secondStatus", r.secondStatus, 201),
     eq("releaseRunCount", r.releaseRunCount, 1),
+    yes("sameRequestConverged", r.ok),
   ],
   "ac-031-different-idempotency-keys": (r) => [
     predicate(
-      "one200One409",
-      [r.firstStatus, r.secondStatus].sort().join(",") === "200,409",
+      "one201One409",
+      [r.firstStatus, r.secondStatus].sort().join(",") === "201,409",
       [r.firstStatus, r.secondStatus],
     ),
     eq("effectiveReleaseRunCount", r.effectiveReleaseRunCount, 1),
     yes("environmentMaxOneRunEnforced", r.environmentMaxOneRunEnforced),
     present("winnerRunId", r.winnerRunId),
     present("winnerApprovalId", r.winnerApprovalId),
+    yes("differentRequestConverged", r.ok),
   ],
   "ac-031-approve-winner": (r) => [
     present("approvalId", r.approvalId),
