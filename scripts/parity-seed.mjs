@@ -46,6 +46,7 @@ import {
 import { printParitySeedInventory } from "./lib/parity-seed-inventory.mjs";
 import { seedParityConfigRevisions } from "./lib/parity-seed-config-revisions.mjs";
 import { createParitySeedRuntimeOperations } from "./lib/parity-seed-runtime-operations.mjs";
+import { downAfterVerifiedOwnership } from "./lib/parity-seed-reset-guard.mjs";
 import { materializeParityHistoryArtifacts } from "./lib/parity-seed-version-history-artifacts.mjs";
 import { seedParityVersionHistory } from "./lib/parity-seed-version-history.mjs";
 
@@ -290,7 +291,11 @@ async function reset() {
   console.log(
     `[parity-seed] RESET namespace: project=${runtime.composeProject} DB=${dbName}`,
   );
-  await compose(["down", "--volumes", "--remove-orphans"]);
+  await downAfterVerifiedOwnership({
+    runtime,
+    expectedImageIds: verifiedRuntimeImageIds,
+    down: () => compose(["down", "--volumes", "--remove-orphans"]),
+  });
   assertNoComposeResources(runtime);
   await compose([
     "up",
