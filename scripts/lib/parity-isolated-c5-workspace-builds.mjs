@@ -9,6 +9,7 @@ export function buildC5WorkspaceClosures(
   environment,
   cacheLifecycle = {
     prepare: prepareC5WebBuildCache,
+    materialize: materializeC5WebBuildOutput,
     cleanup: cleanupC5WebBuildCache,
   },
 ) {
@@ -33,6 +34,7 @@ function buildWebClosure(run, environment, buildEnvironment, cacheLifecycle) {
       ...buildEnvironment,
       DEVPILOT_NEXT_DIST_DIR: cache.distDir,
     });
+    cacheLifecycle.materialize(cache, environment);
   } finally {
     cacheLifecycle.cleanup(cache, environment);
   }
@@ -47,3 +49,4 @@ import {
   cleanupC5WebBuildCache,
   prepareC5WebBuildCache,
 } from "./parity-isolated-c5-web-build-cache.mjs";
+import { materializeC5WebBuildOutput } from "./parity-isolated-c5-web-build-output.mjs";

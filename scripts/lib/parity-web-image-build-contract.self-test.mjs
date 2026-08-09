@@ -26,14 +26,18 @@ const webStage = dockerfile.slice(dockerfile.indexOf("FROM base AS web"));
 assert.ok(webStage.startsWith("FROM base AS web"));
 assert.match(webStage, /ENV NEXT_TELEMETRY_DISABLED=1/);
 assert.match(webStage, /ARG NEXT_PUBLIC_API_URL/);
-assert.match(webStage, /RUN test -n "\$NEXT_PUBLIC_API_URL" && pnpm build/);
+assert.match(webStage, /COPY --from=web-dist \. \.next\//);
+assert.match(
+  webStage,
+  /RUN test -n "\$NEXT_PUBLIC_API_URL" && test -f \.next\/BUILD_ID/,
+);
 assert.doesNotMatch(webStage, /compiled on the host/i);
 assert.match(
   parityCompose,
-  /args:\n\s+NEXT_PUBLIC_API_URL: http:\/\/localhost:\$\{PARITY_API_PORT:-4132\}/,
+  /additional_contexts:\n\s+web-dist: \$\{PARITY_WEB_DIST_ROOT:-\.\/apps\/devpilot-web\/\.next\}/,
 );
 assert.match(
   appCompose,
-  /args:\n\s+NEXT_PUBLIC_API_URL: http:\/\/localhost:3121/,
+  /additional_contexts:\n\s+web-dist: \.\/apps\/devpilot-web\/\.next/,
 );
 process.stdout.write("parity Web image build contract self-test passed\n");

@@ -79,6 +79,8 @@ services:
       target: web
       args:
         NEXT_PUBLIC_API_URL: http://localhost:3121
+      additional_contexts:
+        web-dist: ./apps/devpilot-web/.next
     image: devpilot-app-web:local
     container_name: devpilot-app-web
     restart: unless-stopped

@@ -53,6 +53,7 @@ import { materializeParityHistoryArtifacts } from "./lib/parity-seed-version-his
 import { seedParityVersionHistory } from "./lib/parity-seed-version-history.mjs";
 import { detachParitySeedProject } from "./lib/parity-seed-bootstrap.mjs";
 import { buildRuntimeImagesSequentially } from "./lib/parity-runtime-image-build.mjs";
+import { cleanupC5WebBuildOutput } from "./lib/parity-isolated-c5-web-build-output.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const composeFile = resolve(root, "docker-compose.devpilot-parity.yml");
@@ -202,9 +203,13 @@ async function prepareVerifiedRuntimeImages() {
     "deploy-target": runtime.deployTargetImage,
     "target-workload": runtime.targetWorkloadImage,
   };
-  await buildRuntimeImagesSequentially(images, (service) =>
-    compose(["build", service]),
-  );
+  try {
+    await buildRuntimeImagesSequentially(images, (service) =>
+      compose(["build", service]),
+    );
+  } finally {
+    cleanupC5WebBuildOutput(process.env);
+  }
   const expected = expectedRuntimeImageLabels(runtime);
   const imageIds = {};
   for (const [service, image] of Object.entries(images)) {

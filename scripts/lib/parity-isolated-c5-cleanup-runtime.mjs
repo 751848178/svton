@@ -5,17 +5,20 @@ import {
   destroyOwnedBuildxBuilder,
 } from "./parity-runtime-builder.mjs";
 import { assertNoRuntimeResources } from "./parity-runtime-resource-ownership.mjs";
+import { cleanupC5WebBuildOutput } from "./parity-isolated-c5-web-build-output.mjs";
 
 export function cleanupPreparedC5Runtime(input) {
   const { runtime, environment, expectedImageIds, destroyRuntime } = input;
   return cleanupOwnedC5Resources({
     destroyBuilder: () => destroyOwnedBuildxBuilder(runtime),
     destroyRuntime: () => destroyRuntime(environment),
-    removeFixture: () =>
-      rm(environment.PARITY_FIXTURE_GIT_ROOT, {
+    removeFixture: async () => {
+      cleanupC5WebBuildOutput(environment);
+      await rm(environment.PARITY_FIXTURE_GIT_ROOT, {
         recursive: true,
         force: true,
-      }),
+      });
+    },
     assertNoBuilder: () => assertNoOwnedBuildxBuilder(runtime),
     assertNoRuntimeResources: () =>
       assertNoRuntimeResources(runtime, undefined, expectedImageIds),

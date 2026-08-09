@@ -171,6 +171,8 @@ services:
       target: web
       args:
         NEXT_PUBLIC_API_URL: http://localhost:${PARITY_API_PORT:-4132}
+      additional_contexts:
+        web-dist: ${PARITY_WEB_DIST_ROOT:-./apps/devpilot-web/.next}
       labels: *runtime-labels
     image: ${PARITY_WEB_IMAGE:-devpilot-parity-web:local}
     labels: *runtime-labels

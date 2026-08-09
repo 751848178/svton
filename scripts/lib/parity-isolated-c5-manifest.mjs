@@ -31,6 +31,7 @@ const PUBLIC_ENVIRONMENT_KEYS = Object.freeze([
   "PARITY_LOCAL_ACCEPTANCE_HOSTNAME",
   "DEVPILOT_PARITY_ROUTE_PROVIDER_KEY",
   "PARITY_FIXTURE_GIT_ROOT",
+  "PARITY_WEB_DIST_ROOT",
   "PARITY_C5_MANIFEST_PATH",
   "NEXT_PUBLIC_API_URL",
 ]);
@@ -119,7 +120,9 @@ async function loadManifest(value, runtimeRoot, baseEnv, statuses) {
     !statuses.includes(manifest.status) ||
     manifest.runDirectory !== dirname(manifestPath) ||
     environment.PARITY_FIXTURE_GIT_ROOT !==
-      join(manifest.runDirectory, "fixture-repo")
+      join(manifest.runDirectory, "fixture-repo") ||
+    environment.PARITY_WEB_DIST_ROOT !==
+      join(manifest.runDirectory, "web-image-dist")
   ) {
     throw manifestError("identity-or-owned-paths");
   }

@@ -26,6 +26,7 @@ ARG NEXT_PUBLIC_API_URL
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
-RUN test -n "$NEXT_PUBLIC_API_URL" && pnpm build
+COPY --from=web-dist . .next/
+RUN test -n "$NEXT_PUBLIC_API_URL" && test -f .next/BUILD_ID
 EXPOSE 3120
 CMD ["pnpm", "start"]

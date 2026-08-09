@@ -19,6 +19,7 @@ buildC5WorkspaceClosures((...args) => calls.push(args), environment, {
     cacheCalls.push(["prepare", value]);
     return cache;
   },
+  materialize: (value, owner) => cacheCalls.push(["materialize", value, owner]),
   cleanup: (value, owner) => cacheCalls.push(["cleanup", value, owner]),
 });
 
@@ -48,6 +49,7 @@ assert.deepEqual(calls, [
 ]);
 assert.deepEqual(cacheCalls, [
   ["prepare", environment],
+  ["materialize", cache, environment],
   ["cleanup", cache, environment],
 ]);
 assert.equal(environment.CI, undefined);
