@@ -77,7 +77,7 @@ export class RepositorySuggestionBuilderService {
     });
     const environment = project.environments[0];
     if (!environment) drafts.push(environmentDraft());
-    for (const service of result.services.filter((item) => item.deployable)) {
+    for (const service of result.services.filter((item) => item.deployable || item.artifactOnly)) {
       drafts.push(serviceDraft(
         service,
         run,

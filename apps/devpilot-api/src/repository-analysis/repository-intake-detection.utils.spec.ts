@@ -35,4 +35,22 @@ describe('repository intake detection', () => {
       type: 'worker', runMethod: 'worker',
     });
   });
+
+  it('promotes artifact-only web builds into frozen static components', () => {
+    const web = {
+      ...service('@parity/web', 'service', 'apps/web'),
+      deployable: false, artifactOnly: true, artifacts: ['apps/web/dist'],
+    };
+    const api = service('@parity/api', 'backend', 'apps/api');
+    const result = {
+      repository: { monorepo: true, packageManager: 'pnpm' },
+      services: [web, api],
+    } as never;
+    expect(detectIntakeOverview(result)).toMatchObject({
+      projectType: 'mixed_application', architecture: 'monorepo',
+    });
+    expect(detectIntakeComponent(web as never)).toMatchObject({
+      type: 'frontend_site', buildOutput: 'static_bundle', runMethod: 'static_site',
+    });
+  });
 });

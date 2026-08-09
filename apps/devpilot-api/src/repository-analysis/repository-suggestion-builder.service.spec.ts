@@ -30,6 +30,30 @@ describe("RepositorySuggestionBuilderService artifact contract", () => {
         },
         services: [
           {
+            key: "web",
+            name: "@parity/web",
+            path: "apps/web",
+            role: "service",
+            deployable: false,
+            artifactOnly: true,
+            framework: [],
+            versions: {},
+            commands: { build: "pnpm build" },
+            ports: [],
+            healthChecks: [],
+            environment: [],
+            databases: [],
+            dependencies: [],
+            container: {
+              composeFiles: [],
+              composeServices: [],
+              dependsOn: [],
+            },
+            artifacts: ["apps/web/dist"],
+            evidence: [],
+            warnings: [],
+          },
+          {
             key: "api",
             name: "api",
             path: "apps/api",
@@ -66,6 +90,21 @@ describe("RepositorySuggestionBuilderService artifact contract", () => {
         proposedValue: expect.objectContaining({
           deployConfig: expect.objectContaining({
             artifactPaths: ["apps/api/dist"],
+          }),
+        }),
+      }),
+    );
+    expect(
+      drafts.filter((draft) => draft.kind === "application_service"),
+    ).toHaveLength(2);
+    expect(drafts).toContainEqual(
+      expect.objectContaining({
+        kind: "application_service",
+        proposedValue: expect.objectContaining({
+          applicationName: "@parity/web",
+          repoPath: "apps/web",
+          deployConfig: expect.objectContaining({
+            artifactPaths: ["apps/web/dist"],
           }),
         }),
       }),

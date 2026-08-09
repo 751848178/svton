@@ -10,7 +10,9 @@ import type {
 export function detectIntakeOverview(
   result: RepositoryAnalysisResult,
 ): RepositoryIntakeOverviewValue {
-  const deployable = result.services.filter((service) => service.deployable);
+  const deployable = result.services.filter(
+    (service) => service.deployable || service.artifactOnly,
+  );
   const roles = new Set(deployable.map(intakeRole));
   return {
     projectType: roles.has('frontend') && roles.size > 1
@@ -44,7 +46,7 @@ export function detectIntakeComponent(
       : staticBundle ? 'static_bundle'
         : service.artifacts.length ? 'runtime_bundle' : 'none',
     runMethod: container ? 'container'
-      : role === 'static' ? 'static_site'
+      : role === 'static' || service.artifactOnly ? 'static_site'
         : role === 'worker' ? 'worker' : 'process',
   };
 }
@@ -56,6 +58,7 @@ function intakeRole(service: DetectedService): string {
   if (service.framework.some((item) => /next|react|vue|nuxt/i.test(item))) {
     return 'frontend';
   }
+  if (/web|frontend|client|\bui\b/i.test(identity)) return 'frontend';
   return service.role;
 }
 
