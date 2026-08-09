@@ -40,6 +40,11 @@ for (const step of ["production-confirm", "production-recovery-confirm"]) {
   assert.deepEqual(expected.sort(), inv[step], `${step}:projection`);
 }
 assert.deepEqual(browserKeys(src), inv["browser-pass"], "browser-pass");
+for (const step of ["production-approve", "production-recovery-approve"]) {
+  const region = stepRegion(src, step);
+  assert.match(region, /decision:\s*"approved"/, `${step}:request-decision`);
+  assert.doesNotMatch(region, /reviewed\.decision/, `${step}:response-shape`);
+}
 assert.notDeepEqual(
   [...inv["browser-pass"], "junk"].sort(),
   inv["browser-pass"],

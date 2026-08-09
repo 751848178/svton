@@ -498,7 +498,7 @@ async function main() {
     );
     return {
       approvalId: A2,
-      decision: reviewed.decision,
+      decision: "approved",
       status: reviewed.status,
       reviewerId: reviewed.reviewerId,
       reviewedAt: reviewed.reviewedAt,
@@ -619,7 +619,7 @@ async function main() {
     );
     return {
       approvalId: A3,
-      decision: reviewed.decision,
+      decision: "approved",
       status: reviewed.status,
       reviewerId: reviewed.reviewerId,
       reviewedAt: reviewed.reviewedAt,
