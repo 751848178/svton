@@ -17,6 +17,7 @@ import { runHistoryChain } from "./lib/parity-history-chain-launcher.mjs";
 import { captureIsolatedC5RouteAudit } from "./lib/parity-isolated-c5-route-audit.mjs";
 import { cleanupFailedIsolatedAcceptance } from "./lib/parity-isolated-c5-failure.mjs";
 import { runOwnedBuilderLifecycle } from "./lib/parity-isolated-c5-builder-lifecycle.mjs";
+import { buildC5WorkspaceClosures } from "./lib/parity-isolated-c5-workspace-builds.mjs";
 import { cleanupPreparedC5Runtime } from "./lib/parity-isolated-c5-cleanup-runtime.mjs";
 import {
   cleanupReceiptFor,
@@ -98,8 +99,7 @@ async function createPreparedRuntime() {
       context,
       runtime,
       action: async () => {
-        build("@svton/devpilot-api", context.environment);
-        build("@svton/devpilot-web", context.environment);
+        buildC5WorkspaceClosures(run, context.environment);
         run(
           process.execPath,
           ["scripts/parity-seed.mjs", "reset"],
@@ -112,10 +112,6 @@ async function createPreparedRuntime() {
     await failAndCleanup(context, error);
     throw error;
   }
-}
-
-function build(project, environment) {
-  run("corepack", ["pnpm", "--filter", project, "build"], environment);
 }
 
 async function failAndCleanup(context, error, routeAudit) {
