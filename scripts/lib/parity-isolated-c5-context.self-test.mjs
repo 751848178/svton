@@ -13,6 +13,7 @@ import {
   loadDestroyableC5Manifest,
   markC5ManifestDestroyed,
   readC5BuiltImageIds,
+  recordC5BuilderLifecycle,
   recordC5BuiltImageIds,
   writePreparedC5Manifest,
   writeRunningC5Manifest,
@@ -42,6 +43,7 @@ const environment = {
   PARITY_RUNTIME_ID: runtimeId,
   PARITY_GOAL_ID: "devpilot-v13-opencode-acceptance",
   PARITY_CLEANUP_OWNER_TOKEN: "c".repeat(64),
+  PARITY_BUILDX_BUILDER: `devpilot-builder-${runtimeId}`,
   PARITY_ROUTE_CONTROL_PORT: "45993",
   PARITY_REQUIRE_VERIFIED_RUNTIME: "1",
   PARITY_FIXTURE_GIT_ROOT: join(runDirectory, "fixture-repo"),
@@ -77,6 +79,20 @@ await recordC5BuiltImageIds(
   },
   builtImageIds,
 );
+await recordC5BuilderLifecycle(
+  manifestPath,
+  {
+    runtimeId,
+    goalId: environment.PARITY_GOAL_ID,
+    cleanupOwnerToken: environment.PARITY_CLEANUP_OWNER_TOKEN,
+    builderName: environment.PARITY_BUILDX_BUILDER,
+  },
+  {
+    status: "removed",
+    name: environment.PARITY_BUILDX_BUILDER,
+    verifiedAt: new Date().toISOString(),
+  },
+);
 await writeRunningC5Manifest(context, { status: "passed" });
 const source = await readFile(manifestPath, "utf8");
 assert.doesNotMatch(source, /must-not-persist|PARITY_ADMIN_PASSWORD/);
@@ -89,6 +105,10 @@ assert.deepEqual(
     cleanupOwnerToken: environment.PARITY_CLEANUP_OWNER_TOKEN,
   }),
   builtImageIds,
+);
+assert.equal(
+  loaded.manifest.resourceIdentity.builderLifecycle.status,
+  "removed",
 );
 await markC5ManifestDestroyed(loaded, { status: "verified_zero_residuals" });
 await assert.rejects(

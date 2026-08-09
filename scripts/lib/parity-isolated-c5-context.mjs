@@ -10,14 +10,17 @@ import { allocateDistinctLoopbackPorts } from "./parity-runtime-port-allocation.
 
 export {
   loadDestroyableC5Manifest,
-  loadC5BuiltImageIds,
   markC5ManifestDestroyed,
   markC5ManifestFailed,
-  readC5BuiltImageIds,
-  recordC5BuiltImageIds,
   writePreparedC5Manifest,
   writeRunningC5Manifest,
 } from "./parity-isolated-c5-manifest.mjs";
+export {
+  loadC5BuiltImageIds,
+  readC5BuiltImageIds,
+  recordC5BuilderLifecycle,
+  recordC5BuiltImageIds,
+} from "./parity-isolated-c5-resource-identity.mjs";
 
 export async function createIsolatedC5Context(root, runtimeRoot, baseEnv) {
   requireCleanSource(root);
@@ -61,6 +64,7 @@ export async function createIsolatedC5Context(root, runtimeRoot, baseEnv) {
     PARITY_RUNTIME_ID: runtimeId,
     PARITY_GOAL_ID: "devpilot-v13-opencode-acceptance",
     PARITY_CLEANUP_OWNER_TOKEN: cleanupOwnerToken,
+    PARITY_BUILDX_BUILDER: `devpilot-builder-${runtimeId}`,
     PARITY_ROUTE_CONTROL_PORT: String(ports[6]),
     PARITY_ROUTE_CONTROL_TOKEN: randomBytes(32).toString("hex"),
     PARITY_REQUIRE_VERIFIED_RUNTIME: "1",

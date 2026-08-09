@@ -1,10 +1,11 @@
-export function cleanupReceiptFor(runtime, residualResources) {
+export function cleanupReceiptFor(runtime, residualResources, builderReceipt) {
   return {
     status: "verified_zero_residuals",
     verifiedAt: new Date().toISOString(),
     runtimeId: runtime.runtimeId,
     goalId: runtime.goalId,
     cleanupOwnerToken: runtime.cleanupOwnerToken,
+    builderReceipt,
     residualResources,
   };
 }
@@ -17,6 +18,7 @@ export function publicRuntime(runtime) {
     apiImage: runtime.apiImage,
     webImage: runtime.webImage,
     routeControlImage: runtime.routeControlImage,
+    builderName: runtime.builderName,
     apiBase: runtime.apiBase,
     webOrigin: runtime.webOrigin,
     targetOrigin: runtime.targetOrigin,

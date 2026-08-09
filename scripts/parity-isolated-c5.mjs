@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
-import { realpath, rm } from "node:fs/promises";
+import { realpath } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -16,12 +16,13 @@ import {
 import { runHistoryChain } from "./lib/parity-history-chain-launcher.mjs";
 import { captureIsolatedC5RouteAudit } from "./lib/parity-isolated-c5-route-audit.mjs";
 import { cleanupFailedIsolatedAcceptance } from "./lib/parity-isolated-c5-failure.mjs";
+import { runOwnedBuilderLifecycle } from "./lib/parity-isolated-c5-builder-lifecycle.mjs";
+import { cleanupPreparedC5Runtime } from "./lib/parity-isolated-c5-cleanup-runtime.mjs";
 import {
   cleanupReceiptFor,
   publicRuntime,
 } from "./lib/parity-isolated-c5-receipts.mjs";
 import { parityRuntimeConfig } from "./lib/parity-runtime-config.mjs";
-import { assertNoRuntimeResources } from "./lib/parity-runtime-resource-ownership.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const runtimeRoot = join(
@@ -88,13 +89,20 @@ async function createPreparedRuntime() {
   const context = await createIsolatedC5Context(root, runtimeRoot, process.env);
   await writePreparedC5Manifest(context);
   try {
-    build("@svton/devpilot-api", context.environment);
-    build("@svton/devpilot-web", context.environment);
-    run(
-      process.execPath,
-      ["scripts/parity-seed.mjs", "reset"],
-      context.environment,
-    );
+    const runtime = parityRuntimeConfig(context.environment);
+    await runOwnedBuilderLifecycle({
+      context,
+      runtime,
+      action: async () => {
+        build("@svton/devpilot-api", context.environment);
+        build("@svton/devpilot-web", context.environment);
+        run(
+          process.execPath,
+          ["scripts/parity-seed.mjs", "reset"],
+          context.environment,
+        );
+      },
+    });
     return context;
   } catch (error) {
     await failAndCleanup(context, error);
@@ -115,14 +123,16 @@ async function failAndCleanup(context, error, routeAudit) {
       context.manifestPath,
       runtime,
     ).catch(() => undefined);
-    destroyRuntime(context.environment);
-    await rm(context.environment.PARITY_FIXTURE_GIT_ROOT, {
-      recursive: true,
-      force: true,
+    const cleanup = await cleanupPreparedC5Runtime({
+      runtime,
+      environment: context.environment,
+      expectedImageIds,
+      destroyRuntime,
     });
     cleanupReceipt = cleanupReceiptFor(
       runtime,
-      assertNoRuntimeResources(runtime, undefined, expectedImageIds),
+      cleanup.residualResources,
+      cleanup.builderReceipt,
     );
   } catch (failure) {
     cleanupError = failure;
@@ -144,19 +154,19 @@ async function destroyFromManifest(manifestPath) {
   );
   const runtime = parityRuntimeConfig(loaded.environment);
   const expectedImageIds = readC5BuiltImageIds(loaded.manifest, runtime);
-  destroyRuntime(loaded.environment);
-  await rm(loaded.environment.PARITY_FIXTURE_GIT_ROOT, {
-    recursive: true,
-    force: true,
-  });
-  const residualResources = assertNoRuntimeResources(
+  const cleanup = await cleanupPreparedC5Runtime({
     runtime,
-    undefined,
+    environment: loaded.environment,
     expectedImageIds,
-  );
+    destroyRuntime,
+  });
   await markC5ManifestDestroyed(
     loaded,
-    cleanupReceiptFor(runtime, residualResources),
+    cleanupReceiptFor(
+      runtime,
+      cleanup.residualResources,
+      cleanup.builderReceipt,
+    ),
   );
   process.stdout.write(
     `${JSON.stringify({ status: "destroyed", manifestPath: loaded.manifestPath })}\n`,

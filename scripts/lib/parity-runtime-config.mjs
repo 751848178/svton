@@ -43,6 +43,13 @@ export function parityRuntimeConfig(env = process.env) {
     IMAGE_PATTERN,
     "route-control-image",
   );
+  const builderName = env.PARITY_BUILDX_BUILDER
+    ? requireMatch(
+        env.PARITY_BUILDX_BUILDER,
+        /^devpilot-builder-c5-[0-9a-f]{8}-(?:[0-9a-f]{8}|[0-9a-f]{32})$/,
+        "buildx-builder",
+      )
+    : undefined;
   return Object.freeze({
     composeProject,
     databaseName,
@@ -50,6 +57,7 @@ export function parityRuntimeConfig(env = process.env) {
     apiImage,
     webImage,
     routeControlImage,
+    builderName,
     apiOrigin: `http://127.0.0.1:${ports.api}`,
     apiBase: `http://127.0.0.1:${ports.api}/api`,
     webOrigin: `http://localhost:${ports.web}`,
@@ -86,6 +94,12 @@ export function parityComposeEnvironment(config, env = process.env) {
     PARITY_GOAL_ID: config.goalId,
     PARITY_CLEANUP_OWNER_TOKEN: config.cleanupOwnerToken,
     PARITY_ROUTE_CONTROL_PORT: String(config.ports.routeControl),
+    ...(config.builderName
+      ? {
+          PARITY_BUILDX_BUILDER: config.builderName,
+          BUILDX_BUILDER: config.builderName,
+        }
+      : {}),
   };
 }
 
@@ -116,6 +130,9 @@ export function requireVerifiedRuntimeIdentity(config) {
     config.routeControlImage !== `devpilot-parity-route-control:${suffix}`
   ) {
     throw configError("image-runtime-mismatch");
+  }
+  if (config.builderName !== `devpilot-builder-${config.runtimeId}`) {
+    throw configError("builder-runtime-mismatch");
   }
   return true;
 }

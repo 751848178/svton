@@ -23,6 +23,7 @@ const isolated = parityRuntimeConfig({
   PARITY_GOAL_ID: "devpilot-v13-opencode-acceptance",
   PARITY_CLEANUP_OWNER_TOKEN: "c".repeat(64),
   PARITY_ROUTE_CONTROL_PORT: "45993",
+  PARITY_BUILDX_BUILDER: "devpilot-builder-c5-a1b2c3d4-1234abcd",
 });
 assert.equal(isolated.apiBase, "http://127.0.0.1:45132/api");
 assert.equal(isolated.webOrigin, "http://localhost:45131");
@@ -31,6 +32,10 @@ assert.equal(isolated.routeControlOrigin, "http://127.0.0.1:45993");
 assert.equal(
   isolated.databaseUrl,
   "mysql://root:password@127.0.0.1:45334/devpilot_parity_a1b2c3d4_1234abcd",
+);
+assert.equal(
+  parityComposeEnvironment(isolated).BUILDX_BUILDER,
+  "devpilot-builder-c5-a1b2c3d4-1234abcd",
 );
 assert.equal(requireVerifiedRuntimeIdentity(isolated), true);
 assert.equal(parityComposeEnvironment(isolated).PARITY_TARGET_PORT, "45992");
