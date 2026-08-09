@@ -37,6 +37,7 @@ import {
   assertRuntimeImageLabels,
   expectedRuntimeImageLabels,
 } from "./lib/parity-runtime-provenance.mjs";
+import { verifiedImagesForSeedCommand } from "./lib/parity-seed-verified-images.mjs";
 import {
   assertNoComposeResources,
   assertNoRuntimeResources,
@@ -136,9 +137,14 @@ const command = process.argv[2] || "up";
 export async function main() {
   if (process.env.PARITY_REQUIRE_VERIFIED_RUNTIME === "1") {
     requireVerifiedRuntimeIdentity(runtime);
-    if (["up", "reset", "reset-bootstrap"].includes(command)) {
-      verifiedRuntimeImageIds = await prepareVerifiedRuntimeImages();
-    }
+    verifiedRuntimeImageIds = await verifiedImagesForSeedCommand({
+      command,
+      runtime,
+      manifestPath: process.env.PARITY_C5_MANIFEST_PATH,
+      build: prepareVerifiedRuntimeImages,
+      load: loadC5BuiltImageIds,
+      verifyRunning: assertRunningRuntimeProvenance,
+    });
   }
   if (command === "fixture") await ensureFixtureRepo();
   else if (command === "up" || command === "seed") {
