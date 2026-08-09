@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 import { join, resolve } from "node:path";
 import {
   databaseRouteReadback,
-  isolatedC5RouteQuery,
+  isolatedC5RouteQueryFor,
   routeExpectationFromDatabaseRow,
 } from "./parity-isolated-c5-route-database.mjs";
 import { captureRouteControlReadback } from "./parity-route-control-readback.mjs";
@@ -12,7 +12,11 @@ import { summarizeRouteAuditProvenance } from "./parity-isolated-c5-route-audit-
 import { parityRuntimeConfig } from "./parity-runtime-config.mjs";
 import { assertOwnedRuntimeResources } from "./parity-runtime-resource-ownership.mjs";
 
-export async function captureIsolatedC5RouteAudit(root, context) {
+export async function captureIsolatedC5RouteAudit(
+  root,
+  context,
+  historyIdentity,
+) {
   const runtime = parityRuntimeConfig(context.environment);
   const auditPath = join(context.runDirectory, "route-control-audit.json");
   const PrismaClient = createRequire(
@@ -23,8 +27,10 @@ export async function captureIsolatedC5RouteAudit(root, context) {
   });
   let receipt;
   try {
-    const row = await prisma.siteRouteSwitchRun.findFirst(isolatedC5RouteQuery);
-    const expected = routeExpectationFromDatabaseRow(row);
+    const row = await prisma.siteRouteSwitchRun.findFirst(
+      isolatedC5RouteQueryFor(historyIdentity),
+    );
+    const expected = routeExpectationFromDatabaseRow(row, historyIdentity);
     const providerReadback = await captureRouteControlReadback({
       origin: runtime.routeControlOrigin,
       token: context.environment.PARITY_ROUTE_CONTROL_TOKEN,
@@ -35,7 +41,10 @@ export async function captureIsolatedC5RouteAudit(root, context) {
       schemaVersion: 1,
       status: "verified",
       capturedAt: new Date().toISOString(),
-      requestIdentity: runtimeIdentity(runtime),
+      requestIdentity: {
+        ...runtimeIdentity(runtime),
+        historyIdentity,
+      },
       resultIdentity: {
         routeRunId: row.id,
         operationId: expected.operationId,
@@ -43,6 +52,7 @@ export async function captureIsolatedC5RouteAudit(root, context) {
         releaseRunId: row.releaseRunId,
         siteId: expected.siteId,
         routeHash: expected.routeHash,
+        historyEnvironmentVersionId: historyIdentity.environmentVersionId,
       },
       databaseReadback: databaseRouteReadback(row),
       providerReadback,
@@ -53,7 +63,10 @@ export async function captureIsolatedC5RouteAudit(root, context) {
       schemaVersion: 1,
       status: "not_verified",
       capturedAt: new Date().toISOString(),
-      requestIdentity: runtimeIdentity(runtime),
+      requestIdentity: {
+        ...runtimeIdentity(runtime),
+        historyIdentity: historyIdentity ?? null,
+      },
       failure: safeFailure(error, runtime, context.environment),
     };
   } finally {

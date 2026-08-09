@@ -3,36 +3,44 @@ const PROJECT_ID = "parity-project-0001";
 const ENVIRONMENT_ID = "parity-env-production";
 const PROVIDER_KEY = "http-route-control-v1";
 
-export const isolatedC5RouteQuery = Object.freeze({
-  where: {
-    teamId: TEAM_ID,
-    projectId: PROJECT_ID,
-    environmentId: ENVIRONMENT_ID,
-    status: "switched",
-  },
-  orderBy: { createdAt: "desc" },
-  select: {
-    id: true,
-    teamId: true,
-    siteId: true,
-    projectId: true,
-    environmentId: true,
-    deploymentRunId: true,
-    releaseRunId: true,
-    targetRef: true,
-    proxyTarget: true,
-    domains: true,
-    status: true,
-    reasonCode: true,
-    result: true,
-    startedAt: true,
-    finishedAt: true,
-    createdAt: true,
-  },
+const ROUTE_SELECT = Object.freeze({
+  id: true,
+  teamId: true,
+  siteId: true,
+  projectId: true,
+  environmentId: true,
+  deploymentRunId: true,
+  releaseRunId: true,
+  targetRef: true,
+  proxyTarget: true,
+  domains: true,
+  status: true,
+  reasonCode: true,
+  result: true,
+  startedAt: true,
+  finishedAt: true,
+  createdAt: true,
 });
 
-export function routeExpectationFromDatabaseRow(row) {
+export function isolatedC5RouteQueryFor(identity) {
+  requireIdentity(identity);
+  return {
+    where: {
+      teamId: TEAM_ID,
+      projectId: PROJECT_ID,
+      environmentId: ENVIRONMENT_ID,
+      deploymentRunId: identity.deploymentRunId,
+      releaseRunId: identity.releaseRunId,
+      status: "switched",
+    },
+    orderBy: { createdAt: "desc" },
+    select: ROUTE_SELECT,
+  };
+}
+
+export function routeExpectationFromDatabaseRow(row, expectedIdentity) {
   if (!row) throw databaseError("route-run-missing");
+  requireIdentity(expectedIdentity);
   const route = record(record(row.result).routeSwitch);
   const receipt = record(route.receipt);
   const observed = record(receipt.observed);
@@ -41,6 +49,12 @@ export function routeExpectationFromDatabaseRow(row) {
     [row.projectId, PROJECT_ID, "row-project"],
     [row.environmentId, ENVIRONMENT_ID, "row-environment"],
     [row.status, "switched", "row-status"],
+    [
+      row.deploymentRunId,
+      expectedIdentity.deploymentRunId,
+      "history-deployment",
+    ],
+    [row.releaseRunId, expectedIdentity.releaseRunId, "history-release"],
     [row.reasonCode, "site_route_switched", "row-reason"],
     [route.teamId, row.teamId, "route-team"],
     [route.projectId, row.projectId, "route-project"],
@@ -87,6 +101,18 @@ export function routeExpectationFromDatabaseRow(row) {
     routeHash: route.routeHash,
     proxyTarget: row.proxyTarget,
   };
+}
+
+function requireIdentity(identity) {
+  for (const field of ["deploymentRunId", "releaseRunId"]) {
+    if (
+      typeof identity?.[field] !== "string" ||
+      identity[field].length < 3 ||
+      identity[field].length > 191
+    ) {
+      throw databaseError(`history-${field}`);
+    }
+  }
 }
 
 export function databaseRouteReadback(row) {

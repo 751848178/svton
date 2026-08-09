@@ -3,6 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { openHistoryChainArtifact } from "./parity-history-chain-artifact.mjs";
+import { finalProductionIdentityFromHistory } from "./parity-history-final-identity.mjs";
 import {
   assertPublicHistoryChainInvocation,
   chainChildEnvironment,
@@ -83,6 +84,9 @@ export async function runHistoryChain(options = {}) {
       receiptPath: paths.receipt,
       producerPid: producer.pid,
       consumerPid: consumer.pid,
+      finalProductionIdentity: finalProductionIdentityFromHistory(
+        f456.document,
+      ),
     });
   } finally {
     if (receiptFd !== undefined) closeSync(receiptFd);

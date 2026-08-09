@@ -46,7 +46,11 @@ async function runIsolatedAcceptance() {
       env: environment,
       parentDirectory: context.runDirectory,
     });
-    routeAudit = await captureIsolatedC5RouteAudit(root, context);
+    routeAudit = await captureIsolatedC5RouteAudit(
+      root,
+      context,
+      history.finalProductionIdentity,
+    );
     if (routeAudit.receipt.status !== "verified") {
       throw new Error("isolated C5 route-control audit was not verified");
     }

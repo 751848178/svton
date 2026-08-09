@@ -115,6 +115,11 @@ assert.deepEqual(calls, [
   "scripts/parity-negative-e2e.mjs",
 ]);
 assert.equal(result.status, "passed");
+assert.deepEqual(result.finalProductionIdentity, {
+  releaseRunId: "release-recovery-1",
+  deploymentRunId: "deployment-recovery-1",
+  environmentVersionId: "version-recovery-1",
+});
 assert.equal(dirname(successfulRunRoot), ownedParent);
 await rm(ownedParent, { recursive: true, force: true });
 
@@ -145,6 +150,21 @@ function writeProducerFixtures(runRoot) {
       steps: {
         "base-f455-chain-rerun": {
           result: { sourceEvidence: f455Path, sourceEvidenceSha256: sha256 },
+        },
+        "production-recovery-execute": {
+          status: "passed",
+          verified: true,
+          result: {
+            status: "completed",
+            releaseRunId: "release-recovery-1",
+            expectedReleaseRunId: "release-recovery-1",
+            deploymentRunId: "deployment-recovery-1",
+            newEnvironmentVersion: {
+              id: "version-recovery-1",
+              kind: "recovery",
+              deploymentRunId: "deployment-recovery-1",
+            },
+          },
         },
       },
     }),
