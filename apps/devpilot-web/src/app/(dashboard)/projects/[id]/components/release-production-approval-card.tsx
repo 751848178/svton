@@ -13,6 +13,7 @@ import { formatIso } from '../utils/release-time.utils';
 import { releaseApprovalStateTone, releaseRunStateTone } from '../utils/release-order.utils';
 import { useProductionApproval } from '../hooks/use-production-approval';
 import { RejectReasonModal } from '../../../operation-approvals/components/reject-reason-modal';
+import { ReleaseProductionApprovalRow } from './release-production-approval-row';
 
 interface Props {
   projectId: string;
@@ -21,13 +22,7 @@ interface Props {
   recoveryHref: string;
 }
 
-/**
- * 项目发布上下文审批卡片。
- *
- * 单一职责：在 Production 步骤展示当前 ReleaseRun 的审批，并就地完成
- * 批准 / 拒绝（必填理由）/ 批准后执行生产发布，无需跳到全局模块再返回。
- * 拒绝/失败提供指向环境版本恢复的本地化补救入口（AC-PROD-035）。
- */
+/** Production 审批卡：就地审阅、执行，拒绝或失败时引导版本恢复。 */
 export function ReleaseProductionApprovalCard({ projectId, run, onChanged, recoveryHref }: Props) {
   const t = useTranslations('projects');
   const approval = run.operationApproval;
@@ -39,7 +34,11 @@ export function ReleaseProductionApprovalCard({ projectId, run, onChanged, recov
   const expired = Boolean(
     approval.expiresAt && new Date(approval.expiresAt).getTime() < Date.now(),
   );
-  const canExecute = approval.status === 'approved' && !approval.consumedAt && !expired;
+  const canExecute =
+    run.status === 'awaiting_approval' &&
+    approval.status === 'approved' &&
+    !approval.consumedAt &&
+    !expired;
   const errorKey = error ? releaseProductionErrorLabelKey(error) : null;
   const needsRecovery = approval.status === 'rejected' || run.status === 'failed';
 
@@ -88,15 +87,15 @@ export function ReleaseProductionApprovalCard({ projectId, run, onChanged, recov
         <p className="rounded-md bg-muted/40 p-2 text-sm font-medium">{approval.summary}</p>
       ) : null}
       <dl className="grid gap-2 text-sm">
-        <ApprovalRow
+        <ReleaseProductionApprovalRow
           label={t('releaseProductionRun')}
           value={run.id}
         />
-        <ApprovalRow
+        <ReleaseProductionApprovalRow
           label={t('releaseProductionBuild')}
           value={`#${run.manifest.buildRun.revision} · ${run.manifest.buildRun.sourceBranch} · ${run.manifest.buildRun.sourceCommitSha}`}
         />
-        <ApprovalRow
+        <ReleaseProductionApprovalRow
           label={t('releaseProductionReuseArtifact')}
           value={run.manifest.digest}
         />
@@ -193,14 +192,5 @@ export function ReleaseProductionApprovalCard({ projectId, run, onChanged, recov
         submitting={acting}
       />
     </section>
-  );
-}
-
-function ApprovalRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex flex-wrap items-baseline justify-between gap-2 rounded bg-muted/40 p-2">
-      <dt className="font-medium">{label}</dt>
-      <dd className="break-all font-mono text-xs text-muted-foreground">{value}</dd>
-    </div>
   );
 }

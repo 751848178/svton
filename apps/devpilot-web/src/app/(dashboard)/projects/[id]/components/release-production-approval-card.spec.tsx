@@ -168,6 +168,14 @@ describe('ReleaseProductionApprovalCard', () => {
     expect(buttonByText('releaseProductionExecute')).toBeNull();
   });
 
+  it.each(['failed', 'succeeded', 'blocked'] as const)(
+    'hides the stale execute action when the ReleaseRun is %s',
+    async (runStatus) => {
+      await render(run('approved', {}, runStatus));
+      expect(buttonByText('releaseProductionExecute')).toBeNull();
+    },
+  );
+
   it('localizes the execute gate-denial error instead of the raw stage token', async () => {
     mocks.hook = { ...mocks.hook, error: 'admit 门禁未满足，服务端已拒绝执行' };
     await render(run('approved'));
@@ -217,6 +225,7 @@ describe('ReleaseProductionApprovalCard', () => {
 function run(
   status: 'pending' | 'approved' | 'rejected',
   overrides: Partial<ReleaseEvidenceProductionRun['operationApproval']> = {},
+  runStatus: ReleaseEvidenceProductionRun['status'] = 'awaiting_approval',
 ): ReleaseEvidenceProductionRun {
   return {
     id: 'release-1',
@@ -224,7 +233,7 @@ function run(
     releaseOrderId: 'order-1',
     environmentId: 'prod-env-1',
     artifactManifestId: 'manifest-1',
-    status: 'awaiting_approval',
+    status: runStatus,
     mode: 'standard',
     verifiedDigest: 'sha256:exact',
     errorCode: null,
