@@ -1,8 +1,9 @@
 'use client';
 
+import React from 'react';
 import { useTranslations } from 'next-intl';
 import { LoadingState } from '@svton/ui';
-import { ErrorBanner, LinkButton, PageHeader } from '@/components/ui';
+import { ErrorBanner, PageHeader } from '@/components/ui';
 import { useProjects } from '../hooks/use-projects';
 import type { ProjectDirectoryResponse } from '../types';
 import { DirectorySummary } from './directory-summary';
@@ -25,22 +26,6 @@ export function ProjectsContent({ initialDirectory, loadFailed = false }: Projec
       <PageHeader
         title={t('pageTitle')}
         description={t('pageDescriptionV13')}
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <LinkButton
-              href="/projects/create"
-              variant="primary"
-            >
-              {t('connectExistingProject')}
-            </LinkButton>
-            <LinkButton
-              href="/projects/new"
-              variant="outline"
-            >
-              {t('generateProject')}
-            </LinkButton>
-          </div>
-        }
       />
       <DirectorySummary summary={directory.summary} />
       <section

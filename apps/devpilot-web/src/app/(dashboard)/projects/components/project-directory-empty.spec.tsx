@@ -30,7 +30,7 @@ vi.mock('@/components/ui', () => ({
 }));
 
 describe('ProjectDirectoryEmpty', () => {
-  it('offers both canonical entry paths for a truly empty directory', () => {
+  it('offers the canonical repository-intake path for a truly empty directory', () => {
     const html = renderToStaticMarkup(
       <ProjectDirectoryEmpty
         filtered={false}
@@ -38,10 +38,9 @@ describe('ProjectDirectoryEmpty', () => {
       />,
     );
 
-    expect(html).toContain('href="/projects/new"');
-    expect(html).toContain('generateProject');
     expect(html).toContain('href="/projects/create"');
-    expect(html).toContain('connectExistingProject');
+    expect(html).toContain('createProject');
+    expect(html).not.toContain('href="/projects/new"');
   });
 
   it('offers recovery without fake projects for a filtered empty result', () => {

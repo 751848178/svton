@@ -10,6 +10,7 @@ export function ProjectDirectoryEmpty({
   onReset: () => void;
 }) {
   const t = useTranslations('projects');
+  const tn = useTranslations('nav');
   if (filtered) {
     return (
       <EmptyState
@@ -26,20 +27,12 @@ export function ProjectDirectoryEmpty({
       description={t('noProjectsDescriptionV13')}
       dashed={false}
       action={
-        <div className="flex flex-wrap justify-center gap-2">
-          <LinkButton
-            href="/projects/new"
-            variant="outline"
-          >
-            {t('generateProject')}
-          </LinkButton>
-          <LinkButton
-            href="/projects/create"
-            variant="primary"
-          >
-            {t('connectExistingProject')}
-          </LinkButton>
-        </div>
+        <LinkButton
+          href="/projects/create"
+          variant="primary"
+        >
+          {tn('createProject')}
+        </LinkButton>
       }
     />
   );
