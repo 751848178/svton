@@ -32,7 +32,7 @@ export function parityConfigRevisionData(ids, runtime, role) {
       domains: [
         staging ? "staging.parity.example.test" : "parity.example.test",
       ],
-      proxyTarget: runtime.targetOrigin,
+      proxyTarget: runtime.routeProxyTarget,
     },
     policyReferences: [],
   };

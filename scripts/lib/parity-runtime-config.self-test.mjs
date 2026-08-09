@@ -26,6 +26,7 @@ const isolated = parityRuntimeConfig({
 });
 assert.equal(isolated.apiBase, "http://127.0.0.1:45132/api");
 assert.equal(isolated.webOrigin, "http://localhost:45131");
+assert.equal(isolated.routeProxyTarget, "http://target-workload:80");
 assert.equal(isolated.routeControlOrigin, "http://127.0.0.1:45993");
 assert.equal(
   isolated.databaseUrl,

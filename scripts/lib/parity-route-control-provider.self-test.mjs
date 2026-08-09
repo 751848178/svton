@@ -60,6 +60,38 @@ try {
     live.headers.get("x-route-control-upstream"),
     `http://127.0.0.1:${targetPort}`,
   );
+
+  const rejected = {
+    ...input,
+    operationId: `site-route:failed:${"b".repeat(64)}`,
+    siteId: "failed-site",
+    deploymentRunId: "failed-deployment",
+    proxyTarget: "http://127.0.0.1:1/",
+    routeHash: "b".repeat(64),
+  };
+  const rejectedUrl = `http://127.0.0.1:${providerPort}/v1/routes/${encodeURIComponent(rejected.operationId)}`;
+  assert.equal(
+    (
+      await fetch(rejectedUrl, {
+        method: "PUT",
+        headers: authorizationHeaders(),
+        body: JSON.stringify(rejected),
+      })
+    ).status,
+    204,
+  );
+  const failedLive = await fetch(
+    `http://127.0.0.1:${providerPort}/sites/failed-site/`,
+  );
+  assert.equal(failedLive.status, 400);
+  assert.equal(
+    (
+      await fetch(rejectedUrl, {
+        headers: { authorization: `Bearer ${token}` },
+      })
+    ).status,
+    200,
+  );
 } finally {
   provider.close();
   target.close();

@@ -544,7 +544,7 @@ async function seed() {
         primaryDomain: "parity.example.test",
         aliases: [],
         runtimeType: "reverse_proxy",
-        runtimeConfig: { proxyTarget: runtime.targetOrigin },
+        runtimeConfig: { proxyTarget: runtime.routeProxyTarget },
         tls: {
           status: "valid",
           issuer: "parity-fixture",
@@ -560,7 +560,7 @@ async function seed() {
         routeSwitch: {
           version: 1,
           targetRef: "filesystem-release-target",
-          proxyTarget: runtime.targetOrigin,
+          proxyTarget: runtime.routeProxyTarget,
           domains: ["parity.example.test"],
           status: "switched",
           reasonCode: "parity-seed",

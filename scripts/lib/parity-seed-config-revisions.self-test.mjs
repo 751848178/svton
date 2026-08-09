@@ -13,7 +13,7 @@ const ids = {
   resourceInstance: "resource",
   managedResource: "managed-resource",
 };
-const runtime = { targetOrigin: "http://127.0.0.1:43210" };
+const runtime = { routeProxyTarget: "http://target-workload:80" };
 
 for (const role of ["staging", "production"]) {
   const data = parityConfigRevisionData(ids, runtime, role);
@@ -26,7 +26,7 @@ for (const role of ["staging", "production"]) {
   ]);
   assert.equal(data.resourceReferences[0].kind, "resource_instance");
   assert.deepEqual(data.policyReferences, []);
-  assert.equal(data.routeSnapshot.proxyTarget, runtime.targetOrigin);
+  assert.equal(data.routeSnapshot.proxyTarget, runtime.routeProxyTarget);
   assert.match(data.snapshotHash, /^[a-f0-9]{64}$/);
 }
 
@@ -45,7 +45,7 @@ assert.notEqual(
   production.snapshotHash,
   parityConfigRevisionData(
     ids,
-    { targetOrigin: "http://127.0.0.1:43211" },
+    { routeProxyTarget: "http://different-target:80" },
     "production",
   ).snapshotHash,
 );

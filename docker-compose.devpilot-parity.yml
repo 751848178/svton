@@ -228,9 +228,9 @@ services:
       retries: 30
       start_period: 30s
 
-  # Tiny static site served on 43992: the parity site workload + probe target
-  # referenced by the seeded Site/routeSnapshot (proxyTarget
-  # http://127.0.0.1:43992).
+  # Tiny static site: host probes use the unique published port while the
+  # route-control provider proxies through target-workload:80 on this
+  # run-owned Compose network.
   target-workload:
     image: nginx:alpine
     restart: unless-stopped

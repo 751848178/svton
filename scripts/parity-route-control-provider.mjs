@@ -47,7 +47,7 @@ export function createRouteControlServer({ token, fetchImpl = fetch }) {
         const record = activeSites.get(siteId);
         if (!record)
           return json(response, 404, { error: "site_route_not_found" });
-        return proxyRoute(
+        return await proxyRoute(
           response,
           record.input.proxyTarget,
           liveMatch[2] || "/",
