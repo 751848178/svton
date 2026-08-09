@@ -12,6 +12,8 @@ import { join } from "node:path";
 import {
   loadDestroyableC5Manifest,
   markC5ManifestDestroyed,
+  readC5BuiltImageIds,
+  recordC5BuiltImageIds,
   writePreparedC5Manifest,
   writeRunningC5Manifest,
 } from "./parity-isolated-c5-context.mjs";
@@ -43,6 +45,7 @@ const environment = {
   PARITY_ROUTE_CONTROL_PORT: "45993",
   PARITY_REQUIRE_VERIFIED_RUNTIME: "1",
   PARITY_FIXTURE_GIT_ROOT: join(runDirectory, "fixture-repo"),
+  PARITY_C5_MANIFEST_PATH: manifestPath,
   NEXT_PUBLIC_API_URL: "http://localhost:45132",
   PARITY_ADMIN_PASSWORD: "must-not-persist",
 };
@@ -60,11 +63,33 @@ assert.equal(
   (await loadDestroyableC5Manifest(manifestPath, temp, {})).manifest.status,
   "cleanup_armed",
 );
+const builtImageIds = {
+  api: `sha256:${"1".repeat(64)}`,
+  web: `sha256:${"2".repeat(64)}`,
+  "route-control": `sha256:${"3".repeat(64)}`,
+};
+await recordC5BuiltImageIds(
+  manifestPath,
+  {
+    runtimeId,
+    goalId: environment.PARITY_GOAL_ID,
+    cleanupOwnerToken: environment.PARITY_CLEANUP_OWNER_TOKEN,
+  },
+  builtImageIds,
+);
 await writeRunningC5Manifest(context, { status: "passed" });
 const source = await readFile(manifestPath, "utf8");
 assert.doesNotMatch(source, /must-not-persist|PARITY_ADMIN_PASSWORD/);
 const loaded = await loadDestroyableC5Manifest(manifestPath, temp, {});
 assert.equal(loaded.manifest.runtimeId, runtimeId);
+assert.deepEqual(
+  readC5BuiltImageIds(loaded.manifest, {
+    runtimeId,
+    goalId: environment.PARITY_GOAL_ID,
+    cleanupOwnerToken: environment.PARITY_CLEANUP_OWNER_TOKEN,
+  }),
+  builtImageIds,
+);
 await markC5ManifestDestroyed(loaded, { status: "verified_zero_residuals" });
 await assert.rejects(
   loadDestroyableC5Manifest(manifestPath, temp, {}),

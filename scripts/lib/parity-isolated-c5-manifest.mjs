@@ -4,6 +4,7 @@ import {
   parityRuntimeConfig,
   requireVerifiedRuntimeIdentity,
 } from "./parity-runtime-config.mjs";
+import { requireRuntimeImageIds } from "./parity-runtime-image-identity.mjs";
 
 const PUBLIC_ENVIRONMENT_KEYS = Object.freeze([
   "PARITY_COMPOSE_PROJECT",
@@ -25,6 +26,7 @@ const PUBLIC_ENVIRONMENT_KEYS = Object.freeze([
   "PARITY_CLEANUP_OWNER_TOKEN",
   "PARITY_REQUIRE_VERIFIED_RUNTIME",
   "PARITY_FIXTURE_GIT_ROOT",
+  "PARITY_C5_MANIFEST_PATH",
   "NEXT_PUBLIC_API_URL",
 ]);
 
@@ -40,6 +42,7 @@ export async function writePreparedC5Manifest(context) {
     cleanupOwnerToken: context.cleanupOwnerToken,
     runDirectory: context.runDirectory,
     history: null,
+    resourceIdentity: { builtImageIds: null },
     environment: publicEnvironment(context.environment),
   };
   await writeManifest(context.manifestPath, manifest, "wx");
@@ -65,6 +68,45 @@ export function loadDestroyableC5Manifest(value, runtimeRoot, baseEnv) {
     "running_verified",
     "cleanup_failed",
   ]);
+}
+
+export async function recordC5BuiltImageIds(manifestPath, runtime, imageIds) {
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  if (
+    manifestPath !== join(manifest.runDirectory, "runtime.json") ||
+    manifest.status !== "cleanup_armed" ||
+    manifest.runtimeId !== runtime.runtimeId ||
+    manifest.goalId !== runtime.goalId ||
+    manifest.cleanupOwnerToken !== runtime.cleanupOwnerToken
+  ) {
+    throw manifestError("built-image-identity");
+  }
+  manifest.resourceIdentity = {
+    builtImageIds: requireRuntimeImageIds(imageIds),
+    capturedAt: new Date().toISOString(),
+  };
+  await writeManifest(manifestPath, manifest);
+}
+
+export function readC5BuiltImageIds(manifest, runtime) {
+  if (!manifest.resourceIdentity?.builtImageIds) return undefined;
+  if (
+    manifest.runtimeId !== runtime.runtimeId ||
+    manifest.goalId !== runtime.goalId ||
+    manifest.cleanupOwnerToken !== runtime.cleanupOwnerToken
+  ) {
+    throw manifestError("image-identity-owner");
+  }
+  return requireRuntimeImageIds(manifest.resourceIdentity.builtImageIds);
+}
+
+export async function loadC5BuiltImageIds(manifestPath, runtime) {
+  if (!manifestPath) throw manifestError("missing-manifest-path");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  if (manifestPath !== join(manifest.runDirectory, "runtime.json")) {
+    throw manifestError("image-identity-path");
+  }
+  return readC5BuiltImageIds(manifest, runtime);
 }
 
 export async function markC5ManifestFailed(

@@ -26,6 +26,11 @@ const labels = {
   [RUNTIME_LABELS.owner]: runtime.cleanupOwnerToken,
   "com.docker.compose.project": runtime.composeProject,
 };
+const expectedImageIds = {
+  api: `sha256:${"1".repeat(64)}`,
+  web: `sha256:${"2".repeat(64)}`,
+  "route-control": `sha256:${"3".repeat(64)}`,
+};
 
 function executor(inventory) {
   return (args) => {
@@ -47,8 +52,13 @@ function executor(inventory) {
       return { status: 0, stdout: args[2] };
     }
     const id = args[2];
-    if (kind === "image" && command === "inspect" && id.includes(":")) {
-      const row = inventory.images.find((item) => item.tag === id);
+    if (kind === "image" && command === "inspect") {
+      const row = inventory.images.find(
+        (item) => item.tag === id || item.id === id,
+      );
+      if (!row) {
+        return { status: 1, stderr: `No such image: ${id}`, stdout: "" };
+      }
       return {
         status: 0,
         stdout: JSON.stringify([
@@ -77,9 +87,13 @@ const owned = {
       }),
     ),
     ...[
-      ["api", runtime.apiImage, "api-image"],
-      ["web", runtime.webImage, "web-image"],
-      ["route-control", runtime.routeControlImage, "route-image"],
+      ["api", runtime.apiImage, expectedImageIds.api],
+      ["web", runtime.webImage, expectedImageIds.web],
+      [
+        "route-control",
+        runtime.routeControlImage,
+        expectedImageIds["route-control"],
+      ],
     ].map(([service, , imageId]) => ({
       id: `${service}-container`,
       labels: { ...labels, "com.docker.compose.service": service },
@@ -89,9 +103,13 @@ const owned = {
   networks: [{ id: "network-1", labels }],
   volumes: [{ id: "volume-1", labels }],
   images: [
-    { id: "api-image", tag: runtime.apiImage, labels },
-    { id: "web-image", tag: runtime.webImage, labels },
-    { id: "route-image", tag: runtime.routeControlImage, labels },
+    { id: expectedImageIds.api, tag: runtime.apiImage, labels },
+    { id: expectedImageIds.web, tag: runtime.webImage, labels },
+    {
+      id: expectedImageIds["route-control"],
+      tag: runtime.routeControlImage,
+      labels,
+    },
   ],
 };
 assert.equal(
@@ -99,24 +117,22 @@ assert.equal(
   7,
 );
 assert.equal(
-  assertRunningRuntimeProvenance(
-    runtime,
-    { api: "api-image", web: "web-image", "route-control": "route-image" },
-    executor(owned),
-  ).services.api.imageId,
-  "api-image",
+  assertRunningRuntimeProvenance(runtime, expectedImageIds, executor(owned))
+    .services.api.imageId,
+  expectedImageIds.api,
 );
 assert.throws(
   () =>
     assertRunningRuntimeProvenance(
       runtime,
-      { api: "substituted", web: "web-image", "route-control": "route-image" },
+      { ...expectedImageIds, api: `sha256:${"4".repeat(64)}` },
       executor(owned),
     ),
   /api-running-image-mismatch/,
 );
 assert.equal(
-  removeOwnedRuntimeImages(runtime, executor(owned)).images.length,
+  removeOwnedRuntimeImages(runtime, executor(owned), expectedImageIds).images
+    .length,
   3,
 );
 assert.throws(
@@ -140,6 +156,35 @@ assert.deepEqual(assertNoRuntimeResources(runtime, executor(empty)), empty);
 assert.throws(
   () => assertNoRuntimeResources(runtime, executor(owned)),
   /residuals/,
+);
+
+const substituted = {
+  id: `sha256:${"4".repeat(64)}`,
+  tag: runtime.apiImage,
+  labels: { ...labels, [RUNTIME_LABELS.owner]: "d".repeat(64) },
+};
+const tagDrift = {
+  ...owned,
+  images: [
+    ...owned.images.map((image) => ({ ...image, tag: `dangling-${image.id}` })),
+    substituted,
+  ],
+};
+assert.deepEqual(
+  assertOwnedRuntimeResources(
+    runtime,
+    executor(tagDrift),
+    expectedImageIds,
+  ).images.map((image) => image.id),
+  Object.values(expectedImageIds),
+);
+assert.deepEqual(
+  assertNoRuntimeResources(
+    runtime,
+    executor({ ...empty, images: [substituted] }),
+    expectedImageIds,
+  ),
+  empty,
 );
 
 console.log("parity runtime resource ownership self-test passed");

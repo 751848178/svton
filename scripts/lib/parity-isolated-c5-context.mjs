@@ -10,8 +10,11 @@ import { allocateDistinctLoopbackPorts } from "./parity-runtime-port-allocation.
 
 export {
   loadDestroyableC5Manifest,
+  loadC5BuiltImageIds,
   markC5ManifestDestroyed,
   markC5ManifestFailed,
+  readC5BuiltImageIds,
+  recordC5BuiltImageIds,
   writePreparedC5Manifest,
   writeRunningC5Manifest,
 } from "./parity-isolated-c5-manifest.mjs";
@@ -62,6 +65,7 @@ export async function createIsolatedC5Context(root, runtimeRoot, baseEnv) {
     PARITY_ROUTE_CONTROL_TOKEN: randomBytes(32).toString("hex"),
     PARITY_REQUIRE_VERIFIED_RUNTIME: "1",
     PARITY_FIXTURE_GIT_ROOT: join(runDirectory, "fixture-repo"),
+    PARITY_C5_MANIFEST_PATH: manifestPath,
     NEXT_PUBLIC_API_URL: `http://localhost:${ports[1]}`,
   };
   requireVerifiedRuntimeIdentity(parityRuntimeConfig(environment));

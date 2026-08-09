@@ -5,15 +5,21 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   createIsolatedC5Context,
+  loadC5BuiltImageIds,
   loadDestroyableC5Manifest,
   markC5ManifestDestroyed,
   markC5ManifestFailed,
+  readC5BuiltImageIds,
   writePreparedC5Manifest,
   writeRunningC5Manifest,
 } from "./lib/parity-isolated-c5-context.mjs";
 import { runHistoryChain } from "./lib/parity-history-chain-launcher.mjs";
 import { captureIsolatedC5RouteAudit } from "./lib/parity-isolated-c5-route-audit.mjs";
 import { cleanupFailedIsolatedAcceptance } from "./lib/parity-isolated-c5-failure.mjs";
+import {
+  cleanupReceiptFor,
+  publicRuntime,
+} from "./lib/parity-isolated-c5-receipts.mjs";
 import { parityRuntimeConfig } from "./lib/parity-runtime-config.mjs";
 import { assertNoRuntimeResources } from "./lib/parity-runtime-resource-ownership.mjs";
 
@@ -100,15 +106,19 @@ async function failAndCleanup(context, error, routeAudit) {
   let cleanupError;
   let cleanupReceipt;
   try {
+    const runtime = parityRuntimeConfig(context.environment);
+    const expectedImageIds = await loadC5BuiltImageIds(
+      context.manifestPath,
+      runtime,
+    ).catch(() => undefined);
     destroyRuntime(context.environment);
     await rm(context.environment.PARITY_FIXTURE_GIT_ROOT, {
       recursive: true,
       force: true,
     });
-    const runtime = parityRuntimeConfig(context.environment);
     cleanupReceipt = cleanupReceiptFor(
       runtime,
-      assertNoRuntimeResources(runtime),
+      assertNoRuntimeResources(runtime, undefined, expectedImageIds),
     );
   } catch (failure) {
     cleanupError = failure;
@@ -128,13 +138,18 @@ async function destroyFromManifest(manifestPath) {
     runtimeRoot,
     process.env,
   );
+  const runtime = parityRuntimeConfig(loaded.environment);
+  const expectedImageIds = readC5BuiltImageIds(loaded.manifest, runtime);
   destroyRuntime(loaded.environment);
   await rm(loaded.environment.PARITY_FIXTURE_GIT_ROOT, {
     recursive: true,
     force: true,
   });
-  const runtime = parityRuntimeConfig(loaded.environment);
-  const residualResources = assertNoRuntimeResources(runtime);
+  const residualResources = assertNoRuntimeResources(
+    runtime,
+    undefined,
+    expectedImageIds,
+  );
   await markC5ManifestDestroyed(
     loaded,
     cleanupReceiptFor(runtime, residualResources),
@@ -142,36 +157,6 @@ async function destroyFromManifest(manifestPath) {
   process.stdout.write(
     `${JSON.stringify({ status: "destroyed", manifestPath: loaded.manifestPath })}\n`,
   );
-}
-
-function cleanupReceiptFor(runtime, residualResources) {
-  return {
-    status: "verified_zero_residuals",
-    verifiedAt: new Date().toISOString(),
-    runtimeId: runtime.runtimeId,
-    goalId: runtime.goalId,
-    cleanupOwnerToken: runtime.cleanupOwnerToken,
-    residualResources,
-  };
-}
-
-function publicRuntime(runtime) {
-  return {
-    composeProject: runtime.composeProject,
-    databaseName: runtime.databaseName,
-    ports: runtime.ports,
-    apiImage: runtime.apiImage,
-    webImage: runtime.webImage,
-    routeControlImage: runtime.routeControlImage,
-    apiBase: runtime.apiBase,
-    webOrigin: runtime.webOrigin,
-    targetOrigin: runtime.targetOrigin,
-    routeControlOrigin: runtime.routeControlOrigin,
-    sourceRevision: runtime.sourceRevision,
-    sourceTreeSha256: runtime.sourceTreeSha256,
-    runtimeId: runtime.runtimeId,
-    goalId: runtime.goalId,
-  };
 }
 
 function destroyRuntime(environment) {

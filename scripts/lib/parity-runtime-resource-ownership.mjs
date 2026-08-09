@@ -3,12 +3,24 @@ import {
   assertRuntimeImageLabels,
   expectedRuntimeImageLabels,
 } from "./parity-runtime-provenance.mjs";
+import {
+  collectRuntimeImages,
+  resolveRuntimeImageId,
+} from "./parity-runtime-image-identity.mjs";
 
 const COMPOSE_PROJECT_LABEL = "com.docker.compose.project";
 const OWNER_LABEL = "io.svton.devpilot.cleanup-owner-token";
 
-export function assertOwnedRuntimeResources(runtime, execute = runDocker) {
-  const inventory = collectRuntimeResourceInventory(runtime, execute);
+export function assertOwnedRuntimeResources(
+  runtime,
+  execute = runDocker,
+  expectedImageIds,
+) {
+  const inventory = collectRuntimeResourceInventory(
+    runtime,
+    execute,
+    expectedImageIds,
+  );
   const expected = expectedRuntimeImageLabels(runtime);
   for (const [kind, resources] of Object.entries(inventory)) {
     for (const resource of resources) {
@@ -29,7 +41,11 @@ export function assertRunningRuntimeProvenance(
   expectedImageIds,
   execute = runDocker,
 ) {
-  const inventory = assertOwnedRuntimeResources(runtime, execute);
+  const inventory = assertOwnedRuntimeResources(
+    runtime,
+    execute,
+    expectedImageIds,
+  );
   const services = Object.fromEntries(
     inventory.containers.map((container) => [
       container.labels["com.docker.compose.service"],
@@ -52,7 +68,7 @@ export function assertRunningRuntimeProvenance(
     web: runtime.webImage,
     "route-control": runtime.routeControlImage,
   })) {
-    const currentImageId = imageId(image, execute);
+    const currentImageId = resolveRuntimeImageId(image, execute);
     if (
       currentImageId !== expectedImageIds[service] ||
       services[service].imageId !== expectedImageIds[service]
@@ -63,8 +79,16 @@ export function assertRunningRuntimeProvenance(
   return { inventory, services };
 }
 
-export function assertNoRuntimeResources(runtime, execute = runDocker) {
-  const inventory = collectRuntimeResourceInventory(runtime, execute);
+export function assertNoRuntimeResources(
+  runtime,
+  execute = runDocker,
+  expectedImageIds,
+) {
+  const inventory = collectRuntimeResourceInventory(
+    runtime,
+    execute,
+    expectedImageIds,
+  );
   const residuals = Object.entries(inventory).flatMap(([kind, resources]) =>
     resources.map((resource) => `${kind}:${resource.id}`),
   );
@@ -85,25 +109,28 @@ export function assertNoComposeResources(runtime, execute = runDocker) {
   return inventory;
 }
 
-export function removeOwnedRuntimeImages(runtime, execute = runDocker) {
-  const inventory = assertOwnedRuntimeResources(runtime, execute);
+export function removeOwnedRuntimeImages(
+  runtime,
+  execute = runDocker,
+  expectedImageIds,
+) {
+  const inventory = assertOwnedRuntimeResources(
+    runtime,
+    execute,
+    expectedImageIds,
+  );
   if (inventory.images.length === 0) return inventory;
-  for (const image of runtimeImages(runtime)) {
-    const listed = execute([
-      "image",
-      "ls",
-      "--filter",
-      `reference=${image}`,
-      "--format={{.ID}}",
-    ]);
-    requireSuccess(listed, "image-list-before-remove");
-    if (lines(listed.stdout).length === 0) continue;
-    requireSuccess(execute(["image", "rm", image]), "image-remove");
+  for (const image of inventory.images) {
+    requireSuccess(execute(["image", "rm", image.id]), "image-remove");
   }
   return inventory;
 }
 
-export function collectRuntimeResourceInventory(runtime, execute = runDocker) {
+export function collectRuntimeResourceInventory(
+  runtime,
+  execute = runDocker,
+  expectedImageIds,
+) {
   const projectFilter = `label=${COMPOSE_PROJECT_LABEL}=${runtime.composeProject}`;
   return {
     containers: collect(
@@ -113,7 +140,7 @@ export function collectRuntimeResourceInventory(runtime, execute = runDocker) {
     ),
     networks: collect("network", ["--filter", projectFilter], execute),
     volumes: collect("volume", ["--filter", projectFilter], execute),
-    images: collectImages(runtime, execute),
+    images: collectRuntimeImages(runtime, execute, expectedImageIds),
   };
 }
 
@@ -122,26 +149,6 @@ function collect(kind, args, execute) {
   const listed = execute([kind, "ls", ...args, format]);
   requireSuccess(listed, `${kind}-list`);
   return inspectMany(kind, lines(listed.stdout), execute);
-}
-
-function collectImages(runtime, execute) {
-  const ids = new Set();
-  for (const image of runtimeImages(runtime)) {
-    const listed = execute([
-      "image",
-      "ls",
-      "--filter",
-      `reference=${image}`,
-      "--format={{.ID}}",
-    ]);
-    requireSuccess(listed, "image-list");
-    for (const id of lines(listed.stdout)) ids.add(id);
-  }
-  return inspectMany("image", [...ids], execute);
-}
-
-function runtimeImages(runtime) {
-  return [runtime.apiImage, runtime.webImage, runtime.routeControlImage];
 }
 
 function inspectMany(kind, ids, execute) {
@@ -159,12 +166,6 @@ function inspectMany(kind, ids, execute) {
       ...(kind === "container" ? { imageId: record?.Image } : {}),
     };
   });
-}
-
-function imageId(image, execute) {
-  const result = execute(["image", "inspect", image]);
-  requireSuccess(result, "image-inspect-by-tag");
-  return JSON.parse(result.stdout)[0]?.Id;
 }
 
 function runDocker(args) {

@@ -29,6 +29,10 @@ import {
   requireVerifiedRuntimeIdentity,
 } from "./lib/parity-runtime-config.mjs";
 import {
+  loadC5BuiltImageIds,
+  recordC5BuiltImageIds,
+} from "./lib/parity-isolated-c5-context.mjs";
+import {
   assertRuntimeImageLabels,
   expectedRuntimeImageLabels,
 } from "./lib/parity-runtime-provenance.mjs";
@@ -162,10 +166,13 @@ export async function main() {
     await compose(["down", "--remove-orphans"]);
   } else if (command === "destroy") {
     requireVerifiedRuntimeIdentity(runtime);
-    assertOwnedRuntimeResources(runtime);
+    const expectedImageIds = process.env.PARITY_C5_MANIFEST_PATH
+      ? await loadC5BuiltImageIds(process.env.PARITY_C5_MANIFEST_PATH, runtime)
+      : undefined;
+    assertOwnedRuntimeResources(runtime, undefined, expectedImageIds);
     await compose(["down", "--volumes", "--remove-orphans"]);
-    removeOwnedRuntimeImages(runtime);
-    assertNoRuntimeResources(runtime);
+    removeOwnedRuntimeImages(runtime, undefined, expectedImageIds);
+    assertNoRuntimeResources(runtime, undefined, expectedImageIds);
   } else if (command === "inventory") {
     await printInventory();
   } else {
@@ -197,6 +204,11 @@ async function prepareVerifiedRuntimeImages() {
       "--format={{.Id}}",
     ]).stdout.trim();
   }
+  await recordC5BuiltImageIds(
+    process.env.PARITY_C5_MANIFEST_PATH,
+    runtime,
+    imageIds,
+  );
   return Object.freeze(imageIds);
 }
 
