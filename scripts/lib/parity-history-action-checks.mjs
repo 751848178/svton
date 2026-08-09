@@ -1,6 +1,7 @@
 import { check, predicate } from "./parity-e2e-evidence.mjs";
 import { productionGateEvidenceChecks } from "./parity-production-gate-evidence.mjs";
 import { productionRouteEvidenceChecks } from "./parity-production-route-evidence.mjs";
+import { workloadReadyEvidenceChecks } from "./parity-workload-ready-evidence.mjs";
 
 export const ACTION_HISTORY_STEP_CHECKS = {
   "staging-upgrade": (r) => versionActionChecks(r, "staging", "upgrade"),
@@ -155,7 +156,7 @@ function productionActionChecks(r, kind) {
       r.releaseRun?.approvalConsumedAt,
     ),
     check("artifactVerified", r.artifactVerified, true),
-    predicate("workload", Boolean(r.workload), r.workload),
+    ...workloadReadyEvidenceChecks(r.workloadReady),
     check("healthProbe", r.healthProbe?.status, "passed"),
     ...productionGateEvidenceChecks(r.productionGate),
     ...productionRouteEvidenceChecks(r.routeEvidence),

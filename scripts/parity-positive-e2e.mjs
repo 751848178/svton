@@ -55,6 +55,7 @@ import {
 import { parityRuntimeConfig } from "./lib/parity-runtime-config.mjs";
 import { parityApiError } from "./lib/parity-http-error.mjs";
 import { productionDeploymentFailure } from "./lib/parity-deployment-failure.mjs";
+import { workloadReadyEvidenceChecks } from "./lib/parity-workload-ready-evidence.mjs";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const runtime = parityRuntimeConfig();
 const outDir = historyChainOutputDirectory(
@@ -718,7 +719,7 @@ async function main() {
       artifactManifestId: row.artifactManifestId,
       sameManifest: row.artifactManifestId === manifestId,
       releaseRunId: row.releaseRunId,
-      workload: result.workload,
+      workloadReady: result.workloadReady,
       healthProbe: result.healthProbe,
       siteProbe: result.siteProbe,
       routeSwitch: result.routeSwitch,
@@ -1204,7 +1205,7 @@ function productionExecutionChecks(result) {
     check("releaseRunId", result.releaseRunId, runState.releaseRunId),
     check("artifactVerified", result.artifactVerified, true),
     check("productionRunCount", result.productionRunCount, 1),
-    predicate("workload", Boolean(result.workload), result.workload),
+    ...workloadReadyEvidenceChecks(result.workloadReady),
     check("healthProbe", result.healthProbe?.status, "passed"),
     ...productionRouteEvidenceChecks(result.routeEvidence),
     ...productionGateEvidenceChecks(result.productionGate),

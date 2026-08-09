@@ -27,7 +27,7 @@ export const HISTORY_RESULT_KEY_INVENTORY = Object.freeze({
     "approvalId decision reviewedAt reviewerId status",
   ),
   "production-upgrade-execute": keys(
-    "artifactVerified currentMoved deploymentRunId environmentId expectedEnvironmentId expectedManifestId expectedPreviousVersionId expectedReleaseRunId gateDecision healthProbe manifestId newEnvironmentVersion productionGate releaseRun releaseRunId routeEvidence routeSwitch siteProbe status workload",
+    "artifactVerified currentMoved deploymentRunId environmentId expectedEnvironmentId expectedManifestId expectedPreviousVersionId expectedReleaseRunId gateDecision healthProbe manifestId newEnvironmentVersion productionGate releaseRun releaseRunId routeEvidence routeSwitch siteProbe status workloadReady",
   ),
   "production-recovery-preview": keys(
     "expectedManifestDigest expectedManifestId expectedSourceVersionId inputHash snapshot sourceManifestDigest sourceManifestId sourceReleaseRunId sourceVersionId sourceVersionKind",
@@ -39,7 +39,7 @@ export const HISTORY_RESULT_KEY_INVENTORY = Object.freeze({
     "approvalId decision reviewedAt reviewerId status",
   ),
   "production-recovery-execute": keys(
-    "artifactVerified currentMoved deploymentRunId environmentId expectedEnvironmentId expectedManifestId expectedPreviousVersionId expectedReleaseRunId gateDecision healthProbe manifestId newEnvironmentVersion productionGate releaseRun releaseRunId restoredM1 routeEvidence routeSwitch siteProbe status workload",
+    "artifactVerified currentMoved deploymentRunId environmentId expectedEnvironmentId expectedManifestId expectedPreviousVersionId expectedReleaseRunId gateDecision healthProbe manifestId newEnvironmentVersion productionGate releaseRun releaseRunId restoredM1 routeEvidence routeSwitch siteProbe status workloadReady",
   ),
   "version-chains": keys(
     "expectedReleaseRuns production productionRecoverySourcePresent releaseRuns staging stagingRecoverySourcePresent",

@@ -132,7 +132,12 @@ function actionFixture(a, kind) {
       approvalStatus: "approved",
       approvalConsumedAt: "2026-08-08T00:00:04.000Z",
     },
-    workload: { status: "running" },
+    workloadReady: {
+      status: "passed",
+      inputHash: "b".repeat(64),
+      serviceCount: 2,
+      services: [{ serviceId: "service-a" }, { serviceId: "service-b" }],
+    },
     healthProbe: { status: "passed" },
     siteProbe: proof.siteProbe,
     routeSwitch: proof.routeSwitch,
