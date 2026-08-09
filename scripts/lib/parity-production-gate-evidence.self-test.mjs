@@ -5,6 +5,7 @@ import {
   productionGateEvidenceChecks,
   selectExactProductionGate,
 } from "./parity-production-gate-evidence.mjs";
+import { productionRouteEvidenceChecks } from "./parity-production-route-evidence.mjs";
 
 const expected = {
   releaseOrderId: "order-1",
@@ -30,6 +31,10 @@ const selected = selectExactProductionGate([newer, exact], expected);
 assert.equal(selected?.id, exact.id);
 const valid = productionGateEvidence(selected, resultGate(exact), expected);
 assertChecksPass(productionGateEvidenceChecks(valid));
+assertDisjointCheckNames(
+  productionGateEvidenceChecks(valid),
+  productionRouteEvidenceChecks(),
+);
 assertRejected(productionGateEvidence(
   selectExactProductionGate([newer], expected),
   resultGate(exact),
@@ -94,6 +99,14 @@ function resultGate(gate) {
 
 function assertChecksPass(checks) {
   assert.deepEqual(checks.filter((item) => item.pass !== true), []);
+}
+
+function assertDisjointCheckNames(left, right) {
+  const leftNames = new Set(left.map((item) => item.name));
+  const overlaps = right
+    .map((item) => item.name)
+    .filter((name) => leftNames.has(name));
+  assert.deepEqual(overlaps, []);
 }
 
 function assertRejected(proof, label) {

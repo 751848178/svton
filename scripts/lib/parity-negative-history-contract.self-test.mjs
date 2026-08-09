@@ -110,9 +110,9 @@ for (const [label, mutate] of [
 
 const productionChecks = document.steps["production-upgrade-execute"].checks;
 assert.ok(
-  new Set(productionChecks.map((item) => item.name)).size <
+  new Set(productionChecks.map((item) => item.name)).size ===
     productionChecks.length,
-  "valid canonical duplicate names must be exercised",
+  "canonical production check names must be unique",
 );
 
 for (const name of [
