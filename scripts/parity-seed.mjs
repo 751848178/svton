@@ -45,6 +45,7 @@ import {
   removeOwnedRuntimeImages,
 } from "./lib/parity-runtime-resource-ownership.mjs";
 import { printParitySeedInventory } from "./lib/parity-seed-inventory.mjs";
+import { seedParityConfigRevisions } from "./lib/parity-seed-config-revisions.mjs";
 import { createParitySeedRuntimeOperations } from "./lib/parity-seed-runtime-operations.mjs";
 import { seedParityVersionHistory } from "./lib/parity-seed-version-history.mjs";
 
@@ -865,72 +866,7 @@ async function seed() {
 
     // 11. Environment config revisions (envVars + secretReferences +
     //     resourceReferences + routeSnapshot entries -> parity target).
-    const stagingRevision = await prisma.environmentConfigRevision.upsert({
-      where: { id: IDS.configStaging },
-      create: {
-        id: IDS.configStaging,
-        teamId: IDS.team,
-        projectId: IDS.project,
-        environmentId: IDS.envStaging,
-        createdById: IDS.user,
-        revision: 1,
-        snapshotHash: createHash("sha256")
-          .update("parity-staging-v1")
-          .digest("hex"),
-        plainVariables: { HTTP_PLAIN_PARITY: "staging" },
-        secretReferences: [{ id: IDS.secret, key: "PARITY_API_KEY" }],
-        resourceReferences: [
-          {
-            id: IDS.resourceInstance,
-            kind: "resource_instance",
-            name: "parity-target-workload",
-          },
-        ],
-        routeSnapshot: {
-          domains: ["staging.parity.example.test"],
-          proxyTarget: runtime.targetOrigin,
-        },
-        source: "parity_seed",
-      },
-      update: {},
-    });
-    const productionRevision = await prisma.environmentConfigRevision.upsert({
-      where: { id: IDS.configProduction },
-      create: {
-        id: IDS.configProduction,
-        teamId: IDS.team,
-        projectId: IDS.project,
-        environmentId: IDS.envProduction,
-        createdById: IDS.user,
-        revision: 1,
-        snapshotHash: createHash("sha256")
-          .update("parity-production-v1")
-          .digest("hex"),
-        plainVariables: { HTTP_PLAIN_PARITY: "production" },
-        secretReferences: [{ id: IDS.secret, key: "PARITY_API_KEY" }],
-        resourceReferences: [
-          {
-            id: IDS.resourceInstance,
-            kind: "resource_instance",
-            name: "parity-target-workload",
-          },
-        ],
-        routeSnapshot: {
-          domains: ["parity.example.test"],
-          proxyTarget: runtime.targetOrigin,
-        },
-        source: "parity_seed",
-      },
-      update: {},
-    });
-    await prisma.projectEnvironment.update({
-      where: { id: staging.id },
-      data: { currentConfigRevisionId: stagingRevision.id },
-    });
-    await prisma.projectEnvironment.update({
-      where: { id: production.id },
-      data: { currentConfigRevisionId: productionRevision.id },
-    });
+    await seedParityConfigRevisions({ prisma, ids: IDS, runtime });
 
     // 12. Release order (parity-order-0001)
     await prisma.releaseOrder.upsert({
