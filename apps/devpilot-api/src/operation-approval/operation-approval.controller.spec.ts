@@ -46,14 +46,24 @@ describe("OperationApprovalController", () => {
     const approvals = [
       {
         id: "approval-visible",
+        status: "pending",
         projectId: "project-1",
         environmentId: "env-1",
+        category: "deployment",
+        action: "deployment.promote",
+        targetType: "deployment_run",
+        targetId: "run-1",
         risk: "high",
       },
       {
         id: "approval-hidden",
+        status: "pending",
         projectId: "project-2",
         environmentId: "env-2",
+        category: "deployment",
+        action: "deployment.promote",
+        targetType: "deployment_run",
+        targetId: "run-2",
         risk: "medium",
       },
     ];
@@ -66,6 +76,7 @@ describe("OperationApprovalController", () => {
         .fn()
         .mockResolvedValueOnce(true)
         .mockResolvedValueOnce(false),
+      canReviewApproval: jest.fn().mockResolvedValue(true),
     };
     const controller = new OperationApprovalController(
       approvalService as any,
@@ -99,13 +110,35 @@ describe("OperationApprovalController", () => {
         risk: "medium",
       }),
     );
+    expect(accessPolicyService.canReviewApproval).toHaveBeenCalledWith({
+      teamId: "team-1",
+      actorId: "user-1",
+      projectId: "project-1",
+      environmentId: "env-1",
+      category: "deployment",
+      action: "deployment.promote",
+      targetType: "deployment_run",
+      targetId: "run-1",
+      risk: "high",
+    });
   });
 
   it("returns a fail-closed review capability for team members", async () => {
-    const approval = { id: "approval-visible", risk: "high" };
+    const approval = {
+      id: "approval-visible",
+      status: "pending",
+      category: "deployment",
+      action: "deployment.promote",
+      targetType: "deployment_run",
+      risk: "high",
+    };
+    const accessPolicyService = {
+      canRead: jest.fn().mockResolvedValue(true),
+      canReviewApproval: jest.fn(),
+    };
     const controller = new OperationApprovalController(
       { list: jest.fn().mockResolvedValue([approval]) } as any,
-      { canRead: jest.fn().mockResolvedValue(true) } as any,
+      accessPolicyService as any,
     );
 
     await expect(
@@ -113,6 +146,30 @@ describe("OperationApprovalController", () => {
         { ...req, teamRole: "member" } as any,
         { status: "pending" } as any,
       ),
+    ).resolves.toEqual([{ ...approval, capabilities: { review: false } }]);
+    expect(accessPolicyService.canReviewApproval).not.toHaveBeenCalled();
+  });
+
+  it("hides review when an explicit approval_review policy denies the admin", async () => {
+    const approval = {
+      id: "approval-denied",
+      status: "pending",
+      category: "deployment",
+      action: "deployment.promote",
+      targetType: "deployment_run",
+      targetId: "run-denied",
+      risk: "high",
+    };
+    const controller = new OperationApprovalController(
+      { list: jest.fn().mockResolvedValue([approval]) } as any,
+      {
+        canRead: jest.fn().mockResolvedValue(true),
+        canReviewApproval: jest.fn().mockResolvedValue(false),
+      } as any,
+    );
+
+    await expect(
+      controller.list(req as any, { status: "pending" } as any),
     ).resolves.toEqual([{ ...approval, capabilities: { review: false } }]);
   });
 });

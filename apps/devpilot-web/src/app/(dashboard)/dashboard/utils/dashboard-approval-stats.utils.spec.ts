@@ -6,6 +6,7 @@ describe('countActionableApprovals', () => {
     expect(
       countActionableApprovals([
         { id: 'admin', status: 'pending', capabilities: { review: true } },
+        { id: 'terminal', status: 'approved', capabilities: { review: true } },
         { id: 'member', status: 'pending', capabilities: { review: false } },
         { id: 'legacy', status: 'pending' },
       ]),

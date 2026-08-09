@@ -217,6 +217,37 @@ describe("ControlAccessPolicyService", () => {
     ).resolves.toBe(false);
   });
 
+  it("returns false for an explicit approval_review deny policy", async () => {
+    mockMembership(MemberRole.ADMIN);
+    mockPolicies([
+      policy({
+        id: "deny-production-review",
+        name: "拒绝生产审批",
+        effect: "deny",
+        principalRole: MemberRole.ADMIN,
+        projectId,
+        environmentId,
+        categories: ["deployment"],
+        actions: ["deployment.promote"],
+        riskLevels: ["high"],
+      }),
+    ]);
+
+    await expect(
+      service.canReviewApproval({
+        teamId,
+        actorId,
+        projectId,
+        environmentId,
+        category: "deployment",
+        action: "deployment.promote",
+        targetType: "deployment_run",
+        targetId: "run-1",
+        risk: "high",
+      }),
+    ).resolves.toBe(false);
+  });
+
   it("keeps sensitive reads admin-only without an explicit allow policy", async () => {
     mockMembership(MemberRole.MEMBER);
     mockPolicies([]);

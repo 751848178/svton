@@ -50,6 +50,13 @@ export class ControlAccessPolicyService {
     );
   }
 
+  canReviewApproval(input: Omit<ControlAccessCheckInput, "phase">) {
+    return this.policyAccessService.canAccess(
+      { ...input, phase: "approval_review" },
+      "admin",
+    );
+  }
+
   assertCanExecuteApproved(input: Omit<ControlAccessCheckInput, "phase">) {
     return this.policyAccessService.assertAllowed(
       { ...input, phase: "approved_execution" },
