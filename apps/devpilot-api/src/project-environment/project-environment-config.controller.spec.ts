@@ -22,6 +22,24 @@ describe("ProjectEnvironmentConfigController", () => {
     expect(revisionService.list).toHaveBeenCalledWith("team-1", "env-1");
   });
 
+  it("normalizes legacy null JSON collections before returning the list schema", async () => {
+    const revision = {
+      plainVariables: null, secretReferences: null, resourceReferences: null,
+      routeSnapshot: null, policyReferences: null,
+    };
+    const controller = new ProjectEnvironmentConfigController(
+      { getAccessScope: jest.fn().mockResolvedValue(scope) } as never,
+      { list: jest.fn().mockResolvedValue({ revisions: [revision] }) } as never,
+      { assertCanReadEnvironment: jest.fn() } as never, {} as never,
+    );
+    await expect(controller.list(request, "env-1")).resolves.toMatchObject({
+      revisions: [{
+        plainVariables: {}, secretReferences: [], resourceReferences: [],
+        routeSnapshot: {}, policyReferences: [],
+      }],
+    });
+  });
+
   it("checks write policy before creating a revision", async () => {
     const environmentService = { getAccessScope: jest.fn().mockResolvedValue(scope) };
     const revisionService = { create: jest.fn().mockResolvedValue({ revision: { id: "revision-2" } }) };

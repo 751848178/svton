@@ -14,6 +14,7 @@ import {
   CreateEnvironmentConfigRevisionDto,
 } from "./dto/environment-config-revision.dto";
 import { EnvironmentConfigRevisionService } from "./environment-config-revision.service";
+import { normalizeEnvironmentConfigRevisionList } from "./environment-config-revision-response.utils";
 import { ProjectEnvironmentAuthRequest } from "./project-environment-access-policy.types";
 import { ProjectEnvironmentReadAccessPolicyService } from "./project-environment-read-access-policy.service";
 import { ProjectEnvironmentWriteAccessPolicyService } from "./project-environment-write-access-policy.service";
@@ -39,7 +40,9 @@ export class ProjectEnvironmentConfigController {
     await this.readAccessPolicy.assertCanReadEnvironment(
       req, id, scope.projectId, scope.environmentId,
     );
-    return this.configRevisionService.list(req.teamId, id);
+    return normalizeEnvironmentConfigRevisionList(
+      await this.configRevisionService.list(req.teamId, id),
+    );
   }
 
   @Post(":id/config-revisions")

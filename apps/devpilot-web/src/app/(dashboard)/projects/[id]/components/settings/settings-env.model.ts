@@ -51,9 +51,9 @@ export function settingsDraftFromRevision(
 ): SettingsEnvironmentDraft | null {
   if (!revision) return null;
   return {
-    secretIds: revision.secretReferences.map((item) => item.id),
-    policyIds: revision.policyReferences.map((item) => item.id),
-    resources: revision.resourceReferences,
+    secretIds: (revision.secretReferences ?? []).map((item) => item.id),
+    policyIds: (revision.policyReferences ?? []).map((item) => item.id),
+    resources: revision.resourceReferences ?? [],
     route: {
       domains: (revision.routeSnapshot?.domains ?? []).join('\n'),
       dnsProvider: revision.routeSnapshot?.dnsProvider ?? '',

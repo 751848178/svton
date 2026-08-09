@@ -76,6 +76,18 @@ describe('settings-env.model F448 route entries round-trip', () => {
     expect(payload.routeSnapshot.tlsRequired).toBe(true);
   });
 
+  it('treats legacy null reference collections as empty draft arrays', () => {
+    const draft = settingsDraftFromRevision({
+      ...revision({}),
+      secretReferences: null,
+      resourceReferences: null,
+      policyReferences: null,
+    } as never)!;
+    expect(draft.secretIds).toEqual([]);
+    expect(draft.resources).toEqual([]);
+    expect(draft.policyIds).toEqual([]);
+  });
+
   it('derives entries from the legacy domains[] list when the revision predates entries (backward compat)', () => {
     const draft = settingsDraftFromRevision(revision({
       domains: ['demo.f437.example'],
