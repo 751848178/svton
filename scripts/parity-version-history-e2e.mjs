@@ -899,8 +899,6 @@ async function browserPass(ids) {
       upgradeReleaseRunShown: releaseText.includes(upgradeReleaseRunId),
       recoveryReleaseRunShown: releaseText.includes(recoveryReleaseRunId),
       recoveryApprovalSummary: /生产回退 1.0.0 \/ Build #1/.test(releaseText),
-      lifecycleEvidenceMismatchNote:
-        "the order stepper shows 生产证据与发布单不匹配 because the lifecycle query (release-order-production-evidence.query.ts governedProductionDeploymentExists) only counts approvals with action project.release_order.deploy_production as valid production evidence — the recovery run's approval action project.release_order.deploy_production_recovery (AC-PROD-035, by design) is not counted; this is a known read-model display nuance, NOT a chain failure (all runs succeeded, approvals consumed, pointers moved).",
     },
     stagingStepEvidence: {
       totalStagingDeployments4: /4 次部署/.test(stagingStepText),

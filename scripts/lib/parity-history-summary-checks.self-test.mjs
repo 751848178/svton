@@ -59,8 +59,8 @@ assert.equal(
 rejectsMarker((value) => {
   value.releaseDetailEvidence.extraBoolean = false;
 }, "extra false boolean");
-validMarkers.releaseDetailEvidence.lifecycleEvidenceMismatchNote =
-  "F510 note retained";
+validMarkers.releaseDetailEvidence.diagnosticNote =
+  "non-marker metadata retained";
 validMarkers.stagingStepEvidence.note = "existing producer note retained";
 assert.equal(browserMarkerGroupsValid(validMarkers), true);
 
