@@ -50,7 +50,15 @@ const COMPONENTS = Object.freeze([
 export async function bindPositiveApplicationContracts(prisma, scope) {
   const applications = await prisma.application.findMany({
     where: { projectId: scope.projectId, status: "active" },
-    select: { id: true, name: true, repoPath: true },
+    select: {
+      id: true,
+      name: true,
+      repoPath: true,
+      services: {
+        where: { status: "active" },
+        select: { id: true, name: true, environmentId: true },
+      },
+    },
   });
   const bound = [];
   for (const component of COMPONENTS) {
@@ -59,42 +67,58 @@ export async function bindPositiveApplicationContracts(prisma, scope) {
         item.repoPath === component.repoPath || item.name === component.name,
     );
     if (!application) throw contractError(`application-${component.name}`);
+    const canonicalName =
+      application.services.find(
+        (service) => service.environmentId === scope.productionEnvId,
+      )?.name || component.name;
     const staging = await bindService(
       prisma,
       scope,
-      application.id,
+      application,
       component,
       "staging",
+      canonicalName,
     );
     const production = await bindService(
       prisma,
       scope,
-      application.id,
+      application,
       component,
       "production",
+      canonicalName,
     );
     bound.push({ applicationId: application.id, staging, production });
   }
   return bound;
 }
 
-function bindService(prisma, scope, applicationId, component, role) {
+function bindService(prisma, scope, application, component, role, name) {
   const environmentId =
     role === "staging" ? scope.stagingEnvId : scope.productionEnvId;
+  const existing = application.services.find(
+    (service) => service.environmentId === environmentId,
+  );
+  if (existing) {
+    return prisma.applicationService.update({
+      where: { id: existing.id },
+      data: { status: "active", deployConfig: component[role] },
+      select: { id: true },
+    });
+  }
   return prisma.applicationService.upsert({
     where: {
       applicationId_environmentId_name: {
-        applicationId,
+        applicationId: application.id,
         environmentId,
-        name: component.name,
+        name,
       },
     },
     create: {
       teamId: scope.teamId,
       projectId: scope.projectId,
-      applicationId,
+      applicationId: application.id,
       environmentId,
-      name: component.name,
+      name,
       status: "active",
       deployConfig: component[role],
     },
