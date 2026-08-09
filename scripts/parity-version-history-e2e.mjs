@@ -25,6 +25,7 @@ import {
 import { extractPositiveHistoryContext } from "./lib/parity-history-context.mjs";
 import { browserSecretReference, runHistoryBrowserSession } from "./lib/parity-history-browser-session.mjs";
 import { persistHistoryBrowserEvidence } from "./lib/parity-history-browser-evidence-persistence.mjs";
+import { waitForHistoryStackReadiness } from "./lib/parity-history-stack-readiness.mjs";
 import { environmentVersionMarkers } from "./lib/parity-history-environment-version-markers.mjs";
 import {
   productionGateEvidence,
@@ -95,6 +96,7 @@ async function main() {
   evidence.capturedAt = new Date().toISOString();
 
   // ---------------------------------------------------------------- preflight
+  await waitStackReady();
   let token;
   await step("preflight", async () => {
     const [health, web, target] = await Promise.all([
@@ -1146,15 +1148,11 @@ function runNode(args, label) {
 }
 
 async function waitStackReady() {
-  for (let i = 0; i < 60; i += 1) {
-    const [apiOk, webOk] = await Promise.all([
-      fetch(`${apiBase}/health`).then((r) => r.ok).catch(() => false),
-      fetch(`${webBase}/`).then((r) => r.ok).catch(() => false),
-    ]);
-    if (apiOk && webOk) return true;
-    await new Promise((r) => setTimeout(r, 2000));
-  }
-  throw new Error("stack did not become ready after reset");
+  return waitForHistoryStackReadiness({
+    apiHealthUrl: `${apiBase}/health`,
+    webUrl: `${webBase}/`,
+    targetUrl: `${runtime.targetOrigin}/`,
+  });
 }
 
 async function writeEvidence() {
