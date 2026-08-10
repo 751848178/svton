@@ -164,20 +164,16 @@ production deferral list itself is unchanged (D06/D09/D17/D20/D14/D15).
   process (`node dist/server.js` on port 4300) was tried first and collided
   with the same-container second deployment (`EADDRINUSE`), so no persistent
   processes are started; reachability evidence comes from the site probe.
-- **Site probe / route reachability (F455 finding)**: the probe runs INSIDE the
-  parity-api container. `http://127.0.0.1:43992` (the brief's literal
-  proxyTarget) is NOT reachable from inside the container, and Docker's
-  embedded DNS resolves `parity.example.test` to a 502 — a definitive negative
-  that the fail-closed probe policy correctly rejects
-  (`SITE_HTTP_PROBE_FAILED`). The production config revision (R2) therefore
-  freezes `routeSnapshot = {domains:["parity.example.test"], proxyTarget:
-"http://parity-target-workload", tlsRequired: true}`: the https:// final URL
-  is unreachable in-container, so the probe falls back to the parity-network
-  name of the target-workload container and genuinely PASSES (HTTP 200, body
-  signature `sha256:ddff5dd1…` — byte-identical to the host-side workload at
-  `http://127.0.0.1:43992`, which is what the browser pass loads for
-  AC-E2E-015). The staging routeSnapshot keeps the brief's literal
-  `proxyTarget http://127.0.0.1:43992` (staging deploys run no site probe).
+- **Site probe / route reachability (F455/F658 finding)**: the probe runs INSIDE
+  the parity-api container. Production revisions freeze `tlsRequired: false`
+  and the C5-only `parity-hosts-v1` profile rewrites the exact
+  `parity.example.test` final URL to the owned route-control port. The resolver
+  permits that non-public address only when the verified goal/runtime/source
+  identity tuple is present; ordinary compose and every other hostname remain
+  fail-closed. This makes both the HTTP 200 success route and the explicit HTTP
+  404 negative route real in-container probes without treating `proxyTarget`
+  as DNS/TLS evidence. Staging keeps the literal proxy target and runs no final
+  site probe.
 - **Fixture secret + resource scopes**: `SecretKey parity-secret-0001` and
   `ResourceInstance parity-resource-0001` are project-wide (`environmentId
 null`) so both the staging and the production config-revision CAS saves can

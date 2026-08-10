@@ -532,7 +532,7 @@ async function main() {
         routeSnapshot: {
           domains: ["parity.example.test"],
           proxyTarget: "http://parity-target-workload",
-          tlsRequired: true,
+          tlsRequired: false,
         },
         policyReferenceIds: [],
         expectedCurrentRevisionId: r2ProductionId,
@@ -1131,7 +1131,7 @@ async function main() {
           domains: ["parity.example.test"],
           proxyTarget:
             "http://parity-target-workload/parity-negative-probe-missing-457",
-          tlsRequired: true,
+          tlsRequired: false,
         },
         policyReferenceIds: [],
         expectedCurrentRevisionId: current,
