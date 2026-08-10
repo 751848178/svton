@@ -1342,7 +1342,7 @@ async function main() {
         `/projects/${projectId}/delivery/releases/${orderId}/production-releases`,
         {
           manifestId: MANIFEST_M2,
-          expectedInputHash: "f457-member",
+          expectedInputHash: "f".repeat(64),
           idempotencyKey: `f457-member-${Date.now()}`,
         },
       ],
