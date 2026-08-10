@@ -252,7 +252,7 @@ Each row records source, affected scope, reproduction/expected/actual/root cause
 - UI/UX/accessibility: **ACCEPTED** for the current signed-in browser matrix and visual review
 - Evidence confidence: **HIGH** for the current local-hosts identity-bound run
 - Production readiness: **ACCEPTED WITH LIMITATIONS**; public DNS/TLS and external provider signoff were not part of this run
-- Master integration readiness: **READY FOR REVIEW** through a non-force-pushed Ready PR; merge remains a user decision
+- Master integration readiness: **READY FOR REVIEW, CURRENTLY CONFLICTING** through non-Draft PR #1; 19 conflict paths are recorded and merge remains a user decision
 - Overall allowed value (`ACCEPTED`, `ACCEPTED WITH LIMITATIONS`, `REJECTED`): **ACCEPTED WITH LIMITATIONS**
 
 Final machine-readable result: `../devpilot/project-delivery-v13-final-result.json`. Final feature/UI checklist: `../devpilot/project-delivery-v13-final-acceptance-checklist.md`. The initial rejected checkpoint and its issue history remain above; F654-F664 and the current-run evidence supersede it for the final verdict without erasing the audit trail.

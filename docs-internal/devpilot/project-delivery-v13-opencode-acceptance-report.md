@@ -101,7 +101,7 @@ Evidence root: `/private/tmp/codex-tool-runs/svton/long-goals/devpilot-v13-openc
 - UI/UX/accessibility: **ACCEPTED** for the current browser/UI matrix
 - Evidence confidence: **HIGH**
 - Production readiness: **ACCEPTED WITH LIMITATIONS**
-- Master integration readiness: **READY FOR REVIEW; NOT MERGED**
+- Master integration readiness: **READY FOR REVIEW, CURRENTLY CONFLICTING; NOT MERGED**
 - Overall final verdict: **ACCEPTED WITH LIMITATIONS**
 
-The limitation is external rather than a hidden local failure: public DNS/TLS and an external route/provider production signoff were not exercised. The Ready PR status is recorded separately from runtime acceptance and does not authorize merge.
+The runtime limitation is external rather than a hidden local failure: public DNS/TLS and an external route/provider production signoff were not exercised. Ready PR [#1](https://github.com/751848178/svton/pull/1) is non-Draft against confirmed default branch `master`, but GitHub reports `CONFLICTING` across 19 API/Web/document paths from three master-only commits. The no-merge/no-history-rewrite boundary leaves that semantic integration for follow-up; the PR does not authorize merge.

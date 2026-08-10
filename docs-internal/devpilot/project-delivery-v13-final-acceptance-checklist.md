@@ -51,4 +51,6 @@
 - [x] Cleanup verified.
 - [x] Local hosts verified: `local_hosts_full_chain_verified`.
 - [x] External boundary explicit: `public_dns_tls_and_external_provider_signoff_out_of_scope`.
+- [x] Ready non-Draft PR #1 was created against the confirmed default branch `master`.
+- [x] GitHub's current `CONFLICTING` mergeability and 19 conflict paths are recorded as an integration follow-up; no merge or history rewrite was performed.
 - [ ] Merge is intentionally not performed; it remains the user's decision after Ready PR review.
