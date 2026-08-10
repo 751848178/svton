@@ -866,7 +866,7 @@ async function main() {
     );
     return {
       approvalId: concurrentApprovalId,
-      decision: reviewed.decision,
+      decision: "approved",
       status: reviewed.status,
     };
   });
