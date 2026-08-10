@@ -3,7 +3,7 @@
  *
  * 单一职责：在 environment-detail-drawer 内编排「部署时会注入该环境的变量」展示与编辑。
  *   - 普通变量：来自 environment.config.envVars，编辑委托给 EnvironmentPlainVarsEditor，
- *     落库走 use-environment-env-vars（PUT /project-environments/:id）。
+ *     落库走 use-environment-env-vars（创建不可变 EnvironmentConfigRevision）。
  *   - 批量导入：EnvironmentEnvImportModal 解析粘贴的 .env，mergeDraft 合并进暂存区。
  *   - staged changes：draft 与已落库 vars 不一致时顶栏提示「N 项待部署」，
  *     Review 弹窗显示 diff（新增/修改/删除），Deploy 一次性落库。

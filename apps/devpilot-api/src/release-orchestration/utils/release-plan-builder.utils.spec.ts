@@ -13,6 +13,7 @@ function picshareServices(): ReleaseServiceInput[] {
       environmentId: "env-prod",
       serverId: "srv-1",
       serviceName: "backend",
+      workingDirectory: "apps/backend",
       preStartCheckCommand: "make config-check",
       migrationCommand: "make db-migrate",
       initializationCommand: "make bootstrap",
@@ -52,6 +53,10 @@ describe("release-plan-builder buildReleasePlan", () => {
     expect(keys).toContain("health_check:svc-backend");
     expect(keys).toContain("application_deploy:svc-admin");
     expect(keys).toContain("health_check:svc-admin");
+    for (const type of ["schema_migration", "bootstrap", "data_backfill"]) {
+      expect(r.value.stages.find((stage) => stage.type === type)?.configSnapshot)
+        .toMatchObject({ workingDirectory: "apps/backend" });
+    }
   });
 
   // F383 P0-A 回归：schema_migration 的 configSnapshot.command 必须在 builder 层就地脱敏，

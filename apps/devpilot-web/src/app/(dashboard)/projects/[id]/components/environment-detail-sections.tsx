@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { StatusTag } from '@/components/ui';
 import { getEnvStatusLabelKey } from '../utils/run-labels';
+import { ResourceCountChips } from './environment-resource-count-chips';
 import type { ProjectEnvironment } from '../types';
 
 type ProjectsTranslator = ReturnType<typeof useTranslations<'projects'>>;
@@ -74,35 +75,16 @@ export function ResourceCounts({
   environment: ProjectEnvironment;
   t: ProjectsTranslator;
 }) {
-  const c = environment._count;
-  if (!c) return null;
-  const chips: Array<{ key: string; value: number }> = [
-    { key: 'envCountServers', value: c.serverBindings ?? 0 },
-    { key: 'envCountSites', value: c.sites ?? 0 },
-    { key: 'envCountManaged', value: c.managedResources ?? 0 },
-    { key: 'envCountInstances', value: c.resourceInstances ?? 0 },
-    { key: 'envCountSecrets', value: c.secretKeys ?? 0 },
-    { key: 'envCountCdn', value: c.cdnConfigs ?? 0 },
-    { key: 'envCountRequests', value: c.resourceRequests ?? 0 },
-    { key: 'envCountRuns', value: c.deploymentRuns ?? 0 },
-  ];
+  if (!environment._count) return null;
   return (
     <section className="space-y-2">
       <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         {t('envDetailResourceCounts')}
       </h4>
-      <div className="flex flex-wrap gap-2">
-        {chips.map((chip) => (
-          <span
-            key={chip.key}
-            className="rounded-md border bg-muted/40 px-2 py-1 text-xs"
-            title={t(chip.key)}
-          >
-            <span className="font-semibold">{chip.value}</span>{' '}
-            <span className="text-muted-foreground">{t(chip.key)}</span>
-          </span>
-        ))}
-      </div>
+      <ResourceCountChips
+        environment={environment}
+        t={t}
+      />
     </section>
   );
 }

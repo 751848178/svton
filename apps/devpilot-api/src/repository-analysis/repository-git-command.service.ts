@@ -6,6 +6,7 @@ import { tmpdir } from 'os';
 import { REPOSITORY_ANALYSIS_DEFAULTS } from './repository-analysis.constants';
 import { mapGitFailure } from './repository-git-error.utils';
 import { RepositoryCredentialMaterial } from './repository-analysis.types';
+import { repositoryGitEnvironment } from './repository-git-environment.utils';
 
 type GitAuth = { env: NodeJS.ProcessEnv; cleanup: () => Promise<void> };
 
@@ -35,11 +36,14 @@ export class RepositoryGitCommandService {
   }
 
   private async createAuth(credential: RepositoryCredentialMaterial): Promise<GitAuth> {
-    const baseEnv = { ...process.env, GIT_TERMINAL_PROMPT: '0' };
-    if (credential.kind === 'none') {
-      return { env: baseEnv, cleanup: async () => undefined };
-    }
     const dir = await mkdtemp(`${tmpdir()}/devpilot-git-auth-`);
+    const baseEnv = repositoryGitEnvironment(dir);
+    if (credential.kind === 'none') {
+      return {
+        env: baseEnv,
+        cleanup: () => rm(dir, { recursive: true, force: true }),
+      };
+    }
     if (credential.kind === 'https_token') {
       const askPass = `${dir}/askpass.sh`;
       await writeFile(

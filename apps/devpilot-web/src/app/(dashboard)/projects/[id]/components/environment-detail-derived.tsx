@@ -51,17 +51,9 @@ export function ConfigProfile({
   );
 }
 
-export function LastDeployment({
-  run,
-  t,
-}: {
-  run: DeploymentRun | null;
-  t: ProjectsTranslator;
-}) {
+export function LastDeployment({ run, t }: { run: DeploymentRun | null; t: ProjectsTranslator }) {
   if (!run) {
-    return (
-      <p className="text-xs text-muted-foreground">{t('envDetailNoDeployment')}</p>
-    );
+    return <p className="text-xs text-muted-foreground">{t('envDetailNoDeployment')}</p>;
   }
   const statusKey = getRunStatusLabelKey(run.status);
   return (
@@ -70,13 +62,14 @@ export function LastDeployment({
         {t('envDetailLastDeployment')}
       </h4>
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <StatusTag status={run.status} label={statusKey ? t(statusKey) : run.status} />
+        <StatusTag
+          status={run.status}
+          label={t(statusKey)}
+        />
         {run.branch ? (
           <span className="font-mono text-xs text-muted-foreground">{run.branch}</span>
         ) : null}
-        <span className="text-xs text-muted-foreground">
-          {formatDateTimeMinute(run.startedAt)}
-        </span>
+        <span className="text-xs text-muted-foreground">{formatDateTimeMinute(run.startedAt)}</span>
       </div>
     </section>
   );

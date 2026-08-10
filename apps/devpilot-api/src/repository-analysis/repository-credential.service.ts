@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CryptoService } from '../common/crypto/crypto.service';
 import { PrismaService } from '../prisma/prisma.service';
-import type { RepositoryConnection } from '@prisma/client';
+import type { Prisma, RepositoryConnection } from '@prisma/client';
 import { repositoryError } from './repository-analysis-validation.utils';
 import {
   RepositoryCredentialMaterial,
@@ -89,12 +89,13 @@ export class RepositoryCredentialService {
   async persistInline(
     teamId: string,
     material: RepositoryCredentialMaterial,
+    tx?: Prisma.TransactionClient,
   ): Promise<RepositoryCredentialMaterial> {
     if (material.source !== 'inline') return material;
     const config = material.kind === 'ssh_key'
       ? { username: material.username, privateKey: material.secret }
       : { username: material.username, token: material.secret };
-    const stored = await this.prisma.teamCredential.create({
+    const stored = await (tx || this.prisma).teamCredential.create({
       data: {
         teamId,
         type: material.kind === 'ssh_key' ? 'git_ssh' : 'git_https',

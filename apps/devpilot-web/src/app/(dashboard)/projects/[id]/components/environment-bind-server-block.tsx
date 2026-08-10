@@ -74,7 +74,7 @@ export function BindServerBlock({
         onClose={() => setBindOpen(false)}
         excludeIds={bindings.map((b) => b.server.id)}
         onConfirm={async (serverId, role) => {
-          const ok = await actions.bindServer(serverId, role);
+          const ok = await actions.bindServer(serverId, role ? { role } : {});
           if (ok) setBindOpen(false);
         }}
       />

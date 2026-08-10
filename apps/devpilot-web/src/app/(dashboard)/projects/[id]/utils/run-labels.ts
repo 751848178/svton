@@ -2,24 +2,17 @@
  * 部署运行状态/来源 - 标签 key 映射
  *
  * 单一职责：把运行状态、来源、环境、服务状态等原始字符串，
- * 映射为 `projects` 命名空间下的本地化 key。返回 null 表示无匹配，
- * 由调用方回退展示原始值。
+ * 映射为 `projects` 命名空间下的本地化 key。运行状态始终返回本地化
+ * 未知兜底；来源、环境与服务值允许调用方选择各自的非原始值兜底。
  *
  * 抽取自 deployment-panel / applications-panel / environment-panel 中的重复逻辑。
  */
 
-/** 部署运行状态值 → 本地化标签 key（未知值返回 null）。 */
-export function getRunStatusLabelKey(status: string): string | null {
-  const s = status.toLowerCase();
-  if (s === 'queued') return 'runStatusQueued';
-  if (s === 'running') return 'runStatusRunning';
-  if (s === 'completed') return 'runStatusCompleted';
-  if (s === 'failed') return 'runStatusFailed';
-  if (s === 'blocked') return 'runStatusBlocked';
-  if (s === 'succeeded' || s === 'success') return 'runStatusSucceeded';
-  if (s === 'pending') return 'runStatusPending';
-  if (s === 'cancelled' || s === 'canceled') return 'runStatusCancelled';
-  return null;
+import { releaseRunStatusLabelKey } from './release-copy.model';
+
+/** 部署运行状态值 → 本地化标签 key（未知值使用本地化兜底）。 */
+export function getRunStatusLabelKey(status: string): string {
+  return releaseRunStatusLabelKey(status);
 }
 
 /** 部署来源原始值 → 本地化标签 key（未知值返回 null）。 */

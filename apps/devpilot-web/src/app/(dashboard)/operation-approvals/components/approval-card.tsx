@@ -21,6 +21,7 @@ interface ApprovalCardProps {
   approval: OperationApproval;
   currentUserId?: string;
   actingId: string;
+  focused?: boolean;
   onReview: (approval: OperationApproval, decision: ApprovalDecision, comment?: string) => void;
   onExecute: (approval: OperationApproval) => void;
 }
@@ -29,6 +30,7 @@ export function ApprovalCard({
   approval,
   currentUserId,
   actingId,
+  focused = false,
   onReview,
   onExecute,
 }: ApprovalCardProps) {
@@ -44,13 +46,25 @@ export function ApprovalCard({
     setDecision(null);
   });
 
-  const actionLabel = humanizeAction(approval.action, actionLabels);
+  const actionLabel =
+    approval.action === 'project.release_order.deploy_production'
+      ? t('actionReleaseDeployProduction')
+      : humanizeAction(approval.action, actionLabels);
+  const categoryLabel =
+    approval.category === 'release'
+      ? t('categoryRelease')
+      : categoryLabels[approval.category] || approval.category;
+  const canReview = approval.capabilities?.review === true;
   const isSelfApproval = Boolean(
     currentUserId && approval.requesterId && currentUserId === approval.requesterId,
   );
 
   return (
-    <div className="rounded-lg border p-4">
+    <div
+      className={`rounded-lg border p-4 ${focused ? 'ring-2 ring-primary' : ''}`}
+      data-approval-id={approval.id}
+      aria-current={focused ? 'true' : undefined}
+    >
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -66,7 +80,7 @@ export function ApprovalCard({
             />
           </div>
           <div className="mt-2 text-sm text-muted-foreground">
-            {categoryLabels[approval.category] || approval.category} · {actionLabel}
+            {categoryLabel} · {actionLabel}
           </div>
           <div className="mt-1 text-sm text-muted-foreground">
             {t('target', { target: formatTarget(approval) })}
@@ -97,13 +111,16 @@ export function ApprovalCard({
             {approval.reviewer
               ? ` · ${t('reviewer', { name: approval.reviewer.name || approval.reviewer.email })}`
               : ''}
+            {approval.reviewedAt
+              ? ` · ${t('reviewedAt', { date: formatDateTime(approval.reviewedAt) })}`
+              : ''}
             {approval.consumedAt
               ? ` · ${t('consumed', { date: formatDateTime(approval.consumedAt) })}`
               : ''}
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          {approval.status === 'pending' ? (
+          {approval.status === 'pending' && canReview ? (
             <div className="space-y-1">
               <div className="flex flex-wrap gap-2">
                 <button
@@ -121,19 +138,42 @@ export function ApprovalCard({
                   {actingId === `${approval.id}:rejected` ? t('processing') : t('reject')}
                 </button>
               </div>
-              {isSelfApproval && (
+              {isSelfApproval ? (
                 <p className="max-w-48 text-xs text-amber-700">{t('selfApprovalBlocked')}</p>
-              )}
+              ) : null}
             </div>
           ) : null}
-          {approval.status === 'approved' && !approval.consumedAt ? (
-            <button
-              onClick={handleExecute}
-              disabled={Boolean(actingId)}
-              className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
+          {approval.status === 'pending' && !canReview ? (
+            <span
+              className="rounded-md border bg-muted/30 px-3 py-1.5 text-sm text-muted-foreground"
+              role="status"
             >
-              {actingId === `${approval.id}:execute` ? t('executing') : t('executeApproved')}
-            </button>
+              {t('reviewRequiresAdmin')}
+            </span>
+          ) : null}
+          {approval.status === 'approved' && !approval.consumedAt ? (
+            approval.category === 'release' ? (
+              <span className="flex flex-wrap items-center gap-2">
+                <button
+                  disabled
+                  title={t('executeReleaseInProjectContext')}
+                  className="cursor-not-allowed rounded-md border px-3 py-1.5 text-sm opacity-50"
+                >
+                  {t('executeApproved')}
+                </button>
+                <span className="text-xs text-muted-foreground">
+                  {t('executeReleaseInProjectContext')}
+                </span>
+              </span>
+            ) : (
+              <button
+                onClick={handleExecute}
+                disabled={Boolean(actingId)}
+                className="rounded-md border px-3 py-1.5 text-sm hover:bg-accent disabled:opacity-50"
+              >
+                {actingId === `${approval.id}:execute` ? t('executing') : t('executeApproved')}
+              </button>
+            )
           ) : null}
         </div>
       </div>

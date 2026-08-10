@@ -28,8 +28,9 @@ function approvalsKey(status: string): string {
     : `GET:/operation-approvals?status=${status}`;
 }
 
-export function useApprovals(initialApprovals?: OperationApproval[]) {
-  const [status, setStatus] = useState(DEFAULT_STATUS);
+export function useApprovals(initialApprovals?: OperationApproval[], initialApprovalId?: string) {
+  // 深链 ?id= 时默认切到全量视图，保证被聚焦的审批（可能是已批准/已拒绝）可见。
+  const [status, setStatus] = useState(initialApprovalId ? 'all' : DEFAULT_STATUS);
   const [actingId, setActingId] = useState('');
   const [error, setError] = useState('');
 

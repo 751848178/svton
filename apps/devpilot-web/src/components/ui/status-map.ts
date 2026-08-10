@@ -27,6 +27,11 @@ export type StatusTone =
 
 /** 状态（小写）→ 语义色调。 */
 export const STATUS_TONE_MAP: Record<string, StatusTone> = {
+  // 已归一化的语义色调可直接透传给 StatusTag。
+  neutral: 'neutral',
+  progress: 'progress',
+  danger: 'danger',
+
   // 🟢 就绪 / 成功 / 健康
   active: 'success',
   available: 'success',

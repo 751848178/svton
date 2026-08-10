@@ -32,18 +32,36 @@ export interface SshCancellationSignal {
   onAbort(callback: () => void): () => void;
 }
 
+export interface SshTransportUploadOptions {
+  timeoutMs: number;
+  mode?: number;
+}
+
 export interface SshTransport {
   /**
    * 执行一段脚本：通过 stdin 写入 `script`，远端用 `bash -se` 执行，
    * 收集 stdout/stderr，支持超时与取消。
    */
-  execScript(script: string, options: SshTransportExecOptions): Promise<SshTransportExecResult>;
+  execScript(
+    script: string,
+    options: SshTransportExecOptions,
+  ): Promise<SshTransportExecResult>;
 
   /**
    * 执行一条远程命令（非交互），用于进程树 kill 等清理操作。
    * 返回 exitCode（0/null 视为成功），失败 reject。
    */
-  execCommand(command: string, options: { timeoutMs: number }): Promise<{ exitCode: number | null; stderr: string }>;
+  execCommand(
+    command: string,
+    options: { timeoutMs: number },
+  ): Promise<{ exitCode: number | null; stderr: string }>;
+
+  /** Upload one exact local file through SFTP without invoking a remote shell. */
+  uploadFile?(
+    localPath: string,
+    remotePath: string,
+    options: SshTransportUploadOptions,
+  ): Promise<void>;
 
   /** 释放传输底层连接（如有）。 */
   dispose?(): void | Promise<void>;

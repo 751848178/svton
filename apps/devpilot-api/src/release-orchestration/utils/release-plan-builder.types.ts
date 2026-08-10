@@ -17,6 +17,7 @@ export interface ReleaseServiceInput {
   environmentId: string;
   serverId?: string | null;
   serviceName: string;
+  workingDirectory?: string;
   preStartCheckCommand?: string;
   migrationCommand?: string;
   initializationCommand?: string;

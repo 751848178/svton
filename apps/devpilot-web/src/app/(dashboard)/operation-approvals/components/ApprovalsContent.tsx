@@ -1,10 +1,10 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
 import { PageHeader, ErrorBanner, MetricCard, Button, Select } from '@/components/ui';
-import { useAuthStore } from '@/store/hooks';
 import { useApprovals } from '../hooks/use-approvals';
 import { ApprovalCard } from './approval-card';
 import type { OperationApproval } from '../types';
@@ -13,15 +13,30 @@ import type { OperationApproval } from '../types';
  * 操作审批客户端视图。
  *
  * 接收首屏 server 数据 initialApprovals（默认 pending 视图的 SWR fallback）。
- * 状态筛选、审批决策、已批准执行等交互在此完成。
+ * 状态筛选、审批决策、已批准执行等交互在此完成。深链 ?id=<approvalId> 时
+ * 自动定位到对应卡片（initialApprovalId）。
  */
-export function ApprovalsContent({ initialApprovals }: { initialApprovals?: OperationApproval[] }) {
+export function ApprovalsContent({
+  initialApprovals,
+  initialApprovalId,
+}: {
+  initialApprovals?: OperationApproval[];
+  initialApprovalId?: string;
+}) {
   const t = useTranslations('operationApprovals');
   const tc = useTranslations('common');
-  const { user } = useAuthStore();
   const { approvals, status, setStatus, loading, actingId, error, stats, review, execute, reload } =
-    useApprovals(initialApprovals);
+    useApprovals(initialApprovals, initialApprovalId);
   const handleRetry = usePersistFn(() => reload());
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!initialApprovalId) return;
+    const element = listRef.current?.querySelector(
+      `[data-approval-id="${CSS.escape(initialApprovalId)}"]`,
+    );
+    element?.scrollIntoView({ block: 'center' });
+  }, [initialApprovalId, approvals, loading]);
 
   const statusOptions = [
     { value: 'pending', label: t('statusPending') },
@@ -50,7 +65,7 @@ export function ApprovalsContent({ initialApprovals }: { initialApprovals?: Oper
           onRetry={handleRetry}
         />
       ) : null}
-      <div className="grid gap-4 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5 md:gap-4">
         <MetricCard
           label={t('metricCurrentList')}
           value={stats.total}
@@ -89,13 +104,16 @@ export function ApprovalsContent({ initialApprovals }: { initialApprovals?: Oper
           description={t('noApprovalsHint')}
         />
       ) : (
-        <div className="grid gap-4">
+        <div
+          ref={listRef}
+          className="grid gap-4"
+        >
           {approvals.map((approval) => (
             <ApprovalCard
               key={approval.id}
               approval={approval}
-              currentUserId={user?.id}
               actingId={actingId}
+              focused={approval.id === initialApprovalId}
               onReview={review}
               onExecute={execute}
             />

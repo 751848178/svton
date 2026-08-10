@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from "@nestjs/common";
+import { BadRequestException, Injectable } from "@nestjs/common";
 import { ControlAccessPolicyService } from "../control-access-policy";
 import {
   ListOperationApprovalsQueryDto,
@@ -10,6 +6,7 @@ import {
 } from "./dto/operation-approval.dto";
 import { OperationApprovalAuditService } from "./operation-approval-audit.service";
 import { OperationApprovalMatchService } from "./operation-approval-match.service";
+import { OperationApprovalReviewService } from "./operation-approval-review.service";
 import { OperationApprovalRequirementService } from "./operation-approval-requirement.service";
 import { OperationApprovalRepository } from "./operation-approval.repository";
 import {
@@ -26,6 +23,7 @@ export class OperationApprovalService {
     private readonly approvalAuditService: OperationApprovalAuditService,
     private readonly approvalRequirementService: OperationApprovalRequirementService,
     private readonly accessPolicyService: ControlAccessPolicyService,
+    private readonly reviewService: OperationApprovalReviewService,
   ) {}
 
   async list(teamId: string, query: ListOperationApprovalsQueryDto) {
@@ -71,57 +69,15 @@ export class OperationApprovalService {
     return approval;
   }
 
+  // F470：并发审批已移至 OperationApprovalReviewService（CAS + 交互式事务 + 唯一 audit）。
+  // 本方法保留为薄 facade，参数契约不变（控制器仍调用 approvalService.review）。
   async review(
     teamId: string,
     reviewerId: string,
     approvalId: string,
     dto: ReviewOperationApprovalDto,
   ) {
-    const approval = await this.approvalRepository.findByIdForTeam(
-      teamId,
-      approvalId,
-    );
-
-    if (!approval) {
-      throw new NotFoundException("操作审批不存在");
-    }
-
-    if (approval.status !== "pending") {
-      throw new BadRequestException("只有待审批的操作可以审批");
-    }
-
-    if (approval.requesterId && approval.requesterId === reviewerId) {
-      throw new BadRequestException("申请人不能审批自己的操作");
-    }
-
-    if (!dto.reviewComment?.trim()) {
-      throw new BadRequestException("审批意见不能为空");
-    }
-
-    await this.accessPolicyService.assertCanReviewApproval({
-      teamId,
-      actorId: reviewerId,
-      projectId: approval.projectId,
-      environmentId: approval.environmentId,
-      category: approval.category,
-      action: approval.action,
-      targetType: approval.targetType,
-      targetId: approval.targetId,
-      risk: approval.risk,
-    });
-
-    const reviewed = await this.approvalRepository.review(
-      approval.id,
-      reviewerId,
-      dto,
-    );
-
-    await this.approvalAuditService.writeApprovalAudit(
-      reviewed,
-      dto.decision === "approved" ? "approval.approved" : "approval.rejected",
-      dto.decision,
-    );
-    return reviewed;
+    return this.reviewService.review(teamId, reviewerId, approvalId, dto);
   }
 
   async resolveApproved(input: ValidateOperationApprovalInput) {

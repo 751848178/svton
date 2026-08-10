@@ -9,8 +9,12 @@ export interface ProjectEnvironment {
   id: string;
   key: string;
   name: string;
+  description?: string | null;
   status: string;
   sortOrder: number;
+  baselineRole?: 'staging' | 'production' | null;
+  identityLockedAt?: string | null;
+  currentConfigRevisionId?: string | null;
   /**
    * 环境级配置（后端 ProjectEnvironment.config Json?）。
    * 其中 `envVars` 承载该环境的普通（非密钥）环境变量 KEY=VALUE，由部署注入
@@ -33,8 +37,50 @@ export interface ProjectEnvironment {
   serverBindings?: Array<{
     id: string;
     role?: string | null;
+    metadata?: Record<string, unknown> | null;
     server: { id: string; name: string; host: string; status: string };
   }>;
+}
+
+/**
+ * GET /project-environments/:id/targets — the Demo-aligned 部署目标 payload
+ * (AC-SET-017/023/024): the provider-matched CURRENT target resolved with the
+ * same rules the deploy path uses, plus every active binding.
+ */
+export interface EnvironmentDeploymentTargetServer {
+  id: string;
+  name: string;
+  host: string;
+  status: string;
+}
+
+export interface EnvironmentDeploymentCurrentTarget {
+  bindingId: string;
+  serverId: string;
+  providerKey: string;
+  targetRef: string;
+  root: string;
+  server: EnvironmentDeploymentTargetServer;
+  sharedEnvironmentIds: string[];
+  versionHash: string;
+}
+
+export interface EnvironmentDeploymentTargetBinding {
+  id: string;
+  role: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  providerKey: string | null;
+  sharedEnvironmentIds: string[];
+  metadata: Record<string, unknown> | null;
+  server: EnvironmentDeploymentTargetServer;
+}
+
+export interface EnvironmentDeploymentTargets {
+  providerKey: string | null;
+  currentTarget: EnvironmentDeploymentCurrentTarget | null;
+  bindings: EnvironmentDeploymentTargetBinding[];
 }
 
 export interface ProjectAllocation {
@@ -46,14 +92,54 @@ export interface ProjectAllocation {
   pool?: { id: string; name: string; type: string } | null;
 }
 
+export interface ProjectSiteDnsProbe {
+  status?: string | null;
+  hostname?: string | null;
+  records?: string[] | null;
+  error?: { code?: string | null; message?: string | null } | null;
+  checkedAt?: string | null;
+}
+
+export interface ProjectSiteTls {
+  status?: string | null;
+  enabled?: boolean;
+  type?: string | null;
+  expiresAt?: string | null;
+  probe?: {
+    status?: string | null;
+    host?: string | null;
+    port?: number | null;
+    servername?: string | null;
+    checkedAt?: string | null;
+    error?: { code?: string | null; message?: string | null } | null;
+  } | null;
+}
+
+export interface ProjectSiteRouteSwitch {
+  status?: string | null;
+  domains?: string[] | null;
+  version?: number | null;
+  releaseRunId?: string | null;
+  deploymentRunId?: string | null;
+  targetRef?: string | null;
+  proxyTarget?: string | null;
+  reasonCode?: string | null;
+  switchedAt?: string | null;
+}
+
 export interface ProjectSite {
   id: string;
   name: string;
   primaryDomain: string;
+  aliases?: string[] | null;
   runtimeType: string;
   runtimeConfig?: Record<string, unknown> | null;
-  tls?: Record<string, unknown> | null;
+  tls?: ProjectSiteTls | null;
   status: string;
+  lastSyncAt?: string | null;
+  syncError?: string | null;
+  dns?: ProjectSiteDnsProbe | null;
+  routeSwitch?: ProjectSiteRouteSwitch | null;
   environment?: { id: string; key: string; name: string; status: string } | null;
   server?: { id: string; name: string; host: string; status: string } | null;
   proxyConfig?: { id: string; name: string; domain: string; status: string } | null;

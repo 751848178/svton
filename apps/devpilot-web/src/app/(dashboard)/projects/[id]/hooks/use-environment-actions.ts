@@ -17,7 +17,15 @@ import { apiRequest } from '@/lib/api-client';
 import { feedback } from '@/components/ui/feedback/feedback';
 import type { ProjectEnvironment } from '../types';
 
-export type EnvironmentServerRole = 'deploy' | 'runtime' | 'database' | 'edge' | 'mixed';
+export type EnvironmentServerRole = 'deploy' | 'deployment' | 'runtime' | 'database' | 'edge' | 'mixed';
+
+export interface EnvironmentBindTargetInput {
+  role?: EnvironmentServerRole;
+  providerKey?: string;
+  root?: string;
+  targetRef?: string;
+  sharedEnvironmentIds?: string[];
+}
 
 export interface UseEnvironmentActionsArgs {
   environment: ProjectEnvironment | null;
@@ -30,7 +38,11 @@ export function useEnvironmentActions(args: UseEnvironmentActionsArgs) {
   const [acting, setActing] = useState(false);
 
   const update = usePersistFn(
-    async (patch: Partial<Pick<ProjectEnvironment, 'name' | 'status'>>): Promise<boolean> => {
+    async (
+      patch: Partial<Pick<ProjectEnvironment, 'name' | 'description' | 'status'>> & {
+        reason?: string;
+      },
+    ): Promise<boolean> => {
       if (!environment) return false;
       setActing(true);
       try {
@@ -74,14 +86,20 @@ export function useEnvironmentActions(args: UseEnvironmentActionsArgs) {
   const bindServer = usePersistFn(
     async (
       serverId: string,
-      role?: EnvironmentServerRole,
+      input: EnvironmentBindTargetInput = {},
     ): Promise<boolean> => {
       if (!environment) return false;
       setActing(true);
       try {
         await apiRequest(`POST:/project-environments/${environment.id}/servers`, {
           serverId,
-          role,
+          ...(input.role ? { role: input.role } : {}),
+          ...(input.providerKey ? { providerKey: input.providerKey } : {}),
+          ...(input.root ? { root: input.root } : {}),
+          ...(input.targetRef ? { targetRef: input.targetRef } : {}),
+          ...(input.sharedEnvironmentIds
+            ? { sharedEnvironmentIds: input.sharedEnvironmentIds }
+            : {}),
         });
         // 服务器绑定改动需父级重载才能拿到最新的 serverBindings
         onSaved(environment);

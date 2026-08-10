@@ -14,6 +14,8 @@ export interface ParsedEnvEntry {
   value: string;
   /** 该行是否为有效 KEY（命中 ^[A-Z_][A-Z0-9_]*$ 由调用方判定时回填，默认 false）。 */
   valid: boolean;
+  /** 疑似敏感 KEY（命中敏感命名启发式，建议走密钥中心，不进入普通变量提交）。 */
+  sensitive: boolean;
   /** 解析失败原因（用于 UI 提示，例如空 KEY、重复 KEY）。 */
   reason?: string;
 }
@@ -22,6 +24,10 @@ export interface ParsedEnvResult {
   entries: ParsedEnvEntry[];
   /** 去重后的有效记录（后出现的覆盖先出现的，与 .env 语义一致）。 */
   vars: Record<string, string>;
+  /** 有效且非敏感的记录（可安全进入普通变量提交）。 */
+  plainVars: Record<string, string>;
+  /** 有效但疑似敏感的记录（建议密钥中心，从普通变量提交中排除）。 */
+  sensitiveVars: Record<string, string>;
   /** 重复 KEY 出现的次数（KEY → 次数），用于提示用户。 */
   duplicates: Record<string, number>;
   /** 无法解析的行数（注释/空行不计入）。 */
@@ -61,6 +67,22 @@ export function isValidEnvKeyStrict(key: string): boolean {
 }
 
 /**
+ * F447 AC-SET-035: 疑似敏感 KEY 启发式分类。
+ *
+ * 命中以下命名模式的 KEY 被标记为「疑似敏感」并建议走密钥中心：
+ *   - 后缀 _SECRET / _PASSWORD / _TOKEN / _CREDENTIAL(S) / _KEY
+ *   - 前缀 API_ / ACCESS_ / AUTH_ / PRIVATE_ 加 KEY/SECRET/TOKEN/ID
+ *   - 任意位置出现 SECRET / PASSWORD / TOKEN / CREDENTIAL
+ * 启发式不追求完备；分类结果仅用于导入预览提示与从普通变量提交中排除。
+ */
+export function isSensitiveEnvKey(key: string): boolean {
+  const k = key.toUpperCase();
+  if (/_(SECRET|PASSWORD|TOKEN|KEY|CREDENTIALS?)$/.test(k)) return true;
+  if (/^(API|ACCESS|AUTH|PRIVATE|PUBLIC)_(KEY|SECRET|TOKEN|ID)$/.test(k)) return true;
+  return /(SECRET|PASSWORD|TOKEN|CREDENTIAL)/.test(k);
+}
+
+/**
  * 解析 .env 文本为记录列表 + 去重后的 vars。
  *
  * 行级规则：
@@ -68,12 +90,16 @@ export function isValidEnvKeyStrict(key: string): boolean {
  *   - 仅在首个 `=` 处切分，KEY 取左侧 trimmed，VALUE 取右侧 trimmed 后去引号。
  *   - 无 `=` 或空 KEY 计入 invalid。
  *   - 重复 KEY：vars 覆盖（后者胜），同时记录 duplicates 计数。
+ *   - 有效 KEY 再按 isSensitiveEnvKey 分类：敏感项进入 sensitiveVars，
+ *     非敏感项进入 plainVars（供导入暂存提交使用）。
  *
  * 不抛异常；解析容错由返回值的 invalidCount / duplicates 表达。
  */
 export function parseEnvText(text: string): ParsedEnvResult {
   const entries: ParsedEnvEntry[] = [];
   const vars: Record<string, string> = {};
+  const plainVars: Record<string, string> = {};
+  const sensitiveVars: Record<string, string> = {};
   const duplicates: Record<string, number> = {};
   let invalidCount = 0;
 
@@ -85,7 +111,7 @@ export function parseEnvText(text: string): ParsedEnvResult {
     const eq = line.indexOf('=');
     if (eq <= 0) {
       invalidCount += 1;
-      entries.push({ key: line, value: '', valid: false, reason: 'no-equals' });
+      entries.push({ key: line, value: '', valid: false, sensitive: false, reason: 'no-equals' });
       continue;
     }
 
@@ -95,19 +121,23 @@ export function parseEnvText(text: string): ParsedEnvResult {
 
     if (key === '') {
       invalidCount += 1;
-      entries.push({ key, value, valid: false, reason: 'empty-key' });
+      entries.push({ key, value, valid: false, sensitive: false, reason: 'empty-key' });
       continue;
     }
 
     const valid = isValidEnvKeyStrict(key);
     if (!valid) invalidCount += 1;
+    const sensitive = valid && isSensitiveEnvKey(key);
 
     if (vars[key] !== undefined) {
       duplicates[key] = (duplicates[key] ?? 1) + 1;
     }
     vars[key] = value;
-    entries.push({ key, value, valid });
+    if (valid) {
+      (sensitive ? sensitiveVars : plainVars)[key] = value;
+    }
+    entries.push({ key, value, valid, sensitive });
   }
 
-  return { entries, vars, duplicates, invalidCount };
+  return { entries, vars, plainVars, sensitiveVars, duplicates, invalidCount };
 }

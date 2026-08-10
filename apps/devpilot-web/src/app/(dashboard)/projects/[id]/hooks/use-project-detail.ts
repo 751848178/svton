@@ -1,14 +1,10 @@
-/**
- * 项目详情数据 Hook
- *
- * 单一职责：加载项目详情、部署运行与 Webhook 列表，
- * 暴露加载错误状态供页面渲染 ErrorBanner 重试。
- */
+/** 加载项目详情、部署运行与 Webhook，并暴露页面重试状态。 */
 
 import { useEffect, useState } from 'react';
 import { usePersistFn } from '@svton/hooks';
 import { apiRequest } from '@/lib/api-client';
 import { getProjectDescription } from '@/lib/project-display';
+import { useAuthStore, useTeamStore } from '@/store/hooks';
 import type { Project } from '../types';
 import type { DeploymentRun, ProjectWebhook } from '../types/operations';
 import type {
@@ -19,8 +15,13 @@ import {
   buildResourceBulkBindRequest,
   createEmptyResourceBulkBindSelection,
 } from '../utils/resource-bulk-bind';
+import { shouldReportLoadError } from '../utils/load-error.utils';
+import { shouldLoadProjectDetail } from '../utils/project-detail-scope.utils';
 
 export function useProjectDetail(projectId: string, deploymentRunId?: string) {
+  const actorId = useAuthStore().user?.id ?? null;
+  const teamId = useTeamStore().currentTeam?.id ?? null;
+  const scopeReady = shouldLoadProjectDetail(actorId, teamId);
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -41,6 +42,8 @@ export function useProjectDetail(projectId: string, deploymentRunId?: string) {
     useState<EnvironmentResourceBulkBindResult | null>(null);
 
   const loadProject = usePersistFn(async () => {
+    if (!scopeReady) return;
+    setLoading(true);
     try {
       const data = await apiRequest<Project>(`GET:/projects/${projectId}`);
       setProject(data);
@@ -57,7 +60,7 @@ export function useProjectDetail(projectId: string, deploymentRunId?: string) {
           '',
       );
     } catch (err) {
-      console.error('Failed to load project:', err);
+      if (shouldReportLoadError(err)) console.error('Failed to load project:', err);
       setProject(null);
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -66,37 +69,55 @@ export function useProjectDetail(projectId: string, deploymentRunId?: string) {
   });
 
   const loadDeploymentRuns = usePersistFn(async () => {
+    if (!scopeReady) return;
     try {
       if (deploymentRunId) {
         const run = await apiRequest<DeploymentRun>(
-          `GET:/deployments/runs/${deploymentRunId}`,
+          `GET:/deployments/runs/${encodeURIComponent(deploymentRunId)}?projectId=${encodeURIComponent(projectId)}`,
         );
+        if (!ownsProjectDeploymentRun(projectId, run)) {
+          throw new Error('Deployment run scope mismatch');
+        }
         setDeploymentRuns([run]);
       } else {
-        setDeploymentRuns(await apiRequest<DeploymentRun[]>('GET:/deployments/runs', { projectId }));
+        setDeploymentRuns(
+          await apiRequest<DeploymentRun[]>('GET:/deployments/runs', { projectId }),
+        );
       }
       setDeploymentError('');
     } catch (err) {
-      console.error('Failed to load deployment runs:', err);
+      setDeploymentRuns([]);
+      if (shouldReportLoadError(err)) console.error('Failed to load deployment runs:', err);
       setDeploymentError(err instanceof Error ? err.message : String(err));
     }
   });
 
   const loadWebhooks = usePersistFn(async () => {
+    if (!scopeReady) return;
     try {
       setWebhooks(await apiRequest<ProjectWebhook[]>('GET:/project-webhooks', { projectId }));
       setWebhookError('');
     } catch (err) {
-      console.error('Failed to load webhooks:', err);
+      if (shouldReportLoadError(err)) console.error('Failed to load webhooks:', err);
       setWebhookError(err instanceof Error ? err.message : String(err));
     }
   });
 
   useEffect(() => {
+    if (!scopeReady) return;
     loadProject();
     loadDeploymentRuns();
     loadWebhooks();
-  }, [deploymentRunId, loadDeploymentRuns, loadProject, loadWebhooks, projectId]);
+  }, [
+    actorId,
+    deploymentRunId,
+    loadDeploymentRuns,
+    loadProject,
+    loadWebhooks,
+    projectId,
+    scopeReady,
+    teamId,
+  ]);
 
   const callResourceBulkBind = usePersistFn(
     async (environmentId: string, dryRun: boolean, confirmationText?: string) => {
@@ -170,4 +191,8 @@ export function useProjectDetail(projectId: string, deploymentRunId?: string) {
     loadDeploymentRuns,
     loadWebhooks,
   };
+}
+
+export function ownsProjectDeploymentRun(projectId: string, run: Pick<DeploymentRun, 'projectId'>) {
+  return run.projectId === projectId;
 }

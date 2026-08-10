@@ -15,7 +15,7 @@ import { useTranslations } from 'next-intl';
 import { Card, Tag } from '@svton/ui';
 import { Button, StatusTag } from '@/components/ui';
 import { formatDateTimeMinute } from '@/lib/format-date';
-import { getProjectEnvironmentLabels } from '@/lib/project-display';
+import { releaseEnvironmentValueLabelKey } from '../utils/release-copy.model';
 import { getRunStatusLabelKey, getRunSourceLabelKey, shortSha } from '../utils/run-labels';
 import { BranchIcon, SourceIcon } from './panel-icons';
 import type { DeploymentRun } from '../types/operations';
@@ -51,6 +51,7 @@ export function LatestDeploymentHero({ run, onDeployClick }: LatestDeploymentHer
 
   const statusKey = getRunStatusLabelKey(run.status);
   const sourceKey = getRunSourceLabelKey(run.source);
+  const environmentKey = releaseEnvironmentValueLabelKey(run.environment);
   const failed = run.status?.toLowerCase() === 'failed' || Boolean(run.error);
 
   return (
@@ -61,7 +62,7 @@ export function LatestDeploymentHero({ run, onDeployClick }: LatestDeploymentHer
             <h2 className="text-base font-semibold">{t('latestDeployTitle')}</h2>
             <StatusTag
               status={run.status}
-              label={statusKey ? t(statusKey) : run.status}
+              label={t(statusKey)}
             />
             {run.dryRun ? <Tag color="default">{t('runModePlanOnly')}</Tag> : null}
           </div>
@@ -75,10 +76,7 @@ export function LatestDeploymentHero({ run, onDeployClick }: LatestDeploymentHer
               {t('branchLabel')}: <span className="font-mono">{run.branch || '-'}</span>
             </span>
             {run.environment ? (
-              <span>
-                {getProjectEnvironmentLabels({ environments: [run.environment] })[0] ??
-                  run.environment}
-              </span>
+              <span>{environmentKey ? t(environmentKey) : run.environment}</span>
             ) : null}
             {run.actor?.name ? <span>{run.actor.name}</span> : null}
             {shortSha(run.commitSha) ? (

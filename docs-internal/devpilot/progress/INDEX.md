@@ -6,6 +6,15 @@
 
 ## Phase Anchors
 
+> Current cross-phase program: the historical F386-F412 scope is complete, while
+> strict V13 Demo parity completed independent OpenCode acceptance. Start with
+> `../project-delivery-v13-opencode-acceptance-report.md` and
+> `../../todos/2026-08-08-devpilot-v13-opencode-acceptance.md`; use the older Demo
+> documents for historical AC detail without erasing P0-P8 or F386-F412 evidence.
+> Final C5 `c5-6c90c38e-85829e13c2b6c2edc2d03ab548d27c94` passed the local-hosts,
+> browser/UI and negative chains and was destroyed with verified zero residuals.
+> Public DNS/TLS and external provider signoff remain explicitly out of scope.
+
 | Phase                                        | Progress File               | Current Source                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | -------------------------------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | P0. Project onboarding entry                 | `P0-onboarding.md`          | Not restored in this slice; use `requirements-and-progress.md` and `project-onboarding-control-plane-roadmap.md` until split.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
@@ -26,6 +35,149 @@
   scope and evidence source; it covers retry/approval safety, user-facing
   release semantics, decision-detail layering, failure recovery, deployment
   correlation, focused regression gates, and isolated browser proof.
+
+- Current Devpilot V13 parity work starts from
+  `../../todos/2026-08-04-devpilot-v13-demo-parity.md`, then
+  `../project-delivery-v13-demo-parity-acceptance.md` and
+  `project-delivery-v13.md`. Use
+  `../../todos/2026-08-03-devpilot-project-delivery-v13.md` only for the
+  historical F386-F412 implementation/evidence scope.
+
+- F429 closed on 2026-08-06: release-order detail now owns the scoped
+  BuildRun/Manifest/repeated Staging/governed Production evidence chain while
+  the professional deployment surface remains reachable only by canonical
+  deep link. Exact approval-snapshot proof and complete nested Production
+  history fail closed on team/project/order/environment/Manifest drift. The
+  independent rereview reported P0/P1/P2/P3=0/0/0/0; a fresh in-app Browser
+  run at 1484x1324 proved both histories, canonical plus legacy deep links,
+  scoped API 200/foreign 404, no competing project-primary artifact/deployment
+  label, and 0 console errors/warnings. **Next: F430 copy semantics.**
+
+- F431 closed on 2026-08-06: a default-off exact-Manifest provider boundary now
+  sends one server-rehashed artifact to atomic filesystem or real SSH targets,
+  records provider/target/receipt evidence, and never re-checks out, pulls or
+  builds. Real MySQL, isolated SSH, and authenticated HTTP composition proved
+  two fresh DeploymentRuns from one Manifest after source removal plus the full
+  foreign/failed/unknown rejection matrix. All 9 CodeGraph-affected tests,
+  type/build/lint/format/config gates and the 0/0/0/0 READY correction review
+  passed.
+
+- F432 closed on 2026-08-06: Staging now freezes a secret-safe deployment-input
+  snapshot with configuration, Secret, resource and active target-binding
+  version hashes, resolves plaintext only after the gate, injects it through
+  0600 filesystem/SSH runtime files, and blocks scope or state drift before the
+  Provider. Real MySQL, isolated SSH and authenticated HTTP composition passed
+  all 8 CodeGraph-affected suites/33 tests; independent review reported
+  READY, P0/P1/P2/P3=0/0/0/0. **Next: F433 workload startup and health.**
+
+- F433 closed on 2026-08-06: Staging now starts exact-Manifest frontend,
+  backend, worker and static workloads through shared managed-process/command
+  lifecycle scripts, records real status plus target-loopback HTTP health, and
+  restores the previous workload on failed activation. Terminal CAS ensures
+  only successful runs create/advance a Staging EnvironmentVersion; real MySQL
+  10/10, SSH 2/2 and authenticated HTTP 1/1 passed, and independent review
+  reported READY, P0/P1/P2/P3=0/0/0/0. **Next: F434 Staging Web evidence.**
+
+- F428 is code/runtime ready but not accepted on 2026-08-06: private bounded
+  Build history, exact per-run detail/Drawer, deep-link error/retry ownership,
+  terminal log evidence and fail-closed secret redaction pass full API/Web,
+  real-MySQL, authenticated HTTP, build/type/lint/i18n and CodeGraph checks.
+  Two independent attempts found no available iab or Chrome surface, so
+  AC-BUILD-019～025 remain open and no old screenshot is reused. Retry that
+  separate Browser matrix before claiming F428 done.
+
+- F427 closed on 2026-08-06: Build input snapshot V4 binds only declared
+  component outputs, public baked build values and stable gate input, while
+  immutable create-once aggregate/component ZIPs carry content indexes,
+  digests, source Commit and provenance. Secret-bearing names/content,
+  structured JSON/YAML keys, symlinks, special files, overlapping ownership
+  and traversal fail closed. ReleaseOrder-to-Project locking serializes both
+  reservation and Manifest publication, and same-input reproducibility is
+  enforced under real MySQL. Focused, repository, real-MySQL, hardened Docker,
+  authenticated HTTP, static and CodeGraph checks pass; independent correction
+  review reports P0/P1/P2/P3=0/0/0/0. **Next: F428 Build history/log UI.**
+
+- F426 closed on 2026-08-05: the default build executor remains disabled, while
+  the explicit `v13-acceptance` overlay enables `controlled-local-v1` with a
+  dedicated volume, bounded environment, whole-run and command deadlines,
+  process-group cancellation, single-process concurrency and durable terminal
+  CAS/recovery. Real MySQL, hardened Docker process execution, authenticated
+  HTTP Build/cancel, compiled API startup, static gates and CodeGraph all pass;
+  the profile explicitly does not claim an untrusted-code sandbox. Independent
+  final review reports P0/P1/P2/P3=0/0/0/0. **Next: F427 artifact contract.**
+
+- F425 closed on 2026-08-05: Build, Staging and Production now consume one
+  append-only, actor-bound and exact-input gate decision policy with atomic
+  run claims, strict Provider freshness, canonical manual confirmation and
+  non-blocking P03 business evidence. Authenticated Browser and MySQL proved
+  the page and actual Build rejection share the same eight blockers and input
+  hash while no BuildRun is created. Focused, real-MySQL, Web, type, lint,
+  format, Prisma, production-build, source-structure and CodeGraph checks pass.
+  Succeeded by F426 controlled build runtime profile.
+
+- F424 closed on 2026-08-05: the Preflight first screen now presents the real
+  15-group/51-check catalog, a fail-closed nine-Commit-check Build conclusion,
+  four frozen representative summaries and a complete accessible catalog
+  dialog. Exact 39 MVP/12 Target ownership, persisted six-state semantics,
+  scoped request races, authenticated real-MySQL Browser behavior and the
+  1484/821/820 visual boundary are verified under
+  `/tmp/codex-tool-runs/svton/long-goals/devpilot-v13-demo-parity/f424/`.
+  Succeeded by F425 server-side gate enforcement.
+
+- F415 closed on 2026-08-04: repository intake now exposes a typed three-step
+  contract pinned to an exact branch/commit, structured overview and component
+  fields, explicit accept/edit/reject decisions, dependency recovery, and one
+  append-only review snapshot that finalization binds by ID and SHA-256. Real
+  Git, MySQL, Browser, bilingual UI, replay/concurrency, build and zero-plaintext-
+  secret evidence is stored under
+  `/tmp/codex-tool-runs/svton/long-goals/devpilot-v13-demo-parity/f415/`.
+  Independent review superseded baseline `c53363ce`: the corrective commit
+  transactionally locks the analysis run, forbids post-snapshot generic apply,
+  serves frozen snapshot values and blocks drifted finalization. Deterministic
+  MySQL race/no-mutation and drift/no-governance regressions passed.
+  F461 durable multi-replica analysis execution and F462 Git egress/SSRF policy
+  are registered for post-parity hardening and were not implemented in F415.
+
+- F416 closed on 2026-08-04: canonical repository identity is immutable after
+  finalization; append-only branch revisions own the effective branch/SHA, and
+  BuildRun reservation revalidates provider/key/URL/revision ownership under a
+  Project row lock. Fresh MySQL, real Git and authenticated Browser evidence
+  proved R1 to R2 revision, high-risk audit, successful exact R2 build, locked
+  replacement 409 with an unchanged database fingerprint, migration-required
+  fail-closed UI and zero Secret leakage. Evidence is stored under
+  `/tmp/codex-tool-runs/svton/long-goals/devpilot-v13-demo-parity/f416/`.
+  F463 registers legacy identity inventory/collision remediation and was not
+  implemented by F416. **Next: F417 project-directory parity.**
+- F416 independent correction retains the exact branch-revision reason in the
+  atomic high-risk audit, freezes historical BuildRun presentation to validated
+  v2 input snapshots, and restricts migration R1 backfill to provably aligned
+  connected+verified rows with non-zero 40/64-hex commits. Real pre-F416 MySQL
+  upgrade evidence leaves every null/invalid/drift fixture fail-closed; accepted
+  and rejected artifacts are SHA-256 bound in the correction inventory.
+  A second independent review found that unknown/missing snapshot versions still
+  borrowed mutable joins; the bounded follow-up permits compatibility fallback
+  only for exact numeric v1 or null and fails closed for every other malformed or
+  future version.
+
+- F417 closed on 2026-08-04: `/projects` now uses one server-backed status
+  filter, canonical repository/domain search, deterministic recent-activity
+  ordering, and fail-closed status/version/domain derivation from authorized
+  project relations. The responsive five-column directory has one project
+  action, retained empty-state columns, dual true-empty entry points, and one
+  sidebar module link. Focused API/Web tests, fresh MySQL integration, cold
+  authenticated Browser reloads and 1484×1324 Demo/product comparisons are
+  stored under
+  `/tmp/codex-tool-runs/svton/long-goals/devpilot-v13-demo-parity/f417/`.
+  The follow-up correction also requires an exact active Production Site/domain
+  before `online`, proves missing/inactive/cross-scope Site rows fail closed in
+  real MySQL and Browser states, and supersedes the overlapping filtered-empty
+  screenshot classification with disjoint accepted/rejected hash inventories
+  under `f417-correction/`.
+  The correction also keeps the authoritative server directory visible on the
+  first SWR hydration frame, then revalidates silently; fresh missing-Site and
+  restored-online captures at 1484×1324 both have zero Console errors/warnings.
+  **Next: F418 project-home weak-summary parity.**
+
 - F383 + F384 were integrated onto local `master@68aabfa7` on 2026-07-29.
   The authoritative merge-readiness source is
   `../f383-f384-integration-report.md`; it records full-history ancestry,

@@ -137,7 +137,7 @@ export class ProjectEnvironmentWriteController {
   ) {
     const scope = await this.environmentService.getAccessScope(req.teamId, id);
     await this.writeAccessPolicy.assertCanUpdate(req, id, scope);
-    return this.environmentService.update(req.teamId, id, dto);
+    return this.environmentService.update(req.teamId, req.user.id, id, dto);
   }
 
   @Delete(":id")
@@ -147,7 +147,7 @@ export class ProjectEnvironmentWriteController {
   ) {
     const scope = await this.environmentService.getAccessScope(req.teamId, id);
     await this.writeAccessPolicy.assertCanArchive(req, id, scope);
-    return this.environmentService.archive(req.teamId, id);
+    return this.environmentService.archive(req.teamId, req.user.id, id);
   }
 
   @Post(":id/servers")

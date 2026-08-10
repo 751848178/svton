@@ -1,3 +1,4 @@
+import { BadRequestException } from "@nestjs/common";
 import { OperationApprovalService } from "./operation-approval.service";
 
 describe("OperationApprovalService", () => {
@@ -6,7 +7,7 @@ describe("OperationApprovalService", () => {
     findReusablePending: jest.fn(),
     create: jest.fn(),
     findByIdForTeam: jest.fn(),
-    review: jest.fn(),
+    reviewPending: jest.fn(),
     consume: jest.fn(),
   };
   const approvalMatchService = { assertMatches: jest.fn() };
@@ -17,12 +18,15 @@ describe("OperationApprovalService", () => {
     assertCanReviewApproval: jest.fn(),
     assertCanExecuteApproved: jest.fn(),
   };
+  // F470：review 现委托给 OperationApprovalReviewService（CAS + 交互式事务）。
+  const reviewService = { review: jest.fn() };
   const service = new OperationApprovalService(
     approvalRepository as any,
     approvalMatchService as any,
     approvalAuditService as any,
     approvalRequirementService as any,
     accessPolicyService as any,
+    reviewService as any,
   );
 
   beforeEach(() => {
@@ -88,45 +92,89 @@ describe("OperationApprovalService", () => {
     );
   });
 
-  it("rejects self approval before evaluating review access", async () => {
-    approvalRepository.findByIdForTeam.mockResolvedValue({
-      id: "approval-self",
-      status: "pending",
-      requesterId: "user-1",
-      projectId: "project-1",
-      environmentId: "env-prod",
-      category: "deployment",
-      action: "deployment.run",
-      targetType: "release_stage",
-      targetId: "stage-1",
-      risk: "high",
-    });
+  // F470：review 是薄 facade，参数契约不变，全部委托给 OperationApprovalReviewService。
+  it("delegates review to OperationApprovalReviewService with unchanged arguments", async () => {
+    const reviewed = { id: "approval-1", status: "approved", reviewerId: "reviewer-1" };
+    reviewService.review.mockResolvedValue(reviewed);
 
-    await expect(
-      service.review("team-1", "user-1", "approval-self", {
-        decision: "approved",
-        reviewComment: "已核对变更与回滚方案",
-      }),
-    ).rejects.toThrow("申请人不能审批自己的操作");
+    const result = await service.review(
+      "team-1",
+      "reviewer-1",
+      "approval-1",
+      { decision: "approved", reviewComment: "ok" },
+    );
 
-    expect(accessPolicyService.assertCanReviewApproval).not.toHaveBeenCalled();
-    expect(approvalRepository.review).not.toHaveBeenCalled();
+    expect(reviewService.review).toHaveBeenCalledWith(
+      "team-1",
+      "reviewer-1",
+      "approval-1",
+      { decision: "approved", reviewComment: "ok" },
+    );
+    expect(result).toBe(reviewed);
+    // facade 自身不触碰 CAS/audit（由 review service 在事务内处理）。
+    expect(approvalRepository.reviewPending).not.toHaveBeenCalled();
+    expect(approvalAuditService.writeApprovalAudit).not.toHaveBeenCalledWith(
+      expect.anything(),
+      "approval.approved",
+      expect.anything(),
+      expect.anything(),
+    );
   });
 
-  it("requires a review comment for every decision", async () => {
-    approvalRepository.findByIdForTeam.mockResolvedValue({
-      id: "approval-comment",
-      status: "pending",
+  it("resolveApproved fails closed for rejected, consumed, expired and drifted approvals", async () => {
+    const pending = { id: "approval-1", status: "pending" };
+    const rejected = { id: "approval-1", status: "rejected" };
+    const consumed = {
+      id: "approval-1",
+      status: "approved",
+      consumedAt: new Date(),
+    };
+    const expired = {
+      id: "approval-1",
+      status: "approved",
+      consumedAt: null,
+      expiresAt: new Date(Date.now() - 1000),
+    };
+    const valid = {
+      id: "approval-1",
+      status: "approved",
+      consumedAt: null,
+      expiresAt: null,
       requesterId: "user-1",
-    });
+      category: "release",
+      action: "project.release_order.deploy_production",
+      targetType: "release_run",
+      targetId: "release-1",
+      risk: "high",
+    };
 
+    for (const approval of [pending, rejected, consumed, expired]) {
+      approvalRepository.findByIdForTeam.mockResolvedValue(approval);
+      await expect(
+        service.resolveApproved({
+          teamId: "team-1",
+          approvalId: "approval-1",
+          category: "release",
+          action: "project.release_order.deploy_production",
+          targetType: "release_run",
+          risk: "high",
+        }),
+      ).rejects.toThrow(BadRequestException);
+    }
+
+    approvalRepository.findByIdForTeam.mockResolvedValue(valid);
+    approvalMatchService.assertMatches.mockImplementation(() => undefined);
+    accessPolicyService.assertCanExecuteApproved.mockResolvedValue(undefined);
     await expect(
-      service.review("team-1", "user-2", "approval-comment", {
-        decision: "rejected",
-        reviewComment: " ",
+      service.resolveApproved({
+        teamId: "team-1",
+        requesterId: "user-1",
+        approvalId: "approval-1",
+        category: "release",
+        action: "project.release_order.deploy_production",
+        targetType: "release_run",
+        risk: "high",
       }),
-    ).rejects.toThrow("审批意见不能为空");
-
-    expect(approvalRepository.review).not.toHaveBeenCalled();
+    ).resolves.toEqual(valid);
   });
 });

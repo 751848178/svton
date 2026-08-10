@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>Parity Target Site</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #f8fafc; color: #0f172a; margin: 0; }
+    main { max-width: 640px; margin: 10vh auto; padding: 32px; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; }
+    h1 { margin-top: 0; }
+    code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Parity Target Workload</h1>
+    <p>This is the F454 parity site workload, served on port <code>43992</code> by the
+      <code>parity-target-workload</code> container. The seeded parity
+      <code>Site</code> row (<code>parity.example.test</code>) points its
+      <code>proxyTarget</code> here, so site probes and the release-deployment
+      evidence can reference a real reachable target.</p>
+    <p>Probe path: <code>/health</code></p>
+  </main>
+</body>
+</html>

@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { EmptyState } from '@svton/ui';
 import { Alert, Button, ErrorBanner, StatusTag } from '@/components/ui';
 import { formatDateTimeMinute } from '@/lib/format-date';
-import { getProjectEnvironmentLabels } from '@/lib/project-display';
+import { releaseEnvironmentValueLabelKey } from '../utils/release-copy.model';
 import { DeploymentRunDetails } from './deployment-run-details.component';
 import { DeployServiceSection } from './deploy-service-section';
 import { PanelGroup } from './panel-group';
@@ -135,7 +135,8 @@ function DeploymentRunRow({
   const [open, setOpen] = useState(initiallyOpen);
   const sourceKey = getRunSourceLabelKey(run.source);
   const statusKey = getRunStatusLabelKey(run.status);
-  const statusLabel = statusKey ? t(statusKey) : run.status;
+  const statusLabel = t(statusKey);
+  const environmentKey = releaseEnvironmentValueLabelKey(run.environment);
   const releaseStage = run.releaseStageAttempts?.[0]?.releaseStage;
   return (
     <div className="rounded-md border px-3 py-2 text-sm">
@@ -151,8 +152,7 @@ function DeploymentRunRow({
           </span>
           {run.environment ? (
             <span className="ml-2 text-xs text-muted-foreground">
-              {getProjectEnvironmentLabels({ environments: [run.environment] })[0] ??
-                run.environment}
+              {environmentKey ? t(environmentKey) : run.environment}
             </span>
           ) : null}
           {run.actor?.name ? (
@@ -163,16 +163,16 @@ function DeploymentRunRow({
               {shortSha(run.commitSha)}
             </span>
           ) : null}
-          {releaseStage && (
+          {releaseStage ? (
             <Link
               className="ml-2 text-xs text-primary hover:underline"
               href={`?tab=releases&releasePlanId=${encodeURIComponent(
                 releaseStage.releasePlan.id,
               )}&stageId=${encodeURIComponent(releaseStage.id)}`}
             >
-              发布：{releaseStage.releasePlan.name}
+              {t('releaseRunLink', { name: releaseStage.releasePlan.name })}
             </Link>
-          )}
+          ) : null}
         </div>
         <div className="flex items-center gap-2">
           <StatusTag

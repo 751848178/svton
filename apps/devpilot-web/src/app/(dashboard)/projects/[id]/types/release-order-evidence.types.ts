@@ -1,0 +1,168 @@
+import type {
+  ReleaseApprovalStatus,
+  ReleaseEnvironmentRole,
+  ReleaseExecutionStatus,
+} from './release-copy.types';
+
+export interface ReleaseEvidenceManifest {
+  id: string;
+  digest: string;
+  createdAt: string;
+  buildRun: {
+    id: string;
+    revision: number;
+    sourceBranch: string;
+    sourceCommitSha: string;
+  };
+  items: Array<{ componentKey: string; artifactType: string; digest: string }>;
+}
+
+export interface ReleaseEvidenceBuildRun {
+  id: string;
+  projectId: string;
+  releaseOrderId: string;
+  revision: number;
+  sourceBranch: string;
+  sourceCommitSha: string;
+  status: ReleaseExecutionStatus;
+  errorCode: string | null;
+  errorMessage: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  createdAt: string;
+  manifest: ReleaseEvidenceManifest | null;
+}
+
+export interface ReleaseEvidenceProbeError {
+  code: string;
+  message: string;
+}
+
+export interface ReleaseEvidenceSiteProbe {
+  version: number | null;
+  primaryDomain: string | null;
+  finalUrl: string | null;
+  probedAt: string | null;
+  dns: {
+    status: string | null;
+    hostname: string | null;
+    records: string[] | null;
+    error: ReleaseEvidenceProbeError | null;
+    checkedAt: string | null;
+  };
+  tls: {
+    status: string | null;
+    host: string | null;
+    port: number | null;
+    servername: string | null;
+    cert: {
+      subject: string | null;
+      issuer: string | null;
+      validFrom: string | null;
+      validUntil: string | null;
+      expired: boolean | null;
+    } | null;
+    error: ReleaseEvidenceProbeError | null;
+    checkedAt: string | null;
+  };
+  http: {
+    status: string | null;
+    url: string | null;
+    finalUrl: string | null;
+    statusCode: number | null;
+    bodySignature: string | null;
+    error: ReleaseEvidenceProbeError | null;
+    checkedAt: string | null;
+  };
+}
+
+export interface ReleaseEvidenceRouteSwitch {
+  version: number | null;
+  siteId: string | null;
+  primaryDomain: string | null;
+  deploymentRunId: string | null;
+  releaseRunId: string | null;
+  targetRef: string | null;
+  proxyTarget: string | null;
+  domains: string[] | null;
+  status: string | null;
+  reasonCode: string | null;
+  switchedAt: string | null;
+}
+
+export interface ReleaseEvidenceDeploymentRun {
+  id: string;
+  projectId: string;
+  releaseOrderId: string;
+  releaseRunId: string | null;
+  environmentId: string | null;
+  artifactManifestId: string | null;
+  status: ReleaseExecutionStatus;
+  executorKey: string;
+  adapterKey: string;
+  branch: string | null;
+  commitSha: string | null;
+  error: string | null;
+  logs: string[];
+  result: unknown;
+  startedAt: string;
+  finishedAt: string | null;
+  createdAt: string;
+  environment: { id: string; name: string; baselineRole: ReleaseEnvironmentRole | null };
+  manifest: ReleaseEvidenceManifest;
+  siteProbe: ReleaseEvidenceSiteProbe | null;
+  routeSwitch: ReleaseEvidenceRouteSwitch | null;
+}
+
+export interface ReleaseEvidenceProductionRun {
+  id: string;
+  projectId: string;
+  releaseOrderId: string;
+  environmentId: string;
+  artifactManifestId: string;
+  mode: string;
+  status: ReleaseExecutionStatus;
+  verifiedDigest: string;
+  errorCode: string | null;
+  errorMessage: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  createdAt: string;
+  environment: { id: string; name: string; baselineRole: ReleaseEnvironmentRole | null };
+  manifest: ReleaseEvidenceManifest;
+  operationApproval: {
+    id: string;
+    status: ReleaseApprovalStatus;
+    risk: string;
+    summary: string | null;
+    requesterId: string | null;
+    reviewerId: string | null;
+    requester: { id: string; name: string | null; email: string } | null;
+    reviewer: { id: string; name: string | null; email: string } | null;
+    reviewComment: string | null;
+    requestedAt: string;
+    reviewedAt: string | null;
+    consumedAt: string | null;
+    expiresAt: string | null;
+  };
+  stagingProof: {
+    deploymentRunId: string;
+    environmentId: string;
+    finishedAt: string | null;
+  } | null;
+  deploymentRuns: ReleaseEvidenceDeploymentRun[];
+}
+
+interface EvidenceGroup<T> {
+  items: T[];
+  total: number;
+  hasMore: boolean;
+}
+
+export interface ReleaseOrderEvidence {
+  projectId: string;
+  releaseOrderId: string;
+  buildRuns: EvidenceGroup<ReleaseEvidenceBuildRun>;
+  stagingDeploymentRuns: EvidenceGroup<ReleaseEvidenceDeploymentRun>;
+  productionReleaseRuns: EvidenceGroup<ReleaseEvidenceProductionRun>;
+}

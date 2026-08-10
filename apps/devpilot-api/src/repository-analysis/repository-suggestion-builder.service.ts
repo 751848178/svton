@@ -4,6 +4,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { repositoryError } from './repository-analysis-validation.utils';
 import { secureRepositoryCommands } from './repository-command-security.utils';
 import {
+  detectIntakeComponent,
+  detectIntakeOverview,
+} from './repository-intake-detection.utils';
+import {
   DetectedService,
   RepositoryAnalysisResult,
   RepositorySuggestionDraft,
@@ -61,6 +65,7 @@ export class RepositorySuggestionBuilderService {
           verified: true,
           analysisRunId: run.id,
         },
+        intakeContract: { version: 1, overview: detectIntakeOverview(result) },
       },
       evidence: [{
         file: '.git',
@@ -72,7 +77,7 @@ export class RepositorySuggestionBuilderService {
     });
     const environment = project.environments[0];
     if (!environment) drafts.push(environmentDraft());
-    for (const service of result.services.filter((item) => item.deployable)) {
+    for (const service of result.services.filter((item) => item.deployable || item.artifactOnly)) {
       drafts.push(serviceDraft(
         service,
         run,
@@ -124,6 +129,7 @@ function serviceDraft(
     targetType: detected.container.composeFiles.length > 0 ? 'docker-compose' : 'server',
     workingDirectory: detected.path,
     buildCommand: secured.commands.build,
+    artifactPaths: detected.artifacts,
     deployCommand: secured.commands.start,
     migrationCommand: secured.commands.migrate,
     initializationCommand: secured.commands.bootstrap,
@@ -160,6 +166,7 @@ function serviceDraft(
         environment: detected.environment,
         healthChecks: detected.healthChecks,
         artifacts: detected.artifacts,
+        intakeContract: detectIntakeComponent(detected),
       },
     },
   };

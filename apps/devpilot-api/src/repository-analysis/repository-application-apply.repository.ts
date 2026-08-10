@@ -7,6 +7,7 @@ import {
   safeKind,
   stringValue,
 } from './repository-platform-apply.utils';
+import { mergeRepositoryDeployConfig } from './repository-deploy-config-merge.utils';
 
 @Injectable()
 export class RepositoryApplicationApplyRepository {
@@ -98,11 +99,10 @@ export class RepositoryApplicationApplyRepository {
     const id = stringValue(value.serviceId);
     const name = stringValue(value.serviceName) || stringValue(value.applicationName);
     if (!name) throw new Error('serviceName is required');
-    const data = {
+    const baseData = {
       kind: safeKind(value.kind),
       runtime: stringValue(value.runtime),
       ports: optionalJson(value.ports),
-      deployConfig: optionalJson(value.deployConfig),
       metadata: optionalJson(value.metadata),
     };
     if (id) {
@@ -110,12 +110,30 @@ export class RepositoryApplicationApplyRepository {
         where: { id, projectId, applicationId },
       });
       if (!existing) throw new Error('application service scope mismatch');
-      return tx.applicationService.update({ where: { id }, data });
+      return tx.applicationService.update({
+        where: { id },
+        data: {
+          ...baseData,
+          deployConfig: mergeRepositoryDeployConfig(
+            existing.deployConfig,
+            value.deployConfig,
+          ),
+        },
+      });
     }
+    const unique = { applicationId, environmentId, name };
+    const existing = await tx.applicationService.findUnique({
+      where: { applicationId_environmentId_name: unique },
+    });
+    const data = {
+      ...baseData,
+      deployConfig: mergeRepositoryDeployConfig(
+        existing?.deployConfig,
+        value.deployConfig,
+      ),
+    };
     return tx.applicationService.upsert({
-      where: {
-        applicationId_environmentId_name: { applicationId, environmentId, name },
-      },
+      where: { applicationId_environmentId_name: unique },
       create: {
         teamId,
         projectId,

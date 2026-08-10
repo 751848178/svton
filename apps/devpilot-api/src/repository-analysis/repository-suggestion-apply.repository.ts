@@ -9,12 +9,15 @@ import {
 import { RepositoryPlatformApplyRepository } from './repository-platform-apply.repository';
 import { json } from './repository-platform-apply.utils';
 import { repositorySafeJson } from './repository-analysis-storage.utils';
+import { RepositoryIntakeSnapshotWriter } from './repository-intake-snapshot.writer';
+import { RepositoryIntakeSnapshotLockedError } from './repository-suggestion-apply.errors';
 
 @Injectable()
 export class RepositorySuggestionApplyRepository {
   constructor(
     private readonly prisma: PrismaService,
     private readonly platform: RepositoryPlatformApplyRepository,
+    private readonly snapshots: RepositoryIntakeSnapshotWriter,
   ) {}
 
   load(teamId: string, projectId: string, runId: string) {
@@ -26,10 +29,14 @@ export class RepositorySuggestionApplyRepository {
 
   apply(input: RepositoryApplyInput) {
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM RepositoryAnalysisRun WHERE id = ${input.runId} FOR UPDATE`;
       const run = await tx.repositoryAnalysisRun.findUniqueOrThrow({
         where: { id: input.runId },
-        include: { connection: true, suggestions: true },
+        include: { connection: true, suggestions: true, intakeReviewSnapshot: true },
       });
+      if (run.intakeReviewSnapshot && !input.snapshot) {
+        throw new RepositoryIntakeSnapshotLockedError();
+      }
       if (run.commitSha !== input.commitSha
         || run.connection.commitSha !== input.commitSha
         || run.status !== 'succeeded') {
@@ -48,6 +55,9 @@ export class RepositorySuggestionApplyRepository {
           data: { lastAppliedRunId: run.id, appliedAt: now },
         });
       }
+      const snapshot = input.snapshot
+        ? await this.snapshots.create(tx, run, input, references, now)
+        : null;
       await tx.auditEvent.create({
         data: {
           teamId: input.teamId,
@@ -65,6 +75,9 @@ export class RepositorySuggestionApplyRepository {
             commitSha: run.commitSha,
             complete: input.markConnectionApplied,
             appliedSuggestionIds: references.map((item) => item.suggestionId),
+            snapshotId: snapshot?.id,
+            snapshotHash: snapshot?.snapshotHash,
+            contractVersion: snapshot?.version,
           }),
         },
       });
@@ -72,6 +85,7 @@ export class RepositorySuggestionApplyRepository {
         complete: input.markConnectionApplied,
         references,
         appliedAt: now,
+        snapshot,
       };
     });
   }
@@ -95,6 +109,8 @@ export class RepositorySuggestionApplyRepository {
           reviewedById: input.userId,
           reviewedAt: now,
           reviewedValue: Prisma.JsonNull,
+          appliedRefs: Prisma.JsonNull,
+          appliedAt: null,
         },
       });
       return undefined;

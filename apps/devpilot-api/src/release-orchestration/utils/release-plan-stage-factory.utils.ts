@@ -1,8 +1,6 @@
 /**
- * 单服务阶段工厂（纯函数）：把一个 ReleaseServiceInput 翻译成阶段节点 + 依赖边 +
- * 副作用/风险摘要。由 release-plan-builder 跨服务编排调用。
+ * 单服务阶段工厂：将 ReleaseServiceInput 翻译成阶段、依赖和风险摘要。
  *
- * 低层节点/边构造见 release-plan-stage-helpers.utils。本文件只负责阶段编排。
  */
 import type { ReleaseDependencyConditionType } from "../types/release-orchestration.types";
 import type {
@@ -19,6 +17,7 @@ import {
 } from "./release-plan-stage-helpers.utils";
 import { safePersistedCommand } from "./release-credential-injection.utils";
 import { makeInitializationStage } from "./release-plan-initialization-stage.utils";
+import { withWorkingDirectory } from "./release-plan-working-directory.utils";
 
 export interface ServiceStageResult {
   stages: Array<ReturnType<typeof makeStage>>;
@@ -55,7 +54,9 @@ export function buildServiceStages(
         required: true,
         risk: "low",
         ctx,
-        config: { command: safePersistedCommand(svc.preStartCheckCommand) },
+        config: withWorkingDirectory(svc, {
+          command: safePersistedCommand(svc.preStartCheckCommand),
+        }),
       }),
     );
     prevKey = key;
@@ -73,10 +74,10 @@ export function buildServiceStages(
         required: true,
         risk: SCHEMA_MIGRATION_RISK,
         ctx,
-        config: {
+        config: withWorkingDirectory(svc, {
           command: safePersistedCommand(svc.migrationCommand),
           concurrencyKey: `db:${svc.environmentId}`,
-        },
+        }),
       }),
     );
     if (prevKey) dependencies.push(edge(key, prevKey, "succeeded", true));
@@ -116,10 +117,10 @@ export function buildServiceStages(
         required: isRequired,
         risk: BACKFILL_RISK,
         ctx,
-        config: {
+        config: withWorkingDirectory(svc, {
           command: safePersistedCommand(svc.backfillCommand),
           concurrencyKey: `db:${svc.environmentId}`,
-        },
+        }),
       }),
     );
     const cond: ReleaseDependencyConditionType = isRequired

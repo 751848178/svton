@@ -3,7 +3,7 @@
  *
  * 单一职责：维护 ProjectEnvironment.config.envVars 这一份普通变量表。
  *   - 读取：从传入 environment 的 config.envVars 派生（无独立请求）。
- *   - 写入：PUT /project-environments/:id，payload 为 { config: { ...existing, envVars } }。
+ *   - 写入：POST /project-environments/:id/config-revisions，创建不可变审计修订。
  *
  * 与「密钥变量」（密钥中心 SecretKey）解耦：本 Hook 只管非敏感的普通变量，
  * 敏感值请走密钥中心（/keys）。
@@ -14,6 +14,7 @@
 import { useCallback, useState } from 'react';
 import { apiRequest } from '@/lib/api-client';
 import type { ProjectEnvironment } from '../types';
+import type { CreateEnvironmentConfigRevisionResult } from '../types/environment-config-revision.types';
 
 /** KEY 必须匹配 ^[A-Z_][A-Z0-9_]*$（与后端 resolveDeploymentEnvVars 过滤一致）。 */
 const ENV_KEY_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
@@ -39,7 +40,7 @@ export interface UseEnvironmentEnvVarsResult {
   draft: Record<string, string>;
   setDraft: (next: Record<string, string>) => void;
   saving: boolean;
-  /** 一次性把 draft 落库（PUT envVars）。也作为 staged changes 的 deploy 入口。 */
+  /** 一次性把 draft 写入新修订。也作为 staged changes 的 deploy 入口。 */
   save: () => Promise<void>;
   /** 把 draft 合并到现有 vars（导入 .env 时增量更新，保留已有行）。 */
   mergeDraft: (incoming: Record<string, string>) => void;
@@ -87,17 +88,15 @@ export function useEnvironmentEnvVars(
     }
     setSaving(true);
     try {
-      // 合并：保留 config 中其它键，仅替换 envVars。
-      const existingConfig =
-        environment.config && typeof environment.config === 'object'
-          ? { ...environment.config }
-          : {};
-      const config = { ...existingConfig, envVars: cleaned };
-      const updated = await apiRequest<ProjectEnvironment>(
-        `PUT:/project-environments/${environment.id}`,
-        { config },
+      const result = await apiRequest<CreateEnvironmentConfigRevisionResult>(
+        `POST:/project-environments/${environment.id}/config-revisions`,
+        {
+          plainVariables: cleaned,
+          expectedCurrentRevisionId: environment.currentConfigRevisionId || undefined,
+          changeSummary: '更新普通环境变量',
+        },
       );
-      onSaved({ ...environment, config: updated?.config ?? config });
+      onSaved({ ...environment, ...result.environment });
     } catch (err) {
       throw err;
     } finally {

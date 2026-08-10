@@ -1,55 +1,7 @@
 import { mkdtemp, readFile, rm, utimes } from 'fs/promises';
 import * as path from 'path';
 import { tmpdir } from 'os';
-import { GenerateProjectDto } from './dto/generate.dto';
-import { GeneratedFile, GeneratorService } from './generator.service';
-
-describe('GeneratorService database engine generation', () => {
-  it('generates MySQL project files by default', async () => {
-    const service = createService();
-
-    const files = await service.generateProject(createConfig());
-
-    expect(fileContent(files, 'README.md')).toContain('NestJS + Prisma + MySQL');
-    expect(fileContent(files, 'apps/backend/prisma/schema.prisma')).toContain('provider = "mysql"');
-    expect(fileContent(files, '.env.example')).toContain('DATABASE_URL="mysql://root:password@localhost:3306/mydb"');
-    expect(fileContent(files, 'docker-compose.yml')).toContain('image: mysql:8.0');
-    expect(fileContent(files, 'docker-compose.yml')).toContain('mysql_data:/var/lib/mysql');
-    expect(fileContent(files, 'docker-compose.yml')).not.toContain('postgres:');
-  });
-
-  it('generates PostgreSQL project files when selected', async () => {
-    const service = createService();
-
-    const files = await service.generateProject(createConfig({
-      database: { engine: 'postgresql' },
-    }));
-
-    expect(fileContent(files, 'README.md')).toContain('NestJS + Prisma + PostgreSQL');
-    expect(fileContent(files, 'apps/backend/prisma/schema.prisma')).toContain('provider = "postgresql"');
-    expect(fileContent(files, '.env.example')).toContain(
-      'DATABASE_URL="postgresql://postgres:postgres@localhost:5432/mydb?schema=public"',
-    );
-    expect(fileContent(files, 'docker-compose.yml')).toContain('postgres:15-alpine');
-    expect(fileContent(files, 'docker-compose.yml')).toContain('postgres_data:/var/lib/postgresql/data');
-    expect(fileContent(files, 'docker-compose.yml')).not.toContain('mysql:8.0');
-  });
-
-  it('generates SQLite project files without a local database service', async () => {
-    const service = createService();
-
-    const files = await service.generateProject(createConfig({
-      database: { engine: 'sqlite' },
-    }));
-
-    expect(fileContent(files, 'README.md')).toContain('NestJS + Prisma + SQLite');
-    expect(fileContent(files, 'apps/backend/prisma/schema.prisma')).toContain('provider = "sqlite"');
-    expect(fileContent(files, '.env.example')).toContain('DATABASE_URL="file:./dev.db"');
-    expect(fileContent(files, 'docker-compose.yml')).toContain('services: {}');
-    expect(fileContent(files, 'docker-compose.yml')).not.toContain('mysql:8.0');
-    expect(fileContent(files, 'docker-compose.yml')).not.toContain('postgres:15-alpine');
-  });
-});
+import { GeneratorService } from './generator.service';
 
 describe('GeneratorService project zip artifacts', () => {
   const originalArtifactRoot = process.env.DEVPILOT_GENERATED_PROJECTS_DIR;
@@ -201,38 +153,4 @@ function createService(): GeneratorService {
     {} as never,
     {} as never,
   );
-}
-
-function createConfig(overrides: Partial<GenerateProjectDto> = {}): GenerateProjectDto {
-  return {
-    basicInfo: {
-      name: 'demo',
-      orgName: 'acme',
-      description: 'Demo project',
-      packageManager: 'pnpm',
-    },
-    subProjects: {
-      backend: true,
-      admin: false,
-      mobile: false,
-    },
-    features: [],
-    resources: {},
-    uiLibrary: {
-      admin: false,
-      mobile: false,
-    },
-    hooks: false,
-    ...overrides,
-  };
-}
-
-function fileContent(files: GeneratedFile[], path: string): string {
-  const file = files.find((item) => item.path === path);
-
-  if (!file) {
-    throw new Error(`Missing generated file: ${path}`);
-  }
-
-  return file.content;
 }

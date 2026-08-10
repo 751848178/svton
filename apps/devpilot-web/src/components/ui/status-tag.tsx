@@ -39,8 +39,8 @@ const RISK_TONE: Record<string, StatusTone> = {
 function PulseDot() {
   return (
     <span className="relative flex h-1.5 w-1.5" aria-hidden="true">
-      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-500 opacity-60" />
-      <span className="relative inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-600" />
+      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-600 opacity-60" />
+      <span className="relative inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-700" />
     </span>
   );
 }

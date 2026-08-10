@@ -48,6 +48,21 @@ export class ProjectEnvironmentWriteAccessPolicyService {
     );
   }
 
+  assertCanCreateConfigRevision(
+    req: ProjectEnvironmentAuthRequest,
+    scope: EnvironmentScope,
+  ) {
+    return this.write(
+      req,
+      this.environmentParams(
+        scope,
+        "project_environment.config_revision.create",
+        scope.environmentId,
+        "medium",
+      ),
+    );
+  }
+
   assertCanArchive(
     req: ProjectEnvironmentAuthRequest,
     id: string,

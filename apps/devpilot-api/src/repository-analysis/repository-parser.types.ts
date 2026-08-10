@@ -1,4 +1,4 @@
-import type { RepositoryEvidence } from './repository-analysis.types';
+import type { RepositoryEvidence } from "./repository-analysis.types";
 
 export interface DetectedCommandSet {
   build?: string;
@@ -19,7 +19,7 @@ export interface DetectedEnvironmentVariable {
 
 export interface DetectedHealthCheck {
   path: string;
-  kind: 'liveness' | 'readiness' | 'unknown';
+  kind: "liveness" | "readiness" | "unknown";
   evidence: RepositoryEvidence[];
 }
 
@@ -60,6 +60,15 @@ export interface RepositoryInventory {
   manifests: Record<string, string>;
 }
 
+export interface RepositoryMigrationEvidence {
+  providerKey: "repository_inventory_v1";
+  applicable: boolean;
+  reasonCode: "migration_surface_detected" | "no_schema_or_migration_surface";
+  detectedFiles: string[];
+  commandServices: string[];
+  databaseKinds: string[];
+}
+
 export interface RepositoryAnalysisResult {
   repository: {
     monorepo: boolean;
@@ -74,6 +83,7 @@ export interface RepositoryAnalysisResult {
     services: string[];
     evidence: RepositoryEvidence[];
   }>;
+  migrationEvidence?: RepositoryMigrationEvidence;
   resourceRequirements: string[];
   warnings: string[];
   evidence: RepositoryEvidence[];
@@ -81,8 +91,12 @@ export interface RepositoryAnalysisResult {
 
 export interface RepositorySuggestionDraft {
   key: string;
-  kind: 'project_repository' | 'environment' | 'application_service' | 'resource_requirement';
-  confidence: 'high' | 'medium' | 'low';
+  kind:
+    | "project_repository"
+    | "environment"
+    | "application_service"
+    | "resource_requirement";
+  confidence: "high" | "medium" | "low";
   conflict: boolean;
   impact: string;
   currentValue?: unknown;

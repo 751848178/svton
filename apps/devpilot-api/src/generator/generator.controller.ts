@@ -4,15 +4,11 @@ import { createReadStream } from 'fs';
 import { Response } from 'express';
 import { ControlAccessPolicyService } from '../control-access-policy';
 import { AuditEventService } from '../audit-event';
-import { GeneratorService, type ProjectZipArtifactCleanupResult, type ResolvedProjectZipArtifact } from './generator.service';
-import { CleanGeneratedProjectArtifactsDto, GenerateProjectDto } from './dto/generate.dto';
+import { GeneratorService, type ResolvedProjectZipArtifact } from './generator.service';
+import { GenerateProjectDto } from './dto/generate.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ProjectService } from '../project/project.service';
-
-interface GenerateProjectRequest {
-  user: { id: string };
-  teamId: string;
-}
+import type { GenerateProjectRequest } from './generator-request.types';
 
 @Controller('projects')
 @UseGuards(JwtAuthGuard, AuthzGuard)
@@ -24,133 +20,6 @@ export class GeneratorController {
     private readonly accessPolicyService: ControlAccessPolicyService,
     private readonly auditEventService: AuditEventService,
   ) {}
-
-  @Post('generate')
-  async generateProject(
-    @Body() dto: GenerateProjectDto,
-    @Request() req: GenerateProjectRequest,
-    @Res() res: Response,
-  ) {
-    await this.accessPolicyService.assertCanSelfServiceWrite({
-      teamId: req.teamId,
-      actorId: req.user.id,
-      category: 'project',
-      action: 'project.generate',
-      targetType: 'project',
-      risk: 'medium',
-    });
-
-    const project = await this.projectService.create(req.teamId, req.user.id, {
-      name: dto.basicInfo.name,
-      description: dto.basicInfo.description,
-      config: dto,
-    });
-
-    const resourceResolution = await this.generatorService.resolveProjectResources(
-      req.teamId,
-      req.user.id,
-      project.id,
-      dto,
-    );
-
-    // 生成项目文件
-    const files = await this.generatorService.generateProject(
-      dto,
-      resourceResolution.credentials,
-    );
-
-    // 创建 ZIP 文件
-    const zipBuffer = await this.generatorService.createZipBuffer(files);
-    const artifact = await this.generatorService.persistProjectZipArtifact(
-      req.teamId,
-      project.id,
-      dto.basicInfo.name,
-      zipBuffer,
-    );
-    const resolvedConfig = {
-      ...dto,
-      resolvedResources: resourceResolution.summary,
-    };
-
-    await this.projectService.attachGeneratedProjectArtifact(
-      req.teamId,
-      project.id,
-      resolvedConfig,
-      artifact,
-    );
-
-    // 返回 ZIP 文件
-    res.set({
-      'Content-Type': 'application/zip',
-      'Content-Disposition': `attachment; filename="${artifact.fileName}"`,
-      'Content-Length': zipBuffer.length,
-      'X-Project-Id': project.id,
-      'X-Project-Download-Url': artifact.downloadUrl,
-      'X-Project-Artifact-Expires-At': artifact.expiresAt,
-      'Access-Control-Expose-Headers': 'Content-Disposition, Content-Length, X-Project-Id, X-Project-Download-Url, X-Project-Artifact-Expires-At',
-    });
-
-    res.send(zipBuffer);
-  }
-
-  @Post('artifacts/cleanup')
-  @HttpCode(200)
-  async cleanupGeneratedProjectArtifacts(
-    @Body() dto: CleanGeneratedProjectArtifactsDto,
-    @Request() req: GenerateProjectRequest,
-  ) {
-    const dryRun = dto.dryRun ?? true;
-    await this.accessPolicyService.assertCanWrite({
-      teamId: req.teamId,
-      actorId: req.user.id,
-      projectId: dto.projectId,
-      category: 'project',
-      action: 'project.artifact.cleanup',
-      targetType: 'project_artifact',
-      targetId: dto.projectId ?? 'generated-projects-local',
-      risk: dryRun ? 'low' : 'high',
-    });
-
-    const result = await this.generatorService.cleanupExpiredProjectZipArtifacts({
-      dryRun,
-      teamId: req.teamId,
-      projectId: dto.projectId,
-    });
-
-    await this.auditEventService.create({
-      teamId: req.teamId,
-      actorId: req.user.id,
-      projectId: dto.projectId,
-      category: 'project',
-      action: 'project.artifact.cleanup',
-      targetType: 'project_artifact',
-      targetId: dto.projectId ?? 'generated-projects-local',
-      risk: dryRun ? 'low' : 'high',
-      status: 'completed',
-      summary: dryRun
-        ? `Dry-run found ${result.expired} expired generated project artifacts`
-        : `Deleted ${result.deleted} expired generated project artifacts`,
-      metadata: {
-        dryRun,
-        scanned: result.scanned,
-        expired: result.expired,
-        deleted: result.deleted,
-        projectId: dto.projectId ?? null,
-        artifacts: result.artifacts.slice(0, 20).map(artifact => ({
-          teamId: artifact.teamId,
-          projectId: artifact.projectId,
-          fileName: artifact.fileName,
-          size: artifact.size,
-          generatedAt: artifact.generatedAt,
-          expiresAt: artifact.expiresAt,
-          deleted: artifact.deleted,
-        })),
-        artifactsTruncated: result.artifacts.length > 20,
-      },
-    });
-
-    return this.toArtifactCleanupResponse(result);
-  }
 
   @Get(':id/download')
   async downloadGeneratedProject(
@@ -234,24 +103,6 @@ export class GeneratorController {
         preview: f.content.slice(0, 500) + (f.content.length > 500 ? '...' : ''),
       })),
       totalFiles: files.length,
-    };
-  }
-
-  private toArtifactCleanupResponse(result: ProjectZipArtifactCleanupResult) {
-    return {
-      dryRun: result.dryRun,
-      scanned: result.scanned,
-      expired: result.expired,
-      deleted: result.deleted,
-      artifacts: result.artifacts.map(artifact => ({
-        teamId: artifact.teamId,
-        projectId: artifact.projectId,
-        fileName: artifact.fileName,
-        size: artifact.size,
-        generatedAt: artifact.generatedAt,
-        expiresAt: artifact.expiresAt,
-        deleted: artifact.deleted,
-      })),
     };
   }
 

@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl';
 import { readDeploymentCommandSteps } from '@/lib/deployment-command-parser';
 import { readDeploymentStageEvidence } from '@/lib/deployment-stage-evidence';
 import type { DeploymentRun } from '../types/operations';
+import { releaseDeploymentStageStatusLabelKey } from '../utils/release-copy.model';
 
 export function DeploymentStageTimeline({ run }: { run: DeploymentRun }) {
   const t = useTranslations('projects');
@@ -33,7 +34,9 @@ export function DeploymentStageTimeline({ run }: { run: DeploymentRun }) {
                   {formatPolicy(t, step.runPolicy, step.failurePolicy)}
                 </p>
               </div>
-              <span className={statusClass(status)}>{statusLabel(t, status)}</span>
+              <span className={statusClass(status)}>
+                {t(releaseDeploymentStageStatusLabelKey(status))}
+              </span>
             </div>
             <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
               <span>{step.cwd || t('runDetailDefaultDirectory')}</span>
@@ -61,18 +64,6 @@ export function DeploymentStageTimeline({ run }: { run: DeploymentRun }) {
       })}
     </ol>
   );
-}
-
-function statusLabel(t: ReturnType<typeof useTranslations>, status: string) {
-  const labels: Record<string, string> = {
-    planned: t('runStagePlanned'),
-    not_started: t('runStageNotStarted'),
-    completed: t('runStageCompleted'),
-    failed: t('runStageFailed'),
-    skipped: t('runStageSkipped'),
-    cancelled: t('runStageCancelled'),
-  };
-  return labels[status] || status;
 }
 
 function statusClass(status: string) {

@@ -17,10 +17,10 @@
 ## Tasks
 
 - [x] M1 Freeze threads, worktrees, branch tips, remote divergence, and protected local files. `completed`
-- [ ] M2 Preview and map all merge conflicts, including affected source/test relationships. `in_progress`
-- [ ] M3 Merge the V13 branch into master and resolve each conflict semantically. `pending`
-- [ ] M4 Restore and integrate the local Dockerfile fix without regressing V13 image provenance. `pending`
-- [ ] M5 Run conflict-focused checks plus API/Web/type/lint/parity and Docker build/runtime checks. `pending`
+- [x] M2 Preview and map all merge conflicts, including affected source/test relationships. `completed`
+- [x] M3 Merge the V13 branch into master and resolve each conflict semantically. `completed`
+- [x] M4 Restore and integrate the local Dockerfile fix without regressing V13 image provenance. `completed`
+- [ ] M5 Run conflict-focused checks plus API/Web/type/lint/parity and Docker build/runtime checks. `in_progress`
 - [ ] M6 Commit and push master, then close the existing PR without merge. `pending`
 - [ ] M7 Remove clean V13 worktrees and verified redundant local/remote branches; recheck repository state. `pending`
 

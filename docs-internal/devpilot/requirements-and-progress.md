@@ -435,3 +435,22 @@ MVP 验收标准：
 - 安全读回：仓库分析 API、数据库建议、仓库审计、API/Web 运行日志均为
   0 敏感命中；源验收库保持 54 个迁移，克隆资源和含密临时文件已清理。
 - 权威报告：`docs-internal/devpilot/f383-f384-integration-report.md`。
+
+## 13. Devpilot V13 项目与发布管控（F386-F410，2026-08-03）
+
+- 状态：**F386 in progress**；目标分支
+  `codex/devpilot-project-delivery-v13`，独立 worktree 为
+  `/Users/zhaoxingbo/Workspace/ai-driven/svton-devpilot-project-delivery-v13`。
+- 基线：`b6c3488743be13eacf4320f685da927488490113`，按顺序集成
+  `17652567` 与 `ef1a47cb`；不导入原主工作区未提交修改。
+- 主链：项目目录与三步接入、发布单与四步详情、不可变 BuildRun/Manifest、
+  同 Manifest 重复 Staging 与 Production 门禁、环境版本升级/recovery、
+  Manage Project、51 项目录/15 个真实能力组和标准发布。
+- 兼容：增量 schema、历史项目/环境/运行/日志保留、未知 Digest 标记
+  `legacy/unverified`、旧 tab/query 深链适配，不通过物理重命名或删除绕过迁移。
+- 验收：API/Web 测试和构建只是前置；最终必须包含隔离 Docker 真实数据、
+  浏览器主链/负向 E2E、权限/并发/幂等/脱敏、Provider 不可用、独立审查和
+  主工作区未变化证明。
+- 权威入口：`progress/project-delivery-v13.md`、
+  `../todos/2026-08-03-devpilot-project-delivery-v13.md`、
+  `project-delivery-v13-migration.md` 和外部 long-goal board。

@@ -14,6 +14,7 @@
  * （Item 1 fail-closed，独立职责）。
  */
 export interface ServiceDeployConfigCommands {
+  workingDirectory?: string;
   preStartCheckCommand?: string;
   migrationCommand?: string;
   initializationCommand?: string;
@@ -61,6 +62,7 @@ export function readServiceDeployConfig(
   };
 
   return {
+    workingDirectory: pick("workingDirectory"),
     preStartCheckCommand: pick("preStartCheckCommand"),
     migrationCommand: pick("migrationCommand"),
     initializationCommand: pick("initializationCommand"),

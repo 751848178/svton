@@ -78,13 +78,9 @@ export function findActiveNavItem(
 }
 
 /**
- * Header 主导航只保留主 CTA(新建项目)。
- * 其余页面入口统一由 Sidebar / 移动端菜单的 navigationSections 提供,
- * 避免同一页面在 Header 与 Sidebar 出现两个名字。
+ * V13 主导航不放页面 CTA；统一由 Sidebar / 移动端菜单提供。
  */
-export const primaryHeaderLinks: NavigationItem[] = [
-  { href: '/projects/new', labelKey: 'createProject', icon: 'folder-plus' },
-];
+export const primaryHeaderLinks: NavigationItem[] = [];
 
 export const navigationSections: NavigationSection[] = [
   {
@@ -93,10 +89,10 @@ export const navigationSections: NavigationSection[] = [
     items: [{ href: '/dashboard', labelKey: 'dashboard', icon: 'home' }],
   },
   {
-    // createProject 由 Header 主导航(primaryHeaderLinks)承载,避免与 sidebar 同名重复
     titleKey: 'sectionProjects',
     items: [
       { href: '/projects', labelKey: 'myProjects', icon: 'folder-git' },
+      { href: '/projects/create', labelKey: 'createProject', icon: 'folder-plus' },
       { href: '/applications', labelKey: 'applications', icon: 'boxes' },
     ],
   },

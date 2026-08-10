@@ -10,11 +10,13 @@
     "test": "vitest run",
     "type-check": "tsc --noEmit",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
-    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\""
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\"",
+    "i18n:check": "node scripts/verify-message-parity.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
     "@microsoft/fetch-event-source": "^2.0.1",
+    "@phosphor-icons/react": "^2.1.10",
     "@svton/api-client": "workspace:*",
     "@svton/hooks": "workspace:*",
     "@svton/logger": "workspace:*",
@@ -40,6 +42,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "autoprefixer": "^10.4.16",
+    "axe-core": "^4.13.0",
     "eslint": "^8.55.0",
     "eslint-config-next": "^15.0.0",
     "postcss": "^8.4.32",

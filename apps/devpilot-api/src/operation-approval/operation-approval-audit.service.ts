@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 import { AuditEventService } from "../audit-event";
 import { OperationApprovalAuditRecord } from "./operation-approval.types";
 
@@ -6,10 +7,12 @@ import { OperationApprovalAuditRecord } from "./operation-approval.types";
 export class OperationApprovalAuditService {
   constructor(private readonly auditEventService: AuditEventService) {}
 
+  // F470：tx 透传让胜者 decision audit 与 CAS 共享同一交互式事务；审计抛错回滚审批状态。
   async writeApprovalAudit(
     approval: OperationApprovalAuditRecord,
     action: string,
     status: string,
+    tx?: Prisma.TransactionClient,
   ) {
     await this.auditEventService.create({
       teamId: approval.teamId,
@@ -36,6 +39,6 @@ export class OperationApprovalAuditService {
         requestedTargetId: approval.targetId,
         reviewComment: approval.reviewComment,
       },
-    });
+    }, tx);
   }
 }

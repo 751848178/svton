@@ -13,7 +13,11 @@ describe('RepositoryApplicationApplyRepository', () => {
         upsert: jest.fn(),
       },
       applicationService: {
-        findFirst: jest.fn().mockResolvedValue({ id: 'service-1' }),
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'service-1',
+          deployConfig: null,
+        }),
+        findUnique: jest.fn().mockResolvedValue(null),
         update: jest.fn().mockResolvedValue({ id: 'service-1' }),
         upsert: jest.fn(),
       },
@@ -65,6 +69,70 @@ describe('RepositoryApplicationApplyRepository', () => {
       applicationId: 'application-1',
       applicationServiceId: 'service-1',
     });
+  });
+
+  it('preserves release-only config while applying repository-derived fields', async () => {
+    const tx = transaction();
+    tx.applicationService.findFirst.mockResolvedValue({
+      id: 'service-1',
+      deployConfig: {
+        deployCommand: 'old deploy',
+        healthCheckUrl: 'http://backend/healthz',
+        releaseDependencies: [{ toServiceId: 'admin' }],
+      },
+    });
+    const repository = new RepositoryApplicationApplyRepository();
+
+    await repository.apply(tx as never, 'team-1', 'project-1', 'run-1', {
+      applicationId: 'application-1',
+      applicationName: 'Picshare App',
+      serviceId: 'service-1',
+      serviceName: 'backend',
+      environmentId: 'environment-1',
+      deployConfig: {
+        deployCommand: 'new deploy',
+        workingDirectory: 'apps/backend',
+      },
+    });
+
+    expect(tx.applicationService.update).toHaveBeenCalledWith({
+      where: { id: 'service-1' },
+      data: expect.objectContaining({
+        deployConfig: {
+          deployCommand: 'new deploy',
+          workingDirectory: 'apps/backend',
+          healthCheckUrl: 'http://backend/healthz',
+          releaseDependencies: [{ toServiceId: 'admin' }],
+        },
+      }),
+    });
+  });
+
+  it('preserves deploy config on the unique-key upsert update path', async () => {
+    const tx = transaction();
+    tx.applicationService.findUnique.mockResolvedValue({
+      id: 'service-1',
+      deployConfig: { healthCheckUrl: 'http://admin/healthz' },
+    });
+    tx.applicationService.upsert.mockResolvedValue({ id: 'service-1' });
+    const repository = new RepositoryApplicationApplyRepository();
+
+    await repository.apply(tx as never, 'team-1', 'project-1', 'run-1', {
+      applicationId: 'application-1',
+      applicationName: 'Picshare App',
+      serviceName: 'admin',
+      environmentId: 'environment-1',
+      deployConfig: { deployCommand: 'next start' },
+    });
+
+    expect(tx.applicationService.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      update: expect.objectContaining({
+        deployConfig: {
+          deployCommand: 'next start',
+          healthCheckUrl: 'http://admin/healthz',
+        },
+      }),
+    }));
   });
 
   it('rejects a forged application ID outside the project scope', async () => {

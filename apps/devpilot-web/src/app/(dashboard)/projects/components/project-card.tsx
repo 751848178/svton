@@ -1,154 +1,139 @@
-'use client';
-
-/**
- * 项目卡片
- *
- * 单一职责：渲染单张项目卡。整卡是 <Link>（保留可点导航）。
- * 在原有 name/来源/管理范围/标签/创建时间之上增强：
- *   - 顶部最近部署状态点（StatusTag）+ 相对时间
- *   - 底部环境/应用计数 Tag
- *   - 右上角三点菜单（部署/设置，trigger 阻止冒泡避免触发卡片导航）
- */
-
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { Folder } from '@phosphor-icons/react';
 import { Tag } from '@svton/ui';
-import { ActionMenu, StatusTag } from '@/components/ui';
-import { formatDate, formatRelative } from '@/lib/format-date';
-import {
-  getProjectDescription,
-  getProjectManagementScopeLabel,
-  getProjectOriginLabel,
-  getProjectRepository,
-  getProjectStackTags,
-  getProjectSubProjectLabels,
-} from '@/lib/project-display';
-import {
-  buildProjectActionGroups,
-  countApplications,
-  countEnvironments,
-  getLatestRunStatusValue,
-} from '../utils/project-card-fields';
-import type { Project, ProjectDeploymentRun } from '../types';
-
-/** 项目卡最近部署 health 值 → projects 命名空间 i18n key。 */
-const STATUS_VALUE_LABEL_KEY: Record<string, string> = {
-  neutral: 'latestDeployNone',
-  deploying: 'healthDeploying',
-  failed: 'healthDegraded',
-  healthy: 'healthHealthy',
-};
+import { formatDate } from '@/lib/format-date';
+import type { ProjectDirectoryItem } from '../types';
 
 interface ProjectCardProps {
-  project: Project;
-  latestRun?: ProjectDeploymentRun;
-  hasGitRepoLabel: string;
+  project: ProjectDirectoryItem;
 }
 
-/** 把相对时间分桶翻译成本地化文案（zh/en 同构）。返回 null 表示无最近部署。 */
-function formatRelativeLabel(
-  t: ReturnType<typeof useTranslations>,
-  startedAt?: string | null,
-): string {
-  const bucket = formatRelative(startedAt);
-  if (!bucket) return t('latestDeployNone');
-  switch (bucket.key) {
-    case 'justNow':
-      return t('relativeJustNow');
-    case 'minutes':
-      return t('relativeMinutesAgo', { count: bucket.value });
-    case 'hours':
-      return t('relativeHoursAgo', { count: bucket.value });
-    case 'days':
-      return t('relativeDaysAgo', { count: bucket.value });
-    case 'date':
-      return bucket.value;
-    default:
-      return t('latestDeployNone');
-  }
-}
+const ACTIVITY_LABELS = {
+  analysis: 'activityAnalysis',
+  deployment: 'activityDeployment',
+  release: 'activityRelease',
+  audit: 'activityAudit',
+  intake: 'activityIntake',
+  project: 'activityProject',
+} as const;
 
-export function ProjectCard({ project, latestRun, hasGitRepoLabel }: ProjectCardProps) {
+const PROJECT_TYPE_LABELS: Record<string, string> = {
+  web_application: 'projectTypeWebApplication',
+  backend_service: 'projectTypeBackendService',
+  static_site: 'projectTypeStaticSite',
+  mixed_application: 'projectTypeMixedApplication',
+};
+
+const ARCHITECTURE_LABELS: Record<string, string> = {
+  monorepo: 'architectureMonorepo',
+  single_repository: 'architectureSingleRepository',
+};
+
+export function ProjectCard({ project }: ProjectCardProps) {
   const t = useTranslations('projects');
-  const router = useRouter();
-
-  const description = getProjectDescription(project.config, project.description);
-  const tags = [
-    ...getProjectSubProjectLabels(project.config),
-    ...getProjectStackTags(project.config),
-  ];
-  const repository = getProjectRepository(project.config, project.gitRepo);
-
-  const envCount = countEnvironments(project);
-  const appCount = countApplications(project);
-  const statusValue = getLatestRunStatusValue(latestRun ?? null);
-  const relativeText = formatRelativeLabel(t, latestRun?.startedAt);
-
-  const handleAction = (action: 'deploy' | 'settings') => {
-    router.push(`/projects/${project.id}`);
-    void action;
-  };
-  const actionGroups = buildProjectActionGroups({
-    deployLabel: t('actionDeploy'),
-    settingsLabel: t('actionSettings'),
-    onSelect: handleAction,
-  });
-
-  // 整卡是 <Link>，菜单 trigger 必须吞掉点击事件，否则会触发导航。
-  const stopCardNavigation = (event: React.MouseEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-  };
-
+  const readyBaselines = [project.baselines.staging, project.baselines.production].filter(
+    (baseline) => baseline?.ready,
+  ).length;
   return (
-    <Link
-      href={`/projects/${project.id}`}
-      className="rounded-lg border bg-card p-6 transition-shadow hover:shadow-md"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="truncate text-lg font-semibold">{project.name}</h3>
-          <div className="mt-1.5 flex flex-wrap items-center gap-2">
-            <StatusTag
-              status={statusValue}
-              label={t(STATUS_VALUE_LABEL_KEY[statusValue] || 'latestDeployNone')}
+    <article className="px-4 py-4 transition-colors hover:bg-muted/20">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(11rem,.8fr)] lg:items-center">
+        <div className="flex min-w-0 items-start gap-3">
+          <span
+            className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground"
+            aria-hidden="true"
+          >
+            <Folder
+              size={18}
+              weight="fill"
             />
-            <span className="text-xs text-muted-foreground">{relativeText}</span>
+          </span>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="truncate text-base font-semibold">{project.name}</h2>
+              <Tag color={project.status === 'online' ? 'green' : 'orange'}>
+                {t(project.status === 'online' ? 'statusOnline' : 'statusNeedsConfiguration')}
+              </Tag>
+            </div>
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              {project.repository?.canonicalUrl ?? t('repositoryUnknown')}
+            </p>
           </div>
         </div>
-        <div onClick={stopCardNavigation} className="shrink-0">
-          <ActionMenu groups={actionGroups} triggerLabel={t('moreActions')} />
+
+        <DirectoryCell label={t('directoryType')}>
+          <p className="font-medium">{label(t, PROJECT_TYPE_LABELS[project.intake.projectType ?? ''])}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {label(t, ARCHITECTURE_LABELS[project.intake.architecture ?? ''])}
+            {' · '}
+            {project.intake.componentCount === null
+              ? t('componentCountUnknown')
+              : t('componentCount', { count: project.intake.componentCount })}
+          </p>
+        </DirectoryCell>
+
+        <DirectoryCell label={t('directoryBaselines')}>
+          <div className="flex flex-wrap gap-1.5">
+            <BaselineTag
+              name="Staging"
+              ready={project.baselines.staging?.ready === true}
+            />
+            <BaselineTag
+              name="Production"
+              ready={project.baselines.production?.ready === true}
+            />
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {t('baselineReadiness', { ready: readyBaselines, total: 2 })}
+          </p>
+        </DirectoryCell>
+
+        <DirectoryCell label="Production">
+          <p className="font-medium">
+            {project.production.currentVersion ?? t('productionNotReleased')}
+          </p>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">
+            {project.production.domain ?? t('domainNotConfigured')}
+          </p>
+        </DirectoryCell>
+
+        <div className="flex items-center justify-between gap-4 lg:block">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              {t('directoryRecentActivity')}
+            </p>
+            <p className="mt-0.5 text-sm">{t(ACTIVITY_LABELS[project.activity.type])}</p>
+            <p className="text-xs text-muted-foreground">
+              {formatDate(project.activity.occurredAt)}
+            </p>
+          </div>
+          <Link
+            href={`/projects/${project.id}`}
+            className="inline-flex whitespace-nowrap rounded-md px-2 py-1 text-sm font-medium text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring lg:mt-2"
+          >
+            {t('enterProject')} →
+          </Link>
         </div>
       </div>
-
-      <div className="mt-3 flex flex-wrap gap-2">
-        <Tag color="default">{getProjectOriginLabel(project.config)}</Tag>
-        <Tag color="cyan">{getProjectManagementScopeLabel(project.config)}</Tag>
-      </div>
-
-      {description ? (
-        <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">{description}</p>
-      ) : null}
-
-      {tags.length > 0 ? (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {tags.map((tag) => (
-            <Tag
-              key={tag}
-              color="default"
-            >
-              {tag}
-            </Tag>
-          ))}
-        </div>
-      ) : null}
-
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-        <Tag color="default">{t('envAppSummary', { envs: envCount, apps: appCount })}</Tag>
-        <span className="ml-auto">{formatDate(project.createdAt)}</span>
-        {repository ? <span className="text-primary">{hasGitRepoLabel}</span> : null}
-      </div>
-    </Link>
+    </article>
   );
+}
+
+function DirectoryCell({ label: title, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[10px] font-bold uppercase tracking-[0.045em] text-muted-foreground">
+        {title}
+      </p>
+      <div className="mt-1 text-sm">{children}</div>
+    </div>
+  );
+}
+
+function BaselineTag({ name, ready }: { name: string; ready: boolean }) {
+  return <Tag color={ready ? 'green' : 'default'}>{name}</Tag>;
+}
+
+function label(t: ReturnType<typeof useTranslations>, key?: string) {
+  return key ? t(key) : t('directoryUnknown');
 }

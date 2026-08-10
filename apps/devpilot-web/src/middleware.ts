@@ -34,8 +34,6 @@ const PROTECTED_PREFIXES = [
   '/teams',
 ];
 
-const AUTH_PREFIXES = ['/login', '/register'];
-
 function startsWithAny(pathname: string, prefixes: string[]): boolean {
   return prefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
@@ -48,10 +46,9 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL(buildLoginRedirectPath(pathname, search), request.url));
   }
 
-  if (hasToken && startsWithAny(pathname, AUTH_PREFIXES)) {
-    return NextResponse.redirect(new URL('/teams', request.url));
-  }
-
+  // Auth pages remain reachable even when a token cookie exists. The client
+  // reconciles cookie + localStorage state and redirects only after it has a
+  // usable persisted identity. This avoids stale/cross-port cookie loops.
   return NextResponse.next();
 }
 

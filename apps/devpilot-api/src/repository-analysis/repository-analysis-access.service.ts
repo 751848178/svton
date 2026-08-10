@@ -6,9 +6,9 @@ interface RepositoryAccessInput {
   userId: string;
   projectId: string;
   action: string;
-  targetType: 'repository_connection' | 'repository_analysis_run';
+  targetType: 'repository_connection' | 'repository_analysis_run' | 'repository_identity';
   targetId?: string;
-  risk?: 'low' | 'medium';
+  risk?: 'low' | 'medium' | 'high';
 }
 
 @Injectable()

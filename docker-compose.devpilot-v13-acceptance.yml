@@ -1,0 +1,39 @@
+# Controlled-local Build executor for the disposable V13 acceptance stack.
+# This overlay is inert unless the caller also selects --profile v13-acceptance.
+services:
+  api:
+    profiles: ["v13-acceptance"]
+    container_name: devpilot-v13-f426-api
+    restart: "no"
+    # Trusted disposable fixtures only: commands still share the API process
+    # and staging network, so this is not an untrusted-code sandbox.
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 256
+    tmpfs:
+      - /tmp:rw,nosuid,size=64m
+    environment:
+      RELEASE_BUILD_EXECUTION_ENABLED: "true"
+      RELEASE_BUILD_EXECUTOR_PROFILE: controlled-local-v1
+      RELEASE_BUILD_WORK_ROOT: /var/lib/devpilot/release-build/work
+      RELEASE_BUILD_ARTIFACT_ROOT: /var/lib/devpilot/release-build/artifacts
+      RELEASE_BUILD_RUN_TIMEOUT_MS: "180000"
+      RELEASE_BUILD_COMMAND_TIMEOUT_MS: "120000"
+      RELEASE_BUILD_CANCEL_GRACE_MS: "5000"
+      RELEASE_BUILD_MAX_CONCURRENCY: "2"
+      RELEASE_BUILD_COMMAND_PATH: /pnpm:/usr/local/bin:/usr/bin:/bin
+      RELEASE_STAGING_DEPLOYMENT_ENABLED: "true"
+      RELEASE_DEPLOYMENT_PROVIDER_PROFILE: local-filesystem-v1
+      RELEASE_STAGING_DEPLOYMENT_ROOT: /var/lib/devpilot/release-build/deployments
+      RELEASE_STAGING_DEPLOYMENT_TIMEOUT_MS: "120000"
+    volumes:
+      - devpilot-v13-release-build:/var/lib/devpilot/release-build
+
+  web:
+    profiles: ["v13-acceptance"]
+    container_name: devpilot-v13-f426-web
+    restart: "no"
+
+volumes:
+  devpilot-v13-release-build: {}

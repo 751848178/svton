@@ -1,7 +1,7 @@
 'use client';
 
-import { Card, EmptyState, LoadingState } from '@svton/ui';
-import { Button } from '@/components/ui';
+import { useTranslations } from 'next-intl';
+import { Button, Card, EmptyState, LoadingState } from '@svton/ui';
 import type { RepositoryAnalysisHook } from '../hooks/use-repository-analysis.hooks';
 import type {
   RepositoryAnalysisRun,
@@ -15,9 +15,10 @@ export function RepositoryRunPanel({
   analysis: RepositoryAnalysisHook;
   onSelectRun: (runId: string) => void;
 }) {
+  const t = useTranslations('projects');
   if (analysis.loading) return <LoadingState text="正在加载解析记录…" />;
   if (analysis.runs.length === 0) {
-    return <EmptyState text="连接仓库后，这里会显示解析阶段、证据和失败恢复动作。" />;
+    return <EmptyState text={t('repositoryNoRuns')} />;
   }
   const run = analysis.selectedRun;
   return (

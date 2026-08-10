@@ -6,7 +6,7 @@
  * 不应挤在概览里分散注意。
  *
  * 保存逻辑沿用原内联 apiRequest（PUT:/projects/:id），保持现有行为不变。
- * 删除走既有 project.delete 策略（risk high，审批走后端 access-policy），
+ * 归档走 project.archive 策略（risk high，审批走后端 access-policy），
  * 配 type-to-confirm（输入项目名）防误删 —— 参照 servers 删除模式。
  */
 
@@ -47,7 +47,7 @@ export function SettingsTab({ detail }: { detail: DetailHook }) {
   const handleDelete = usePersistFn(async () => {
     if (!p) return;
     await apiRequest(`DELETE:/projects/${p.id}`);
-    feedback.success(t('deleteSuccess'));
+    feedback.success(t('archiveSuccess'));
     router.push('/projects');
   });
 
@@ -108,10 +108,10 @@ export function SettingsTab({ detail }: { detail: DetailHook }) {
       )}
 
       <div className="rounded-lg border border-destructive/50 p-6">
-        <h2 className="mb-2 font-semibold text-destructive">{t('dangerZone')}</h2>
-        <p className="mb-4 text-sm text-muted-foreground">{t('deleteProjectDescription')}</p>
+        <h2 className="mb-2 font-semibold text-destructive">{t('archiveProjectTitle')}</h2>
+        <p className="mb-4 text-sm text-muted-foreground">{t('archiveProjectDescription')}</p>
         <Button variant="destructive" onClick={() => setDeleteOpen(true)}>
-          {t('deleteProject')}
+          {t('archiveProject')}
         </Button>
       </div>
 
@@ -119,10 +119,10 @@ export function SettingsTab({ detail }: { detail: DetailHook }) {
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         tone="danger"
-        title={t('deleteProjectTitle')}
-        description={t('deleteProjectConfirm')}
+        title={t('archiveProjectTitle')}
+        description={t('archiveProjectConfirm')}
         resourceName={p.name}
-        confirmLabel={tc('delete')}
+        confirmLabel={t('archiveProject')}
         cancelLabel={tc('cancel')}
         onConfirm={handleDelete}
       />

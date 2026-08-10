@@ -64,6 +64,10 @@ export class UpdateProjectEnvironmentDto {
   sortOrder?: number;
 
   @IsOptional()
+  @IsString()
+  reason?: string;
+
+  @IsOptional()
   @IsObject()
   config?: Record<string, unknown>;
 }
@@ -289,8 +293,25 @@ export class BindProjectEnvironmentServerDto {
   serverId: string;
 
   @IsOptional()
-  @IsIn(['deploy', 'runtime', 'database', 'edge', 'mixed'])
-  role?: 'deploy' | 'runtime' | 'database' | 'edge' | 'mixed';
+  @IsIn(['deploy', 'deployment', 'runtime', 'database', 'edge', 'mixed'])
+  role?: 'deploy' | 'deployment' | 'runtime' | 'database' | 'edge' | 'mixed';
+
+  @IsOptional()
+  @IsString()
+  providerKey?: string;
+
+  @IsOptional()
+  @IsString()
+  root?: string;
+
+  @IsOptional()
+  @IsString()
+  targetRef?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  sharedEnvironmentIds?: string[];
 
   @IsOptional()
   @IsObject()

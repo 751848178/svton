@@ -1,6 +1,7 @@
 import { ControlAccessPolicyService } from '../control-access-policy';
 import { ProjectController } from './project.controller';
 import { ProjectService } from './project.service';
+import { ProjectArchiveService } from './project-archive.service';
 
 describe('ProjectController authorization', () => {
   const req = {
@@ -16,6 +17,7 @@ describe('ProjectController authorization', () => {
     canRead: jest.Mock;
   };
   let controller: ProjectController;
+  const archiveService = { archive: jest.fn() };
 
   beforeEach(() => {
     projectService = {
@@ -28,6 +30,7 @@ describe('ProjectController authorization', () => {
     controller = new ProjectController(
       projectService as unknown as ProjectService,
       accessPolicyService as unknown as ControlAccessPolicyService,
+      archiveService as unknown as ProjectArchiveService,
     );
   });
 

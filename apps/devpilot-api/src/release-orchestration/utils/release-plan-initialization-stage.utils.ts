@@ -4,6 +4,7 @@ import {
   makeStage,
   type StageCtx,
 } from "./release-plan-stage-helpers.utils";
+import { withWorkingDirectory } from "./release-plan-working-directory.utils";
 
 export function makeInitializationStage(
   svc: ReleaseServiceInput,
@@ -26,11 +27,11 @@ export function makeInitializationStage(
       required: true,
       risk: BOOTSTRAP_RISK,
       ctx,
-      config: {
+      config: withWorkingDirectory(svc, {
         command,
         runPolicy: "once_per_environment_command",
         concurrencyKey: `bootstrap:${svc.applicationServiceId}:${svc.environmentId}`,
-      },
+      }),
     }),
     sideEffect: `${key}: 创建或更新初始化数据`,
     approvalReason: "初始化数据可能修改业务数据",

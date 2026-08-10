@@ -16,9 +16,15 @@ interface TodoSectionProps {
   pendingApprovals: number;
   failedDeployments: number;
   firingAlerts: number;
+  incomplete: boolean;
 }
 
-export function TodoSection({ pendingApprovals, failedDeployments, firingAlerts }: TodoSectionProps) {
+export function TodoSection({
+  pendingApprovals,
+  failedDeployments,
+  firingAlerts,
+  incomplete,
+}: TodoSectionProps) {
   const t = useTranslations('dashboard');
 
   const items = [
@@ -47,7 +53,14 @@ export function TodoSection({ pendingApprovals, failedDeployments, firingAlerts 
   return (
     <section aria-label={t('todoSectionTitle')}>
       <h2 className="mb-3 text-lg font-semibold">{t('todoSectionTitle')}</h2>
-      {active.length === 0 ? (
+      {active.length === 0 && incomplete ? (
+        <div
+          className="rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning-foreground"
+          data-dashboard-todo-state="incomplete"
+        >
+          {t('todoIncomplete')}
+        </div>
+      ) : active.length === 0 ? (
         <div className="rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
           {t('todoAllClear')}
         </div>

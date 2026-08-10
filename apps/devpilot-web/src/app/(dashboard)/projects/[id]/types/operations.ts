@@ -39,6 +39,7 @@ export interface DeploymentCommandStep {
 
 export interface DeploymentRun {
   id: string;
+  projectId: string;
   environment: string | null;
   projectEnvironment?: { id: string; key: string; name: string; status: string } | null;
   serverExecutionJobId?: string | null;
@@ -61,6 +62,17 @@ export interface DeploymentRun {
     risk: string;
     reviewedAt?: string | null;
     consumedAt?: string | null;
+  } | null;
+  releaseRun?: {
+    id: string;
+    status: string;
+    operationApproval?: {
+      id: string;
+      status: string;
+      risk: string;
+      reviewedAt?: string | null;
+      consumedAt?: string | null;
+    } | null;
   } | null;
   targetType: string;
   dryRun: boolean;

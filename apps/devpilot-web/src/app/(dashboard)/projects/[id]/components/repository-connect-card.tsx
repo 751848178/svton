@@ -1,9 +1,12 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Card } from '@svton/ui';
-import { Button, Input } from '@/components/ui';
+import { Button, Card } from '@svton/ui';
+import { Input } from '@/components/ui';
 import type { RepositoryAnalysisHook } from '../hooks/use-repository-analysis.hooks';
 import type { ConnectRepositoryInput } from '../types/repository-analysis.types';
+import { RepositoryIdentityMigrationRequiredCard } from './repository-identity-migration-required-card';
+import { RepositoryLockedIdentityCard } from './repository-locked-identity-card';
+import { PrivateCredentialFields } from './repository-private-credential-fields';
 
 export function RepositoryConnectCard({
   analysis,
@@ -39,6 +42,13 @@ export function RepositoryConnectCard({
     setVisibility(connection.visibility);
   }, [connection]);
 
+  if (analysis.state.identityStatus === 'identity_migration_required') {
+    return <RepositoryIdentityMigrationRequiredCard />;
+  }
+  if (analysis.state.canonicalIdentity) {
+    return <RepositoryLockedIdentityCard analysis={analysis} />;
+  }
+
   const submit = async () => {
     const input: ConnectRepositoryInput = {
       repositoryUrl: repositoryUrl.trim(),
@@ -67,10 +77,9 @@ export function RepositoryConnectCard({
   return (
     <Card className="space-y-4">
       <div>
-        <h2 className="text-base font-semibold">项目解析：连接只读代码仓库</h2>
+        <h2 className="text-base font-semibold">连接只读代码仓库</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          先验证仓库、分支与
-          commit，再在隔离目录识别应用、服务、环境和资源证据；不会向仓库写入或执行仓库脚本。
+          先验证分支与 commit，再在隔离临时目录解析；不会向仓库写入或执行仓库脚本。
         </p>
       </div>
       {connection ? <ConnectionSnapshot analysis={analysis} /> : null}
@@ -141,77 +150,6 @@ function ConnectionSnapshot({ analysis }: { analysis: RepositoryAnalysisHook }) 
         {item.selectedBranch || '-'} · {item.repositoryUrl}
       </p>
       {item.errorMessage ? <p className="mt-2 text-destructive">{item.errorMessage}</p> : null}
-    </div>
-  );
-}
-
-type CredentialFieldsProps = {
-  mode: string;
-  setMode: (value: string) => void;
-  options: RepositoryAnalysisHook['state']['credentialOptions'];
-  credentialId: string;
-  setCredentialId: (value: string) => void;
-  name: string;
-  setName: (value: string) => void;
-  username: string;
-  setUsername: (value: string) => void;
-  secret: string;
-  setSecret: (value: string) => void;
-};
-
-function PrivateCredentialFields(props: CredentialFieldsProps) {
-  return (
-    <div className="space-y-3 rounded-md border p-3">
-      <label className="block text-sm">
-        <span className="mb-1 block font-medium">只读凭据</span>
-        <select
-          className="h-10 w-full rounded-md border bg-background px-3"
-          value={props.mode}
-          onChange={(event) => props.setMode(event.target.value)}
-        >
-          <option value="existing">选择已有凭据</option>
-          <option value="inline-token">新增 HTTPS Token</option>
-          <option value="inline-ssh">新增 SSH 私钥</option>
-        </select>
-      </label>
-      {props.mode === 'existing' ? (
-        <select
-          className="h-10 w-full rounded-md border bg-background px-3 text-sm"
-          value={props.credentialId}
-          onChange={(event) => props.setCredentialId(event.target.value)}
-        >
-          <option value="">请选择</option>
-          {props.options.map((item) => (
-            <option
-              key={item.id}
-              value={item.id}
-            >
-              {item.label}
-            </option>
-          ))}
-        </select>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Input
-            placeholder="凭据名称"
-            value={props.name}
-            onChange={(e) => props.setName(e.target.value)}
-          />
-          <Input
-            placeholder="用户名（可选）"
-            value={props.username}
-            onChange={(e) => props.setUsername(e.target.value)}
-          />
-          <div className="sm:col-span-2">
-            <Input
-              type="password"
-              placeholder={props.mode === 'inline-ssh' ? 'SSH 私钥' : '访问令牌'}
-              value={props.secret}
-              onChange={(e) => props.setSecret(e.target.value)}
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 }

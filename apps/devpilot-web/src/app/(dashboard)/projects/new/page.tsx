@@ -15,6 +15,10 @@ import { StepResources } from '@/components/project-wizard/step-resources';
 import { StepPreview } from '@/components/project-wizard/step-preview';
 import { isValidPackageName } from '@/components/project-wizard/package-name';
 import { cn } from '@/lib/utils';
+import {
+  clearGeneratedProjectAttempt,
+  getGeneratedProjectAttempt,
+} from './generated-project-attempt-key';
 
 const STEPS = [
   { id: 'basic', titleKey: 'stepBasicInfo', component: StepBasicInfo },
@@ -52,10 +56,15 @@ export default function NewProjectPage() {
     setIsSubmitting(true);
     setSubmitError('');
     try {
+      const attempt = getGeneratedProjectAttempt(
+        window.sessionStorage,
+        () => window.crypto.randomUUID(),
+        config,
+      );
       // generate 返回二进制 ZIP，已由后端 excludePaths 排除信封，用 download 直连
       const response = await download('/projects/generate', {
         method: 'POST',
-        body: config,
+        body: { ...config, idempotencyKey: attempt.key },
       });
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
@@ -68,6 +77,7 @@ export default function NewProjectPage() {
       document.body.removeChild(a);
 
       const projectId = response.headers.get('X-Project-Id');
+      clearGeneratedProjectAttempt(window.sessionStorage, attempt.key);
       reset();
       router.push(projectId ? `/projects/${projectId}` : '/projects');
     } catch (error) {

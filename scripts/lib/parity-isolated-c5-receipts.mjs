@@ -1,0 +1,34 @@
+export function cleanupReceiptFor(runtime, residualResources, builderReceipt) {
+  return {
+    status: "verified_zero_residuals",
+    verifiedAt: new Date().toISOString(),
+    runtimeId: runtime.runtimeId,
+    goalId: runtime.goalId,
+    cleanupOwnerToken: runtime.cleanupOwnerToken,
+    builderReceipt,
+    residualResources,
+  };
+}
+
+export function publicRuntime(runtime) {
+  return {
+    composeProject: runtime.composeProject,
+    databaseName: runtime.databaseName,
+    ports: runtime.ports,
+    apiImage: runtime.apiImage,
+    webImage: runtime.webImage,
+    routeControlImage: runtime.routeControlImage,
+    deployTargetImage: runtime.deployTargetImage,
+    targetWorkloadImage: runtime.targetWorkloadImage,
+    builderName: runtime.builderName,
+    apiBase: runtime.apiBase,
+    webOrigin: runtime.webOrigin,
+    targetOrigin: runtime.targetOrigin,
+    routeControlOrigin: runtime.routeControlOrigin,
+    localAcceptanceOrigin: runtime.localAcceptanceOrigin,
+    sourceRevision: runtime.sourceRevision,
+    sourceTreeSha256: runtime.sourceTreeSha256,
+    runtimeId: runtime.runtimeId,
+    goalId: runtime.goalId,
+  };
+}

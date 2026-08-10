@@ -63,6 +63,9 @@ export interface OperationApproval {
     kind: string;
     endpoint?: string | null;
   } | null;
+  capabilities?: {
+    review: boolean;
+  };
 }
 
 export type ApprovalDecision = 'approved' | 'rejected';

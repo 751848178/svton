@@ -7,11 +7,11 @@ interface RepositoryAuditInput {
   userId?: string | null;
   projectId: string;
   action: string;
-  targetType: 'repository_connection' | 'repository_analysis_run';
+  targetType: 'repository_connection' | 'repository_analysis_run' | 'repository_identity';
   targetId?: string;
   status?: 'completed' | 'failed' | 'running' | 'blocked';
   summary: string;
-  risk?: 'low' | 'medium';
+  risk?: 'low' | 'medium' | 'high';
   metadata?: Record<string, unknown>;
 }
 

@@ -19,11 +19,25 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
       --filter @svton/devpilot-web...
 RUN pnpm rebuild --filter @svton/devpilot-web...
 
-# ---- web: Next.js frontend ----
-# .next/ is compiled on the host (turbo build) and already present in the
-# build context; nothing left to compile inside the container.
+# ---- local-web: self-contained local Docker build ----
+FROM base AS local-web
+WORKDIR /app/apps/devpilot-web
+ARG NEXT_PUBLIC_API_URL
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+RUN test -n "$NEXT_PUBLIC_API_URL" && pnpm build
+EXPOSE 3120
+CMD ["pnpm", "start"]
+
+# ---- web: verified external Next.js build output for parity/release ----
 FROM base AS web
 WORKDIR /app/apps/devpilot-web
+ARG NEXT_PUBLIC_API_URL
 ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+COPY --from=web-dist . .next/
+RUN test -n "$NEXT_PUBLIC_API_URL" && test -f .next/BUILD_ID
 EXPOSE 3120
 CMD ["pnpm", "start"]

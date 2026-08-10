@@ -1,24 +1,14 @@
-import { Logger } from '@nestjs/common';
-import { Client, ClientChannel } from 'ssh2';
+import { Logger } from "@nestjs/common";
+import { Client, ClientChannel } from "ssh2";
 import {
-  SshCancellationSignal,
   SshTransport,
   SshTransportCredentials,
   SshTransportExecOptions,
   SshTransportExecResult,
-} from './ssh-transport';
+  SshTransportUploadOptions,
+} from "./ssh-transport";
+import { uploadSshFile } from "./ssh2-sftp-upload.utils";
 
-/**
- * 基于 `ssh2` 的 SSH 传输实现。
- *
- * 取代 `SshLiveServerExecutorAdapter` 里 695 行 `spawn('ssh', ...)` 的 CLI 方案：
- *  - 不再写临时私钥文件（私钥直接通过 `privateKey` 选项传入 ssh2）
- *  - 不再依赖系统 `ssh` 二进制存在
- *  - stdout/stderr/exitCode 通过 ssh2 channel 事件收集，取消通过 `channel.close()` + `client.end()`
- *
- * 远端进程组治理（setsid + trap + PID marker）仍由 adapter 的包装脚本负责，
- * 这里只提供"把脚本喂进远端 bash 并收集输出"的传输能力。
- */
 export class Ssh2Transport implements SshTransport {
   private readonly logger = new Logger(Ssh2Transport.name);
   private readonly client = new Client();
@@ -39,15 +29,15 @@ export class Ssh2Transport implements SshTransport {
   private connect(): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       const onError = (error: Error) => {
-        this.client.removeListener('ready', onReady);
+        this.client.removeListener("ready", onReady);
         reject(error);
       };
       const onReady = () => {
-        this.client.removeListener('error', onError);
+        this.client.removeListener("error", onError);
         resolve();
       };
-      this.client.once('ready', onReady);
-      this.client.once('error', onError);
+      this.client.once("ready", onReady);
+      this.client.once("error", onError);
       this.client.connect({
         host: this.credentials.host,
         port: this.credentials.port,
@@ -62,11 +52,14 @@ export class Ssh2Transport implements SshTransport {
     });
   }
 
-  async execScript(script: string, options: SshTransportExecOptions): Promise<SshTransportExecResult> {
+  async execScript(
+    script: string,
+    options: SshTransportExecOptions,
+  ): Promise<SshTransportExecResult> {
     await this.ensureConnected();
     return new Promise<SshTransportExecResult>((resolve, reject) => {
-      let stdout = '';
-      let stderr = '';
+      let stdout = "";
+      let stderr = "";
       let settled = false;
       let timedOut = false;
       let cancelled = options.signal?.aborted ?? false;
@@ -105,7 +98,7 @@ export class Ssh2Transport implements SshTransport {
 
       let channel: ClientChannel | undefined;
 
-      this.client.exec('bash -se', (error, stream) => {
+      this.client.exec("bash -se", (error, stream) => {
         if (error) {
           clearTimeout(timer);
           unsubscribeCancel?.();
@@ -113,17 +106,17 @@ export class Ssh2Transport implements SshTransport {
           return;
         }
         channel = stream;
-        stream.on('data', (chunk: Buffer) => {
+        stream.on("data", (chunk: Buffer) => {
           const text = chunk.toString();
           stdout += text;
           options.onData?.({ stdout: text });
         });
-        stream.stderr.on('data', (chunk: Buffer) => {
+        stream.stderr.on("data", (chunk: Buffer) => {
           const text = chunk.toString();
           stderr += text;
           options.onData?.({ stderr: text });
         });
-        stream.on('close', (code: number | null, signal?: string) => {
+        stream.on("close", (code: number | null, signal?: string) => {
           // ssh2 在 channel 关闭后需要结束子流；这里直接结算。
           const exit = code === undefined || code === null ? null : code;
           if (signal) {
@@ -146,14 +139,16 @@ export class Ssh2Transport implements SshTransport {
   ): Promise<{ exitCode: number | null; stderr: string }> {
     await this.ensureConnected();
     return new Promise((resolve, reject) => {
-      let stderr = '';
+      let stderr = "";
       const timer = setTimeout(() => {
         try {
           this.client.end();
         } catch {
           // ignore
         }
-        reject(new Error(`remote command timed out after ${options.timeoutMs}ms`));
+        reject(
+          new Error(`remote command timed out after ${options.timeoutMs}ms`),
+        );
       }, options.timeoutMs);
 
       this.client.exec(command, (error, stream) => {
@@ -165,13 +160,13 @@ export class Ssh2Transport implements SshTransport {
         // 必须 drain stdout：不订阅 data 时，远端命令产生的 stdout 会撑满内核
         // 管道缓冲并阻塞，channel 永不 close → 表现为命令超时。execCommand 只
         // 关心 exitCode/stderr，但仍要消费 stdout 防止背压死锁。
-        stream.on('data', () => {
+        stream.on("data", () => {
           /* drain stdout; exitCode/stderr are the only fields we return */
         });
-        stream.stderr.on('data', (chunk: Buffer) => {
+        stream.stderr.on("data", (chunk: Buffer) => {
           stderr += chunk.toString();
         });
-        stream.on('close', (code: number | null) => {
+        stream.on("close", (code: number | null) => {
           clearTimeout(timer);
           resolve({ exitCode: code ?? null, stderr });
         });
@@ -183,12 +178,23 @@ export class Ssh2Transport implements SshTransport {
     });
   }
 
+  async uploadFile(
+    localPath: string,
+    remotePath: string,
+    options: SshTransportUploadOptions,
+  ): Promise<void> {
+    await this.ensureConnected();
+    return uploadSshFile(this.client, localPath, remotePath, options);
+  }
+
   dispose(): void {
     try {
       this.connected = false;
       this.client.end();
     } catch (error) {
-      this.logger.debug?.(error instanceof Error ? error.message : String(error));
+      this.logger.debug?.(
+        error instanceof Error ? error.message : String(error),
+      );
     }
   }
 }

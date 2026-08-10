@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsArray, IsObject, IsBoolean, ValidateNested, IsIn } from 'class-validator';
+import { IsString, IsOptional, IsArray, IsObject, IsBoolean, ValidateNested, IsIn, MaxLength, MinLength } from 'class-validator';
 import { Type } from 'class-transformer';
 
 class BasicInfoDto {
@@ -89,6 +89,13 @@ export class GenerateProjectDto {
   @Type(() => GitConfigDto)
   @IsOptional()
   gitConfig?: GitConfigDto;
+}
+
+export class GenerateProjectRequestDto extends GenerateProjectDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  idempotencyKey: string;
 }
 
 export class CleanGeneratedProjectArtifactsDto {

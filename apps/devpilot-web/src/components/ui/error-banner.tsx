@@ -39,7 +39,10 @@ export function ErrorBanner({
       : 'mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive';
 
   return (
-    <div className={`flex items-center justify-between gap-3 ${styles} ${className ?? ''}`}>
+    <div
+      role="alert"
+      className={`flex items-center justify-between gap-3 ${styles} ${className ?? ''}`}
+    >
       <span>{message}</span>
       {action ??
         (onRetry ? (

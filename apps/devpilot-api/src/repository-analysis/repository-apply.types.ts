@@ -24,4 +24,5 @@ export type RepositoryApplyInput = {
   commitSha: string;
   markConnectionApplied: boolean;
   decisions: RepositoryDecision[];
+  snapshot?: { version: number; inputHash: string };
 };

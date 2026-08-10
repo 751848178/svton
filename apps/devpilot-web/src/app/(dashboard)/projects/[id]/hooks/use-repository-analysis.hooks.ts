@@ -7,6 +7,7 @@ import type {
   RepositoryAnalysisRun,
   RepositoryAnalysisState,
   RepositoryApplyResult,
+  ReviseRepositoryBranchInput,
   RepositorySuggestionDecision,
 } from '../types/repository-analysis.types';
 
@@ -14,6 +15,10 @@ const EMPTY_STATE: RepositoryAnalysisState = {
   connection: null,
   credentialOptions: [],
   readiness: { connected: false, analyzed: false, applied: false, complete: false },
+  locked: false,
+  identityStatus: 'draft',
+  canonicalIdentity: null,
+  allowedActions: { reconnectCredentials: false, reviseBranch: false },
 };
 
 export function useRepositoryAnalysis(projectId: string, focusedRunId?: string) {
@@ -63,56 +68,83 @@ export function useRepositoryAnalysis(projectId: string, focusedRunId?: string) 
     return () => window.clearInterval(timer);
   }, [active, load]);
 
-  const mutate = useCallback(async <T,>(operation: () => Promise<T>) => {
-    setMutating(true);
-    setError('');
-    try {
-      const result = await operation();
-      await load();
-      return result;
-    } catch (caught) {
-      setError(errorMessage(caught));
-      throw caught;
-    } finally {
-      setMutating(false);
-    }
-  }, [load]);
+  const mutate = useCallback(
+    async <T>(operation: () => Promise<T>) => {
+      setMutating(true);
+      setError('');
+      try {
+        const result = await operation();
+        await load();
+        return result;
+      } catch (caught) {
+        setError(errorMessage(caught));
+        throw caught;
+      } finally {
+        setMutating(false);
+      }
+    },
+    [load],
+  );
 
-  const connectAndAnalyze = useCallback((input: ConnectRepositoryInput) =>
-    mutate(async () => {
-      const connection = await apiRequest<{ selectedBranch?: string }>(
-        `POST:${base}/connect`,
-        input,
-      );
-      return apiRequest<RepositoryAnalysisRun>(`POST:${base}/runs`, {
-        branch: connection.selectedBranch,
-        idempotencyKey: window.crypto.randomUUID(),
-      });
-    }), [base, mutate]);
+  const connectAndAnalyze = useCallback(
+    (input: ConnectRepositoryInput) =>
+      mutate(async () => {
+        const connection = await apiRequest<{ selectedBranch?: string }>(
+          `POST:${base}/connect`,
+          input,
+        );
+        return apiRequest<RepositoryAnalysisRun>(`POST:${base}/runs`, {
+          branch: connection.selectedBranch,
+          idempotencyKey: window.crypto.randomUUID(),
+        });
+      }),
+    [base, mutate],
+  );
 
-  const start = useCallback(() => mutate(() =>
-    apiRequest<RepositoryAnalysisRun>(`POST:${base}/runs`, {
-      branch: state.connection?.selectedBranch,
-      idempotencyKey: window.crypto.randomUUID(),
-    })), [base, mutate, state.connection?.selectedBranch]);
+  const reconnect = useCallback(
+    (input: ConnectRepositoryInput) => mutate(() => apiRequest(`POST:${base}/connect`, input)),
+    [base, mutate],
+  );
 
-  const retry = useCallback((runId: string) => mutate(() =>
-    apiRequest<RepositoryAnalysisRun>(`POST:${base}/runs/${runId}/retry`)),
-  [base, mutate]);
+  const reviseBranch = useCallback(
+    (input: ReviseRepositoryBranchInput) =>
+      mutate(() => apiRequest(`POST:${base}/identity/branch-revisions`, input)),
+    [base, mutate],
+  );
 
-  const cancel = useCallback((runId: string) => mutate(() =>
-    apiRequest(`POST:${base}/runs/${runId}/cancel`)),
-  [base, mutate]);
+  const start = useCallback(
+    () =>
+      mutate(() =>
+        apiRequest<RepositoryAnalysisRun>(`POST:${base}/runs`, {
+          branch: state.connection?.selectedBranch,
+          idempotencyKey: window.crypto.randomUUID(),
+        }),
+      ),
+    [base, mutate, state.connection?.selectedBranch],
+  );
 
-  const apply = useCallback((runId: string, decisions: RepositorySuggestionDecision[]) =>
-    mutate(async () => {
-      const result = await apiRequest<RepositoryApplyResult>(
-        `POST:${base}/runs/${runId}/apply`,
-        { decisions },
-      );
-      setApplyResult(result);
-      return result;
-    }), [base, mutate]);
+  const retry = useCallback(
+    (runId: string) =>
+      mutate(() => apiRequest<RepositoryAnalysisRun>(`POST:${base}/runs/${runId}/retry`)),
+    [base, mutate],
+  );
+
+  const cancel = useCallback(
+    (runId: string) => mutate(() => apiRequest(`POST:${base}/runs/${runId}/cancel`)),
+    [base, mutate],
+  );
+
+  const apply = useCallback(
+    (runId: string, decisions: RepositorySuggestionDecision[]) =>
+      mutate(async () => {
+        const result = await apiRequest<RepositoryApplyResult>(`POST:${base}/runs/${runId}/apply`, {
+          decisions,
+        });
+        setApplyResult(result);
+        return result;
+      }),
+    [base, mutate],
+  );
 
   return {
     projectId,
@@ -127,6 +159,8 @@ export function useRepositoryAnalysis(projectId: string, focusedRunId?: string) 
     load,
     setSelectedRun,
     connectAndAnalyze,
+    reconnect,
+    reviseBranch,
     start,
     retry,
     cancel,

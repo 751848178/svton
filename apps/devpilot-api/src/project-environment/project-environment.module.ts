@@ -2,11 +2,15 @@ import { Module } from "@nestjs/common";
 import { AuditEventModule } from "../audit-event";
 import { ControlAccessPolicyModule } from "../control-access-policy";
 import { PrismaModule } from "../prisma/prisma.module";
+import { ServerModule } from "../server/server.module";
 import { SiteModule } from "../site";
 import {
+  ProjectEnvironmentConfigController,
   ProjectEnvironmentReadController,
   ProjectEnvironmentWriteController,
 } from "./project-environment.controller";
+import { EnvironmentConfigReferenceResolverService } from "./environment-config-reference-resolver.service";
+import { EnvironmentConfigRevisionService } from "./environment-config-revision.service";
 import { ProjectEnvironmentService } from "./project-environment.service";
 import { ProjectEnvironmentRepository } from "./project-environment.repository";
 import { ProjectEnvironmentCopySiteService } from "./project-environment-copy-site.service";
@@ -28,8 +32,10 @@ import { ProjectEnvironmentWriteAccessPolicyService } from "./project-environmen
     AuditEventModule,
     ControlAccessPolicyModule,
     SiteModule,
+    ServerModule,
   ],
   controllers: [
+    ProjectEnvironmentConfigController,
     ProjectEnvironmentReadController,
     ProjectEnvironmentWriteController,
   ],
@@ -48,6 +54,8 @@ import { ProjectEnvironmentWriteAccessPolicyService } from "./project-environmen
     ProjectEnvironmentReadAccessPolicyService,
     ProjectEnvironmentWriteAccessPolicyService,
     ProjectEnvironmentCopyAccessPolicyService,
+    EnvironmentConfigReferenceResolverService,
+    EnvironmentConfigRevisionService,
   ],
   exports: [ProjectEnvironmentService],
 })

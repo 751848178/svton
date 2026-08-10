@@ -41,6 +41,7 @@ export class RepositoryPlatformApplyRepository {
             ...record(current.repositoryAnalysis),
             lastAppliedRunId: runId,
             verifiedAt: new Date().toISOString(),
+            intakeContract: record(value.intakeContract),
           },
         }),
       },

@@ -38,6 +38,9 @@ export class ProjectEnvironmentRepository {
   upsertProjectEnvironmentServer(input: Record<string, unknown>) {
     return (this.prisma as PrismaAny).projectEnvironmentServer.upsert(input);
   }
+  updateProjectEnvironmentServer(input: Record<string, unknown>) {
+    return (this.prisma as PrismaAny).projectEnvironmentServer.update(input);
+  }
   deleteProjectEnvironmentServer(input: Record<string, unknown>) {
     return (this.prisma as PrismaAny).projectEnvironmentServer.delete(input);
   }

@@ -1,14 +1,14 @@
-import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { Injectable } from "@nestjs/common";
+import { PrismaService } from "../prisma/prisma.service";
 
 /** 精确读取单条 DeploymentRun 详情所需的持久化投影。 */
 @Injectable()
 export class DeploymentRunDetailRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  findById(teamId: string, id: string) {
+  findById(teamId: string, id: string, projectId?: string) {
     return this.prisma.deploymentRun.findFirst({
-      where: { id, teamId },
+      where: { id, teamId, ...(projectId ? { projectId } : {}) },
       include: {
         projectEnvironment: {
           select: { id: true, key: true, name: true, status: true },
@@ -32,6 +32,21 @@ export class DeploymentRunDetailRepository {
             risk: true,
             reviewedAt: true,
             consumedAt: true,
+          },
+        },
+        releaseRun: {
+          select: {
+            id: true,
+            status: true,
+            operationApproval: {
+              select: {
+                id: true,
+                status: true,
+                risk: true,
+                reviewedAt: true,
+                consumedAt: true,
+              },
+            },
           },
         },
         serverExecutionJob: {

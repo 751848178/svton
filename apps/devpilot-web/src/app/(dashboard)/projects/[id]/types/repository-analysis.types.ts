@@ -1,9 +1,4 @@
-export type RepositoryRunStatus =
-  | 'queued'
-  | 'running'
-  | 'succeeded'
-  | 'failed'
-  | 'cancelled';
+export type RepositoryRunStatus = 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
 
 export interface RepositoryCredentialOption {
   id: string;
@@ -42,6 +37,32 @@ export interface RepositoryAnalysisState {
   connection: RepositoryConnection | null;
   credentialOptions: RepositoryCredentialOption[];
   readiness: RepositoryReadiness;
+  locked: boolean;
+  identityStatus: 'draft' | 'locked' | 'identity_revision_missing' | 'identity_migration_required';
+  canonicalIdentity: null | {
+    id: string;
+    provider: string;
+    canonicalUrl: string;
+    lockedAt: string | null;
+    effectiveRevision: null | {
+      id: string;
+      revision: number;
+      defaultBranch: string;
+      reason: string;
+      createdAt: string;
+    };
+  };
+  allowedActions: {
+    reconnectCredentials: boolean;
+    reviseBranch: boolean;
+  };
+}
+
+export interface ReviseRepositoryBranchInput {
+  branch: string;
+  reason: string;
+  expectedRevision: number;
+  idempotencyKey: string;
 }
 
 export interface RepositoryEvidence {
