@@ -88,6 +88,24 @@ describeIntegration("ReleaseGateDecision integration", () => {
     ).rejects.toMatchObject({ status: 409 });
   });
 
+  it("converges concurrent first inserts for one exact request key", async () => {
+    const requestKey = `concurrent-${suffix}`;
+    const results = await Promise.all(
+      Array.from({ length: 8 }, () =>
+        decisions.persist(scope(), draft(), requestKey),
+      ),
+    );
+
+    expect(new Set(results.map((result) => result.id))).toEqual(
+      new Set([results[0].id]),
+    );
+    await expect(
+      prisma.releaseGateDecision.count({
+        where: { releaseOrderId: orderId, stage: "build", requestKey },
+      }),
+    ).resolves.toBe(1);
+  });
+
   it("claims one exact allowed decision once and records its action", async () => {
     const decision = await decisions.persist(scope(), draft());
     await prisma.$transaction((tx) =>

@@ -46,19 +46,30 @@ export class ReleaseGateDecisionRepository {
       evidenceOnlyGateIds: draft.evidenceOnlyGateIds,
       integrityErrors: draft.integrityErrors,
     };
-    const row = requestKey
-      ? await this.prisma.releaseGateDecision.upsert({
-          where: {
-            releaseOrderId_stage_requestKey: {
-              releaseOrderId: scope.releaseOrderId,
-              stage: draft.stage,
-              requestKey,
-            },
+    const selector = requestKey
+      ? {
+          releaseOrderId_stage_requestKey: {
+            releaseOrderId: scope.releaseOrderId,
+            stage: draft.stage,
+            requestKey,
           },
-          create: data,
-          update: {},
-        })
-      : await this.prisma.releaseGateDecision.create({ data });
+        }
+      : undefined;
+    let row;
+    try {
+      row = selector
+        ? await this.prisma.releaseGateDecision.upsert({
+            where: selector,
+            create: data,
+            update: {},
+          })
+        : await this.prisma.releaseGateDecision.create({ data });
+    } catch (error) {
+      if (!selector || !isRequestKeyInsertRace(error)) throw error;
+      row = await this.prisma.releaseGateDecision.findUniqueOrThrow({
+        where: selector,
+      });
+    }
     if (row.inputHash !== inputHash) {
       throw new ConflictException("同一门禁请求键已绑定不同输入，请刷新后重试");
     }
@@ -83,6 +94,14 @@ export class ReleaseGateDecisionRepository {
   ) {
     return claimReleaseGateDecision(tx, input);
   }
+}
+
+function isRequestKeyInsertRace(error: unknown) {
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2002" &&
+    String(error.meta?.target ?? "").includes("releaseOrderId_stage_requestKey")
+  );
 }
 
 export async function claimReleaseGateDecision(
