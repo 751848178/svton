@@ -1,0 +1,63 @@
+{
+  "schema": "devpilot-v13-final-acceptance-result-v1",
+  "recordedAt": "2026-08-10T12:43:25+08:00",
+  "verdict": "accepted_with_limitations",
+  "conclusion": "local_hosts_full_chain_verified",
+  "externalBoundary": "public_dns_tls_and_external_provider_signoff_out_of_scope",
+  "source": {
+    "branch": "codex/devpilot-project-delivery-v13",
+    "revision": "6c90c38e0c729f2b252f948acf5c3d4eee8c6e2d",
+    "treeSha256": "a1658de5f0b875a185dc2f88a294349d2d1c0ef8f9af3e3fb75468a5d65bd89c"
+  },
+  "acceptance": {
+    "codeComplete": true,
+    "testComplete": true,
+    "runtimeVerified": true,
+    "browserVerified": true,
+    "visualVerified": true,
+    "cleanupVerified": true,
+    "localHostsVerified": true,
+    "externalPublicSignoff": "out_of_scope"
+  },
+  "tests": {
+    "apiSuitesPassed": 298,
+    "apiTestsPassed": 1827,
+    "webFilesPassed": 97,
+    "webTestsPassed": 439,
+    "paritySelfTestsPassed": 93,
+    "paritySelfTestsFailed": 0,
+    "apiTypecheck": "passed",
+    "webTypecheck": "passed",
+    "apiLint": "passed",
+    "webLint": "passed"
+  },
+  "c5": {
+    "runtimeId": "c5-6c90c38e-85829e13c2b6c2edc2d03ab548d27c94",
+    "statusBeforeDestroy": "passed",
+    "manifestStatus": "destroyed",
+    "historyStatus": "passed",
+    "routeAuditStatus": "verified",
+    "cleanupStatus": "verified_zero_residuals"
+  },
+  "browser": {
+    "receiptStatus": "persisted",
+    "artifacts": 16,
+    "screenshots": 7,
+    "actions": 40,
+    "httpResponses": 216,
+    "non2xxResponses": 0,
+    "runtimeExceptions": 0,
+    "consoleErrors": 0,
+    "visualReview": "passed"
+  },
+  "evidence": {
+    "manifest": "/private/tmp/codex-tool-runs/svton/long-goals/devpilot-v13-opencode-acceptance/final-runtime-acceptance/runs/c5-6c90c38e-85829e13c2b6c2edc2d03ab548d27c94/runtime.json",
+    "browserDirectory": "/private/tmp/codex-tool-runs/svton/long-goals/devpilot-v13-opencode-acceptance/final-runtime-acceptance/runs/c5-6c90c38e-85829e13c2b6c2edc2d03ab548d27c94/svton-f537-CwW34v/f456/browser-evidence",
+    "finalRegressionLogs": "/tmp/codex-tool-runs/svton/long-goals/devpilot-v13-opencode-acceptance/final-runtime-acceptance/logs/svton"
+  },
+  "pullRequest": {
+    "status": "ready_pr_pending_creation",
+    "url": null,
+    "mergePerformed": false
+  }
+}

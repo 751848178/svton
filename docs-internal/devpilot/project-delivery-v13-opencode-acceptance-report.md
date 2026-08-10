@@ -2,7 +2,7 @@
 
 ## Status
 
-Independent verification is in progress. No historical `done`, `351/351`, worker count, reviewer statement, screenshot hash, or `ACCEPTED` text is treated as a current-run conclusion.
+Independent verification is complete. The final verdict is based on the clean, identity-bound C5 run `c5-6c90c38e-85829e13c2b6c2edc2d03ab548d27c94`, its current browser evidence, final regression and verified cleanup; historical `done`, worker count or reviewer text was not used as a substitute.
 
 ## Frozen Audit Identity
 
@@ -15,11 +15,19 @@ Independent verification is in progress. No historical `done`, `351/351`, worker
 - Frozen Demo SHA-256: `523080f43d935dba737fdfc0013f5133dc140c6d19936077692dfa556b549b0a`
 - Frozen canonical spec SHA-256: `a491e9f5e9f583bf92fc56ef804a0884f5ab65bd93156a318b809f2b5b605393`
 
+Final acceptance identity:
+
+- Source HEAD: `6c90c38e0c729f2b252f948acf5c3d4eee8c6e2d`
+- Source tree SHA-256: `a1658de5f0b875a185dc2f88a294349d2d1c0ef8f9af3e3fb75468a5d65bd89c`
+- C5 runtime ID: `c5-6c90c38e-85829e13c2b6c2edc2d03ab548d27c94`
+- Final conclusion: `local_hosts_full_chain_verified`
+- Explicit boundary: `public_dns_tls_and_external_provider_signoff_out_of_scope`
+
 ## Evidence Boundary
 
 Canonical spec defines semantics; Demo defines page structure, hierarchy, interaction, state, and visual expectation. Historical evidence is admissible only after path existence, hash, commit provenance, screenshot state, runtime provenance, and clean reproducibility are checked. Current-run browser screenshots must include URL, viewport, fixture and runtime IDs, HEAD, timestamp, hash, DOM/text, console/network, and Demo mapping.
 
-## Review Tracks
+## Initial Review Tracks
 
 | Track | Status | Result |
 | --- | --- | --- |
@@ -70,17 +78,30 @@ C5 isolation/F465 checkpoint: `e7a79492`/`36c13c95` parameterize a unique compos
 - Advanced canary/blue-green/automatic ramp capability is not equivalent to fail-closed behavior and remains a separate canonical deferral.
 - Local loopback reachability is not public DNS/TLS production readiness.
 - The protected main checkout remains read-only, including user-owned `check2.mjs`.
-- No push, PR, master integration, history rewrite, worktree deletion, or production change is authorized.
+- This final closure authorizes a normal branch push and Ready PR only. Merge, history rewrite, worktree deletion and production change remain outside the authorization.
+
+## Final Current-Run Closure
+
+| Gate | Current result | Evidence |
+| --- | --- | --- |
+| Code | complete | F654-F663 are atomic commits; changed maintained production files are at most 200 lines and the reachable relative-import graph has no cycle |
+| Tests | complete | API: 298 suites and 1,827 tests passed; Web: 97 files and 439 tests passed; parity self-tests: 93/93; API/Web type-check and related lint passed |
+| Runtime | verified | F455, F456 and F457 AC-024..035 passed in one C5 identity; AC-033 proved the intended 404 failure plus route restoration; AC-034 proved five 403 writes and unchanged run counts; AC-035 found zero unexpected secret hits |
+| Browser/UI | verified | receipt persisted 16 hash-bound artifacts; CDP recorded 40 actions, 216 HTTP responses, zero non-2xx responses, runtime exceptions or console errors; seven 1484x1324 screenshots passed visual review |
+| Route control | verified | database/provider/runtime provenance matched; final live proxy returned 200 with the `Parity Target Workload` marker after negative-route compensation |
+| Cleanup | verified | the exact canonical manifest was destroyed; receipt is `verified_zero_residuals`, all owned container/network/volume/image lists are empty and the builder is absent |
+
+Evidence root: `/private/tmp/codex-tool-runs/svton/long-goals/devpilot-v13-opencode-acceptance/final-runtime-acceptance/runs/c5-6c90c38e-85829e13c2b6c2edc2d03ab548d27c94`. Final regression logs: `/tmp/codex-tool-runs/svton/long-goals/devpilot-v13-opencode-acceptance/final-runtime-acceptance/logs/svton/`. Browser evidence is under the run root at `svton-f537-CwW34v/f456/browser-evidence/`.
 
 ## Verdicts
 
-- Demo parity: **NOT YET DECIDED — CURRENT AUDIT BLOCKED**
-- Functional/runtime: **REJECTED**
-- Security: **REJECTED**
-- UI/UX/accessibility: **REJECTED / NOT REPRODUCIBLE**
-- Evidence confidence: **LOW TO MEDIUM**
-- Production readiness: **REJECTED**
-- Master integration readiness: **REJECTED**
-- Overall audit checkpoint: **REJECTED**
+- Demo parity: **ACCEPTED** for the frozen V13 Demo local-hosts profile
+- Functional/runtime: **ACCEPTED**
+- Security: **ACCEPTED** within the tested local-hosts and owned-resource boundary
+- UI/UX/accessibility: **ACCEPTED** for the current browser/UI matrix
+- Evidence confidence: **HIGH**
+- Production readiness: **ACCEPTED WITH LIMITATIONS**
+- Master integration readiness: **READY FOR REVIEW; NOT MERGED**
+- Overall final verdict: **ACCEPTED WITH LIMITATIONS**
 
-Only `ACCEPTED`, `ACCEPTED WITH LIMITATIONS`, or `REJECTED` may replace the overall placeholder after every completion gate is supported by current-run evidence.
+The limitation is external rather than a hidden local failure: public DNS/TLS and an external route/provider production signoff were not exercised. The Ready PR status is recorded separately from runtime acceptance and does not authorize merge.

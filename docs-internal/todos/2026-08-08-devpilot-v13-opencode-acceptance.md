@@ -242,16 +242,17 @@ Each row records source, affected scope, reproduction/expected/actual/root cause
 | F661 | P1 fixed/code; full C5 rerun pending | route-control image packaging; F465/F474 | isolated run `c5-f401b656-98613abff9636066d8cd41486644632b` built the F660 image but route-control became unhealthy before seed because its minimal Dockerfile did not copy the newly imported upstream helper; failure cleanup removed every owned resource | route-control Dockerfile + import/package source-contract self-test only / no runtime logic, shared stack, or Demo change | copy both provider helpers into `/app/lib` and assert every committed helper import is present in the image contract before the next clean C5 build |
 | F662 | P1 fixed/code; full C5 rerun pending | negative-route compensation evidence; F465/F474, AC-E2E-033 | isolated run `c5-a8d06273-9ca8810d722c2d62e6d02c523bce21a3` proved the real final-site DNS resolution, TLS-not-required path, HTTP 404, failed Deployment/Release and unchanged production version pointer; it also proved the provider must switch before the final URL can be probed, contradicting the stale zero-switch assertion | F457 owned-provider compensation + bounded restore/readback helper/checks only / no production provider API, deployment success policy, shared stack, or Demo change | assert one persisted switched attempt for the failed probe, then reapply the last successful AC-031 route through the owned loopback provider and independently require live 200/marker readback before continuing, so the final route audit is not polluted by the intentional negative fixture |
 | F663 | P1 fixed/code; full C5 rerun pending | permission-negative DTO contract; F474, AC-E2E-034 | isolated run `c5-dd669d98-01e10163b75f09ff2b8fcca8ede428fb` passed the AC-033 route compensation/readback and reached AC-034; four protected writes returned 403, but confirm-production stopped at DTO validation with 400 because the fixture supplied a short `expectedInputHash` | AC-034 member confirm payload + focused source-shape self-test only / no authorization or DTO behavior, shared stack, or Demo change | use a valid non-secret 64-character hash so the request reaches the authorization guard; all five protected actions must then prove 403 while BuildRun/DeploymentRun counts remain unchanged |
+| F664 | completed / accepted with limitations | final C5, browser/UI, regression and cleanup closure | clean HEAD `6c90c38e0c729f2b252f948acf5c3d4eee8c6e2d` produced `c5-6c90c38e-85829e13c2b6c2edc2d03ab548d27c94`; F455, F456 and F457 AC-024..035 passed in one runtime identity, route audit was verified, and the exact manifest was destroyed with `verified_zero_residuals` | final acceptance evidence and documents only / Frozen Demo, shared stacks, public DNS/TLS and external providers unchanged | API 298 suites/1,827 tests, Web 97 files/439 tests, 93 parity self-tests, API/Web type-check and related lint passed; 16 browser artifacts and 7 screenshots were hash-bound and visually reviewed; final result is `local_hosts_full_chain_verified`, while `public_dns_tls_and_external_provider_signoff_out_of_scope` remains explicit |
 
 ## Final Verdict Status
 
-- Demo parity: not independently decided; current signed-in implementation audit blocked
-- Functional/runtime: **REJECTED** at first audit
-- Security: **REJECTED** at first audit
-- UI/UX/a11y: **REJECTED / not reproducible** at first audit
-- Evidence confidence: **LOW TO MEDIUM**
-- Production readiness: **REJECTED**
-- Master integration readiness: **REJECTED**
-- Overall allowed value (`ACCEPTED`, `ACCEPTED WITH LIMITATIONS`, `REJECTED`): **REJECTED at audit checkpoint; final pending repairs/re-runs**
+- Demo parity: **ACCEPTED** for the frozen V13 Demo and canonical local-hosts flow
+- Functional/runtime: **ACCEPTED** on the isolated C5 stack
+- Security: **ACCEPTED** for the tested permission, redaction, provenance and owned-cleanup boundaries
+- UI/UX/accessibility: **ACCEPTED** for the current signed-in browser matrix and visual review
+- Evidence confidence: **HIGH** for the current local-hosts identity-bound run
+- Production readiness: **ACCEPTED WITH LIMITATIONS**; public DNS/TLS and external provider signoff were not part of this run
+- Master integration readiness: **READY FOR REVIEW** through a non-force-pushed Ready PR; merge remains a user decision
+- Overall allowed value (`ACCEPTED`, `ACCEPTED WITH LIMITATIONS`, `REJECTED`): **ACCEPTED WITH LIMITATIONS**
 
-The historical OpenCode verdict remains preserved. This document records the independent Codex verdict and must not silently rewrite historical evidence.
+Final machine-readable result: `../devpilot/project-delivery-v13-final-result.json`. Final feature/UI checklist: `../devpilot/project-delivery-v13-final-acceptance-checklist.md`. The initial rejected checkpoint and its issue history remain above; F654-F664 and the current-run evidence supersede it for the final verdict without erasing the audit trail.
