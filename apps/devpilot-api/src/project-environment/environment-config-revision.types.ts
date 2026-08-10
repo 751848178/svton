@@ -8,12 +8,19 @@ export const RESOURCE_REFERENCE_KINDS = [
 export type ResourceReferenceKind = (typeof RESOURCE_REFERENCE_KINDS)[number];
 export type ReferenceRisk = "low" | "medium" | "high";
 
+export type EnvironmentVariableBinding = {
+  sourceKey: string;
+  targetEnvKey: string;
+};
+
 export type ResourceReferenceInput = {
   kind: ResourceReferenceKind;
   id: string;
   sharedEnvironmentIds: string[];
   risk: ReferenceRisk;
   impact: string;
+  componentKey?: string;
+  envBindings?: EnvironmentVariableBinding[];
 };
 
 export type SafeResourceReference = ResourceReferenceInput & {
@@ -24,7 +31,10 @@ export type SafeSecretReference = {
   id: string;
   name: string;
   type: string;
+  targetEnvKey?: string;
 };
+
+export type SecretReferenceInput = Pick<SafeSecretReference, "id" | "targetEnvKey">;
 
 export type SafePolicyReference = {
   id: string;
@@ -41,6 +51,7 @@ export type SafePolicyReference = {
 export type RouteEntry = {
   domain: string;
   path: string;
+  serviceId: string | null;
   component: string;
   port: number | null;
   tlsMode: "managed_cert" | "existing_cert_asset";

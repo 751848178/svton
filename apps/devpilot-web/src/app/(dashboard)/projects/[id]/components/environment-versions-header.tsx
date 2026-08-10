@@ -7,8 +7,12 @@ export function EnvironmentVersionsHeader({ count }: { count?: number }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h2 className="text-lg font-semibold">{t('environmentVersionPageTitle')}</h2>
-        <p className="text-sm text-muted-foreground">{t('environmentVersionsDescription')}</p>
+        <h2 className="text-lg font-semibold">
+          {t('directoryBaselines')} · {t('environmentVersionPageTitle')}
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          {t('environmentVersionsDescription')} · {t('envRoleStaging')} / {t('envRoleProduction')}
+        </p>
       </div>
       {count === undefined ? null : (
         <StatusTag

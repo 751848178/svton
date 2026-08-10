@@ -16,6 +16,8 @@ interface Props {
   focusedBuildRunId?: string;
   onOpenLog: (buildRunId: string) => void;
   onCloseLog: () => void;
+  buildGate?: { allowed: boolean; reason: string };
+  repairHref?: string;
 }
 
 export function ReleaseOrderBuildStep(props: Props) {
@@ -88,12 +90,30 @@ export function ReleaseOrderBuildStep(props: Props) {
             <Button
               size="sm"
               variant="outline"
+              disabled={props.buildGate?.allowed === false}
+              title={props.buildGate?.reason || undefined}
               onClick={() => void builds.buildLatest()}
             >
               {t('buildLatestCode')}
             </Button>
           }
         />
+      ) : null}
+      {props.buildGate?.allowed === false ? (
+        <p
+          role="alert"
+          className="text-sm text-amber-800"
+        >
+          {props.buildGate.reason}{' '}
+          {props.repairHref ? (
+            <a
+              className="font-medium underline"
+              href={props.repairHref}
+            >
+              {t('releaseGateRepairAction')}
+            </a>
+          ) : null}
+        </p>
       ) : null}
       {items.length > 0 ? (
         <>

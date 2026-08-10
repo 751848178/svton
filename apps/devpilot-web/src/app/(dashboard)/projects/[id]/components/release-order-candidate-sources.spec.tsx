@@ -120,6 +120,32 @@ describe('release order candidate sources', () => {
     act(() => button?.click());
     expect(deploy).toHaveBeenCalledWith('manifest-unbounded');
   });
+
+  it('does not POST a staging deployment while the server gate decision is blocked', async () => {
+    const deploy = vi.fn();
+    mocks.staging = { ...mocks.staging, deploy };
+    await act(async () =>
+      root.render(
+        <ReleaseOrderStagingStep
+          {...props()}
+          stagingGate={{ allowed: false, reason: 'required checks unavailable' }}
+          repairHref="/projects/project-1?releaseOrderId=order-1&step=preflight"
+          focusedDeploymentRunId={undefined}
+          onOpenLog={vi.fn()}
+          onCloseLog={vi.fn()}
+        />,
+      ),
+    );
+
+    const rowAction = Array.from(container.querySelectorAll('button')).find(
+      (item) => item.textContent === 'row-deploy',
+    );
+    act(() => rowAction?.click());
+    expect(deploy).not.toHaveBeenCalled();
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      'required checks unavailable',
+    );
+  });
 });
 
 function props() {

@@ -43,6 +43,7 @@ import { ReleaseGateRuntimeCapabilityProvider } from "./release-gate-runtime-cap
 import { ReleaseGateSourceCapabilityProvider } from "./release-gate-source-capability.provider";
 import { ReleaseProductionRepository } from "./release-production.repository";
 import { ReleaseProductionWorkloadService } from "./release-production-workload.service";
+import { ReleaseStagingWorkloadService } from "./release-staging-workload.service";
 import { ReleaseStagingExecutorPort } from "./release-staging.types";
 import { ReleaseStagingWorkloadStateRepository } from "./release-staging-workload-state.repository";
 import {
@@ -527,6 +528,9 @@ export async function createProductionRealGateFixture(
     new EnvironmentVersionProductionGateService(gateService),
     new EnvironmentVersionGateEvidenceRepository(db),
     new ReleaseDeploymentInputService(db, crypto),
+    new ReleaseStagingWorkloadService(
+      new ReleaseStagingWorkloadStateRepository(db),
+    ),
     new ReleaseProductionWorkloadService(
       new ReleaseStagingWorkloadStateRepository(db),
     ),

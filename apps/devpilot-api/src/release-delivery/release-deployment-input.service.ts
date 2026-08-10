@@ -9,6 +9,13 @@ import {
 } from "./release-deployment-input-snapshot.utils";
 import type { PreparedReleaseDeploymentInput } from "./release-deployment-input.types";
 import { assertSafeReleaseWorkloadEnvironment } from "./release-workload-environment-policy";
+import {
+  effectiveResourceBindings,
+  environmentKeysFromTemplate,
+  mapResourceEnvironment,
+  secretTargetEnvKey,
+} from "../project-environment/environment-variable-binding.utils";
+import { assertReleaseDeploymentEnvironmentOwnership } from "./release-deployment-environment-ownership.policy";
 
 @Injectable()
 export class ReleaseDeploymentInputService {
@@ -59,6 +66,7 @@ export class ReleaseDeploymentInputService {
     state: Awaited<ReturnType<typeof loadReleaseDeploymentInputState>>,
   ) {
     const output: Record<string, string> = {};
+    assertReleaseDeploymentEnvironmentOwnership(state);
     for (const resource of state.resources) {
       if (resource.status !== "active") {
         throw new ConflictException(`资源 ${resource.id} 当前不可用于部署`);
@@ -74,18 +82,20 @@ export class ReleaseDeploymentInputService {
           )
         : {};
       const delivery = record(resource.runtime.delivery);
-      Object.assign(
-        output,
-        interpolateEnvTemplate(resource.runtime.envTemplate, {
-          ...delivery,
-          ...credentials,
-        }),
+      const rendered = interpolateEnvTemplate(resource.runtime.envTemplate, {
+        ...delivery,
+        ...credentials,
+      });
+      const bindings = effectiveResourceBindings(
+        resource,
+        environmentKeysFromTemplate(resource.runtime.envTemplate),
       );
+      Object.assign(output, mapResourceEnvironment(rendered, bindings));
     }
     Object.assign(output, plainEnvironment(state.revision.plainVariables));
     const secretKeys = new Set<string>();
     for (const secret of state.secrets) {
-      const key = secret.name.toUpperCase().replace(/[^A-Z0-9]/g, "_");
+      const key = secretTargetEnvKey(secret);
       if (!/^[A-Z_][A-Z0-9_]*$/.test(key)) {
         throw new ConflictException(`Secret ${secret.id} 无法映射为环境变量`);
       }

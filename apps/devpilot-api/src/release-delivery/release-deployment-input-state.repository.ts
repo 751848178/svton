@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import type { PrismaService } from "../prisma/prisma.service";
 import type { ReleaseDeploymentInputState } from "./release-deployment-input.types";
 import {
-  deploymentReferenceIds,
+  deploymentSecretReferences,
   deploymentResourceReferences,
 } from "./release-deployment-input-reference.utils";
 import {
@@ -120,7 +120,8 @@ export async function loadReleaseDeploymentInputState(
     throw new ConflictException(`部署目标绑定作用域与 ${label} 环境不一致`);
   }
   const rawSecrets = revision.secretReferences;
-  const secretIds = deploymentReferenceIds(rawSecrets);
+  const secretReferences = deploymentSecretReferences(rawSecrets);
+  const secretIds = secretReferences.map((item) => item.id);
   const references = deploymentResourceReferences(revision.resourceReferences);
   const rawReferences = revision.resourceReferences;
   if (
@@ -182,7 +183,10 @@ export async function loadReleaseDeploymentInputState(
   return {
     environmentId: environment.id,
     revision,
-    secrets,
+    secrets: secrets.map((secret) => ({
+      ...secret,
+      targetEnvKey: secretReferences.find((reference) => reference.id === secret.id)?.targetEnvKey,
+    })),
     resources,
     bindings: environment.serverBindings,
   };

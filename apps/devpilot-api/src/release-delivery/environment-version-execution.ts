@@ -1,4 +1,7 @@
-import { NotFoundException, UnprocessableEntityException } from "@nestjs/common";
+import {
+  NotFoundException,
+  UnprocessableEntityException,
+} from "@nestjs/common";
 import type { EnvironmentVersionPolicyService } from "./environment-version-policy.service";
 import type { EnvironmentVersionCompletionRepository } from "./environment-version-completion.repository";
 import {
@@ -8,6 +11,7 @@ import {
 import type { EnvironmentVersionRepository } from "./environment-version.repository";
 import type { ReleaseDeploymentInputService } from "./release-deployment-input.service";
 import type { ReleaseProductionWorkloadService } from "./release-production-workload.service";
+import type { ReleaseStagingWorkloadService } from "./release-staging-workload.service";
 import type { ReleaseStagingExecutorPort } from "./release-staging.types";
 import { environmentVersionDeploymentParams } from "./environment-version-deployment-params";
 import type {
@@ -21,7 +25,8 @@ interface Dependencies {
   executor: ReleaseStagingExecutorPort;
   productionGates: EnvironmentVersionProductionGateService;
   inputs: ReleaseDeploymentInputService;
-  workloads: ReleaseProductionWorkloadService;
+  stagingWorkloads: ReleaseStagingWorkloadService;
+  productionWorkloads: ReleaseProductionWorkloadService;
   run(
     context: EnvironmentVersionExecutionContext,
   ): ReturnType<EnvironmentVersionCompletionRepository["complete"]>;
@@ -45,7 +50,11 @@ export async function executeEnvironmentVersion(
   ) {
     throw new NotFoundException("目标环境缺少可部署基线角色");
   }
-  const resolvedInput = await resolveRecoveryInput(deps.repository, input, environment);
+  const resolvedInput = await resolveRecoveryInput(
+    deps.repository,
+    input,
+    environment,
+  );
   const selection = await deps.policy.resolveSelection(
     resolvedInput,
     environment.currentEnvironmentVersionId,
@@ -58,9 +67,17 @@ export async function executeEnvironmentVersion(
   if (!manifest) {
     throw new NotFoundException("Manifest 不存在或不属于当前项目");
   }
-  const bundle = manifest.items.find((item) => item.componentKey === "project-bundle");
-  if (manifest.buildRun.status !== "succeeded" || !bundle || bundle.digest !== manifest.digest) {
-    throw new UnprocessableEntityException("只能部署成功且 Digest 可验证的项目制品");
+  const bundle = manifest.items.find(
+    (item) => item.componentKey === "project-bundle",
+  );
+  if (
+    manifest.buildRun.status !== "succeeded" ||
+    !bundle ||
+    bundle.digest !== manifest.digest
+  ) {
+    throw new UnprocessableEntityException(
+      "只能部署成功且 Digest 可验证的项目制品",
+    );
   }
   const productionRun = await deps.policy.validateProduction(
     { ...input, kind: input.kind },
@@ -81,25 +98,31 @@ export async function executeEnvironmentVersion(
     buildRunId: manifest.buildRun.id,
     releaseRunId,
   };
-  const admissionDecision = await deps.productionGates.admit(gateContext);
-  const frozenInput = releaseRunId
-    ? {
-        deploymentInput: await deps.inputs.prepare({
-          teamId: input.teamId,
-          projectId: input.projectId,
-          environmentId: environment.id,
-          providerKey: deps.executor.providerKey,
-          configRevisionId: frozenConfigRevisionId ?? undefined,
-          label: "Production",
-        }),
-        workload: await deps.workloads.prepare({
-          teamId: input.teamId,
-          projectId: input.projectId,
-          environmentId: environment.id,
-          manifestId: manifest.id,
-        }),
-      }
-    : undefined;
+  const admissionDecision = await deps.productionGates.admit(
+    gateContext,
+    environment.baselineRole,
+  );
+  const deploymentInput = await deps.inputs.prepare({
+    teamId: input.teamId,
+    projectId: input.projectId,
+    environmentId: environment.id,
+    providerKey: deps.executor.providerKey,
+    configRevisionId: frozenConfigRevisionId ?? undefined,
+    label: environment.baselineRole === "production" ? "Production" : "Staging",
+  });
+  const workloadScope = {
+    teamId: input.teamId,
+    projectId: input.projectId,
+    environmentId: environment.id,
+    manifestId: manifest.id,
+  };
+  const frozenInput = {
+    deploymentInput,
+    workload:
+      environment.baselineRole === "production"
+        ? await deps.productionWorkloads.prepare(workloadScope)
+        : await deps.stagingWorkloads.prepare(workloadScope),
+  };
   const run = await deps.repository.reserve({
     teamId: input.teamId,
     projectId: input.projectId,
@@ -113,7 +136,7 @@ export async function executeEnvironmentVersion(
     branch: manifest.buildRun.sourceBranch,
     commitSha: manifest.buildRun.sourceCommitSha,
     params: environmentVersionDeploymentParams({
-      executor: deps.executor,
+      providerKey: deps.executor.providerKey,
       input,
       selection,
       manifest,
@@ -128,7 +151,8 @@ export async function executeEnvironmentVersion(
   });
   return deps.run({
     input,
-    environment: environment as EnvironmentVersionExecutionContext["environment"],
+    environment:
+      environment as EnvironmentVersionExecutionContext["environment"],
     manifest,
     bundle,
     selection,
@@ -146,11 +170,17 @@ async function resolveRecoveryInput(
   input: EnvironmentVersionExecuteInput,
   environment: { id: string; baselineRole: string | null },
 ) {
-  if (input.kind !== "recovery" || environment.baselineRole !== "production" || input.sourceVersionId) {
+  if (
+    input.kind !== "recovery" ||
+    environment.baselineRole !== "production" ||
+    input.sourceVersionId
+  ) {
     return input;
   }
   if (!input.releaseRunId) {
-    throw new UnprocessableEntityException("Production 回退必须绑定已批准的 Recovery ReleaseRun");
+    throw new UnprocessableEntityException(
+      "Production 回退必须绑定已批准的 Recovery ReleaseRun",
+    );
   }
   const sourceVersionId = await repository.recoverySourceVersionId(
     input.teamId,
@@ -159,7 +189,9 @@ async function resolveRecoveryInput(
     input.releaseRunId,
   );
   if (!sourceVersionId) {
-    throw new UnprocessableEntityException("Production 回退 ReleaseRun 未指向可用的历史环境版本");
+    throw new UnprocessableEntityException(
+      "Production 回退 ReleaseRun 未指向可用的历史环境版本",
+    );
   }
   return { ...input, sourceVersionId };
 }

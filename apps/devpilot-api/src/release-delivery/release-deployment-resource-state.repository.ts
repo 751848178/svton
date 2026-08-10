@@ -49,6 +49,8 @@ async function loadResource(
           ...row,
           kind: reference.kind,
           sharedEnvironmentIds: reference.sharedEnvironmentIds,
+          componentKey: reference.componentKey,
+          envBindings: reference.envBindings,
           runtime: {
             delivery: row.delivery,
             credentials: row.credentials,
@@ -78,6 +80,8 @@ async function loadResource(
         ...row,
         kind: reference.kind,
         sharedEnvironmentIds: reference.sharedEnvironmentIds,
+        componentKey: reference.componentKey,
+        envBindings: reference.envBindings,
       }
     : null;
 }

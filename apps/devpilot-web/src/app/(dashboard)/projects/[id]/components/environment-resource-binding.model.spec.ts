@@ -84,7 +84,7 @@ describe('environment-resource-binding model (AC-SET-025/026)', () => {
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({
       requirement: 'pg-shared',
-      source: 'api',
+      source: 'legacy:unassigned',
       instanceName: 'pg-shared',
       lifecycleStatus: 'active',
       managedHealth: { status: 'active', endpoint: 'pg.internal:5432' },

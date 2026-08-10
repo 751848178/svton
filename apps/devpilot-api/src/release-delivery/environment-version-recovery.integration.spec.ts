@@ -353,6 +353,7 @@ function buildServices(fixture: ProductionFixture): ServiceBundle {
     new EnvironmentVersionGateEvidenceRepository(fixture.prisma as never),
     environmentVersionInputTestDouble() as never,
     productionWorkloadTestDouble() as never,
+    productionWorkloadTestDouble() as never,
     new SiteRouteActivationService(fixture.prisma as never),
     siteRouteSwitchTestDouble(),
     new SiteFinalProbeService(),

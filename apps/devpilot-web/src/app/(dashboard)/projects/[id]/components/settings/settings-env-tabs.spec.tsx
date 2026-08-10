@@ -125,7 +125,8 @@ describe('settings environment subtab contents', () => {
     expect(html).toContain('envTabHelperResources');
     expect(html).toContain('envCountServers');
     expect(html).toContain('envResourceFrozenRevision');
-    expect(html).toContain('envResourceTableEmpty');
+    expect(html).toContain('pg-shared-nonprod');
+    expect(html).toContain('legacy:unassigned');
     expect(html).toContain('envResourceCalloutOwnership');
     expect(html).toContain('envResourceCalloutFrozen');
     expect(html).toContain('resource-reference-editor');
@@ -156,10 +157,9 @@ describe('settings environment subtab contents', () => {
     expect(html).toContain('envResourceTableSharing');
     expect(html).toContain('envResourceTableValidation');
     expect(html).toContain('pg-shared');
-    expect(html).toContain('api');
-    expect(html).toContain('envResourceSharingShared');
-    expect(html).toContain('envResourceUseShared');
-    expect(html).toContain('envResourceHealthOk');
+    expect(html).toContain('legacy:unassigned');
+    expect(html).toContain('envResourceSharingDedicated');
+    expect(html).toContain('envResourceBindExisting');
     expect(html).toContain('envResourceValidationValid');
     expect(html).not.toMatch(/申请|创建云资源|release/i);
     expect(html).not.toContain('/resource-instances/create');
@@ -170,8 +170,9 @@ describe('settings environment subtab contents', () => {
       <EnvVariablesTab
         environment={env()}
         detail={detail()}
-        secretIds={['s1']}
-        onSecretIdsChange={() => undefined}
+        secretReferences={[{ id: 's1', targetEnvKey: 'DB_PASSWORD' }]}
+        onSecretReferencesChange={() => undefined}
+        resources={[]}
         revision={revision()}
         revisions={[revision()]}
         environments={[env()]}

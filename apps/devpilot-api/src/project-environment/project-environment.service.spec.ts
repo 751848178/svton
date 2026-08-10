@@ -262,21 +262,21 @@ describe('ProjectEnvironmentService sync suggestions', () => {
     );
   });
 
-  it('creates dev/test/staging/prod defaults when project config has no environments', async () => {
+  it('creates only staging/production release baselines when config has no environments', async () => {
     await service.ensureDefaultsForProject('team-1', 'project-1', {});
 
-    expect(prisma.projectEnvironment.upsert).toHaveBeenCalledTimes(4);
+    expect(prisma.projectEnvironment.upsert).toHaveBeenCalledTimes(2);
     expect(prisma.projectEnvironment.upsert.mock.calls.map(([call]) => call.where.projectId_key.key)).toEqual([
-      'dev',
-      'test',
       'staging',
-      'prod',
+      'production',
     ]);
     expect(prisma.projectEnvironment.upsert.mock.calls.map(([call]) => call.create.sortOrder)).toEqual([
       0,
       10,
-      20,
-      30,
+    ]);
+    expect(prisma.projectEnvironment.upsert.mock.calls.map(([call]) => call.create.baselineRole)).toEqual([
+      'staging',
+      'production',
     ]);
   });
 
@@ -290,6 +290,9 @@ describe('ProjectEnvironmentService sync suggestions', () => {
       'staging',
       'qa-env',
     ]);
+    const prodUpsert = prisma.projectEnvironment.upsert.mock.calls[0][0];
+    expect(prodUpsert.create.baselineRole).toBeNull();
+    expect(prodUpsert.update).not.toHaveProperty('baselineRole');
   });
 
   it('builds read-only sync suggestions against the production reference environment', async () => {

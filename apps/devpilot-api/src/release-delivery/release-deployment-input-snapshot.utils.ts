@@ -1,10 +1,14 @@
-import { ConflictException } from "@nestjs/common";
 import type {
   ReleaseDeploymentInputSnapshot,
   ReleaseDeploymentInputState,
 } from "./release-deployment-input.types";
 import { hashCanonicalReleaseValue } from "./release-canonical-hash.utils";
-import { matchReleaseDeploymentTargetBindings } from "./release-deployment-target-match.utils";
+import { ReleaseDeploymentTargetConflict } from "./release-deployment-target-error";
+import { resolveReleaseDeploymentTargetReadiness } from "./release-deployment-target-readiness.model";
+import {
+  effectiveResourceBindings,
+  environmentKeysFromTemplate,
+} from "../project-environment/environment-variable-binding.utils";
 
 export function buildReleaseDeploymentInputSnapshot(
   state: ReleaseDeploymentInputState,
@@ -49,7 +53,10 @@ export function buildReleaseDeploymentInputSnapshot(
           updatedAt: item.updatedAt,
           runtime: item.runtime,
         }),
-        environmentKeys: resourceEnvironmentKeys(item.runtime?.envTemplate),
+        environmentKeys: effectiveResourceBindings(
+          item,
+          environmentKeysFromTemplate(item.runtime?.envTemplate),
+        ).map((binding) => binding.targetEnvKey).sort(),
       }))
       .sort(byId),
     target: {
@@ -79,23 +86,14 @@ export function selectReleaseDeploymentTarget(
   state: ReleaseDeploymentInputState,
   providerKey: string,
 ) {
-  const matches = matchReleaseDeploymentTargetBindings(
+  const readiness = resolveReleaseDeploymentTargetReadiness(
     state.bindings,
     providerKey,
   );
-  if (matches.length !== 1) {
-    throw new ConflictException("部署目标绑定缺失、重复或与 Provider 不匹配");
+  if (!readiness.currentTarget) {
+    throw new ReleaseDeploymentTargetConflict(readiness);
   }
-  return matches[0];
-}
-
-function resourceEnvironmentKeys(template: string | null | undefined) {
-  if (!template) return [];
-  return template
-    .split(/\r?\n/)
-    .map((line) => line.slice(0, line.indexOf("=")).trim())
-    .filter((key) => /^[A-Z_][A-Z0-9_]*$/.test(key))
-    .sort();
+  return readiness.currentTarget;
 }
 
 const hash = hashCanonicalReleaseValue;

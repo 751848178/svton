@@ -50,6 +50,7 @@ describe("ReleaseGateCatalogService", () => {
     const service = new ReleaseGateCatalogService(
       decisionPolicy as never,
       sources as never,
+      { get: jest.fn().mockResolvedValue({ reasonCode: "TARGET_MISSING" }) } as never,
     );
     const result = await service.get(
       "team-1",
@@ -73,6 +74,7 @@ describe("ReleaseGateCatalogService", () => {
     );
     expect(result.checks.every((check) => check.evaluationId)).toBe(true);
     expect(result.decisions).toBe(decisions);
+    expect(result.targetReadiness).toEqual({ reasonCode: "TARGET_MISSING" });
     expect(decisionPolicy.catalog).toHaveBeenCalledWith(
       expect.objectContaining({
         teamId: "team-1",
@@ -109,6 +111,7 @@ describe("ReleaseGateCatalogService", () => {
       {
         resolve: jest.fn().mockRejectedValue(new Error("source unavailable")),
       } as never,
+      { get: jest.fn().mockResolvedValue({ reasonCode: "TARGET_MISSING" }) } as never,
     );
     await expect(
       service.get("team-1", "project-1", "other-order", "user-1"),

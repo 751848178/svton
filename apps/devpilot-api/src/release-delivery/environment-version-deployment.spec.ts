@@ -65,6 +65,14 @@ function context() {
     },
     bundle: { uri: "release-artifact://build-1/bundle.zip" },
     selection: { sourceVersionId: "version-0" },
+    frozenInput: {
+      deploymentInput: {
+        snapshot: { target: { targetRef: "bound-target" } },
+        runtimeEnvironment: { NODE_ENV: "staging" },
+        targetConnection: undefined,
+      },
+      workload: { services: [] },
+    },
     run: { id: "run-1" },
   };
 }

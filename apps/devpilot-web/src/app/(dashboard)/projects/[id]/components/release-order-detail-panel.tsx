@@ -2,15 +2,17 @@
 
 import { useCallback, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { LoadingState } from '@svton/ui';
 import { ErrorBanner } from '@/components/ui';
 import { useReleaseBuilds } from '../hooks/use-release-builds';
 import { useReleaseOrderDetail } from '../hooks/use-release-order-detail';
 import { useReleaseOrderEvidence } from '../hooks/use-release-order-evidence';
+import { useReleaseGateCatalog } from '../hooks/use-release-gate-catalog';
 import { scopedRequestIdentity } from '../hooks/use-scoped-request-guard';
 import type { ReleaseOrderDetail, ReleaseOrderStep } from '../types/release-order.types';
 import {
+  deliveryHref,
   readExplicitReleaseOrderStep,
   readReleaseOrderStep,
   releaseOrderHref,
@@ -20,8 +22,7 @@ import { ReleaseOrderDetailHeader } from './release-order-detail-header';
 import { ReleaseOrderStepContent } from './release-order-step-content';
 import { buildReleaseOrderStepViews } from './release-order-stepper.model';
 import { ReleaseOrderStepper } from './release-order-stepper';
-import { deliveryHref } from '../utils/project-route.utils';
-
+import { buildReleaseOrderGateView } from './release-order-gate-view.model';
 interface Props {
   projectId: string;
   releaseOrderId: string;
@@ -31,10 +32,12 @@ interface Props {
 export function ReleaseOrderDetailPanel(props: Props) {
   const { projectId, releaseOrderId, onOrdersChanged } = props;
   const t = useTranslations('projects');
+  const locale = useLocale();
   const router = useRouter();
   const searchParams = useSearchParams();
   const order = useReleaseOrderDetail(projectId, releaseOrderId);
   const evidence = useReleaseOrderEvidence(projectId, releaseOrderId);
+  const gateCatalog = useReleaseGateCatalog(projectId, releaseOrderId);
   const scope = scopedRequestIdentity(projectId, releaseOrderId);
   const detail = ownsDetail(order.scope, order.detail, scope, props);
   const step = readReleaseOrderStep(searchParams, detail?.resumeStep || 'preflight');
@@ -48,7 +51,8 @@ export function ReleaseOrderDetailPanel(props: Props) {
     await Promise.all([loadOrder(), loadEvidence(), onOrdersChanged()]);
   }, [loadEvidence, loadOrder, onOrdersChanged]);
   const builds = useReleaseBuilds(projectId, releaseOrderId, refresh, Boolean(detail), 50);
-
+  const gateView = buildReleaseOrderGateView({ projectId, releaseOrderId, searchParams, locale,
+    catalog: gateCatalog.catalog, state: gateCatalog });
   useEffect(() => {
     const incompatibleFocus =
       (step !== 'build' && Boolean(buildRunId)) ||
@@ -93,6 +97,7 @@ export function ReleaseOrderDetailPanel(props: Props) {
       scroll: false,
     });
   const triggerBuild = () => {
+    if (!gateView.build.allowed) return;
     changeStep('build');
     void builds.buildLatest();
   };
@@ -104,6 +109,7 @@ export function ReleaseOrderDetailPanel(props: Props) {
         building={builds.building}
         onBack={() => router.replace(releaseOrderListHref(projectId, searchParams))}
         onBuildLatest={triggerBuild}
+        buildGate={gateView.build}
       />
       <ReleaseOrderStepper
         steps={buildReleaseOrderStepViews(detail)}
@@ -172,6 +178,10 @@ export function ReleaseOrderDetailPanel(props: Props) {
             )
           }
           recoveryHref={deliveryHref(projectId, 'environment-versions', searchParams)}
+          buildGate={gateView.build}
+          stagingGate={gateView.staging}
+          gateRepairHref={gateView.gateHref}
+          stagingRepairHref={gateView.stagingHref}
         />
       </ReleaseOrderStepper>
     </div>

@@ -3,14 +3,22 @@ import { Prisma } from "@prisma/client";
 import type { CreateEnvironmentConfigRevisionDto } from "./dto/environment-config-revision.dto";
 import type {
   EnvironmentConfigSnapshot,
-  ResourceReferenceInput,
-  SafeResourceReference,
+  SecretReferenceInput,
 } from "./environment-config-revision.types";
+import { resolveEnvironmentConfigResources } from "./environment-config-resource-resolver";
+import { normalizeSecretReferences } from "./environment-config-reference-normalizer";
 import {
   normalizePlainVariables,
   normalizeResourceReferences,
   normalizeRouteSnapshot,
 } from "./environment-config-revision.utils";
+import { validateRouteSnapshotTargets } from './environment-route-target-validator';
+import { secretTargetEnvKey } from "./environment-variable-binding.utils";
+import {
+  environmentVariableCollisionMessage,
+  findEnvironmentVariableCollisions,
+  type EnvironmentVariableOwner,
+} from "./environment-variable-ownership.model";
 
 type EnvironmentScope = {
   id: string;
@@ -41,15 +49,20 @@ export class EnvironmentConfigReferenceResolverService {
     const resourceInputs = dto.resourceReferences === undefined
       ? this.previousResources(previous?.resourceReferences)
       : normalizeResourceReferences(dto.resourceReferences);
-    const secretIds = dto.secretReferenceIds ?? this.referenceIds(previous?.secretReferences);
+    const secretInputs = this.secretInputs(dto, previous?.secretReferences);
     const policyIds = dto.policyReferenceIds ?? this.referenceIds(previous?.policyReferences);
+    const routeSnapshot = dto.routeSnapshot === undefined
+      ? this.record(previous?.routeSnapshot)
+      : normalizeRouteSnapshot(dto.routeSnapshot);
+    await validateRouteSnapshotTargets(tx, environment, routeSnapshot);
+    const secretReferences = await this.resolveSecrets(tx, environment, secretInputs);
+    const resources = await resolveEnvironmentConfigResources(tx, environment, resourceInputs);
+    this.assertVariableOwnership(plainVariables, secretReferences, resources.owners);
     return {
       plainVariables,
-      secretReferences: await this.resolveSecrets(tx, environment, secretIds),
-      resourceReferences: await this.resolveResources(tx, environment, resourceInputs),
-      routeSnapshot: dto.routeSnapshot === undefined
-        ? this.record(previous?.routeSnapshot)
-        : normalizeRouteSnapshot(dto.routeSnapshot),
+      secretReferences,
+      resourceReferences: resources.references,
+      routeSnapshot,
       policyReferences: await this.resolvePolicies(tx, environment, policyIds),
     };
   }
@@ -57,9 +70,9 @@ export class EnvironmentConfigReferenceResolverService {
   private async resolveSecrets(
     tx: Prisma.TransactionClient,
     scope: EnvironmentScope,
-    inputIds: string[],
+    inputs: SecretReferenceInput[],
   ) {
-    const ids = [...new Set(inputIds)].sort();
+    const ids = [...new Set(inputs.map((item) => item.id))].sort();
     const rows = await tx.secretKey.findMany({
       where: {
         id: { in: ids }, teamId: scope.teamId,
@@ -69,56 +82,10 @@ export class EnvironmentConfigReferenceResolverService {
       select: { id: true, name: true, type: true },
     });
     this.assertComplete("Secret", ids, rows);
-    return rows.sort((left, right) => left.id.localeCompare(right.id));
-  }
-
-  private async resolveResources(
-    tx: Prisma.TransactionClient,
-    scope: EnvironmentScope,
-    inputs: ResourceReferenceInput[],
-  ) {
-    const allEnvironmentIds = [...new Set(inputs.flatMap((item) => item.sharedEnvironmentIds))];
-    const environments = await tx.projectEnvironment.findMany({
-      where: { id: { in: allEnvironmentIds }, teamId: scope.teamId, projectId: scope.projectId },
-      select: { id: true },
-    });
-    this.assertComplete("共享环境", allEnvironmentIds, environments);
-    const output: SafeResourceReference[] = [];
-    for (const input of inputs) {
-      if (!input.sharedEnvironmentIds.includes(scope.id)) {
-        throw new BadRequestException(`资源 ${input.id} 的共享环境必须包含当前环境`);
-      }
-      if (scope.baselineRole === "production" && input.sharedEnvironmentIds.length > 1) {
-        throw new BadRequestException(
-          `Production 环境禁止与非生产环境共享资源 ${input.id}，必须保持环境专用`,
-        );
-      }
-      if (input.sharedEnvironmentIds.length > 1 && input.risk === "low") {
-        throw new BadRequestException(`共享资源 ${input.id} 的风险不能为 low`);
-      }
-      const row = await this.findResource(tx, scope, input);
-      if (!row) throw new BadRequestException(`资源引用 ${input.kind}:${input.id} 无效或跨项目`);
-      if (row.environmentId && !input.sharedEnvironmentIds.includes(row.environmentId)) {
-        throw new BadRequestException(`资源 ${input.id} 的所属环境未包含在共享范围`);
-      }
-      output.push({ ...input, name: row.name });
-    }
-    return output.sort((left, right) => `${left.kind}:${left.id}`.localeCompare(`${right.kind}:${right.id}`));
-  }
-
-  private findResource(
-    tx: Prisma.TransactionClient,
-    scope: EnvironmentScope,
-    input: ResourceReferenceInput,
-  ): Promise<{ id: string; name: string; environmentId: string | null } | null> {
-    const args = {
-      where: { id: input.id, teamId: scope.teamId, projectId: scope.projectId },
-      select: { id: true, name: true, environmentId: true },
-    };
-    if (input.kind === "managed_resource") return tx.managedResource.findFirst(args);
-    if (input.kind === "resource_instance") return tx.resourceInstance.findFirst(args);
-    if (input.kind === "site") return tx.site.findFirst(args);
-    return tx.cDNConfig.findFirst(args);
+    const inputById = new Map(inputs.map((item) => [item.id, item]));
+    return rows
+      .map((row) => ({ ...row, ...inputById.get(row.id) }))
+      .sort((left, right) => left.id.localeCompare(right.id));
   }
 
   private async resolvePolicies(tx: Prisma.TransactionClient, scope: EnvironmentScope, inputIds: string[]) {
@@ -146,6 +113,38 @@ export class EnvironmentConfigReferenceResolverService {
         ? [(entry as { id: string }).id]
         : [],
     );
+  }
+
+  private secretInputs(dto: CreateEnvironmentConfigRevisionDto, previous: unknown) {
+    if (dto.secretReferences !== undefined) {
+      return normalizeSecretReferences(dto.secretReferences);
+    }
+    if (dto.secretReferenceIds !== undefined) {
+      return dto.secretReferenceIds.map((id) => ({ id }));
+    }
+    return Array.isArray(previous)
+      ? normalizeSecretReferences(previous)
+      : [];
+  }
+
+  private assertVariableOwnership(
+    plainVariables: Record<string, string>,
+    secrets: Array<{ id: string; name: string; targetEnvKey?: string }>,
+    resourceOwners: EnvironmentVariableOwner[],
+  ) {
+    const owners: EnvironmentVariableOwner[] = [
+      ...resourceOwners,
+      ...Object.keys(plainVariables).map((key) => ({
+        key, source: "plain" as const, reference: key,
+      })),
+      ...secrets.map((secret) => ({
+        key: secretTargetEnvKey(secret), source: "secret" as const, reference: secret.id,
+      })),
+    ];
+    const collision = findEnvironmentVariableCollisions(owners)[0];
+    if (collision) {
+      throw new BadRequestException(environmentVariableCollisionMessage(collision));
+    }
   }
 
   private previousResources(value: unknown) {

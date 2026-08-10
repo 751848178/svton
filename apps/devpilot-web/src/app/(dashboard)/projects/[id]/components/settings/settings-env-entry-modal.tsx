@@ -11,40 +11,54 @@ import React, { useState } from 'react';
 
 import { useTranslations } from 'next-intl';
 import { Modal } from '@svton/ui';
-import { ROUTE_TARGET_OPTIONS } from './settings-env-routes.model';
+import type { SettingsRouteTargetOption } from './settings-route-target-options.model';
 import type { SettingsRouteEntryDraft } from './settings-env.model';
 
 interface Props {
   open: boolean;
   environmentName: string;
+  targetOptions: SettingsRouteTargetOption[];
   onClose: () => void;
   onConfirm: (entry: SettingsRouteEntryDraft) => void;
 }
 
-export function SettingsEnvEntryModal({ open, environmentName, onClose, onConfirm }: Props) {
+export function SettingsEnvEntryModal({
+  open,
+  environmentName,
+  targetOptions,
+  onClose,
+  onConfirm,
+}: Props) {
   const t = useTranslations('projects');
   const tc = useTranslations('common');
   const [domain, setDomain] = useState('');
   const [path, setPath] = useState('/');
-  const [target, setTarget] = useState(0);
+  const [target, setTarget] = useState('custom');
+  const [customComponent, setCustomComponent] = useState('');
+  const [customPort, setCustomPort] = useState('');
   const [tlsMode, setTlsMode] = useState<'managed_cert' | 'existing_cert_asset'>('managed_cert');
 
   const reset = () => {
     setDomain('');
     setPath('/');
-    setTarget(0);
+    setTarget('custom');
+    setCustomComponent('');
+    setCustomPort('');
     setTlsMode('managed_cert');
   };
 
   const handleConfirm = () => {
     const trimmed = domain.trim();
     if (!trimmed) return;
-    const option = ROUTE_TARGET_OPTIONS[target] ?? ROUTE_TARGET_OPTIONS[0];
+    const option = targetOptions.find((candidate) => targetKey(candidate) === target);
+    const port = option?.port ?? Number(customPort);
+    if (!option && (!customComponent.trim() || !validPort(port))) return;
     onConfirm({
       domain: trimmed,
       path: path.trim() || '/',
-      component: option.component,
-      port: option.port,
+      serviceId: option?.serviceId ?? null,
+      component: option?.component ?? customComponent.trim(),
+      port,
       tlsMode,
     });
     reset();
@@ -103,15 +117,41 @@ export function SettingsEnvEntryModal({ open, environmentName, onClose, onConfir
           <select
             className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
             value={target}
-            onChange={(event) => setTarget(Number(event.target.value))}
+            onChange={(event) => setTarget(event.target.value)}
           >
-            {ROUTE_TARGET_OPTIONS.map((option, index) => (
-              <option key={`${option.component}-${option.port}`} value={index}>
+            {targetOptions.map((option) => (
+              <option key={targetKey(option)} value={targetKey(option)}>
                 {option.component} : {option.port}
               </option>
             ))}
+            <option value="custom">
+              {t('envRoleCustom')} · {t('envRoutesTableComponent')}
+            </option>
           </select>
         </label>
+        {target === 'custom' ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block space-y-1 text-xs">
+              <span className="font-medium">{t('envRoutesTableComponent')}</span>
+              <input
+                className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
+                value={customComponent}
+                onChange={(event) => setCustomComponent(event.target.value)}
+              />
+            </label>
+            <label className="block space-y-1 text-xs">
+              <span className="font-medium">{t('envRoutesTargetLabel')}</span>
+              <input
+                type="number"
+                min={1}
+                max={65_535}
+                className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
+                value={customPort}
+                onChange={(event) => setCustomPort(event.target.value)}
+              />
+            </label>
+          </div>
+        ) : null}
         <label className="block space-y-1 text-xs">
           <span className="font-medium">{t('envRoutesTlsLabel')}</span>
           <select
@@ -128,4 +168,12 @@ export function SettingsEnvEntryModal({ open, environmentName, onClose, onConfir
       </div>
     </Modal>
   );
+}
+
+function targetKey(option: SettingsRouteTargetOption) {
+  return `${option.serviceId}:${option.port}`;
+}
+
+function validPort(port: number) {
+  return Number.isInteger(port) && port > 0 && port <= 65_535;
 }

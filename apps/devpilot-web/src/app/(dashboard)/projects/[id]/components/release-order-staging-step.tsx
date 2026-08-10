@@ -10,6 +10,7 @@ import { releaseClientErrorLabelKey } from '../utils/release-copy.model';
 import { stagingBuildForRun, stagingManifestSucceeded } from '../utils/release-staging-view.model';
 import { ReleaseStagingEvidenceList } from './release-staging-evidence-list';
 import { ReleaseStagingLogDrawer } from './release-staging-log-drawer';
+import { ReleaseStagingSummary as Summary } from './release-staging-summary';
 
 interface Props {
   projectId: string;
@@ -18,6 +19,8 @@ interface Props {
   focusedDeploymentRunId?: string;
   onOpenLog: (deploymentRunId: string) => void;
   onCloseLog: () => void;
+  stagingGate?: { allowed: boolean; reason: string };
+  repairHref?: string;
 }
 
 export function ReleaseOrderStagingStep(props: Props) {
@@ -42,7 +45,6 @@ export function ReleaseOrderStagingStep(props: Props) {
   const focusedBuild = focusedRun ? stagingBuildForRun(focusedRun, builds.items) : null;
   const normalizedFocus = useRef<string | null>(null);
   const onCloseLog = props.onCloseLog;
-
   useEffect(() => {
     const runId = props.focusedDeploymentRunId;
     if (!runId || focusedRun || deployments.error) {
@@ -53,17 +55,12 @@ export function ReleaseOrderStagingStep(props: Props) {
       return;
     normalizedFocus.current = runId;
     onCloseLog();
-  }, [
-    deployments.error,
-    deployments.loadedSuccessfully,
-    deployments.loading,
-    focusedRun,
-    onCloseLog,
-    props.focusedDeploymentRunId,
-  ]);
+  }, [deployments.error, deployments.loadedSuccessfully, deployments.loading, focusedRun, onCloseLog, props.focusedDeploymentRunId]);
 
   const deploymentErrorKey = releaseClientErrorLabelKey(deployments.error);
-  const deploy = (id: string) => void deployments.deploy(id);
+  const deploy = (id: string) => {
+    if (props.stagingGate?.allowed !== false) void deployments.deploy(id);
+  };
   return (
     <div className="space-y-4">
       <section className="rounded-lg border bg-muted/20 p-4">
@@ -77,7 +74,8 @@ export function ReleaseOrderStagingStep(props: Props) {
           <Button
             onClick={() => deploy(manifestId)}
             loading={deployments.deploying}
-            disabled={!manifestId}
+            disabled={!manifestId || props.stagingGate?.allowed === false}
+            title={props.stagingGate?.reason || undefined}
           >
             {t('deployManifestToStaging')}
           </Button>
@@ -119,6 +117,22 @@ export function ReleaseOrderStagingStep(props: Props) {
           </select>
         </label>
       </section>
+      {props.stagingGate?.allowed === false ? (
+        <p
+          role="alert"
+          className="text-sm text-amber-800"
+        >
+          {props.stagingGate.reason}{' '}
+          {props.repairHref ? (
+            <a
+              className="font-medium underline"
+              href={props.repairHref}
+            >
+              {t('releaseGateRepairAction')}
+            </a>
+          ) : null}
+        </p>
+      ) : null}
       <div className="grid gap-3 sm:grid-cols-3">
         <Summary
           label={t('releaseStagingCurrentArtifact')}
@@ -129,12 +143,8 @@ export function ReleaseOrderStagingStep(props: Props) {
           }
           detail={selectedBuild?.manifest ? `Manifest ${selectedBuild.manifest.id}` : undefined}
         />
-        <Summary
-          label={t('releaseStagingDeploymentCount')}
-          value={t('releaseStagingDeploymentCountValue', { count: deployments.total })}
-        />
-        <Summary
-          label={t('releaseStagingProductionPrerequisite')}
+        <Summary label={t('releaseStagingDeploymentCount')} value={t('releaseStagingDeploymentCountValue', { count: deployments.total })} />
+        <Summary label={t('releaseStagingProductionPrerequisite')}
           value={
             manifestId && stagingManifestSucceeded(manifestId, deployments.items)
               ? t('releaseStagingProductionReady')
@@ -158,9 +168,7 @@ export function ReleaseOrderStagingStep(props: Props) {
       (deployments.loading && deployments.items.length === 0) ? (
         <LoadingState text={t('releaseStagingLoading')} />
       ) : null}
-      {!deployments.loading && deployments.loadedSuccessfully && deployments.items.length === 0 ? (
-        <EmptyState title={t('releaseStepStagingEmpty')} />
-      ) : null}
+      {!deployments.loading && deployments.loadedSuccessfully && deployments.items.length === 0 ? <EmptyState title={t('releaseStepStagingEmpty')} /> : null}
       {deployments.items.length > 0 ? (
         <ReleaseStagingEvidenceList
           items={deployments.items}
@@ -168,6 +176,7 @@ export function ReleaseOrderStagingStep(props: Props) {
           total={deployments.total}
           focusedRunId={props.focusedDeploymentRunId}
           deploying={deployments.deploying}
+          deploymentAllowed={props.stagingGate?.allowed !== false}
           onOpenLog={props.onOpenLog}
           onDeploy={deploy}
         />
@@ -182,18 +191,6 @@ export function ReleaseOrderStagingStep(props: Props) {
         onRetry={deployments.load}
         onClose={props.onCloseLog}
       />
-    </div>
-  );
-}
-
-function Summary(props: { label: string; value: string; detail?: string }) {
-  return (
-    <div className="rounded-md border p-3">
-      <span className="text-xs text-muted-foreground">{props.label}</span>
-      <strong className="mt-1 block break-all text-sm">{props.value}</strong>
-      {props.detail ? (
-        <code className="mt-1 block break-all text-xs text-muted-foreground">{props.detail}</code>
-      ) : null}
     </div>
   );
 }

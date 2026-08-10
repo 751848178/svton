@@ -187,7 +187,7 @@ describe('EnvironmentSettingsArea Demo-aligned environment configuration', () =>
     expect(html).toContain('envSwitchLabel');
     expect(html).toContain('staging · Staging');
     expect(html).toContain('production · Production');
-    expect(html).toContain('envReadyCount');
+    expect(html).toContain('envStatusActive');
     expect(html).toContain('envSummaryRole');
     expect(html).toContain('envRoleStaging');
     expect(html).toContain('envSummaryTarget');
@@ -207,7 +207,7 @@ describe('EnvironmentSettingsArea Demo-aligned environment configuration', () =>
     const html = renderToStaticMarkup(<EnvironmentSettingsArea detail={detail()} />);
 
     expect(html.match(/aria-pressed="true"/g)).toHaveLength(1);
-    expect(html.match(/<button[^>]*aria-pressed="true"[^>]*>production[^<]*/)).not.toBeNull();
+    expect(html.match(/<button[^>]*aria-pressed="true"[^>]*>[\s\S]*?production · Production/)).not.toBeNull();
     expect(html).toContain('envTabVariables');
     expect(html).toContain('envVarsSnapshotCallout');
     expect(html).toContain('envVarsCopyButton');

@@ -44,6 +44,6 @@ export interface EnvironmentVersionExecutionContext {
   releaseRunId: string | undefined;
   frozenConfigRevisionId: string | null;
   gateContext: Parameters<EnvironmentVersionProductionGateService["admit"]>[0];
-  frozenInput?: { deploymentInput: DeploymentInput; workload: Workload };
+  frozenInput: { deploymentInput: DeploymentInput; workload: Workload };
   run: Awaited<ReturnType<EnvironmentVersionRepository["reserve"]>>;
 }

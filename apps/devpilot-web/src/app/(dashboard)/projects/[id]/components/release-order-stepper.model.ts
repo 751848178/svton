@@ -18,6 +18,7 @@ type StepLabelKey =
 
 type StepStateLabelKey =
   | 'releaseStepStateCompleted'
+  | 'releaseStepStateBaselineEstablished'
   | 'releaseStepStateCurrent'
   | 'releaseStepStateWaiting'
   | 'releaseOrderFailureFailed'
@@ -101,7 +102,11 @@ function resolveStateLabel(
     }
     return 'releaseOrderStatusWithdrawn';
   }
-  if (state === 'completed') return 'releaseStepStateCompleted';
+  if (state === 'completed') {
+    return step === 'preflight'
+      ? 'releaseStepStateBaselineEstablished'
+      : 'releaseStepStateCompleted';
+  }
   if (state === 'current' && detail.lifecycle.phase === step) {
     return LIFECYCLE_STATUS_LABELS[detail.lifecycle.status];
   }

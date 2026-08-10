@@ -27,7 +27,7 @@ type GeneratedProjectArtifactInput = {
   downloadCount?: number;
 };
 
-const DEFAULT_PROJECT_ENVIRONMENT_KEYS = ['dev', 'test', 'staging', 'prod'];
+const DEFAULT_PROJECT_ENVIRONMENT_KEYS = ['staging', 'production'];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

@@ -7,6 +7,7 @@ import {
   type SiteRouteActivationResolveInput,
   type SiteRouteActivationResolveResult,
 } from "./site-route-activation.types";
+import { resolveFrozenRoute } from "./site-route-snapshot.policy";
 
 @Injectable()
 export class SiteRouteActivationService implements SiteRouteActivationPort {
@@ -15,21 +16,24 @@ export class SiteRouteActivationService implements SiteRouteActivationPort {
   async resolve(
     input: SiteRouteActivationResolveInput,
   ): Promise<SiteRouteActivationResolveResult> {
-    const route = routeSnapshot(input.routeSnapshot);
-    const domains = stringList(route.domains);
-    const proxyTarget = stringValue(route.proxyTarget);
     if (!input.routeSnapshot) {
-      return unavailable("route_not_frozen", [], null);
+      return unavailable("route_not_frozen", [], [], null);
     }
-    if (domains.length === 0) {
-      return unavailable("no_route_domains", [], null);
+    const route = resolveFrozenRoute(input.routeSnapshot);
+    if (route.reasonCode !== "route_ready") {
+      return unavailable(
+        route.reasonCode,
+        route.domains,
+        route.entries,
+        route.proxyTarget,
+      );
     }
     const site = await this.prisma.site.findFirst({
       where: {
         teamId: input.teamId,
         projectId: input.projectId,
         environmentId: input.environmentId,
-        primaryDomain: { in: domains },
+        primaryDomain: { in: route.domains },
       },
       select: { id: true, primaryDomain: true, status: true },
       orderBy: [{ status: "desc" }, { updatedAt: "desc" }],
@@ -42,8 +46,9 @@ export class SiteRouteActivationService implements SiteRouteActivationPort {
         deploymentRunId: null,
         releaseRunId: null,
         targetRef: null,
-        proxyTarget,
-        domains,
+        proxyTarget: route.proxyTarget,
+        domains: route.domains,
+        entries: route.entries,
         status: "unavailable",
         reasonCode: "site_not_found",
         switchedAt: null,
@@ -57,8 +62,9 @@ export class SiteRouteActivationService implements SiteRouteActivationPort {
     return {
       siteId: site.id,
       primaryDomain: site.primaryDomain,
-      domains,
-      proxyTarget,
+      domains: route.domains,
+      entries: route.entries,
+      proxyTarget: route.proxyTarget,
       status: "matched",
       reasonCode: "site_route_matched",
     };
@@ -68,31 +74,18 @@ export class SiteRouteActivationService implements SiteRouteActivationPort {
 function unavailable(
   reasonCode: SiteRouteActivationResolveResult["reasonCode"],
   domains: string[],
+  entries: SiteRouteActivationResolveResult["entries"],
   proxyTarget: string | null,
 ): SiteRouteActivationResolveResult {
   return {
     siteId: null,
     primaryDomain: null,
     domains,
+    entries,
     proxyTarget,
     status: "unavailable",
     reasonCode,
   };
-}
-
-function routeSnapshot(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
-}
-
-function stringList(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter((item): item is string => typeof item === "string");
-}
-
-function stringValue(value: unknown): string | null {
-  return typeof value === "string" && value.length > 0 ? value : null;
 }
 
 export function frozenRouteSnapshot(

@@ -7,8 +7,9 @@ import {
   ShieldCheck,
   TreeStructure,
   WarningCircle,
+  ArrowClockwise,
 } from '@phosphor-icons/react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { Button } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
 import type { ReleaseGateCatalog } from '../types/release-gate.types';
@@ -25,12 +26,15 @@ interface Props {
   catalog: ReleaseGateCatalog;
   dialogId: string;
   dialogOpen: boolean;
-  onOpenCatalog: () => void;
+  onOpenCatalog: (capabilityIds?: readonly string[]) => void;
+  onRefresh: () => void;
+  refreshing: boolean;
 }
 
-export function ReleaseGateSummary({ catalog, dialogId, dialogOpen, onOpenCatalog }: Props) {
+export function ReleaseGateSummary(props: Props) {
   const t = useTranslations('projects');
-  const summary = buildReleaseGateSummary(catalog);
+  const locale = useLocale();
+  const summary = buildReleaseGateSummary(props.catalog);
   const conclusion = summary.valid
     ? summary.canEnterBuild
       ? t('releaseGateCanEnterBuild')
@@ -50,16 +54,27 @@ export function ReleaseGateSummary({ catalog, dialogId, dialogOpen, onOpenCatalo
             {t('releaseGatePreflightSummaryDescription')}
           </p>
         </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          aria-controls={dialogId}
-          aria-expanded={dialogOpen}
-          aria-haspopup="dialog"
-          onClick={onOpenCatalog}
-        >
-          {t('releaseGateCatalogExpand')}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={props.refreshing}
+            onClick={props.onRefresh}
+          >
+            <ArrowClockwise size={16} aria-hidden="true" />
+            {t('releaseGateRefresh')}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-controls={props.dialogId}
+            aria-expanded={props.dialogOpen}
+            aria-haspopup="dialog"
+            onClick={() => props.onOpenCatalog()}
+          >
+            {t('releaseGateCatalogExpand')}
+          </Button>
+        </div>
       </div>
 
       <dl className="grid gap-3 min-[821px]:grid-cols-3">
@@ -81,9 +96,12 @@ export function ReleaseGateSummary({ catalog, dialogId, dialogOpen, onOpenCatalo
         {summary.previews.map((preview) => {
           const Icon = PREVIEW_ICONS[preview.key];
           return (
-            <article
+            <button
+              type="button"
               key={preview.key}
-              className="flex items-start gap-3 rounded-lg border bg-white p-4"
+              className="flex items-start gap-3 rounded-lg border bg-white p-4 text-left transition-colors hover:border-indigo-300 hover:bg-indigo-50/30"
+              aria-controls={props.dialogId}
+              onClick={() => props.onOpenCatalog(preview.capabilityIds)}
             >
               <Icon
                 size={22}
@@ -105,8 +123,22 @@ export function ReleaseGateSummary({ catalog, dialogId, dialogOpen, onOpenCatalo
                     total: preview.checkCount,
                   })}
                 </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {t('releaseGateBlockingCount', { count: preview.blockingCount })}
+                  {' · '}
+                  {t('releaseGateLastChecked', {
+                    time: formatTime(preview.checkedAt, locale, t('releaseGateMetadataUnavailable')),
+                  })}
+                </p>
+                {preview.primaryReason ? (
+                  <p className="mt-2 line-clamp-2 text-xs text-slate-700">
+                    {locale.startsWith('zh')
+                      ? preview.primaryReason.zh
+                      : preview.primaryReason.en}
+                  </p>
+                ) : null}
               </div>
-            </article>
+            </button>
           );
         })}
       </div>
@@ -126,6 +158,10 @@ export function ReleaseGateSummary({ catalog, dialogId, dialogOpen, onOpenCatalo
       ) : null}
     </section>
   );
+}
+
+function formatTime(value: string | null, locale: string, fallback: string) {
+  return value ? new Date(value).toLocaleString(locale) : fallback;
 }
 
 function SummaryFact({ label, value }: { label: string; value: string }) {

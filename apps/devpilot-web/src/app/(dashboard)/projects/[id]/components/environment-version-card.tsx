@@ -51,11 +51,11 @@ export function EnvironmentVersionCard(props: {
           {t('environmentVersionUnavailableDescription')}
         </p>
       )}
-      <div className="flex flex-wrap items-end gap-2 rounded-md bg-muted/30 p-3">
+      <div className="flex flex-col gap-2 rounded-md bg-muted/30 p-3 sm:flex-row sm:items-end">
         <label className="min-w-56 flex-1 text-sm">
           <span className="mb-1 block font-medium">{t('environmentVersionUpgradeTarget')}</span>
           <select
-            className="w-full rounded-md border bg-background px-3 py-2"
+            className="min-h-11 w-full rounded-md border bg-background px-3 py-2"
             value={props.selectedId}
             onChange={(event) => props.onSelect(event.target.value)}
             disabled={props.candidates.length === 0}
@@ -79,6 +79,7 @@ export function EnvironmentVersionCard(props: {
           </select>
         </label>
         <Button
+          className="min-h-11"
           onClick={props.onUpgrade}
           loading={props.executing}
           disabled={
@@ -90,21 +91,20 @@ export function EnvironmentVersionCard(props: {
         >
           {t('environmentVersionUpgradeShort')}
         </Button>
-      </div>
-      <div className="flex flex-wrap items-center justify-between gap-2">
         <Button
+          className="min-h-11"
           variant="outline"
           disabled={props.executing || !previous}
           onClick={() => (previous ? props.onRecovery(previous.id) : undefined)}
         >
           {t('environmentVersionRollback')}
         </Button>
-        {props.productionBlocked ? (
-          <p className="text-xs text-amber-800">
-            {t('environmentVersionProductionApprovalRequired')}
-          </p>
-        ) : null}
       </div>
+      {props.productionBlocked ? (
+        <p className="text-xs text-amber-800">
+          {t('environmentVersionProductionApprovalRequired')}
+        </p>
+      ) : null}
     </article>
   );
 }

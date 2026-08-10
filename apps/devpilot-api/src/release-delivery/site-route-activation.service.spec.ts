@@ -80,4 +80,60 @@ describe("SiteRouteActivationService", () => {
       reasonCode: "site_route_matched",
     });
   });
+
+  it("uses structured entries as the upstream truth and preserves all routes", async () => {
+    const prisma = {
+      site: { findFirst: jest.fn().mockResolvedValue({
+        id: "site-1", primaryDomain: "app.example.com", status: "active",
+      }) },
+    };
+    const service = new SiteRouteActivationService(prisma as never);
+    const result = await service.resolve({
+      teamId: "team-1", projectId: "project-1", environmentId: "env-1",
+      routeSnapshot: {
+        domains: ["ignored-legacy.example.com"],
+        proxyTarget: "legacy:9999",
+        entries: [
+          routeEntry("app.example.com", "/"),
+          routeEntry("www.example.com", "/api"),
+        ],
+      },
+    });
+    expect(result).toMatchObject({
+      domains: ["app.example.com", "www.example.com"],
+      proxyTarget: "web:3000",
+      entries: [
+        expect.objectContaining({ domain: "app.example.com", path: "/" }),
+        expect.objectContaining({ domain: "www.example.com", path: "/api" }),
+      ],
+      status: "matched",
+    });
+  });
+
+  it("fails closed when structured entries require different upstreams", async () => {
+    const prisma = { site: { findFirst: jest.fn() } };
+    const service = new SiteRouteActivationService(prisma as never);
+    const result = await service.resolve({
+      teamId: "team-1", projectId: "project-1", environmentId: "env-1",
+      routeSnapshot: {
+        entries: [
+          routeEntry("app.example.com", "/"),
+          { ...routeEntry("api.example.com", "/"), serviceId: "api-1", component: "api", port: 8080 },
+        ],
+      },
+    });
+    expect(result).toMatchObject({
+      status: "unavailable",
+      reasonCode: "multiple_route_upstreams",
+      proxyTarget: null,
+    });
+    expect(prisma.site.findFirst).not.toHaveBeenCalled();
+  });
 });
+
+function routeEntry(domain: string, path: string) {
+  return {
+    domain, path, serviceId: "web-1", component: "web", port: 3000,
+    tlsMode: "managed_cert",
+  };
+}

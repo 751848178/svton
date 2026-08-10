@@ -34,6 +34,17 @@ describe("environment config revision governance", () => {
     }]])).toHaveLength(1);
   });
 
+  it("preserves explicit component and resource env mappings", () => {
+    expect(normalizeResourceReferences([{
+      kind: "resource_instance", id: "db-1", sharedEnvironmentIds: ["env-1"],
+      risk: "medium", impact: "database", componentKey: "api",
+      envBindings: [{ sourceKey: "DATABASE_URL", targetEnvKey: "API_DATABASE_URL" }],
+    }])[0]).toMatchObject({
+      componentKey: "api",
+      envBindings: [{ sourceKey: "DATABASE_URL", targetEnvKey: "API_DATABASE_URL" }],
+    });
+  });
+
   it("preserves object entries through the global validation contract", async () => {
     const pipe = new ValidationPipe({
       whitelist: true, transform: true, forbidNonWhitelisted: true,
@@ -125,8 +136,8 @@ describe("normalizeRouteSnapshot per-entry model (F448 AC-SET-042/043/046)", () 
       ],
     });
     expect(result.entries).toEqual([
-      { domain: "staging.picshare.example.com", path: "/", component: "web", port: 3000, tlsMode: "managed_cert" },
-      { domain: "media.picshare.example.com", path: "/v1", component: "api", port: 8080, tlsMode: "existing_cert_asset" },
+      { domain: "staging.picshare.example.com", path: "/", serviceId: null, component: "web", port: 3000, tlsMode: "managed_cert" },
+      { domain: "media.picshare.example.com", path: "/v1", serviceId: null, component: "api", port: 8080, tlsMode: "existing_cert_asset" },
     ]);
     expect(result.domains).toEqual(["media.picshare.example.com", "staging.picshare.example.com"]);
     expect(result.tlsRequired).toBe(true);
@@ -140,7 +151,7 @@ describe("normalizeRouteSnapshot per-entry model (F448 AC-SET-042/043/046)", () 
       entries: [{ domain: "demo.f437.example", component: "web", port: 3000 }],
     });
     expect(result.entries).toEqual([
-      { domain: "demo.f437.example", path: "/", component: "web", port: 3000, tlsMode: "managed_cert" },
+      { domain: "demo.f437.example", path: "/", serviceId: null, component: "web", port: 3000, tlsMode: "managed_cert" },
     ]);
     expect(result.domains).toEqual(["demo.f437.example"]);
   });
@@ -152,7 +163,7 @@ describe("normalizeRouteSnapshot per-entry model (F448 AC-SET-042/043/046)", () 
       tlsRequired: true,
     });
     expect(result.entries).toEqual([
-      { domain: "demo.f437.example", path: "/", component: "", port: null, tlsMode: "managed_cert" },
+      { domain: "demo.f437.example", path: "/", serviceId: null, component: "", port: null, tlsMode: "managed_cert" },
     ]);
   });
 

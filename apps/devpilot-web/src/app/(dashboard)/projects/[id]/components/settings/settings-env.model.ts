@@ -5,12 +5,17 @@
  * 草稿↔修订转换、以及环境角色/身份标签解析。组件层只能通过这里的函数取值。
  */
 
-import type { EnvironmentConfigResourceReference } from '../../types/environment-config-revision.types';
+import type {
+  EnvironmentConfigResourceReference,
+  EnvironmentConfigSecretReference,
+} from '../../types/environment-config-revision.types';
 import type { EnvironmentConfigRevision } from '../../types/environment-config-revision.types';
+import { defaultSecretTargetKey } from './settings-variable-binding.model';
 
 export type SettingsRouteEntryDraft = {
   domain: string;
   path: string;
+  serviceId?: string | null;
   component: string;
   port: number | null;
   tlsMode: 'managed_cert' | 'existing_cert_asset';
@@ -25,7 +30,7 @@ export type SettingsRouteDraft = {
 };
 
 export type SettingsEnvironmentDraft = {
-  secretIds: string[];
+  secrets: EnvironmentConfigSecretReference[];
   policyIds: string[];
   resources: EnvironmentConfigResourceReference[];
   route: SettingsRouteDraft;
@@ -33,7 +38,7 @@ export type SettingsEnvironmentDraft = {
 };
 
 export const EMPTY_SETTINGS_ENVIRONMENT_DRAFT: SettingsEnvironmentDraft = {
-  secretIds: [],
+  secrets: [],
   policyIds: [],
   resources: [],
   route: {
@@ -51,7 +56,10 @@ export function settingsDraftFromRevision(
 ): SettingsEnvironmentDraft | null {
   if (!revision) return null;
   return {
-    secretIds: (revision.secretReferences ?? []).map((item) => item.id),
+    secrets: (revision.secretReferences ?? []).map((item) => ({
+      id: item.id,
+      targetEnvKey: item.targetEnvKey ?? defaultSecretTargetKey(item.name),
+    })),
     policyIds: (revision.policyReferences ?? []).map((item) => item.id),
     resources: resourcesFromRevision(revision.resourceReferences),
     route: {
@@ -89,6 +97,7 @@ function routeEntriesFromRevision(
     return entries.map((entry) => ({
       domain: entry.domain,
       path: entry.path || '/',
+      serviceId: typeof entry.serviceId === 'string' ? entry.serviceId : null,
       component: entry.component,
       port: entry.port,
       tlsMode: entry.tlsMode,
@@ -100,6 +109,7 @@ function routeEntriesFromRevision(
   return domains.map((domain) => ({
     domain,
     path: '/',
+    serviceId: null,
     component: match ? match[1] : '',
     port: match ? Number(match[2]) : null,
     tlsMode: 'managed_cert' as const,
@@ -109,7 +119,7 @@ function routeEntriesFromRevision(
 export function toConfigRevisionDraft(
   draft: SettingsEnvironmentDraft,
 ): {
-  secretReferenceIds: string[];
+  secretReferences: EnvironmentConfigSecretReference[];
   resourceReferences: EnvironmentConfigResourceReference[];
   routeSnapshot: Record<string, unknown>;
   policyReferenceIds: string[];
@@ -119,13 +129,14 @@ export function toConfigRevisionDraft(
     .map((entry) => ({
       domain: entry.domain.trim(),
       path: entry.path.trim() || '/',
+      serviceId: entry.serviceId ?? null,
       component: entry.component.trim(),
       port: entry.port,
       tlsMode: entry.tlsMode,
     }))
     .filter((entry) => entry.domain);
   return {
-    secretReferenceIds: draft.secretIds,
+    secretReferences: draft.secrets,
     resourceReferences: draft.resources,
     routeSnapshot: {
       domains: [...new Set(entries.map((entry) => entry.domain))].sort(),

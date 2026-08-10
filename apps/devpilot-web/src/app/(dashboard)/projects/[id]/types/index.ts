@@ -212,7 +212,9 @@ export interface ProjectService {
   name: string;
   kind: string;
   runtime?: string | null;
+  ports?: unknown;
   deployConfig?: Record<string, unknown> | null;
+  metadata?: Record<string, unknown> | null;
   status: string;
   environment?: { id: string; key: string; name: string; status: string } | null;
   server?: { id: string; name: string; host: string; status: string } | null;

@@ -90,6 +90,34 @@ describe('useReleaseGateCatalog request ownership', () => {
     expect(latest.error).toBe('Release gate catalog scope mismatch');
   });
 
+  it('submits a scoped manual confirmation and refreshes the catalog', async () => {
+    mocks.apiRequest
+      .mockResolvedValueOnce(catalog('order-1', 'before'))
+      .mockResolvedValueOnce({ id: 'evaluation-C06' })
+      .mockResolvedValueOnce(catalog('order-1', 'after'));
+    await render('order-1');
+    await act(async () => {
+      await latest.confirmManual('C06', 'evaluation-C06', ' reviewed exact evidence ');
+    });
+    expect(mocks.apiRequest).toHaveBeenNthCalledWith(
+      2,
+      'POST:/projects/project-1/delivery/releases/order-1/gates/C06/evaluations/evaluation-C06/confirm',
+      { reason: 'reviewed exact evidence' },
+    );
+    expect(latest.catalog?.catalogVersion).toBe('after');
+  });
+
+  it('keeps a service authorization error visible without faking local permission', async () => {
+    mocks.apiRequest
+      .mockResolvedValueOnce(catalog('order-1', 'before'))
+      .mockRejectedValueOnce(new Error('Forbidden'));
+    await render('order-1');
+    await act(async () => {
+      await latest.confirmManual('C06', 'evaluation-C06', 'reviewed');
+    });
+    expect(latest.confirmationError).toBe('Forbidden');
+  });
+
   async function render(releaseOrderId: string) {
     await act(async () => root.render(<Probe releaseOrderId={releaseOrderId} />));
   }
@@ -114,6 +142,16 @@ function catalog(orderId: string, version: string): ReleaseGateCatalog {
       build: decision('build', 'commit'),
       staging: decision('staging', 'build'),
       production: decision('production', 'deploy'),
+    },
+    targetReadiness: {
+      environmentId: null,
+      environmentKey: null,
+      expectedProviderKey: 'ssh-v1',
+      bindingCount: 0,
+      matchState: 'missing',
+      reasonCode: 'TARGET_MISSING',
+      remediation: 'environment_targets',
+      currentTarget: null,
     },
     capabilities: [],
     checks: [],

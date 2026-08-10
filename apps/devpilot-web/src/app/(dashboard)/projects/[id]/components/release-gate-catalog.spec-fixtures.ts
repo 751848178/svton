@@ -27,6 +27,23 @@ export function releaseGateCatalogFixture(): ReleaseGateCatalog {
       staging: decision('staging', 'build'),
       production: decision('production', 'deploy'),
     },
+    targetReadiness: {
+      environmentId: 'staging-1',
+      environmentKey: 'staging',
+      expectedProviderKey: 'ssh-v1',
+      bindingCount: 1,
+      matchState: 'ready',
+      reasonCode: 'TARGET_READY',
+      remediation: null,
+      currentTarget: {
+        bindingId: 'binding-1',
+        serverId: 'server-1',
+        providerKey: 'ssh-v1',
+        targetRef: 'ssh://deploy@10.0.0.1:22/srv/app',
+        root: '/srv/app',
+        server: { id: 'server-1', name: 'staging', host: '10.0.0.1', status: 'online' },
+      },
+    },
     capabilities: Array.from({ length: 15 }, (_, index) => ({
       id: `M${String(index + 1).padStart(2, '0')}`,
       name: { zh: `能力 ${index + 1}`, en: `Capability ${index + 1}` },

@@ -11,6 +11,7 @@ import {
   type StepperProps,
 } from './release-order-detail-panel.spec-fixtures';
 import { ReleaseOrderDetailPanel } from './release-order-detail-panel';
+import { releaseGateCatalogFixture } from './release-gate-catalog.spec-fixtures';
 const mocks = vi.hoisted(() => ({
   searchParams: new URLSearchParams(),
   replace: vi.fn(),
@@ -23,7 +24,10 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: mocks.replace }),
   useSearchParams: () => mocks.searchParams,
 }));
-vi.mock('next-intl', () => ({ useTranslations: () => (key: string) => key }));
+vi.mock('next-intl', () => ({
+  useLocale: () => 'zh',
+  useTranslations: () => (key: string) => key,
+}));
 vi.mock('@svton/ui', () => ({ LoadingState: () => <div>loading</div> }));
 vi.mock('@/components/ui', () => ({
   ErrorBanner: ({ message }: { message: string }) => <div>{message}</div>,
@@ -41,6 +45,14 @@ vi.mock('../hooks/use-release-order-evidence', () => ({
 }));
 vi.mock('../hooks/use-release-builds', () => ({
   useReleaseBuilds: () => mocks.builds,
+}));
+vi.mock('../hooks/use-release-gate-catalog', () => ({
+  useReleaseGateCatalog: () => ({
+    catalog: releaseGateCatalogFixture(),
+    loading: false,
+    error: '',
+    load: vi.fn(),
+  }),
 }));
 vi.mock('./release-order-detail-header', () => ({
   ReleaseOrderDetailHeader: ({ detail, onBuildLatest }: HeaderProps) => (

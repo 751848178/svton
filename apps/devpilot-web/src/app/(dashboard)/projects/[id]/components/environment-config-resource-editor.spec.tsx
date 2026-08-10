@@ -19,6 +19,7 @@ describe('EnvironmentConfigResourceEditor (AC-SET-026 selectors)', () => {
         environment={env()}
         value={[reference()]}
         onChange={() => undefined}
+        currentReferences={[reference()]}
       />,
     );
 
@@ -42,6 +43,7 @@ describe('EnvironmentConfigResourceEditor (AC-SET-026 selectors)', () => {
         environment={production}
         value={[reference()]}
         onChange={() => undefined}
+        currentReferences={[reference()]}
       />,
     );
 
@@ -58,6 +60,7 @@ describe('EnvironmentConfigResourceEditor (AC-SET-026 selectors)', () => {
         environment={env()}
         value={[reference({ sharedEnvironmentIds: ['env-staging', 'env-preview'] })]}
         onChange={() => undefined}
+        currentReferences={[reference({ sharedEnvironmentIds: ['env-staging', 'env-preview'] })]}
       />,
     );
 
@@ -72,6 +75,7 @@ describe('EnvironmentConfigResourceEditor (AC-SET-026 selectors)', () => {
         environment={env()}
         value={[reference()]}
         onChange={() => undefined}
+        currentReferences={[reference()]}
       />,
     );
 

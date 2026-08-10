@@ -1,5 +1,8 @@
 import { Injectable } from "@nestjs/common";
-import { SiteProbePort, SiteRouteActivationPort } from "../site/site-route-activation.types";
+import {
+  SiteProbePort,
+  SiteRouteActivationPort,
+} from "../site/site-route-activation.types";
 import { SiteRouteSwitchPort } from "../site/site-route-switch.port";
 import { EnvironmentVersionCompletionRepository } from "./environment-version-completion.repository";
 import { runEnvironmentDeployment } from "./environment-version-deployment";
@@ -14,6 +17,7 @@ import { EnvironmentVersionRepository } from "./environment-version.repository";
 import { ReleaseDeploymentInputService } from "./release-deployment-input.service";
 import { ReleaseProductionWorkloadService } from "./release-production-workload.service";
 import { ReleaseStagingExecutorPort } from "./release-staging.types";
+import { ReleaseStagingWorkloadService } from "./release-staging-workload.service";
 
 @Injectable()
 export class EnvironmentVersionService {
@@ -26,7 +30,8 @@ export class EnvironmentVersionService {
     private readonly productionGates: EnvironmentVersionProductionGateService,
     private readonly gateEvidence: EnvironmentVersionGateEvidenceRepository,
     private readonly inputs: ReleaseDeploymentInputService,
-    private readonly workloads: ReleaseProductionWorkloadService,
+    private readonly stagingWorkloads: ReleaseStagingWorkloadService,
+    private readonly productionWorkloads: ReleaseProductionWorkloadService,
     private readonly routeActivation: SiteRouteActivationPort,
     private readonly routeSwitch: SiteRouteSwitchPort,
     private readonly siteProbe: SiteProbePort,
@@ -41,7 +46,10 @@ export class EnvironmentVersionService {
     return {
       environments: environments.map((environment) => ({
         ...environment,
-        currentEnvironmentVersionId: currentEnvironmentVersionId(project, environment),
+        currentEnvironmentVersionId: currentEnvironmentVersionId(
+          project,
+          environment,
+        ),
       })),
       candidates,
     };
@@ -55,7 +63,8 @@ export class EnvironmentVersionService {
         executor: this.executor,
         productionGates: this.productionGates,
         inputs: this.inputs,
-        workloads: this.workloads,
+        stagingWorkloads: this.stagingWorkloads,
+        productionWorkloads: this.productionWorkloads,
         run: (context) =>
           runEnvironmentDeployment(
             {

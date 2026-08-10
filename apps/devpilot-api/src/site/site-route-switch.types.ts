@@ -1,4 +1,9 @@
-import type { SiteProbeBlock, SiteProbeResult, SiteProbeTlsBlock } from "./site-route-activation.types";
+import type {
+  FrozenRouteEntry,
+  SiteProbeBlock,
+  SiteProbeResult,
+  SiteProbeTlsBlock,
+} from "./site-route-activation.types";
 
 export interface SiteRouteSwitchInput {
   version: 1;
@@ -11,6 +16,7 @@ export interface SiteRouteSwitchInput {
   releaseRunId: string | null;
   primaryDomain: string;
   domains: string[];
+  entries: FrozenRouteEntry[];
   proxyTarget: string | null;
   targetRef: string;
   routeHash: string;

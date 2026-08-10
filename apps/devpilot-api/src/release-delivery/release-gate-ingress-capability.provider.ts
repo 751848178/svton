@@ -2,7 +2,6 @@ import { Injectable } from "@nestjs/common";
 import type {
   ReleaseGateCapabilityId,
   ReleaseGateDefinition,
-  ReleaseGateStatus,
 } from "./release-gate-catalog.types";
 import type { ReleaseGateEvidenceContext } from "./release-gate-evidence.repository";
 import {
@@ -11,6 +10,7 @@ import {
   type ReleaseGateCapabilityProvider,
   unavailable,
 } from "./release-gate-provider.types";
+import { evaluateIngressRoute } from "./release-gate-ingress-route.policy";
 
 const INGRESS_TTL_MS = 60 * 60 * 1000;
 
@@ -35,7 +35,7 @@ export class ReleaseGateIngressCapabilityProvider implements ReleaseGateCapabili
   ) {
     if (definition.id === "D14") return this.dns(context, now);
     if (definition.id === "D15") return this.tls(context, now);
-    return this.routeBinding(context, now);
+    return evaluateIngressRoute(context, now);
   }
 
   private dns(context: ReleaseGateEvidenceContext, now: Date) {
@@ -199,48 +199,6 @@ export class ReleaseGateIngressCapabilityProvider implements ReleaseGateCapabili
       evidenceRef: `site:${site.id}#tls`,
       checkedAt: site.lastSyncAt ?? site.updatedAt,
       ttlMs: INGRESS_TTL_MS,
-      now,
-    });
-  }
-
-  private routeBinding(context: ReleaseGateEvidenceContext, now: Date) {
-    const environment = context.promote?.environment;
-    const revision = environment?.currentConfigRevision;
-    const route = this.route(context);
-    const domains = Array.isArray(route.domains)
-      ? route.domains.filter((item) => typeof item === "string")
-      : [];
-    const proxy =
-      typeof route.proxyTarget === "string" && route.proxyTarget.length > 0;
-    if (!environment || !revision || domains.length === 0 || !proxy) {
-      return unavailable(
-        "route_binding_missing",
-        "Production 配置没有完整 Host/Path/上游路由",
-        "Production config has no complete Host/Path/upstream route",
-      );
-    }
-    const site = context.promote?.sites.find((item) =>
-      domains.includes(item.primaryDomain),
-    );
-    const status: ReleaseGateStatus =
-      site?.status === "active" ? "checked" : "unchecked";
-    return evaluated({
-      status,
-      reasonCode:
-        status === "checked"
-          ? "route_and_site_bound"
-          : "route_site_not_observed",
-      zh:
-        status === "checked"
-          ? "Host 与上游路由已绑定活跃 Site"
-          : "路由已配置，但没有活跃 Site Provider 观测",
-      en:
-        status === "checked"
-          ? "Host and upstream route are bound to an active Site"
-          : "Route is configured, but no active Site provider observation exists",
-      evidenceRef: `environment-config-revision:${revision.id}#route`,
-      checkedAt: site?.lastSyncAt ?? site?.updatedAt ?? revision.createdAt,
-      ttlMs: site ? INGRESS_TTL_MS : undefined,
       now,
     });
   }

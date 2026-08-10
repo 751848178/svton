@@ -131,6 +131,7 @@ function routeInput(): SiteRouteSwitchInput {
     releaseRunId: "release",
     primaryDomain: "parity.example.test",
     domains: ["parity.example.test"],
+    entries: [],
     proxyTarget: "http://target-workload",
     targetRef: "filesystem-release-target",
     routeHash: "a".repeat(64),

@@ -1,3 +1,5 @@
+import type { ResourceReferenceKind } from "../project-environment/environment-config-revision.types";
+
 export interface ReleaseDeploymentInputSnapshot {
   version: 1;
   configRevision: {
@@ -51,11 +53,13 @@ export interface PreparedReleaseDeploymentInput {
 
 export interface ReleaseDeploymentResourceState {
   id: string;
-  kind: string;
+  kind: ResourceReferenceKind;
   name: string;
   status: string;
   environmentId: string | null;
   sharedEnvironmentIds: string[];
+  componentKey?: string;
+  envBindings?: Array<{ sourceKey: string; targetEnvKey: string }>;
   updatedAt: Date | null;
   runtime?: {
     delivery: unknown;
@@ -80,6 +84,7 @@ export interface ReleaseDeploymentInputState {
     type: string;
     value: string;
     updatedAt: Date;
+    targetEnvKey?: string;
   }>;
   resources: ReleaseDeploymentResourceState[];
   bindings: Array<{

@@ -39,6 +39,61 @@ function scope(overrides: Record<string, unknown> = {}) {
 }
 
 describe("EnvironmentConfigReferenceResolverService (AC-SET-026/028)", () => {
+  it("accepts explicit resource template mapping and stores its component", async () => {
+    const tx = txWith("resource_instance");
+    tx.resourceInstance.findFirst.mockResolvedValue({
+      id: "db-1", name: "database", environmentId: "env-1",
+      resourceType: { envTemplate: "DATABASE_URL=${url}\nDATABASE_HOST=${host}" },
+    });
+    const resolver = new EnvironmentConfigReferenceResolverService();
+    const result = await resolver.resolve(tx as never, scope(), {
+      resourceReferences: [{
+        kind: "resource_instance", id: "db-1", sharedEnvironmentIds: ["env-1"],
+        risk: "medium", impact: "database", componentKey: "api",
+        envBindings: [{ sourceKey: "DATABASE_URL", targetEnvKey: "API_DATABASE_URL" }],
+      }],
+    }, null);
+
+    expect(result.resourceReferences[0]).toMatchObject({
+      componentKey: "api",
+      envBindings: [{ sourceKey: "DATABASE_URL", targetEnvKey: "API_DATABASE_URL" }],
+    });
+  });
+
+  it("rejects cross-source environment key collisions when saving", async () => {
+    const tx = txWith("resource_instance");
+    tx.resourceInstance.findFirst.mockResolvedValue({
+      id: "db-1", name: "database", environmentId: "env-1",
+      resourceType: { envTemplate: "DATABASE_URL=${url}" },
+    });
+    const resolver = new EnvironmentConfigReferenceResolverService();
+    await expect(resolver.resolve(tx as never, scope(), {
+      plainVariables: { DATABASE_URL: "must-not-appear-in-error" },
+      resourceReferences: [{
+        kind: "resource_instance", id: "db-1", sharedEnvironmentIds: ["env-1"],
+        risk: "medium", impact: "database", componentKey: "api",
+        envBindings: [{ sourceKey: "DATABASE_URL", targetEnvKey: "DATABASE_URL" }],
+      }],
+    }, null)).rejects.toThrow(
+      "环境变量 DATABASE_URL 存在来源冲突",
+    );
+  });
+
+  it("keeps legacy references without component or mapping compatible", async () => {
+    const tx = txWith("resource_instance");
+    tx.resourceInstance.findFirst.mockResolvedValue({
+      id: "db-1", name: "database", environmentId: "env-1",
+      resourceType: { envTemplate: "DATABASE_URL=${url}" },
+    });
+    const resolver = new EnvironmentConfigReferenceResolverService();
+    const result = await resolver.resolve(tx as never, scope(), {
+      resourceReferences: [{
+        kind: "resource_instance", id: "db-1", sharedEnvironmentIds: ["env-1"],
+        risk: "medium", impact: "legacy database",
+      }],
+    }, null);
+    expect(result.resourceReferences[0]).not.toHaveProperty("envBindings");
+  });
   it("rejects a managed resource reference from another project or team (cross-project)", async () => {
     const tx = txWith("managed_resource");
     tx.managedResource.findFirst.mockResolvedValue(null);

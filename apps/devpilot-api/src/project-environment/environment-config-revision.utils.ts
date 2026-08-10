@@ -6,8 +6,9 @@ import {
   type ReferenceRisk,
   type ResourceReferenceInput,
 } from "./environment-config-revision.types";
+import { normalizeResourceBindingFields } from "./environment-config-reference-normalizer";
+import { ENVIRONMENT_VARIABLE_KEY_PATTERN } from "./environment-variable-key.policy";
 
-const ENV_KEY_PATTERN = /^[A-Z_][A-Z0-9_]*$/;
 const RISKS = new Set<ReferenceRisk>(["low", "medium", "high"]);
 
 export function normalizePlainVariables(value: unknown) {
@@ -16,7 +17,7 @@ export function normalizePlainVariables(value: unknown) {
   }
   const result: Record<string, string> = {};
   for (const [key, entry] of Object.entries(value)) {
-    if (!ENV_KEY_PATTERN.test(key) || typeof entry !== "string") {
+    if (!ENVIRONMENT_VARIABLE_KEY_PATTERN.test(key) || typeof entry !== "string") {
       throw new BadRequestException(`普通变量 ${key} 不符合命名或值类型约束`);
     }
     result[key] = entry;
@@ -53,12 +54,14 @@ export function normalizeResourceReferences(value: unknown) {
     if (typeof item.impact !== "string" || !item.impact.trim()) {
       throw new BadRequestException(`资源引用 ${index + 1} 缺少影响说明`);
     }
+    const bindingFields = normalizeResourceBindingFields(item, index);
     return {
       kind: kind as ResourceReferenceInput["kind"],
       id: item.id,
       sharedEnvironmentIds: [...new Set(ids as string[])].sort(),
       risk: risk as ReferenceRisk,
       impact: item.impact.trim(),
+      ...bindingFields,
     };
   });
 }
@@ -116,6 +119,10 @@ function normalizeRouteEntry(entry: unknown, index: number) {
   if (item.component !== undefined && typeof item.component !== "string") {
     throw new BadRequestException(`入口 ${index + 1} 的目标组件必须是字符串`);
   }
+  const serviceId = item.serviceId ?? null;
+  if (serviceId !== null && (typeof serviceId !== "string" || !serviceId.trim())) {
+    throw new BadRequestException(`入口 ${index + 1} 的 serviceId 无效`);
+  }
   const port = item.port ?? null;
   if (
     port !== null &&
@@ -130,6 +137,7 @@ function normalizeRouteEntry(entry: unknown, index: number) {
   return {
     domain: item.domain.trim(),
     path: typeof item.path === "string" && item.path.trim() ? item.path.trim() : "/",
+    serviceId: typeof serviceId === "string" ? serviceId.trim() : null,
     component: typeof item.component === "string" ? item.component.trim() : "",
     port,
     tlsMode: tlsMode as "managed_cert" | "existing_cert_asset",
@@ -148,6 +156,7 @@ function normalizeLegacyRouteEntries(domains: string[], proxyTarget: unknown) {
     return {
       domain,
       path: "/",
+      serviceId: null,
       component: match ? match[1] : "",
       port: match ? Number(match[2]) : null,
       tlsMode: "managed_cert" as const,

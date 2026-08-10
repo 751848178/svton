@@ -28,16 +28,11 @@ export async function runEnvironmentDeployment(
       buildRunId: context.manifest.buildRun.id,
       uri: context.bundle.uri,
       digest: context.manifest.digest,
-      ...(context.frozenInput
-        ? {
-            deploymentInput: context.frozenInput.deploymentInput.snapshot,
-            runtimeEnvironment:
-              context.frozenInput.deploymentInput.runtimeEnvironment,
-            targetConnection:
-              context.frozenInput.deploymentInput.targetConnection,
-            workload: context.frozenInput.workload,
-          }
-        : {}),
+      deploymentInput: context.frozenInput.deploymentInput.snapshot,
+      runtimeEnvironment:
+        context.frozenInput.deploymentInput.runtimeEnvironment,
+      targetConnection: context.frozenInput.deploymentInput.targetConnection,
+      workload: context.frozenInput.workload,
     });
     const logs = sanitizeBuildLogs(result.logs);
     const evidence = {

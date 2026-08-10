@@ -14,15 +14,26 @@ interface Props {
   building: boolean;
   onBack: () => void;
   onBuildLatest: () => void;
+  buildGate?: { allowed: boolean; reason: string };
 }
 
-export function ReleaseOrderDetailHeader({ detail, building, onBack, onBuildLatest }: Props) {
+export function ReleaseOrderDetailHeader({
+  detail,
+  building,
+  onBack,
+  onBuildLatest,
+  buildGate,
+}: Props) {
   const t = useTranslations('projects');
   const failureLabelKey = releaseOrderFailureLabelKey(detail.lifecycle.failureKind);
   const branch = detail.preflight.repository.branch || t('releaseOrderBranchUnavailable');
   const latestStep = t(releaseOrderStepLabelKey(detail.lifecycle.phase));
   const productionArtifactFrozen = detail.counts.releaseRuns > 0;
   const frozenReasonId = useId();
+  const blocked = productionArtifactFrozen || buildGate?.allowed === false;
+  const blockedReason = productionArtifactFrozen
+    ? t('releaseBuildFrozenReason')
+    : buildGate?.reason || '';
 
   return (
     <header className="space-y-3">
@@ -66,9 +77,9 @@ export function ReleaseOrderDetailHeader({ detail, building, onBack, onBuildLate
         </div>
         <Button
           loading={building}
-          disabled={productionArtifactFrozen}
-          aria-describedby={productionArtifactFrozen ? frozenReasonId : undefined}
-          title={productionArtifactFrozen ? t('releaseBuildFrozenReason') : undefined}
+          disabled={blocked}
+          aria-describedby={blocked ? frozenReasonId : undefined}
+          title={blocked ? blockedReason : undefined}
           onClick={onBuildLatest}
         >
           <Hammer
@@ -78,12 +89,12 @@ export function ReleaseOrderDetailHeader({ detail, building, onBack, onBuildLate
           />
           {t('buildLatestCode')}
         </Button>
-        {productionArtifactFrozen ? (
+        {blocked ? (
           <span
             id={frozenReasonId}
             className="sr-only"
           >
-            {t('releaseBuildFrozenReason')}
+            {blockedReason}
           </span>
         ) : null}
       </div>

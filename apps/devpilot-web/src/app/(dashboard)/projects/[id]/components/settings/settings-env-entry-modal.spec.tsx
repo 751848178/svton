@@ -29,6 +29,10 @@ describe('SettingsEnvEntryModal (F448 AC-SET-043)', () => {
       <SettingsEnvEntryModal
         open
         environmentName="Production"
+        targetOptions={[
+          { serviceId: 'service-web', component: 'frontend', port: 4173 },
+          { serviceId: 'service-api', component: 'backend', port: 4310 },
+        ]}
         onClose={() => undefined}
         onConfirm={() => undefined}
       />,
@@ -40,8 +44,11 @@ describe('SettingsEnvEntryModal (F448 AC-SET-043)', () => {
     expect(html).toContain('envRoutesHostPlaceholder');
     expect(html).toContain('envRoutesPathLabel');
     expect(html).toContain('envRoutesTargetLabel');
-    expect(html).toContain('web : 3000');
-    expect(html).toContain('api : 8080');
+    expect(html).toContain('frontend : 4173');
+    expect(html).toContain('backend : 4310');
+    expect(html).not.toContain('web : 3000');
+    expect(html).not.toContain('api : 8080');
+    expect(html).toContain('envRoleCustom');
     expect(html).toContain('envRoutesTlsLabel');
     expect(html).toContain('envRoutesTlsManaged');
     expect(html).toContain('envRoutesTlsExisting');
@@ -53,6 +60,7 @@ describe('SettingsEnvEntryModal (F448 AC-SET-043)', () => {
       <SettingsEnvEntryModal
         open={false}
         environmentName="Production"
+        targetOptions={[]}
         onClose={() => undefined}
         onConfirm={() => undefined}
       />,

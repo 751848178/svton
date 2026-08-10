@@ -8,6 +8,14 @@ import {
 } from "class-validator";
 import { Type } from "class-transformer";
 
+export class EnvironmentConfigEnvBindingDto {
+  @IsString()
+  sourceKey: string;
+
+  @IsString()
+  targetEnvKey: string;
+}
+
 export class EnvironmentConfigResourceReferenceDto {
   @IsIn(["managed_resource", "resource_instance", "site", "cdn_config"])
   kind: "managed_resource" | "resource_instance" | "site" | "cdn_config";
@@ -24,6 +32,25 @@ export class EnvironmentConfigResourceReferenceDto {
 
   @IsString()
   impact: string;
+
+  @IsOptional()
+  @IsString()
+  componentKey?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => EnvironmentConfigEnvBindingDto)
+  envBindings?: EnvironmentConfigEnvBindingDto[];
+}
+
+export class EnvironmentConfigSecretReferenceDto {
+  @IsString()
+  id: string;
+
+  @IsOptional()
+  @IsString()
+  targetEnvKey?: string;
 }
 
 export class CreateEnvironmentConfigRevisionDto {
@@ -35,6 +62,12 @@ export class CreateEnvironmentConfigRevisionDto {
   @IsArray()
   @IsString({ each: true })
   secretReferenceIds?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => EnvironmentConfigSecretReferenceDto)
+  secretReferences?: EnvironmentConfigSecretReferenceDto[];
 
   @IsOptional()
   @IsArray()

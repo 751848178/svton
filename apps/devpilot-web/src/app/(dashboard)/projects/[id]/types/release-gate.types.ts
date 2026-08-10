@@ -58,6 +58,29 @@ export type ReleaseGateDecision = {
   decidedAt: string;
 };
 
+export type ReleaseDeploymentTargetReadiness = {
+  environmentId: string | null;
+  environmentKey: string | null;
+  expectedProviderKey: string;
+  bindingCount: number;
+  matchState: 'ready' | 'missing' | 'duplicated' | 'provider_mismatch' | 'ssh_root_invalid';
+  reasonCode:
+    | 'TARGET_READY'
+    | 'TARGET_MISSING'
+    | 'TARGET_DUPLICATED'
+    | 'PROVIDER_MISMATCH'
+    | 'SSH_ROOT_INVALID';
+  remediation: 'environment_targets' | null;
+  currentTarget: null | {
+    bindingId: string;
+    serverId: string;
+    providerKey: string;
+    targetRef: string;
+    root: string;
+    server: { id: string; name: string; host: string; status: string };
+  };
+};
+
 export type ReleaseGateCatalog = {
   catalogVersion: string;
   capabilityVersion: string;
@@ -68,6 +91,7 @@ export type ReleaseGateCatalog = {
     statusCounts: Record<ReleaseGateStatus, number>;
   };
   decisions: Record<ReleaseGateDecisionStage, ReleaseGateDecision>;
+  targetReadiness: ReleaseDeploymentTargetReadiness;
   capabilities: Array<{
     id: string;
     name: LocalizedGateText;

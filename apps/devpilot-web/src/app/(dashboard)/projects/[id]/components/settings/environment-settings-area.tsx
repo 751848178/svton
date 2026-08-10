@@ -19,6 +19,7 @@ import { readSettingsEnvKey, settingsHref } from '../../utils/project-route.util
 import { EnvironmentCreateModal } from '../environment-create-modal';
 import { EnvironmentSettingsDetail } from './environment-settings-detail';
 import { isGovernedEnvironmentSet } from './settings-env.model';
+import { groupSettingsEnvironments } from './settings-environment-groups.model';
 
 type DetailHook = ReturnType<typeof useProjectDetail>;
 
@@ -42,7 +43,8 @@ export function EnvironmentSettingsArea({ detail }: { detail: DetailHook }) {
     router.replace(settingsHref(projectId, 'environments', next), { scroll: false });
   };
 
-  const readyCount = environments.filter((env) => env.status === 'active').length;
+  const enabledCount = environments.filter((env) => env.status === 'active').length;
+  const environmentGroups = groupSettingsEnvironments(environments);
 
   return (
     <section className="space-y-4">
@@ -54,7 +56,7 @@ export function EnvironmentSettingsArea({ detail }: { detail: DetailHook }) {
         <div className="flex items-center gap-2">
           <StatusTag
             status="success"
-            label={t('envReadyCount', { ready: readyCount, total: environments.length })}
+            label={`${t('envStatusActive')} ${enabledCount} / ${environments.length}`}
           />
           {!governed ? (
             <Button variant="ghost" size="sm" onClick={() => setCreateOpen(true)}>
@@ -64,25 +66,37 @@ export function EnvironmentSettingsArea({ detail }: { detail: DetailHook }) {
         </div>
       </div>
 
-      <div
-        className="flex flex-wrap items-center gap-2"
-        role="group"
-        aria-label={t('envSwitchLabel')}
-      >
-        {environments.map((env) => (
-          <button
-            key={env.id}
-            type="button"
-            onClick={() => selectEnv(env.key)}
-            aria-pressed={activeEnv?.id === env.id}
-            className={
-              activeEnv?.id === env.id
-                ? 'rounded-md border border-primary bg-primary/10 px-3 py-1.5 text-sm font-medium text-blue-800'
-                : 'rounded-md border px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground'
-            }
-          >
-            {env.key} · {env.name}
-          </button>
+      <div className="space-y-3" aria-label={t('envSwitchLabel')}>
+        {environmentGroups.map((group) => (
+          <div key={group.key} role="group" aria-label={t(group.labelKey)}>
+            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              {t(group.labelKey)}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {group.environments.map((env) => (
+                <button
+                  key={env.id}
+                  type="button"
+                  onClick={() => selectEnv(env.key)}
+                  aria-pressed={activeEnv?.id === env.id}
+                  className={
+                    activeEnv?.id === env.id
+                      ? 'rounded-md border border-primary bg-primary/10 px-3 py-1.5 text-sm font-medium text-blue-800'
+                      : 'rounded-md border px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground'
+                  }
+                >
+                  <span>{env.key} · {env.name}</span>
+                  <span className="ml-1.5 rounded bg-muted px-1 py-0.5 text-[10px]">
+                    {t(env.baselineRole === 'staging'
+                      ? 'envRoleStaging'
+                      : env.baselineRole === 'production'
+                        ? 'envRoleProduction'
+                        : 'envRoleCustom')}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
         ))}
       </div>
 

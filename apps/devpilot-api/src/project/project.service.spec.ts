@@ -10,7 +10,7 @@ describe('ProjectService', () => {
     } as unknown as ProjectDuplicateGuardService;
   }
 
-  it('normalizes missing environment config to the default four environments', async () => {
+  it('normalizes missing environment config to the two release baselines', async () => {
     const prisma = {
       project: {
         create: jest.fn(({ data }) => Promise.resolve({ id: 'project-1', ...data })),
@@ -30,7 +30,7 @@ describe('ProjectService', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           config: expect.objectContaining({
-            environments: ['dev', 'test', 'staging', 'prod'],
+            environments: ['staging', 'production'],
             initialized: false,
           }),
         }),
@@ -40,7 +40,7 @@ describe('ProjectService', () => {
       'team-1',
       'project-1',
       expect.objectContaining({
-        environments: ['dev', 'test', 'staging', 'prod'],
+        environments: ['staging', 'production'],
       }),
     );
   });
@@ -143,7 +143,7 @@ describe('ProjectService', () => {
           config: expect.objectContaining({
             generatedArtifact: artifact,
             resolvedResources: [],
-            environments: ['dev', 'test', 'staging', 'prod'],
+            environments: ['staging', 'production'],
           }),
         }),
       }),

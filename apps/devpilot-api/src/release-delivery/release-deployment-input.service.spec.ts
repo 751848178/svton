@@ -57,6 +57,43 @@ describe("ReleaseDeploymentInputService", () => {
     }
   });
 
+  it("applies explicit resource env mapping to the runtime target key", async () => {
+    const fixture = deploymentInputFixture();
+    Object.assign(fixture.state.resourceReferences[0], {
+      componentKey: "api",
+      envBindings: [{ sourceKey: "DATABASE_URL", targetEnvKey: "API_DATABASE_URL" }],
+    });
+    const prepared = await fixture.service.prepare(input);
+    expect(prepared.runtimeEnvironment).toMatchObject({
+      API_DATABASE_URL: "mysql://app:resource-sentinel-f432@db.example:3306/app",
+    });
+    expect(prepared.runtimeEnvironment).not.toHaveProperty("DATABASE_URL");
+    expect(prepared.snapshot.resourceReferences[0].environmentKeys).toEqual([
+      "API_DATABASE_URL",
+    ]);
+  });
+
+  it("fails closed on a resource/plain collision before decrypting values", async () => {
+    const fixture = deploymentInputFixture();
+    Object.assign(fixture.state.plainVariables, { DATABASE_URL: "must-not-win" });
+    const decryptCbc = jest.spyOn(fixture.crypto, "decryptCbc");
+    const decryptGcm = jest.spyOn(fixture.crypto, "decryptGcm");
+
+    await expect(fixture.service.prepare(input)).rejects.toThrow(
+      "环境变量 DATABASE_URL 存在来源冲突",
+    );
+    expect(decryptCbc).not.toHaveBeenCalled();
+    expect(decryptGcm).not.toHaveBeenCalled();
+  });
+
+  it("uses an explicit Secret target key while preserving legacy name mapping", async () => {
+    const fixture = deploymentInputFixture();
+    Object.assign(fixture.state.secretReferences[0], { targetEnvKey: "API_CREDENTIAL" });
+    const prepared = await fixture.service.prepare(input);
+    expect(prepared.runtimeEnvironment.API_CREDENTIAL).toBe("secret-sentinel-f432");
+    expect(prepared.runtimeEnvironment).not.toHaveProperty("API_TOKEN");
+  });
+
   it("rejects resource references that are not bound to the target environment", async () => {
     const fixture = deploymentInputFixture();
     fixture.state.resourceReferences[0].sharedEnvironmentIds = ["prod-1"];
@@ -137,7 +174,7 @@ describe("ReleaseDeploymentInputService", () => {
     const decryptGcm = jest.spyOn(fixture.crypto, "decryptGcm");
 
     await expect(fixture.service.prepare(input)).rejects.toThrow(
-      "目标绑定缺失",
+      "当前环境未绑定部署目标",
     );
     expect(decryptCbc).not.toHaveBeenCalled();
     expect(decryptGcm).not.toHaveBeenCalled();
@@ -149,7 +186,7 @@ describe("ReleaseDeploymentInputService", () => {
     const decryptCbc = jest.spyOn(fixture.crypto, "decryptCbc");
 
     await expect(fixture.service.prepare(input)).rejects.toThrow(
-      "目标绑定缺失、重复或与 Provider 不匹配",
+      "当前环境存在重复的部署目标绑定",
     );
     expect(decryptCbc).not.toHaveBeenCalled();
   });

@@ -125,7 +125,7 @@ describe('ReleaseGateCatalogPanel', () => {
     });
     await renderPanel(root);
 
-    const opener = container.querySelector('button')!;
+    const opener = container.querySelector('button[aria-haspopup="dialog"]') as HTMLButtonElement;
     expect(opener.getAttribute('aria-haspopup')).toBe('dialog');
     await act(async () => opener.click());
 
@@ -147,9 +147,24 @@ describe('ReleaseGateCatalogPanel', () => {
 
     await act(async () => dialog.querySelectorAll('button').item(1).click());
     expect(container.querySelector('[role="dialog"]')).toBeNull();
-    await act(async () => container.querySelector('button')!.click());
+    await act(async () =>
+      (container.querySelector('button[aria-haspopup="dialog"]') as HTMLButtonElement).click(),
+    );
     expect(container.querySelector('[role="dialog"]')).not.toBeNull();
     expect(mocks.load).not.toHaveBeenCalled();
+  });
+
+  it('filters the detail dialog when a summary card is clicked and refreshes explicitly', async () => {
+    await renderPanel(root);
+    const sourceCard = Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('releaseGatePreview.source.title'),
+    ) as HTMLButtonElement;
+    await act(async () => sourceCard.click());
+    expect(container.querySelector('[role="dialog"]')?.querySelectorAll('article')).toHaveLength(3);
+    await act(async () => {
+      (container.querySelector('button:not([aria-haspopup="dialog"])') as HTMLButtonElement).click();
+    });
+    expect(mocks.load).toHaveBeenCalled();
   });
 
   it('retries a failed catalog request without presenting stale facts', async () => {

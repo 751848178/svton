@@ -18,34 +18,49 @@ interface Props {
   catalog: ReleaseGateCatalog;
   dialogId: string;
   open: boolean;
+  filterCapabilityIds: readonly string[] | null;
+  confirmingGateId: string;
+  confirmationError: string;
+  onConfirmManual: (gateId: string, evaluationId: string, reason: string) => Promise<boolean>;
   onClose: () => void;
 }
 
-export function ReleaseGateCatalogDialog({ catalog, dialogId, open, onClose }: Props) {
+export function ReleaseGateCatalogDialog(props: Props) {
   const t = useTranslations('projects');
   const locale = useLocale();
-  const summary = buildReleaseGateSummary(catalog);
+  const summary = buildReleaseGateSummary(props.catalog);
   const localize = (text: LocalizedGateText) => (locale.startsWith('zh') ? text.zh : text.en);
+  const filteredChecks = props.filterCapabilityIds
+    ? props.catalog.checks.filter(
+        (check) =>
+          check.phase === props.catalog.decisions.build.phase &&
+          check.capabilityId &&
+          props.filterCapabilityIds?.includes(check.capabilityId),
+      )
+    : props.catalog.checks;
+  const visiblePhases = PHASES.filter((phase) =>
+    filteredChecks.some((check) => check.phase === phase),
+  );
   return (
     <Modal
-      open={open}
-      onClose={onClose}
-      title={t('releaseGateCatalogDialogTitle', { count: catalog.summary.total })}
+      open={props.open}
+      onClose={props.onClose}
+      title={t('releaseGateCatalogDialogTitle', { count: filteredChecks.length })}
       width={760}
       footer={
         <>
           <Button
             variant="ghost"
-            onClick={onClose}
+            onClick={props.onClose}
           >
             {t('releaseGateCancel')}
           </Button>
-          <Button onClick={onClose}>{t('releaseGateClose')}</Button>
+          <Button onClick={props.onClose}>{t('releaseGateClose')}</Button>
         </>
       }
     >
       <div
-        id={dialogId}
+        id={props.dialogId}
         className="space-y-5"
       >
         <p className="text-sm text-muted-foreground">{t('releaseGateCatalogDialogDescription')}</p>
@@ -57,7 +72,9 @@ export function ReleaseGateCatalogDialog({ catalog, dialogId, open, onClose }: P
             >
               <dt className="text-xs text-muted-foreground">{t(`releaseGatePhase.${phase}`)}</dt>
               <dd className="mt-1 font-semibold">
-                {t('releaseGateCheckCount', { count: catalog.summary.phaseCounts[phase] })}
+                {t('releaseGateCheckCount', {
+                  count: filteredChecks.filter((check) => check.phase === phase).length,
+                })}
               </dd>
             </div>
           ))}
@@ -69,7 +86,7 @@ export function ReleaseGateCatalogDialog({ catalog, dialogId, open, onClose }: P
           className="flex gap-2 overflow-x-auto pb-1"
         >
           {summary.capabilities.map((group) => {
-            const capability = catalog.capabilities.find((candidate) => candidate.id === group.id)!;
+            const capability = props.catalog.capabilities.find((candidate) => candidate.id === group.id)!;
             return (
               <div
                 key={group.id}
@@ -100,13 +117,16 @@ export function ReleaseGateCatalogDialog({ catalog, dialogId, open, onClose }: P
           aria-label={t('releaseGateCheckListLabel')}
           className="max-h-[420px] space-y-4 overflow-y-auto pr-1"
         >
-          {PHASES.map((phase) => (
+          {visiblePhases.map((phase) => (
             <ReleaseGatePhaseSection
               key={phase}
               phase={phase}
-              checks={catalog.checks.filter((check) => check.phase === phase)}
+              checks={filteredChecks.filter((check) => check.phase === phase)}
               localize={localize}
               locale={locale}
+              confirmingGateId={props.confirmingGateId}
+              confirmationError={props.confirmationError}
+              onConfirmManual={props.onConfirmManual}
             />
           ))}
         </div>

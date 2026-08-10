@@ -78,6 +78,7 @@ describe('release order stepper model', () => {
     });
     expect(steps[2]?.summary.key).toBe('releaseStepStagingReachedEvidence');
     expect(steps[3]?.summary.key).toBe('releaseStepProductionReachedEvidence');
+    expect(steps[0]?.stateLabelKey).toBe('releaseStepStateBaselineEstablished');
   });
 });
 
