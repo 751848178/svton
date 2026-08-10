@@ -160,7 +160,7 @@ const driverSteps = [...driver.matchAll(/await step\("([^"]+)"/g)].map(
   (match) => match[1],
 );
 const mappedSteps = new Set(Object.values(NEGATIVE_AC_MAPPING).flat());
-assert.equal(driverSteps.length, 46);
+assert.equal(driverSteps.length, 47);
 assert.equal(new Set(driverSteps).size, driverSteps.length);
 assert.deepEqual([...new Set(driverSteps)].sort(), [...mappedSteps].sort());
 assert.doesNotMatch(driver, /\bok:\s*true\b/);

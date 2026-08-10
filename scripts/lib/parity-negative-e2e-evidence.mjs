@@ -60,6 +60,7 @@ export const NEGATIVE_AC_MAPPING = {
     "ac-033-execute-probe-fail",
     "ac-033-db-state",
     "ac-033-restore-config",
+    "ac-033-restore-route",
   ),
   "AC-E2E-034": ac(
     "ac-034-member-read-allowed",

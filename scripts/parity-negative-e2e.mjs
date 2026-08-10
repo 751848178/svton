@@ -50,6 +50,7 @@ import { assertNoPreexistingActiveRuns } from "./lib/parity-negative-run-ownersh
 import { requireActiveEnvironmentService } from "./lib/parity-negative-service-context.mjs";
 import { createParityComposeCapture } from "./lib/parity-compose-capture.mjs";
 import { parityRuntimeConfig } from "./lib/parity-runtime-config.mjs";
+import { restoreRouteControlRoute } from "./lib/parity-route-control-restore.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const runtime = parityRuntimeConfig();
@@ -783,6 +784,7 @@ async function main() {
   });
   let concurrentRunId;
   let concurrentApprovalId;
+  let successfulRouteEvidence;
   await step("ac-031-different-idempotency-keys", async () => {
     const preview = await api(
       "GET",
@@ -906,6 +908,7 @@ async function main() {
       select: { status: true, errorCode: true, errorMessage: true },
     });
     const winner = first.status < 300 ? first : second;
+    successfulRouteEvidence = deploys[0]?.result?.routeSwitch;
     const winnerBody = winner.body;
     const winnerRunId =
       winnerBody?.run?.id ?? winnerBody?.deploymentRunId ?? winnerBody?.id;
@@ -1228,7 +1231,8 @@ async function main() {
       probe?.http?.status === "failed" &&
       probe?.http?.statusCode === 404 &&
       pointerUnchanged &&
-      routeSwitchRunsForFailedDeploy === 0;
+      deploy?.result?.routeSwitch?.status === "switched" &&
+      routeSwitchRunsForFailedDeploy === 1;
     return {
       ok,
       deploymentRunStatus: deploy?.status,
@@ -1273,6 +1277,20 @@ async function main() {
           where: { id: r4ProductionId },
         })) === 1,
       casAppendOnlyPreserved: true,
+    };
+  });
+  await step("ac-033-restore-route", async () => {
+    const restored = await restoreRouteControlRoute({
+      origin: runtime.routeControlOrigin,
+      token: process.env.PARITY_ROUTE_CONTROL_TOKEN,
+      evidence: successfulRouteEvidence,
+    });
+    return {
+      putStatus: restored.putStatus,
+      restoredOperation: restored.operationId === successfulRouteEvidence?.operationId,
+      restoredRouteHash: restored.routeHash === successfulRouteEvidence?.routeHash,
+      liveProxyStatusCode: restored.liveProxy.statusCode,
+      liveProxyMarker: restored.liveProxy.bodyMarker,
     };
   });
 
