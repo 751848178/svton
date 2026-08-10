@@ -4,6 +4,7 @@ import {
   requestRouteHostname,
   validRouteDomains,
 } from "./lib/parity-route-control-domain.mjs";
+import { routeControlUpstreamUrl } from "./lib/parity-route-control-upstream.mjs";
 
 const MAX_BODY_BYTES = 64 * 1024;
 
@@ -122,7 +123,7 @@ function readback(record) {
 }
 
 async function proxyRoute(response, record, path, fetchImpl) {
-  const upstream = new URL(path, record.input.proxyTarget);
+  const upstream = routeControlUpstreamUrl(record.input.proxyTarget, path);
   const result = await fetchImpl(upstream, { redirect: "manual" });
   const body = new Uint8Array(await result.arrayBuffer());
   response.statusCode = result.status;

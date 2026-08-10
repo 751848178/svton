@@ -4,9 +4,13 @@ import { once } from "node:events";
 import { createRouteControlServer } from "../parity-route-control-provider.mjs";
 
 const token = "route-control-self-test-token-0000000000000000";
-const target = createServer((_request, response) =>
-  response.end("live-route-ok"),
-);
+const target = createServer((request, response) => {
+  if (request.url?.startsWith("/parity-negative-probe-missing-457")) {
+    response.statusCode = 404;
+    return response.end("missing-route");
+  }
+  response.end("live-route-ok");
+});
 await listen(target);
 
 const targetPort = target.address().port;
@@ -84,6 +88,34 @@ try {
     live.headers.get("x-route-control-upstream"),
     `http://127.0.0.1:${targetPort}`,
   );
+
+  const missing = {
+    ...input,
+    operationId: `site-route:missing:${"c".repeat(64)}`,
+    siteId: "missing-site",
+    deploymentRunId: "missing-deployment",
+    primaryDomain: "missing.parity.example.test",
+    domains: ["missing.parity.example.test"],
+    proxyTarget: `http://127.0.0.1:${targetPort}/parity-negative-probe-missing-457`,
+    routeHash: "c".repeat(64),
+  };
+  const missingUrl = `http://127.0.0.1:${providerPort}/v1/routes/${encodeURIComponent(missing.operationId)}`;
+  assert.equal(
+    (
+      await fetch(missingUrl, {
+        method: "PUT",
+        headers: authorizationHeaders(),
+        body: JSON.stringify(missing),
+      })
+    ).status,
+    204,
+  );
+  const missingLive = await requestDomain(
+    providerPort,
+    `missing.parity.example.test:${providerPort}`,
+  );
+  assert.equal(missingLive.statusCode, 404);
+  assert.equal(missingLive.body, "missing-route");
 
   const rejected = {
     ...input,
