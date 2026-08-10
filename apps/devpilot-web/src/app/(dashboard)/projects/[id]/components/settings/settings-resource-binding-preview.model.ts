@@ -9,7 +9,7 @@ type PreviewableResource = {
 export type ResourceBindingPreview = {
   componentKey: string | null;
   envBindings: Array<{ sourceKey: string; targetEnvKey: string }>;
-  status: 'draft' | 'effective';
+  status: 'draft' | 'effective' | 'needs_configuration';
 };
 
 export function buildResourceBindingPreview(
@@ -22,13 +22,14 @@ export function buildResourceBindingPreview(
   const effective = currentReferences.find((reference) =>
     reference.kind === instance.kind && reference.id === instance.id);
   if (effective && envBindings === undefined) {
+    const configured = Boolean(effective.componentKey) && Array.isArray(effective.envBindings);
     return {
       componentKey: effective.componentKey ?? null,
       envBindings: effective.envBindings ?? keys.map((key) => ({
         sourceKey: key,
         targetEnvKey: key,
       })),
-      status: 'effective',
+      status: configured ? 'effective' : 'needs_configuration',
     };
   }
   const nextBindings = envBindings ?? keys.map((key) => ({
@@ -49,10 +50,6 @@ export function resourceDraftIssues(
   current: EnvironmentConfigResourceReference[],
 ) {
   return drafts.flatMap((draft) => {
-    const legacy = current.some((reference) =>
-      reference.kind === draft.kind && reference.id === draft.id &&
-      reference.componentKey === undefined && reference.envBindings === undefined);
-    if (legacy && draft.componentKey === undefined && draft.envBindings === undefined) return [];
     const issues: string[] = [];
     if (!draft.componentKey) issues.push('component');
     if (!Array.isArray(draft.envBindings)) issues.push('mappings');

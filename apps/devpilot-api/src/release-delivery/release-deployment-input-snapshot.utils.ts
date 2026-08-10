@@ -13,7 +13,8 @@ import {
 export function buildReleaseDeploymentInputSnapshot(
   state: ReleaseDeploymentInputState,
   providerKey: string,
-  runtimeEnvironmentKeys: string[],
+  globalEnvironmentKeys: string[],
+  componentEnvironmentKeys: Record<string, string[]> = {},
   target = selectReleaseDeploymentTarget(state, providerKey),
 ) {
   const snapshotWithoutHash = {
@@ -36,6 +37,7 @@ export function buildReleaseDeploymentInputSnapshot(
         id: item.id,
         name: item.name,
         type: item.type,
+        targetEnvKey: item.targetEnvKey ?? item.name.toUpperCase().replace(/[^A-Z0-9]/g, "_"),
         versionHash: hash({ value: item.value, updatedAt: item.updatedAt }),
       }))
       .sort(byId),
@@ -47,12 +49,17 @@ export function buildReleaseDeploymentInputSnapshot(
         status: item.status,
         environmentId: item.environmentId,
         sharedEnvironmentIds: item.sharedEnvironmentIds,
+        componentKey: item.componentKey ?? "",
         versionHash: hash({
           environmentId: item.environmentId,
           status: item.status,
           updatedAt: item.updatedAt,
           runtime: item.runtime,
         }),
+        envBindings: effectiveResourceBindings(
+          item,
+          environmentKeysFromTemplate(item.runtime?.envTemplate),
+        ).sort((left, right) => left.sourceKey.localeCompare(right.sourceKey)),
         environmentKeys: effectiveResourceBindings(
           item,
           environmentKeysFromTemplate(item.runtime?.envTemplate),
@@ -70,7 +77,16 @@ export function buildReleaseDeploymentInputSnapshot(
         server: target.binding.server,
       }),
     },
-    runtimeEnvironmentKeys: [...runtimeEnvironmentKeys].sort(),
+    runtimeEnvironmentKeys: [...new Set([
+      ...globalEnvironmentKeys,
+      ...Object.values(componentEnvironmentKeys).flat(),
+    ])].sort(),
+    globalEnvironmentKeys: [...globalEnvironmentKeys].sort(),
+    componentEnvironmentKeys: Object.fromEntries(
+      Object.entries(componentEnvironmentKeys)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, values]) => [key, [...values].sort()]),
+    ),
   };
   return {
     snapshot: {

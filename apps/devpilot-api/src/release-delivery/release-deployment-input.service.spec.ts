@@ -10,10 +10,14 @@ describe("ReleaseDeploymentInputService", () => {
     const fixture = deploymentInputFixture();
     const prepared = await fixture.service.prepare(input);
 
-    expect(prepared.runtimeEnvironment).toEqual({
-      DATABASE_URL: "mysql://app:resource-sentinel-f432@db.example:3306/app",
+    expect(prepared.globalEnvironment).toEqual({
       NODE_ENV: "plain-sentinel-f432",
       API_TOKEN: "secret-sentinel-f432",
+    });
+    expect(prepared.componentEnvironments).toEqual({
+      "service-api": {
+        DATABASE_URL: "mysql://app:resource-sentinel-f432@db.example:3306/app",
+      },
     });
     expect(prepared.targetConnection).toEqual({
       host: "target.example",
@@ -64,10 +68,11 @@ describe("ReleaseDeploymentInputService", () => {
       envBindings: [{ sourceKey: "DATABASE_URL", targetEnvKey: "API_DATABASE_URL" }],
     });
     const prepared = await fixture.service.prepare(input);
-    expect(prepared.runtimeEnvironment).toMatchObject({
-      API_DATABASE_URL: "mysql://app:resource-sentinel-f432@db.example:3306/app",
+    expect(prepared.componentEnvironments.api).toMatchObject({
+      API_DATABASE_URL:
+        "mysql://app:resource-sentinel-f432@db.example:3306/app",
     });
-    expect(prepared.runtimeEnvironment).not.toHaveProperty("DATABASE_URL");
+    expect(prepared.componentEnvironments.api).not.toHaveProperty("DATABASE_URL");
     expect(prepared.snapshot.resourceReferences[0].environmentKeys).toEqual([
       "API_DATABASE_URL",
     ]);
@@ -90,8 +95,8 @@ describe("ReleaseDeploymentInputService", () => {
     const fixture = deploymentInputFixture();
     Object.assign(fixture.state.secretReferences[0], { targetEnvKey: "API_CREDENTIAL" });
     const prepared = await fixture.service.prepare(input);
-    expect(prepared.runtimeEnvironment.API_CREDENTIAL).toBe("secret-sentinel-f432");
-    expect(prepared.runtimeEnvironment).not.toHaveProperty("API_TOKEN");
+    expect(prepared.globalEnvironment.API_CREDENTIAL).toBe("secret-sentinel-f432");
+    expect(prepared.globalEnvironment).not.toHaveProperty("API_TOKEN");
   });
 
   it("rejects resource references that are not bound to the target environment", async () => {

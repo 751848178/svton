@@ -107,14 +107,14 @@ export class ReleaseGatePromoteEvidenceRepository {
         },
       }),
       this.prisma.site.findMany({
-        where,
+        where: { teamId, projectId },
         orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
-        take: 20,
         select: {
           id: true,
           environmentId: true,
           status: true,
           primaryDomain: true,
+          aliases: true,
           tls: true,
           dns: true,
           lastSyncAt: true,

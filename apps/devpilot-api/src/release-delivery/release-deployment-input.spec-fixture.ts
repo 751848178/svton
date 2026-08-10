@@ -118,6 +118,7 @@ function databaseDouble(
                   username: "deploy",
                   authType: "password",
                   credentials: crypto.encryptGcm("ssh-sentinel-f432"),
+                  status: "online",
                   updatedAt: changedAt,
                 },
               },
@@ -143,6 +144,7 @@ function databaseDouble(
                         username: "deploy",
                         authType: "password",
                         credentials: crypto.encryptGcm("ssh-sentinel-f432"),
+                        status: "online",
                         updatedAt: changedAt,
                       },
                     },
@@ -168,5 +170,6 @@ function resourceReference() {
     sharedEnvironmentIds: ["staging-1"],
     risk: "medium",
     impact: "runtime database",
+    componentKey: "service-api",
   };
 }

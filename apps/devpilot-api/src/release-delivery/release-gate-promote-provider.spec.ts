@@ -76,7 +76,7 @@ describe("Promote release gate providers", () => {
     }
   });
 
-  it("keeps absent ingress, probes, observability, recovery compatibility, and traffic providers unavailable", () => {
+  it("keeps missing providers unavailable while frozen ingress without a Site stays unchecked", () => {
     const context = evidenceContext();
     const promote = context.promote!;
     promote.sites = [];
@@ -87,9 +87,13 @@ describe("Promote release gate providers", () => {
     promote.metrics = [];
     promote.environment!.environmentVersions = [promote.environment!.environmentVersions[0]];
     const checks = evaluate(registry, context);
-    for (const id of ["D14", "D15", "D16", "D17", "D18", "D19", "D20", "P02", "P04", "P08"]) {
+    for (const id of ["D14", "D15", "D17", "D18", "D19", "D20", "P02", "P04", "P08"]) {
       expect(checks[id].status).toBe("unavailable");
     }
+    expect(checks.D16).toMatchObject({
+      status: "unchecked",
+      reasonCode: "site_not_found",
+    });
     expect(checks.P03.status).toBe("manual");
   });
 });
@@ -159,7 +163,11 @@ function evidenceContext() {
         policySnapshot: {
           releaseProtection: { changeWindowVerified: true, freezeVerified: true },
         },
-        routeSnapshot: {}, finishedAt: at, createdAt: at,
+        routeSnapshot: {
+          domains: ["prod.test"],
+          proxyTarget: "http://upstream",
+        },
+        finishedAt: at, createdAt: at,
         operationApproval: {
           id: "approval-1", projectId: "project-1", environmentId: env,
           status: "approved", inputHash: "hash-1", reviewedAt: at,

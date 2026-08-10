@@ -25,8 +25,14 @@ import {
 } from './settings-env-routes.model';
 import { SubtabShell } from './settings-subtab-shell';
 import type { SettingsRouteDraft } from './settings-env.model';
+import type { SettingsRouteEntryDraft } from './settings-env.model';
 import { buildSettingsRouteTargetOptions } from './settings-route-target-options.model';
 import { SettingsEnvRouteRow } from './settings-env-route-row';
+import {
+  removeRouteEntry,
+  upsertRouteEntry,
+} from './settings-route-entry-editor.model';
+import { routeDraftIsCurrent } from './settings-route-draft-status.model';
 
 type DetailHook = ReturnType<typeof useProjectDetail>;
 
@@ -49,6 +55,7 @@ export function EnvRoutesTab({
   const project = detail.project;
   const projectId = project?.id ?? '';
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<SettingsRouteEntryDraft | null>(null);
   const boundSites = (project?.sites ?? []).filter((site) => site.environment?.id === environment.id);
   const targetOptions = useMemo(
     () => buildSettingsRouteTargetOptions(project?.applications ?? [], environment.id),
@@ -65,6 +72,7 @@ export function EnvRoutesTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [route.entries, deploymentRuns, environment.id, project?.sites],
   );
+  const current = routeDraftIsCurrent(route, revision);
 
   return (
     <SubtabShell
@@ -80,15 +88,16 @@ export function EnvRoutesTab({
             <p className="mt-0.5 text-xs text-muted-foreground">{t('envRoutesHelper')}</p>
           </div>
           <div className="flex items-center gap-2">
-            {revision ? (
-              <span className="inline-block rounded bg-green-100 px-2 py-1 text-[10px] font-medium text-green-700">
-                {t('envRoutesCurrentBadge')}
-              </span>
-            ) : null}
+            <span className={`inline-block rounded px-2 py-1 text-[10px] font-medium ${current ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-800'}`}>
+              {t(current ? 'envRoutesCurrentBadge' : 'envRoutesDraftBadge')}
+            </span>
             <button
               type="button"
-              onClick={() => setModalOpen(true)}
-              className="rounded-md border px-3 py-1.5 text-xs hover:bg-accent"
+              onClick={() => {
+                setEditingEntry(null);
+                setModalOpen(true);
+              }}
+              className="min-h-11 rounded-md border px-3 py-2 text-xs hover:bg-accent"
             >
               + {t('envRoutesAddEntry')}
             </button>
@@ -109,6 +118,7 @@ export function EnvRoutesTab({
                   <th className="px-3 py-2 font-medium">{t('envRoutesTableTls')}</th>
                   <th className="px-3 py-2 font-medium">{t('envRoutesTableDns')}</th>
                   <th className="px-3 py-2 font-medium">{t('envRoutesTableProbe')}</th>
+                  <th className="px-3 py-2 font-medium">{t('envRoutesTableActions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -118,6 +128,16 @@ export function EnvRoutesTab({
                     row={row}
                     projectId={projectId}
                     t={t}
+                    onEdit={() => {
+                      setEditingEntry(row.entry);
+                      setModalOpen(true);
+                    }}
+                    onDelete={() =>
+                      onRouteChange({
+                        ...route,
+                        entries: removeRouteEntry(route.entries, row.entry),
+                      })
+                    }
                   />
                 ))}
               </tbody>
@@ -159,11 +179,16 @@ export function EnvRoutesTab({
           open={modalOpen}
           environmentName={environment.name}
           targetOptions={targetOptions}
-          onClose={() => setModalOpen(false)}
+          existingEntries={route.entries}
+          initialEntry={editingEntry}
+          onClose={() => {
+            setModalOpen(false);
+            setEditingEntry(null);
+          }}
           onConfirm={(entry) =>
             onRouteChange({
               ...route,
-              entries: [...route.entries.filter((item) => item.domain !== entry.domain), entry],
+              entries: upsertRouteEntry(route.entries, entry, editingEntry),
             })
           }
         />

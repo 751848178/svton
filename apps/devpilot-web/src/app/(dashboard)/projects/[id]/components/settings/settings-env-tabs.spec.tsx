@@ -225,7 +225,7 @@ describe('settings environment subtab contents', () => {
     expect(html).toContain('envTabRoutes');
     expect(html).toContain('envTabHelperRoutes');
     expect(html).toContain('envRoutesTitle');
-    expect(html).toContain('envRoutesCurrentBadge');
+    expect(html).toContain('envRoutesDraftBadge');
     expect(html).toContain('envRoutesAddEntry');
     expect(html).toContain('envRoutesTableDomain');
     expect(html).toContain('envRoutesTablePath');

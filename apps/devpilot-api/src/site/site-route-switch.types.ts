@@ -20,6 +20,7 @@ export interface SiteRouteSwitchInput {
   proxyTarget: string | null;
   targetRef: string;
   routeHash: string;
+  expectedCurrent: SiteRouteSwitchObservation | null;
 }
 
 export interface SiteRouteSwitchObservation {
@@ -37,6 +38,31 @@ export interface SiteRouteSwitchReceipt {
   reasonCode: string;
   observedAt: string | null;
   observed: SiteRouteSwitchObservation | null;
+}
+
+export interface SiteRouteCompensationInput {
+  version: 1;
+  operationId: string;
+  originalOperationId: string;
+  expectedCurrent: SiteRouteSwitchObservation;
+  desiredRoute: SiteRouteSwitchInput | null;
+}
+
+export interface SiteRouteCurrentObservationInput {
+  teamId: string;
+  projectId: string;
+  environmentId: string;
+  siteId: string;
+}
+
+export interface SiteRouteCurrentReceipt {
+  version: 1;
+  providerKey: string;
+  status: "observed" | "absent" | "failed" | "unavailable";
+  reasonCode: string;
+  observedAt: string | null;
+  observed: SiteRouteSwitchObservation | null;
+  route: SiteRouteSwitchInput | null;
 }
 
 export interface SiteRouteSwitchProviderIdentity {

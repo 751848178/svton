@@ -16,6 +16,7 @@ import { isProductionEnvironment } from './environment-resource-binding.model';
 import { EnvironmentResourceBindingRowControls } from './environment-resource-binding-row-controls';
 import { SettingsResourceBindingPreview } from './settings/settings-resource-binding-preview';
 import { buildResourceBindingPreview } from './settings/settings-resource-binding-preview.model';
+import { SettingsLegacyResourceBindingRepair } from './settings/settings-legacy-resource-binding-repair';
 
 type Candidate = {
   key: string;
@@ -64,7 +65,7 @@ export function EnvironmentConfigResourceEditor({
     const rows = (project.applications ?? []).flatMap((application) =>
       application.services
         .filter((service) => service.status === 'active' && service.environment?.id === environment.id)
-        .map((service) => ({ key: service.name, label: `${application.name} · ${service.name}` })));
+        .map((service) => ({ key: service.id, label: `${application.name} · ${service.name}` })));
     return rows.filter((row, index) => rows.findIndex((item) => item.key === row.key) === index);
   }, [environment.id, project.applications]);
   const selected = candidates.find((item) => item.key === candidateKey);
@@ -131,6 +132,22 @@ export function EnvironmentConfigResourceEditor({
           onConfirm={() => setConfirmed(true)}
         />
       ) : null}
+      {value.flatMap((reference) => {
+        if (reference.componentKey && Array.isArray(reference.envBindings)) return [];
+        const candidate = candidates.find((item) =>
+          item.id === reference.id && item.kind === reference.kind);
+        if (!candidate) return [];
+        return [(
+          <SettingsLegacyResourceBindingRepair
+            key={`${reference.kind}:${reference.id}`}
+            reference={reference}
+            candidate={candidate}
+            components={components}
+            onRepair={(repaired) => onChange(value.map((item) =>
+              item === reference ? repaired : item))}
+          />
+        )];
+      })}
       <EnvironmentResourceBindingRowControls
         project={project}
         environment={environment}

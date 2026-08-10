@@ -45,7 +45,7 @@ export function ReleaseOrderStepContent(props: Props) {
         onOpenLog={props.onOpenBuildLog}
         onCloseLog={props.onCloseBuildLog}
         buildGate={props.buildGate}
-        repairHref={props.stagingRepairHref}
+        repairHref={props.gateRepairHref}
       />
     );
   }
@@ -59,7 +59,7 @@ export function ReleaseOrderStepContent(props: Props) {
         onCloseLog={props.onCloseStaging}
         onChanged={props.onChanged}
         stagingGate={props.stagingGate}
-        repairHref={props.gateRepairHref}
+        repairHref={props.stagingRepairHref}
       />
     );
   }

@@ -29,8 +29,9 @@ export async function runEnvironmentDeployment(
       uri: context.bundle.uri,
       digest: context.manifest.digest,
       deploymentInput: context.frozenInput.deploymentInput.snapshot,
-      runtimeEnvironment:
-        context.frozenInput.deploymentInput.runtimeEnvironment,
+      globalEnvironment: context.frozenInput.deploymentInput.globalEnvironment,
+      componentEnvironments:
+        context.frozenInput.deploymentInput.componentEnvironments,
       targetConnection: context.frozenInput.deploymentInput.targetConnection,
       workload: context.frozenInput.workload,
     });

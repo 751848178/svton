@@ -29,7 +29,31 @@ export class ConfiguredSiteRouteSwitchProvider extends SiteRouteSwitchPort {
     return this.provider.identity;
   }
 
+  get supportsCompensation() {
+    return this.provider.supportsCompensation;
+  }
+
+  verifyProductionCapability() {
+    return this.provider.verifyProductionCapability();
+  }
+
   switchRoute(input: Parameters<SiteRouteSwitchPort["switchRoute"]>[0]) {
     return this.provider.switchRoute(input);
+  }
+
+  observeRoute(operationId: string) {
+    return this.provider.observeRoute(operationId);
+  }
+
+  observeCurrentRoute(
+    input: Parameters<SiteRouteSwitchPort["observeCurrentRoute"]>[0],
+  ) {
+    return this.provider.observeCurrentRoute(input);
+  }
+
+  compensateRoute(
+    input: Parameters<SiteRouteSwitchPort["compensateRoute"]>[0],
+  ) {
+    return this.provider.compensateRoute(input);
   }
 }

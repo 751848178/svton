@@ -33,6 +33,9 @@ describe('EnvironmentConfigResourceEditor (AC-SET-026 selectors)', () => {
     expect(html).toContain('envResourceSharingScopeLabel');
     expect(html).toContain('envResourceSharingDedicated');
     expect(html).toContain('envResourceSharingShared');
+    expect(html).toContain('envResourceBindingNeedsConfiguration');
+    expect(html).toContain('envResourceLegacyUnassigned');
+    expect(html).toContain('envResourceSelectComponent');
   });
 
   it('locks production rows to 环境专用 (forced) and disables the shared options', () => {

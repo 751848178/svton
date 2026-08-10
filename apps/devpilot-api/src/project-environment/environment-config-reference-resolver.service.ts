@@ -135,10 +135,11 @@ export class EnvironmentConfigReferenceResolverService {
     const owners: EnvironmentVariableOwner[] = [
       ...resourceOwners,
       ...Object.keys(plainVariables).map((key) => ({
-        key, source: "plain" as const, reference: key,
+        key, source: "plain" as const, reference: key, scope: "global",
       })),
       ...secrets.map((secret) => ({
-        key: secretTargetEnvKey(secret), source: "secret" as const, reference: secret.id,
+        key: secretTargetEnvKey(secret), source: "secret" as const,
+        reference: secret.id, scope: "global",
       })),
     ];
     const collision = findEnvironmentVariableCollisions(owners)[0];
@@ -148,7 +149,7 @@ export class EnvironmentConfigReferenceResolverService {
   }
 
   private previousResources(value: unknown) {
-    return Array.isArray(value) ? normalizeResourceReferences(value) : [];
+    return Array.isArray(value) ? normalizeResourceReferences(value, false) : [];
   }
 
   private record(value: unknown) {

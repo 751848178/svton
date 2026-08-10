@@ -6,6 +6,7 @@ describe("executeEnvironmentVersion staging admission", () => {
     environment: jest.fn(),
     manifest: jest.fn(),
     reserve: jest.fn(),
+    replay: jest.fn(),
   };
   const policy = {
     resolveSelection: jest.fn(),
@@ -24,6 +25,11 @@ describe("executeEnvironmentVersion staging admission", () => {
     inputs,
     stagingWorkloads,
     productionWorkloads,
+    routeSwitch: {
+      supportsCompensation: true,
+      verifyProductionCapability: jest.fn().mockResolvedValue(undefined),
+    },
+    routeSagaGuard: { assertClear: jest.fn().mockResolvedValue(undefined) },
     run,
   };
   const input = {
@@ -33,6 +39,7 @@ describe("executeEnvironmentVersion staging admission", () => {
     environmentId: "staging-1",
     kind: "upgrade" as const,
     manifestId: "manifest-1",
+    idempotencyKey: "action-key-1",
   };
 
   beforeEach(() => {
@@ -43,6 +50,7 @@ describe("executeEnvironmentVersion staging admission", () => {
       currentEnvironmentVersionId: null,
       currentConfigRevisionId: "config-1",
     });
+    repository.replay.mockResolvedValue(null);
     policy.resolveSelection.mockResolvedValue({
       manifestId: "manifest-1",
       sourceVersionId: undefined,
@@ -82,10 +90,7 @@ describe("executeEnvironmentVersion staging admission", () => {
       executeEnvironmentVersion(deps as never, input),
     ).rejects.toThrow("部署目标绑定缺失");
 
-    expect(productionGates.admit).toHaveBeenCalledWith(
-      expect.objectContaining({ environmentId: "staging-1" }),
-      "staging",
-    );
+    expect(productionGates.admit).not.toHaveBeenCalled();
     expect(inputs.prepare).toHaveBeenCalledWith(
       expect.objectContaining({
         environmentId: "staging-1",
@@ -101,14 +106,20 @@ describe("executeEnvironmentVersion staging admission", () => {
   it("freezes target, config and staging workload before reserving", async () => {
     const deploymentInput = {
       snapshot: {
-        target: { targetRef: "bound-target" },
+        inputHash: "deployment-input-hash",
+        target: { bindingId: "binding-1", targetRef: "bound-target" },
         configRevision: { id: "config-1" },
         resourceReferences: [{ id: "resource-1" }],
         secretReferences: [{ id: "secret-1" }],
       },
-      runtimeEnvironment: { DATABASE_URL: "secret" },
+      globalEnvironment: { NODE_ENV: "staging" },
+      componentEnvironments: { api: { DATABASE_URL: "secret" } },
     };
-    const workload = { environmentId: "staging-1", services: [] };
+    const workload = {
+      environmentId: "staging-1",
+      inputHash: "workload-hash",
+      services: [{ componentKey: "api" }],
+    };
     inputs.prepare.mockResolvedValue(deploymentInput);
     stagingWorkloads.prepare.mockResolvedValue(workload);
     repository.reserve.mockResolvedValue({ id: "deployment-1" });
@@ -116,8 +127,20 @@ describe("executeEnvironmentVersion staging admission", () => {
 
     await executeEnvironmentVersion(deps as never, input);
 
+    expect(productionGates.admit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerKey: "ssh-v1",
+        bindingId: "binding-1",
+        deploymentInputHash: "deployment-input-hash",
+        idempotencyKey: "action-key-1",
+      }),
+      "staging",
+    );
+
     expect(repository.reserve).toHaveBeenCalledWith(
       expect.objectContaining({
+        idempotencyKey: "action-key-1",
+        inputHash: expect.stringMatching(/^[a-f0-9]{64}$/),
         params: expect.objectContaining({
           deploymentProvider: { key: "ssh-v1", targetRef: "bound-target" },
           deploymentInput: deploymentInput.snapshot,
@@ -126,5 +149,99 @@ describe("executeEnvironmentVersion staging admission", () => {
       }),
     );
     expect(productionWorkloads.prepare).not.toHaveBeenCalled();
+  });
+
+  it.each(["upgrade", "recovery"] as const)(
+    "replays a completed Production %s after mutable environment state changed",
+    async (kind) => {
+      repository.environment.mockResolvedValue({
+        id: "production-1",
+        baselineRole: "production",
+        currentEnvironmentVersionId: "version-newer",
+        currentConfigRevisionId: "config-changed-after-success",
+      });
+      const environmentVersion = { id: "version-original" };
+      repository.replay.mockResolvedValue({
+        id: "deployment-original",
+        status: "completed",
+        environmentVersion,
+        idempotentReplay: true,
+      });
+      const replayInput = {
+        ...input,
+        environmentId: "production-1",
+        kind,
+        manifestId: kind === "upgrade" ? "manifest-1" : undefined,
+        sourceVersionId: kind === "recovery" ? "version-old" : undefined,
+        releaseRunId: "release-approved-original",
+      };
+
+      await expect(
+        executeEnvironmentVersion(deps as never, replayInput),
+      ).resolves.toMatchObject({
+        run: { id: "deployment-original", idempotentReplay: true },
+        version: environmentVersion,
+      });
+      expect(policy.resolveSelection).not.toHaveBeenCalled();
+      expect(policy.validateProduction).not.toHaveBeenCalled();
+      expect(inputs.prepare).not.toHaveBeenCalled();
+      expect(productionGates.admit).not.toHaveBeenCalled();
+    },
+  );
+
+  it("fails Production admission before freezing or reserving without compensation capability", async () => {
+    repository.environment.mockResolvedValue({
+      id: "production-1",
+      baselineRole: "production",
+      currentEnvironmentVersionId: null,
+      currentConfigRevisionId: "config-1",
+    });
+    repository.replay.mockResolvedValue(null);
+
+    await expect(
+      executeEnvironmentVersion(
+        {
+          ...deps,
+          routeSwitch: {
+            supportsCompensation: false,
+            verifyProductionCapability: jest
+              .fn()
+              .mockRejectedValue(
+                new Error("SITE_ROUTE_SWITCH_COMPENSATION_UNAVAILABLE"),
+              ),
+          },
+        } as never,
+        { ...input, environmentId: "production-1" },
+      ),
+    ).rejects.toThrow("SITE_ROUTE_SWITCH_COMPENSATION_UNAVAILABLE");
+
+    expect(policy.resolveSelection).not.toHaveBeenCalled();
+    expect(inputs.prepare).not.toHaveBeenCalled();
+    expect(repository.reserve).not.toHaveBeenCalled();
+  });
+
+  it("rejects a new Production action while compensation is required", async () => {
+    repository.environment.mockResolvedValue({
+      id: "production-1",
+      baselineRole: "production",
+      currentEnvironmentVersionId: null,
+      currentConfigRevisionId: "config-1",
+    });
+    repository.replay.mockResolvedValue(null);
+    deps.routeSagaGuard.assertClear.mockRejectedValue(
+      new ConflictException(
+        "Production 路由切换 compensation_required 尚未收敛",
+      ),
+    );
+
+    await expect(
+      executeEnvironmentVersion(deps as never, {
+        ...input,
+        environmentId: "production-1",
+      }),
+    ).rejects.toThrow("compensation_required");
+
+    expect(deps.routeSwitch.verifyProductionCapability).not.toHaveBeenCalled();
+    expect(repository.reserve).not.toHaveBeenCalled();
   });
 });

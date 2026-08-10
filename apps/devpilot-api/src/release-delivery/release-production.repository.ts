@@ -10,6 +10,7 @@ import {
   lockProductionEnvironmentForRelease,
 } from "./release-run-concurrency.utils";
 import { releaseOperationApprovalSelect } from "./release-operation-approval.select";
+import { assertNoActiveProductionRouteSaga } from "../site/production-route-saga.guard";
 
 const releaseRunInclude = {
   operationApproval: {
@@ -103,6 +104,11 @@ export class ReleaseProductionRepository {
       }
       const snapshot = preview.snapshot;
       await lockProductionEnvironmentForRelease(tx, {
+        teamId: input.teamId,
+        projectId: input.projectId,
+        environmentId: snapshot.environment.id,
+      });
+      await assertNoActiveProductionRouteSaga(tx, {
         teamId: input.teamId,
         projectId: input.projectId,
         environmentId: snapshot.environment.id,

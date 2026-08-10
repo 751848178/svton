@@ -49,11 +49,11 @@ describe("SshReleaseDeploymentProviderService", () => {
     );
     expect(transport.uploadFile).toHaveBeenCalledWith(
       expect.any(String),
-      "/srv/devpilot/project-1/staging-1/.incoming/deployment-1.env",
+      "/srv/devpilot/project-1/staging-1/.incoming/deployment-1.api.env",
       { timeoutMs: 5_000, mode: 0o600 },
     );
     expect(scripts.join("\n")).toMatch(
-      /sha256sum.*runtime_mode.*unzip.*completed=1.*PUBLISHED=1/s,
+      /sha256sum.*stat -c.*unzip.*completed=1.*PUBLISHED=1/s,
     );
     expect(scripts.join("\n")).not.toMatch(
       /(^|[\n;])\s*(git|checkout|pull|npm|pnpm|yarn|build)\b/m,
@@ -116,7 +116,8 @@ describe("SshReleaseDeploymentProviderService", () => {
     const targetRef = "ssh://bound@bound.example:2200/srv/bound";
     const receipt = await provider.deployExactManifest({
       ...input(targetRef),
-      runtimeEnvironment: { API_TOKEN: "secret-sentinel-f432" },
+      globalEnvironment: { API_TOKEN: "secret-sentinel-f432" },
+      componentEnvironments: { api: { DATABASE_URL: "component-db" } },
       targetConnection: {
         host: "bound.example",
         port: 2200,
@@ -130,7 +131,9 @@ describe("SshReleaseDeploymentProviderService", () => {
     expect(factory.create).toHaveBeenCalledWith(
       expect.objectContaining({ host: "bound.example", port: 2200 }),
     );
-    expect(runtimeBody).toBe("API_TOKEN=secret-sentinel-f432\n");
+    expect(runtimeBody).toBe(
+      "API_TOKEN=secret-sentinel-f432\nDATABASE_URL=component-db\n",
+    );
     expect(runtimeMode).toBe(0o600);
     await expect(readFile(runtimePath, "utf8")).rejects.toThrow();
     const publicEvidence = JSON.stringify({ receipt, scripts });
@@ -153,7 +156,7 @@ describe("SshReleaseDeploymentProviderService", () => {
       provider.deployExactManifest(input(provider.targetRef)),
     ).rejects.toThrow("执行失败");
     expect(scripts.at(-1)).toMatch(
-      /rm -f .*deployment-1\.zip.*deployment-1\.env/,
+      /rm -f .*deployment-1\.zip.*deployment-1\.api\.env/,
     );
   });
 });
@@ -187,5 +190,6 @@ function input(targetRef: string) {
       digest: `sha256:${"a".repeat(64)}`,
     },
     artifact: { path: "/artifacts/bundle.zip", sizeBytes: 123 },
+    componentEnvironments: { api: {} },
   };
 }

@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { chmod, mkdir, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { sanitizeBuildLogs } from "./release-build-log.utils";
 import { ReleaseArtifactArchivePort } from "./release-artifact-archive.service";
@@ -18,7 +18,7 @@ import {
   releaseProviderErrorMessage,
 } from "./local-filesystem-deployment-provider.utils";
 import { executeLocalReleaseWorkloadCommand } from "./local-release-workload-command";
-import { formatReleaseRuntimeEnvironment } from "./release-runtime-environment.utils";
+import { writeLocalComponentEnvironments } from "./local-release-component-environment";
 import {
   cleanupReleaseWorkloads,
   runReleaseWorkloads,
@@ -93,26 +93,19 @@ export class LocalFilesystemDeploymentProviderService extends ReleaseDeploymentP
         temporary,
         this.timeoutMs,
       );
-      if (input.runtimeEnvironment || input.workload) {
-        const runtimeDirectory = join(temporary, ".devpilot");
-        const runtimePath = join(runtimeDirectory, "runtime.env");
-        await rm(runtimeDirectory, { recursive: true, force: true });
-        await mkdir(runtimeDirectory, { recursive: true, mode: 0o700 });
-        await chmod(runtimeDirectory, 0o700);
-        await writeFile(
-          runtimePath,
-          `${formatReleaseRuntimeEnvironment(input.runtimeEnvironment || {})}\n`,
-          { mode: 0o600, flag: "wx" },
-        );
-        await chmod(runtimePath, 0o600);
-      }
+      const runtimePaths = await writeLocalComponentEnvironments(
+        input,
+        temporary,
+        releaseRoot,
+      );
       await rename(temporary, releaseRoot);
       if (input.workload) {
         runtimeEvidence = await runReleaseWorkloads({
           snapshot: input.workload,
           releaseRoot,
-          runtimePath: join(releaseRoot, ".devpilot", "runtime.env"),
-          runtimeEnvironment: input.runtimeEnvironment || {},
+          runtimePaths,
+          globalEnvironment: input.globalEnvironment || {},
+          componentEnvironments: input.componentEnvironments || {},
           execute: executeLocalReleaseWorkloadCommand,
         });
       }
@@ -144,9 +137,13 @@ export class LocalFilesystemDeploymentProviderService extends ReleaseDeploymentP
           materializedEntries: entries.length,
           artifactSizeBytes: input.artifact.sizeBytes,
           runtimeEnvironmentFileMode: "0600",
-          runtimeEnvironmentKeys: Object.keys(
-            input.runtimeEnvironment || {},
-          ).sort(),
+          globalEnvironmentKeys: Object.keys(input.globalEnvironment || {}).sort(),
+          componentEnvironmentKeys: Object.fromEntries(
+            Object.entries(input.componentEnvironments || {}).map(([key, value]) => [
+              key,
+              Object.keys(value).sort(),
+            ]),
+          ),
           ...runtimeEvidence.evidence,
           checkoutInvoked: false,
           pullInvoked: false,
@@ -160,8 +157,14 @@ export class LocalFilesystemDeploymentProviderService extends ReleaseDeploymentP
         cleanupLogs = await cleanupReleaseWorkloads({
           snapshot: input.workload,
           releaseRoot,
-          runtimePath: join(releaseRoot, ".devpilot", "runtime.env"),
-          runtimeEnvironment: input.runtimeEnvironment || {},
+          runtimePaths: Object.fromEntries(
+            (input.workload?.services ?? []).map((service) => [
+              service.componentKey,
+              join(releaseRoot, ".devpilot", "env", `${service.componentKey}.env`),
+            ]),
+          ),
+          globalEnvironment: input.globalEnvironment || {},
+          componentEnvironments: input.componentEnvironments || {},
           execute: executeLocalReleaseWorkloadCommand,
         });
       }

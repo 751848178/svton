@@ -14,6 +14,7 @@ export interface ReleaseDeploymentInputSnapshot {
     name: string;
     type: string;
     versionHash: string;
+    targetEnvKey: string;
   }>;
   resourceReferences: Array<{
     id: string;
@@ -23,6 +24,8 @@ export interface ReleaseDeploymentInputSnapshot {
     environmentId: string | null;
     sharedEnvironmentIds: string[];
     versionHash: string;
+    componentKey: string;
+    envBindings: Array<{ sourceKey: string; targetEnvKey: string }>;
     environmentKeys: string[];
   }>;
   target: {
@@ -33,6 +36,8 @@ export interface ReleaseDeploymentInputSnapshot {
     versionHash: string;
   };
   runtimeEnvironmentKeys: string[];
+  globalEnvironmentKeys: string[];
+  componentEnvironmentKeys: Record<string, string[]>;
   inputHash: string;
 }
 
@@ -47,7 +52,8 @@ export interface ReleaseDeploymentTargetConnection {
 
 export interface PreparedReleaseDeploymentInput {
   snapshot: ReleaseDeploymentInputSnapshot;
-  runtimeEnvironment: Record<string, string>;
+  globalEnvironment: Record<string, string>;
+  componentEnvironments: Record<string, Record<string, string>>;
   targetConnection?: ReleaseDeploymentTargetConnection;
 }
 
@@ -98,6 +104,7 @@ export interface ReleaseDeploymentInputState {
       username: string;
       authType: string;
       credentials: string;
+      status: string;
       updatedAt: Date;
     };
   }>;

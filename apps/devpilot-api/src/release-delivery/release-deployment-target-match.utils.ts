@@ -24,6 +24,9 @@ export interface ReleaseDeploymentTargetBindingLike {
     host?: string | null;
     port?: number | null;
     username?: string | null;
+    authType?: string | null;
+    credentials?: string | null;
+    status?: string | null;
   };
 }
 

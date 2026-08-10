@@ -1,4 +1,7 @@
-import { buildResourceBindingPreview } from './settings-resource-binding-preview.model';
+import {
+  buildResourceBindingPreview,
+  resourceDraftIssues,
+} from './settings-resource-binding-preview.model';
 
 describe('resource binding draft preview', () => {
   const instance = {
@@ -32,5 +35,22 @@ describe('resource binding draft preview', () => {
       envBindings: [{ sourceKey: 'DATABASE_URL', targetEnvKey: 'API_DATABASE_URL' }],
       status: 'effective',
     });
+  });
+
+  it('marks legacy references as needs_configuration and blocks revision save', () => {
+    const legacy = {
+      id: 'resource-1', kind: 'resource_instance' as const, name: 'database',
+      sharedEnvironmentIds: ['env-1'], risk: 'medium' as const, impact: 'database',
+      bindingStatus: 'needs_configuration' as const,
+    };
+
+    expect(buildResourceBindingPreview(instance, null, [legacy])).toMatchObject({
+      componentKey: null,
+      status: 'needs_configuration',
+    });
+    expect(resourceDraftIssues([legacy], [legacy])).toEqual([
+      'resource_instance:resource-1:component',
+      'resource_instance:resource-1:mappings',
+    ]);
   });
 });

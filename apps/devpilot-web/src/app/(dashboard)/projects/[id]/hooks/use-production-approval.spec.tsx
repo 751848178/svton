@@ -69,7 +69,12 @@ describe('useProductionApproval', () => {
     });
     expect(mocks.apiRequest).toHaveBeenCalledWith(
       'POST:/projects/project-1/delivery/environment-versions/prod-env-1/actions',
-      { kind: 'upgrade', manifestId: 'manifest-1', releaseRunId: 'release-1' },
+      expect.objectContaining({
+        kind: 'upgrade',
+        manifestId: 'manifest-1',
+        releaseRunId: 'release-1',
+        idempotencyKey: expect.any(String),
+      }),
     );
     expect(ok).toBe(true);
     expect(mocks.onChanged).toHaveBeenCalledOnce();

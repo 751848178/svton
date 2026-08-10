@@ -63,13 +63,20 @@ export type ReleaseDeploymentTargetReadiness = {
   environmentKey: string | null;
   expectedProviderKey: string;
   bindingCount: number;
-  matchState: 'ready' | 'missing' | 'duplicated' | 'provider_mismatch' | 'ssh_root_invalid';
+  matchState:
+    | 'ready'
+    | 'missing'
+    | 'duplicated'
+    | 'provider_mismatch'
+    | 'ssh_root_invalid'
+    | 'ssh_connection_invalid';
   reasonCode:
     | 'TARGET_READY'
     | 'TARGET_MISSING'
     | 'TARGET_DUPLICATED'
     | 'PROVIDER_MISMATCH'
-    | 'SSH_ROOT_INVALID';
+    | 'SSH_ROOT_INVALID'
+    | 'SSH_CONNECTION_INVALID';
   remediation: 'environment_targets' | null;
   currentTarget: null | {
     bindingId: string;

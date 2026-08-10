@@ -3,7 +3,11 @@ import { ReleaseGateBlockedException } from "./release-gate-decision.service";
 
 describe("EnvironmentVersionProductionGateService", () => {
   const gates = { assertAllowed: jest.fn() };
-  const service = new EnvironmentVersionProductionGateService(gates as never);
+  const routeSagaGuard = { assertClear: jest.fn() };
+  const service = new EnvironmentVersionProductionGateService(
+    gates as never,
+    routeSagaGuard as never,
+  );
   const context = {
     teamId: "team-1",
     actorId: "user-1",
@@ -16,7 +20,10 @@ describe("EnvironmentVersionProductionGateService", () => {
     releaseRunId: "release-1",
   };
 
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    routeSagaGuard.assertClear.mockResolvedValue(undefined);
+  });
 
   it("enforces Staging with the same fail-closed gate semantics", async () => {
     gates.assertAllowed.mockResolvedValue(decision("staging", true));
@@ -44,6 +51,17 @@ describe("EnvironmentVersionProductionGateService", () => {
     for (const [request] of gates.assertAllowed.mock.calls) {
       expect(request).not.toHaveProperty("deferredReasons");
     }
+  });
+
+  it("blocks Production admission while a route saga is unresolved", async () => {
+    routeSagaGuard.assertClear.mockRejectedValueOnce(
+      new Error("compensation_required"),
+    );
+
+    await expect(service.admit(context)).rejects.toThrow(
+      "compensation_required",
+    );
+    expect(gates.assertAllowed).not.toHaveBeenCalled();
   });
 
   it("preserves the persisted blocked decision when final enforcement fails", async () => {

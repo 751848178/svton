@@ -54,7 +54,8 @@ import {
 import { SiteRouteActivationService } from "../site/site-route-activation.service";
 import { SiteFinalProbeService } from "../site/site-final-probe.service";
 import type { SiteProbePort } from "../site/site-route-activation.types";
-import { SiteRouteSwitchEvidenceRepository } from "../site/site-route-switch-evidence.repository";
+import { SiteRouteSwitchSagaOrchestrator } from "../site/site-route-switch-saga.orchestrator";
+import { SiteRouteSwitchSagaRepository } from "../site/site-route-switch-saga.repository";
 import { siteRouteSwitchTestDouble } from "../site/site-route-switch.spec-utils";
 import { EnvironmentVersionCompletionRepository } from "./environment-version-completion.repository";
 
@@ -515,19 +516,23 @@ export async function createProductionRealGateFixture(
     gateEvaluator,
     new ReleaseGateDecisionRepository(db),
   );
+  const routeSagaGuard = { assertClear: jest.fn().mockResolvedValue(undefined) };
   const repository = new EnvironmentVersionRepository(db);
+  const routeSwitch = siteRouteSwitchTestDouble();
+  const routeSagaRepository = new SiteRouteSwitchSagaRepository(db);
   const service = new EnvironmentVersionService(
     repository,
-    new EnvironmentVersionCompletionRepository(
-      db,
-      new SiteRouteSwitchEvidenceRepository(),
-    ),
+    new EnvironmentVersionCompletionRepository(db, routeSagaRepository),
     new EnvironmentVersionReadRepository(db),
     new EnvironmentVersionPolicyService(repository),
     executor as ReleaseStagingExecutorPort,
-    new EnvironmentVersionProductionGateService(gateService),
+    new EnvironmentVersionProductionGateService(
+      gateService,
+      routeSagaGuard as never,
+    ),
     new EnvironmentVersionGateEvidenceRepository(db),
     new ReleaseDeploymentInputService(db, crypto),
+    {} as never,
     new ReleaseStagingWorkloadService(
       new ReleaseStagingWorkloadStateRepository(db),
     ),
@@ -535,7 +540,9 @@ export async function createProductionRealGateFixture(
       new ReleaseStagingWorkloadStateRepository(db),
     ),
     new SiteRouteActivationService(db),
-    siteRouteSwitchTestDouble(),
+    routeSwitch,
+    new SiteRouteSwitchSagaOrchestrator(routeSagaRepository, routeSwitch),
+    routeSagaGuard as never,
     siteProbe,
   );
 

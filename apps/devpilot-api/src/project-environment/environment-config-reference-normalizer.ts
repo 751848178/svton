@@ -33,9 +33,19 @@ export function normalizeSecretReferences(value: unknown): SecretReferenceInput[
   return references;
 }
 
-export function normalizeResourceBindingFields(item: Record<string, unknown>, index: number) {
+export function normalizeResourceBindingFields(
+  item: Record<string, unknown>,
+  index: number,
+  required = true,
+) {
   const componentKey = optionalComponentKey(item.componentKey, index);
   const envBindings = optionalEnvBindings(item.envBindings, index);
+  if (required && !componentKey) {
+    throw new BadRequestException(`资源引用 ${index + 1} 必须指定目标组件`);
+  }
+  if (required && envBindings === undefined) {
+    throw new BadRequestException(`资源引用 ${index + 1} 必须显式提供变量映射`);
+  }
   return {
     ...(componentKey ? { componentKey } : {}),
     ...(envBindings ? { envBindings } : {}),

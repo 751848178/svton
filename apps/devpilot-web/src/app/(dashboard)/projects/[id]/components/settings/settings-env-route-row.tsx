@@ -12,10 +12,14 @@ export function SettingsEnvRouteRow({
   row,
   projectId,
   t,
+  onEdit,
+  onDelete,
 }: {
   row: RouteEntryView;
   projectId: string;
   t: ProjectsTranslator;
+  onEdit: () => void;
+  onDelete: () => void;
 }) {
   const targetLabel = row.entry.component && row.entry.port
     ? `${row.entry.component} : ${row.entry.port}`
@@ -52,9 +56,19 @@ export function SettingsEnvRouteRow({
             ) : null}
           </div>
         </td>
+        <td className="px-3 py-2 text-xs">
+          <div className="flex items-center gap-1">
+            <button type="button" onClick={onEdit} aria-label={`${t('envRoutesEditEntry')} ${row.entry.domain} ${row.entry.path}`} className="min-h-11 rounded-md px-3 text-primary hover:bg-accent">
+              {t('envRoutesEditEntry')}
+            </button>
+            <button type="button" onClick={onDelete} aria-label={`${t('envRoutesDeleteEntry')} ${row.entry.domain} ${row.entry.path}`} className="min-h-11 rounded-md px-3 text-red-600 hover:bg-red-50">
+              {t('envRoutesDeleteEntry')}
+            </button>
+          </div>
+        </td>
       </tr>
       <tr className="border-none">
-        <td colSpan={6} className="px-3 pb-2 pt-0 text-[11px] text-muted-foreground" data-route-readiness={row.entry.domain}>
+        <td colSpan={7} className="px-3 pb-2 pt-0 text-[11px] text-muted-foreground" data-route-readiness={row.entry.domain}>
           {t('envRoutesReadinessLabel')}{' '}
           <GateChip t={t} code="D14" gate={row.readiness.d14} />{' '}
           <GateChip t={t} code="D15" gate={row.readiness.d15} />{' '}

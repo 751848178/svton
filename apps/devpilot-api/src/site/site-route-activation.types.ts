@@ -39,6 +39,9 @@ export interface SiteRouteActivationResolveResult {
     | "route_target_unverified"
     | "multiple_route_upstreams"
     | "site_not_found"
+    | "site_environment_mismatch"
+    | "site_not_active"
+    | "multiple_route_sites"
     | "route_not_frozen";
 }
 

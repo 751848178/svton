@@ -11,6 +11,10 @@ export type EnvironmentVersionGateContext = {
   buildRunId: string;
   releaseRunId?: string;
   deploymentRunId?: string;
+  providerKey?: string;
+  bindingId?: string;
+  deploymentInputHash?: string;
+  idempotencyKey?: string;
 };
 
 export function admitEnvironmentVersion(
@@ -29,8 +33,12 @@ export function admitEnvironmentVersion(
       manifestId: context.manifestId,
       buildRunId: context.buildRunId,
       releaseRunId: context.releaseRunId ?? null,
+      providerKey: context.providerKey ?? null,
+      bindingId: context.bindingId ?? null,
+      deploymentInputHash: context.deploymentInputHash ?? null,
+      idempotencyKey: context.idempotencyKey ?? null,
     },
-    requestKey: `pre:${stage}:${context.releaseRunId ?? context.manifestId}`,
+    requestKey: `pre:${stage}:${context.idempotencyKey ?? context.releaseRunId ?? context.manifestId}`,
   });
 }
 
@@ -51,6 +59,10 @@ export function finalEnvironmentVersionDecision(
       buildRunId: context.buildRunId,
       manifestId: context.manifestId,
       releaseRunId: context.releaseRunId ?? null,
+      providerKey: context.providerKey ?? null,
+      bindingId: context.bindingId ?? null,
+      deploymentInputHash: context.deploymentInputHash ?? null,
+      idempotencyKey: context.idempotencyKey ?? null,
     },
     requestKey: `final:${context.releaseRunId}:${context.deploymentRunId}`,
   });
@@ -73,5 +85,8 @@ function target(context: EnvironmentVersionGateContext) {
     deploymentRunId: context.deploymentRunId,
     environmentId: context.environmentId,
     configRevisionId: context.configRevisionId,
+    providerKey: context.providerKey,
+    bindingId: context.bindingId,
+    deploymentInputHash: context.deploymentInputHash,
   };
 }

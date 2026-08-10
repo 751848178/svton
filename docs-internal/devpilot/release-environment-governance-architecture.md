@@ -2,7 +2,7 @@
 
 ## Evidence Boundary
 
-本图谱只记录 2026-08-10 已由当前源码、测试和本地运行实例确认的行为。运行证据来自当前 checkout 的 `devpilot-app-web:3120` 与 `devpilot-app-api:3121`；旧 parity worktree 不作为结论依据。
+本图谱只记录截至 2026-08-11 已由当前源码、测试和本地运行实例确认的行为。运行证据来自当前 checkout 在 `3120/3121` 的隔离 Web/API；旧 parity worktree 不作为结论依据。
 
 ## Canonical Vocabulary
 
@@ -43,9 +43,16 @@ flowchart TD
   P --> Q["Deployment executor"]
   Q --> R["DeploymentRun result"]
   R --> S["EnvironmentVersion completion"]
+  S --> T{"Production route change?"}
+  T -- "No" --> U["Commit version pointer"]
+  T -- "Yes" --> V["Durable route-switch Saga"]
+  V --> W["Observe + CAS apply"]
+  W --> X{"Probe and final gate"}
+  X -- "Allowed" --> Y["Atomic Saga + version commit"]
+  X -- "Blocked or failed" --> Z["CAS compensate or block recovery"]
 ```
 
-Confirmed invariant: every release deployment must produce `Frozen deployment input` before reserving a run. The current EnvironmentVersion Staging branch violates this invariant by skipping preparation and falling back to the process-global Provider target.
+Confirmed invariant: every release deployment must produce `Frozen deployment input` before gate admission and execution. F670 now applies this invariant to EnvironmentVersion Staging and Production; the executor receives the frozen Provider target instead of a process-global fallback.
 
 ## Organization And Layer Ownership
 
@@ -69,12 +76,14 @@ flowchart LR
     D3["Deployment input freeze"]
     D4["Resource and Secret resolution"]
     D5["Workload snapshot"]
+    D6["Production route Saga policy"]
   end
   subgraph Infra["Infrastructure adapters"]
     I1["Prisma repositories"]
     I2["Configured Provider"]
     I3["Server or cluster executor"]
     I4["Repository analysis"]
+    I5["Route Provider observe / CAS / compensate"]
   end
   Web --> API
   API --> Domain
@@ -88,6 +97,19 @@ Layer rules derived from the existing architecture:
 - Target/config/resource/Secret/workload resolution belongs to one preparation boundary.
 - Provider adapters execute only a complete frozen input; global target fallback is not a project deployment contract.
 - Read models may aggregate facts, but must not invent a second definition of preflight readiness.
+- A non-terminal Production route Saga is an environment-wide mutex: confirm, recovery, gate, execution and reservation all fail closed under the same row lock.
+
+## Target Architecture And Delivery Status
+
+| Capability | Target architecture | Implemented in current MR | Not implemented / external boundary |
+|---|---|---|---|
+| Action identity | One action-level idempotency key binds action, manifest/source version and frozen input | Reservation replay, drift conflict and new-attempt behavior are implemented and focused-tested | Cross-region idempotency store is outside the current single-database architecture |
+| Frozen truth | Prepare/freeze precedes gates; D14/D15/D16/final promote/activation resolve the same frozen route/config | Shared frozen route observation and unique active-Site resolver are implemented | External Provider acknowledgement still depends on configured adapters |
+| Component environment | Plain/Secret are global; resource env is scoped by real componentKey | Workload/local/SSH materialize independent per-component 0600 files; snapshots retain keys/hashes only | Non-local/non-SSH providers need their own adapter implementation before enablement |
+| Target readiness | Each baseline environment owns a six-state readiness derived from binding and server connection facts | Staging/Production list responses include their own readiness; Web disables deploy/recovery and links exact Targets | `online` is the persisted server health fact; this MR does not add a new live SSH probe |
+| Route editing | Real application service/port candidates, domain+path identity, edit/delete, validation and draft state | Implemented in the environment Routes editor with focused tests | DNS record creation, certificate issuance and proxy reconciliation remain Site/Provider operations |
+| Production ingress | One frozen route maps to exactly one active Site and gate evidence | Non-active, missing and multi-Site ambiguity fail closed | Production DNS/TLS/cloud sign-off requires configured external infrastructure and browser/E2E evidence |
+| Production route transaction | Observe actual route, CAS apply, probe/final-gate, then atomically commit or compensate | Durable Saga, truthful migration, environment guard, periodic leased recovery and contextual alerting are implemented and adversarially reviewed | A real Provider must implement and attest the observe/CAS/compensate protocol before Production enablement |
 
 ## Function Map
 
@@ -117,6 +139,12 @@ mindmap
       Production promotion
       Version deploy
       Version recovery
+      Route switch Saga
+        Observe current route
+        CAS apply
+        Probe and final gate
+        Atomic commit
+        Compensate and recover
     Readiness
       Expected Provider
       Unique target match
@@ -134,6 +162,7 @@ sequenceDiagram
   participant Prep as Deployment preparation
   participant DB as Prisma
   participant Exec as Provider executor
+  participant Route as Route Provider
   UI->>Gate: request stage decision
   Gate->>DB: evaluate and persist evidence
   Gate-->>UI: allowed or blockers
@@ -148,12 +177,25 @@ sequenceDiagram
     Prep->>DB: reserve DeploymentRun with frozen input
     Prep->>Exec: execute frozen input
     Exec-->>Prep: receipt
-    Prep->>DB: complete DeploymentRun and EnvironmentVersion
-    Prep-->>UI: immutable version result
+    alt staging or no route change
+      Prep->>DB: complete DeploymentRun and EnvironmentVersion
+    else production route change
+      Prep->>DB: prepare durable route Saga
+      Prep->>Route: observe and CAS apply frozen route
+      Route-->>Prep: applied receipt
+      Prep->>Prep: probe and final gate
+      alt allowed
+        Prep->>DB: atomically commit Saga, run, version and pointer
+      else blocked or failed
+        Prep->>Route: CAS compensate previous route
+        Prep->>DB: compensated or compensation_required
+      end
+    end
+    Prep-->>UI: immutable result or stable blocker
   end
 ```
 
-Current configuration precedence is `resource envTemplate < plain variable < Secret`. The code applies this silently. The product must expose collisions before a revision becomes current; it must not rely on hidden overwrite order.
+F671 removes hidden cross-source overwrite semantics: plain/Secret share the global scope, resource bindings are component-scoped, and conflicting keys in the same effective component fail before deployment preparation completes.
 
 ## Page Structure Diagram
 
@@ -182,7 +224,7 @@ flowchart TD
   S1 --> S7["Protection"]
 ```
 
-## Root Cause And Acceptance Matrix
+## Original Root Cause And Acceptance Matrix
 
 | ID | Confirmed root cause | Required behavior | Negative acceptance |
 |---|---|---|---|
@@ -195,6 +237,7 @@ flowchart TD
 | ENVVAR-01 | Analysis detects safe variable schema, but config UI only accepts pasted `.env` | Import requirement keys/evidence; never read real `.env` values silently | Sensitive values never enter plain-variable storage |
 | ROUTE-01 | UI hard-codes `web:3000/api:8080`; structured entries do not drive activation | Candidates and validation use real service IDs and ports; entries become execution truth | Unknown service/port cannot be saved as an inferred route |
 | UX-01 | Version select, deploy and recovery have different size/rows; copy says upgrade | One 44px action toolbar; primary label is Deploy | Desktop recovery does not wrap to an unrelated row |
+| PROD-SAGA-01 | A successful external route switch could be followed by probe/gate/DB failure without rollback | Persist prepare/apply/commit/compensate state and freeze actual previous route with CAS | Unknown or non-terminal route state blocks every new Production confirm/execute/recovery path |
 
 ## Implementation Boundaries
 
@@ -207,9 +250,10 @@ flowchart TD
 
 ## Runtime Evidence Index
 
-- Environment versions: `/tmp/codex-tool-runs/svton/f665-f669/browser/02-environment-versions.png`
-- Five environment settings: `/tmp/codex-tool-runs/svton/f665-f669/browser/03-environment-settings.png`
-- Empty Staging targets/resources/variables/routes: screenshots `04` through `07` in the same directory.
-- Hard-coded route candidates: `08-route-entry-modal.png`.
-- Conflicting preflight states: `09-preflight-summary.png` and `10-preflight-catalog.png`.
-- Late target error after enabled Staging action: `11-staging-target-error.png`.
+- Release Staging gate: `/tmp/codex-tool-runs/svton/f665-browser-final/01-release-staging-gate-desktop.png`.
+- Environment Versions desktop/mobile/actions: screenshots `02` through `04` in the same directory.
+- Real service-port route candidates and baseline/custom environment groups: screenshots `05` and `06`.
+- Fail-closed preflight status, exact counts, timestamps and reasons: `07-preflight-gate-summary.png`.
+- Final full API: `/tmp/codex-tool-runs/svton/f665-api-full-final3-20260811-000342.log` plus post-guard rerun `f665-api-full-final4-20260811-001017.log`.
+- Final full Web: `/tmp/codex-tool-runs/svton/f665-web-full-final3-20260811-000342.log`.
+- Production Saga final focused/impacted evidence: `/tmp/codex-tool-runs/svton/p0-saga-postreview-focused-final.log` and `p0-saga-postreview-impacted.log`.

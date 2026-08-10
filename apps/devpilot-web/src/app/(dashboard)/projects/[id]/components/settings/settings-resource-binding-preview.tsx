@@ -22,13 +22,17 @@ export function SettingsResourceBindingPreview({
   onConfirm?: () => void;
 }) {
   const t = useTranslations('projects');
-  const legacy = preview.status === 'effective' && !preview.componentKey;
+  const legacy = preview.status === 'needs_configuration';
   return (
     <div className="space-y-2 rounded-md border bg-background p-2 text-xs">
       <div className="flex items-center justify-between gap-2">
         <span className="font-medium">{t('envResourceBindingPreview')}</span>
         <span className={preview.status === 'effective' ? 'text-green-700' : 'text-amber-700'}>
-          {t(preview.status === 'effective' ? 'envResourceBindingEffective' : 'envResourceBindingDraft')}
+          {t(preview.status === 'effective'
+            ? 'envResourceBindingEffective'
+            : preview.status === 'needs_configuration'
+              ? 'envResourceBindingNeedsConfiguration'
+              : 'envResourceBindingDraft')}
         </span>
       </div>
       {legacy ? (

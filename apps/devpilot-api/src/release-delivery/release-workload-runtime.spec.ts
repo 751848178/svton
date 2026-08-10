@@ -8,8 +8,7 @@ describe("release workload runtime", () => {
       runReleaseWorkloads({
         snapshot: snapshot(),
         releaseRoot: "/srv/releases/run-1",
-        runtimePath: "/srv/releases/run-1/.devpilot/runtime.env",
-        runtimeEnvironment: { NODE_OPTIONS: "--require source.js" },
+        ...environments({ NODE_OPTIONS: "--require source.js" }),
         execute,
       }),
     ).rejects.toThrow("不得覆盖执行控制边界");
@@ -21,8 +20,10 @@ describe("release workload runtime", () => {
     const result = await runReleaseWorkloads({
       snapshot: snapshot(),
       releaseRoot: "/srv/releases/run-1",
-      runtimePath: "/srv/releases/run-1/.devpilot/runtime.env",
-      runtimeEnvironment: { API_TOKEN: "secret-runtime-value" },
+      ...environments(
+        { API_TOKEN: "secret-runtime-value" },
+        { api: { DATABASE_URL: "api-db" }, worker: { QUEUE_URL: "worker-queue" } },
+      ),
       execute: jest.fn(async (script) => {
         scripts.push(script);
         return success(script.includes("curl") ? "HTTP_STATUS=204\n" : "");
@@ -42,6 +43,8 @@ describe("release workload runtime", () => {
       httpProbe: { status: "passed", checkedServices: 1 },
     });
     expect(scripts.join("\n")).toContain("/srv/releases/run-1");
+    expect(scripts.join("\n")).toContain("/env/api.env");
+    expect(scripts.join("\n")).toContain("/env/worker.env");
     expect(scripts.join("\n")).not.toContain("/workspace/source");
     expect(scripts.join("\n")).not.toContain("/bin/sh -lc");
     expect(JSON.stringify(result)).not.toContain("node dist/api.js");
@@ -64,8 +67,7 @@ describe("release workload runtime", () => {
       runReleaseWorkloads({
         snapshot: { ...snapshot(), services: [snapshot().services[0]] },
         releaseRoot: "/srv/releases/run-1",
-        runtimePath: "/srv/releases/run-1/.devpilot/runtime.env",
-        runtimeEnvironment: { API_TOKEN: "secret-runtime-value" },
+        ...environments({ API_TOKEN: "secret-runtime-value" }),
         execute,
       }),
     ).rejects.toMatchObject({
@@ -95,8 +97,7 @@ describe("release workload runtime", () => {
       runReleaseWorkloads({
         snapshot: { ...snapshot(), services: [worker] },
         releaseRoot: "/srv/releases/run-1",
-        runtimePath: "/srv/releases/run-1/.devpilot/runtime.env",
-        runtimeEnvironment: {},
+        ...environments(),
         execute,
       }),
     ).rejects.toMatchObject({
@@ -109,6 +110,20 @@ describe("release workload runtime", () => {
     });
   });
 });
+
+function environments(
+  globalEnvironment: Record<string, string> = {},
+  componentEnvironments: Record<string, Record<string, string>> = {},
+) {
+  return {
+    globalEnvironment,
+    componentEnvironments,
+    runtimePaths: {
+      api: "/srv/releases/run-1/.devpilot/env/api.env",
+      worker: "/srv/releases/run-1/.devpilot/env/worker.env",
+    },
+  };
+}
 
 function snapshot(): ReleaseStagingWorkloadSnapshot {
   return {

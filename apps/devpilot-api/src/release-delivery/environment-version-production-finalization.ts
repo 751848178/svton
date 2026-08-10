@@ -2,14 +2,11 @@ import type {
   SiteProbePort,
   SiteRouteActivationPort,
 } from "../site/site-route-activation.types";
-import { SiteRouteSwitchPort } from "../site/site-route-switch.port";
-import {
-  createSiteRouteSwitchInput,
-  siteRouteSwitchEvidence,
-} from "../site/site-route-switch-receipt.policy";
+import type { SiteRouteSwitchSagaOrchestrator } from "../site/site-route-switch-saga.orchestrator";
+import { createSiteRouteSwitchInput } from "../site/site-route-switch-receipt.policy";
 import type {
   SiteRouteSwitchAttemptPersistence,
-  SiteRouteSwitchReceipt,
+  SiteRouteSwitchInput,
 } from "../site/site-route-switch.types";
 import {
   assertSiteProbeAcceptable,
@@ -25,7 +22,6 @@ import {
 import {
   routeBooleanValue,
   routeSnapshotRecord,
-  routeSwitchFailure,
   unavailableSiteRouteSwitchEvidence,
 } from "./environment-version-route-switch-evidence";
 
@@ -33,7 +29,7 @@ export interface EnvironmentVersionFinalizationDependencies {
   completion: EnvironmentVersionCompletionRepository;
   productionGates: EnvironmentVersionProductionGateService;
   routeActivation: SiteRouteActivationPort;
-  routeSwitch: SiteRouteSwitchPort;
+  routeSaga: SiteRouteSwitchSagaOrchestrator;
   siteProbe: SiteProbePort;
 }
 
@@ -44,7 +40,9 @@ export async function finalizeDeployedEnvironment(
   deploymentEvidence: Record<string, unknown>,
 ) {
   let attempt: SiteRouteSwitchAttemptPersistence | undefined;
+  let request: SiteRouteSwitchInput | undefined;
   try {
+    await deps.routeSaga.assertProductionReady();
     const targetRef =
       context.frozenInput?.deploymentInput.snapshot.target.targetRef ??
       "unconfigured";
@@ -60,7 +58,7 @@ export async function finalizeDeployedEnvironment(
     let routeSwitch: Record<string, unknown> =
       unavailableSiteRouteSwitchEvidence(context, activation, targetRef);
     if (context.releaseRunId && activation.siteId && activation.primaryDomain) {
-      const request = createSiteRouteSwitchInput({
+      request = createSiteRouteSwitchInput({
         teamId: context.input.teamId,
         projectId: context.input.projectId,
         environmentId: context.environment.id,
@@ -69,17 +67,9 @@ export async function finalizeDeployedEnvironment(
         targetRef,
         activation,
       });
-      const receipt = await invokeRouteSwitch(deps.routeSwitch, request);
-      const evidence = siteRouteSwitchEvidence(
-        request,
-        receipt,
-        deps.routeSwitch.identity,
-      );
+      attempt = await deps.routeSaga.apply(request);
+      const evidence = attempt.evidence;
       routeSwitch = evidence as unknown as Record<string, unknown>;
-      attempt = { evidence };
-      if (evidence.status !== "switched") {
-        throw routeSwitchFailure(evidence);
-      }
     }
     const probe = await deps.siteProbe.probe({
       teamId: context.input.teamId,
@@ -103,7 +93,7 @@ export async function finalizeDeployedEnvironment(
       ...context.gateContext,
       deploymentRunId: context.run.id,
     });
-    return deps.completion.complete({
+    return await deps.completion.complete({
       ...completionIdentity(context),
       status: "completed",
       logs,
@@ -115,9 +105,18 @@ export async function finalizeDeployedEnvironment(
       },
       gateDecision: gateDecisionReference(decision),
       routeSwitchAttempt: attempt,
+      routeSwitchOperationId: request?.operationId,
     });
   } catch (error) {
-    return completeFailedEnvironment(deps, context, error, attempt);
+    const compensation = request
+      ? await deps.routeSaga.compensate(request.operationId, error)
+      : "not_applied";
+    return completeFailedEnvironment(
+      deps,
+      context,
+      error,
+      compensation === "compensation_required" ? "blocked" : "failed",
+    );
   }
 }
 
@@ -125,7 +124,7 @@ export async function completeFailedEnvironment(
   deps: EnvironmentVersionFinalizationDependencies,
   context: EnvironmentVersionExecutionContext,
   error: unknown,
-  attempt?: SiteRouteSwitchAttemptPersistence,
+  status: "failed" | "blocked" = "failed",
 ) {
   const detail = environmentDeploymentFailureDetail(error);
   const denied = await deps.productionGates.denied(error, {
@@ -134,7 +133,7 @@ export async function completeFailedEnvironment(
   });
   return deps.completion.complete({
     ...completionIdentity(context),
-    status: "failed",
+    status,
     logs: detail.logs,
     error: `${detail.code}: ${detail.message}`,
     result: {
@@ -144,27 +143,7 @@ export async function completeFailedEnvironment(
       gateDecision: gateDecisionReference(denied),
     },
     gateDecision: gateDecisionReference(denied),
-    routeSwitchAttempt: attempt,
   });
-}
-
-async function invokeRouteSwitch(
-  provider: SiteRouteSwitchPort,
-  input: Parameters<SiteRouteSwitchPort["switchRoute"]>[0],
-): Promise<SiteRouteSwitchReceipt> {
-  try {
-    return await provider.switchRoute(input);
-  } catch {
-    return {
-      version: provider.identity.receiptVersion,
-      providerKey: provider.identity.providerKey,
-      operationId: input.operationId,
-      status: "failed",
-      reasonCode: "route_switch_provider_failed",
-      observedAt: null,
-      observed: null,
-    };
-  }
 }
 
 function completionIdentity(context: EnvironmentVersionExecutionContext) {

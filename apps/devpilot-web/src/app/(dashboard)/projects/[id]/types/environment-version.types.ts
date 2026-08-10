@@ -3,6 +3,7 @@ import type {
   ReleaseApprovalStatus,
   ReleaseEnvironmentRole,
 } from './release-copy.types';
+import type { ReleaseDeploymentTargetReadiness } from './release-gate.types';
 
 export interface EnvironmentVersionItem {
   id: string;
@@ -31,6 +32,7 @@ export interface EnvironmentVersionEnvironment {
   name: string;
   baselineRole: ReleaseEnvironmentRole;
   currentEnvironmentVersionId: string | null;
+  targetReadiness: ReleaseDeploymentTargetReadiness;
   environmentVersions: EnvironmentVersionItem[];
 }
 

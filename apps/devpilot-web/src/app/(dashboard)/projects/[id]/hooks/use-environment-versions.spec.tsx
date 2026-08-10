@@ -66,7 +66,11 @@ describe('useEnvironmentVersions refresh contract', () => {
     expect(result).toEqual({ environmentVersion: { id: 'version-new' } });
     expect(mocks.apiRequest).toHaveBeenCalledWith(
       'POST:/projects/project-1/delivery/environment-versions/environment-1/actions',
-      { kind: 'upgrade', manifestId: 'manifest-2' },
+      expect.objectContaining({
+        kind: 'upgrade',
+        manifestId: 'manifest-2',
+        idempotencyKey: expect.any(String),
+      }),
     );
     expect(mocks.apiRequest).toHaveBeenCalledWith(
       'GET:/projects/project-1/delivery/environment-versions',

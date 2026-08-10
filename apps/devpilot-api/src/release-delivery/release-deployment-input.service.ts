@@ -34,17 +34,31 @@ export class ReleaseDeploymentInputService {
   }): Promise<PreparedReleaseDeploymentInput> {
     const state = await loadReleaseDeploymentInputState(this.prisma, input);
     const target = selectReleaseDeploymentTarget(state, input.providerKey);
-    const runtimeEnvironment = this.runtimeEnvironment(state);
-    assertSafeReleaseWorkloadEnvironment(runtimeEnvironment);
+    const { globalEnvironment, componentEnvironments } =
+      this.runtimeEnvironments(state);
+    assertSafeReleaseWorkloadEnvironment(globalEnvironment);
+    for (const componentEnvironment of Object.values(componentEnvironments)) {
+      assertSafeReleaseWorkloadEnvironment({
+        ...globalEnvironment,
+        ...componentEnvironment,
+      });
+    }
     const { snapshot, binding, root } = buildReleaseDeploymentInputSnapshot(
       state,
       input.providerKey,
-      Object.keys(runtimeEnvironment),
+      Object.keys(globalEnvironment),
+      Object.fromEntries(
+        Object.entries(componentEnvironments).map(([key, value]) => [
+          key,
+          Object.keys(value),
+        ]),
+      ),
       target,
     );
     return {
       snapshot,
-      runtimeEnvironment,
+      globalEnvironment,
+      componentEnvironments,
       targetConnection:
         input.providerKey === "ssh-v1"
           ? {
@@ -62,10 +76,11 @@ export class ReleaseDeploymentInputService {
     };
   }
 
-  private runtimeEnvironment(
+  private runtimeEnvironments(
     state: Awaited<ReturnType<typeof loadReleaseDeploymentInputState>>,
   ) {
-    const output: Record<string, string> = {};
+    const globalEnvironment = plainEnvironment(state.revision.plainVariables);
+    const componentEnvironments: Record<string, Record<string, string>> = {};
     assertReleaseDeploymentEnvironmentOwnership(state);
     for (const resource of state.resources) {
       if (resource.status !== "active") {
@@ -90,9 +105,11 @@ export class ReleaseDeploymentInputService {
         resource,
         environmentKeysFromTemplate(resource.runtime.envTemplate),
       );
-      Object.assign(output, mapResourceEnvironment(rendered, bindings));
+      const componentKey = resource.componentKey!;
+      const component = componentEnvironments[componentKey] ?? {};
+      Object.assign(component, mapResourceEnvironment(rendered, bindings));
+      componentEnvironments[componentKey] = component;
     }
-    Object.assign(output, plainEnvironment(state.revision.plainVariables));
     const secretKeys = new Set<string>();
     for (const secret of state.secrets) {
       const key = secretTargetEnvKey(secret);
@@ -103,9 +120,12 @@ export class ReleaseDeploymentInputService {
         throw new ConflictException(`Secret 环境变量 ${key} 存在重复映射`);
       }
       secretKeys.add(key);
-      output[key] = this.decryptCbc(secret.value, `Secret ${secret.id}`);
+      globalEnvironment[key] = this.decryptCbc(
+        secret.value,
+        `Secret ${secret.id}`,
+      );
     }
-    return output;
+    return { globalEnvironment, componentEnvironments };
   }
 
   private decryptGcm(value: string, label: string) {

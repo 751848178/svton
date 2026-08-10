@@ -10,13 +10,15 @@ export class ReleaseDeploymentTargetReadinessService {
     private readonly executor: ReleaseStagingExecutorPort,
   ) {}
 
-  async get(teamId: string, projectId: string) {
+  async get(teamId: string, projectId: string, environmentId?: string) {
     const environment = await this.prisma.projectEnvironment.findFirst({
       where: {
         teamId,
         projectId,
         status: "active",
-        baselineRole: "staging",
+        ...(environmentId
+          ? { id: environmentId, baselineRole: { in: ["staging", "production"] } }
+          : { baselineRole: "staging" }),
       },
       select: {
         id: true,
@@ -34,6 +36,8 @@ export class ReleaseDeploymentTargetReadinessService {
                 host: true,
                 port: true,
                 username: true,
+                authType: true,
+                credentials: true,
                 status: true,
               },
             },

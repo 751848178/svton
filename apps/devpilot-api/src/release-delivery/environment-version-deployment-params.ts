@@ -17,6 +17,7 @@ export function environmentVersionDeploymentParams(args: {
   admissionDecision: Awaited<
     ReturnType<EnvironmentVersionProductionGateService["admit"]>
   >;
+  actionInputHash: string;
 }): Record<string, unknown> {
   const targetRef = args.frozenInput.deploymentInput.snapshot.target.targetRef;
   return {
@@ -26,6 +27,8 @@ export function environmentVersionDeploymentParams(args: {
     manifestId: args.manifest.id,
     manifestDigest: args.manifest.digest,
     releaseRunId: args.releaseRunId,
+    idempotencyKey: args.input.idempotencyKey,
+    actionInputHash: args.actionInputHash,
     configRevisionId: args.frozenConfigRevisionId,
     deploymentProvider: { key: args.providerKey, targetRef },
     deploymentInput: args.frozenInput.deploymentInput.snapshot,

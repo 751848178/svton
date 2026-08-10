@@ -1,10 +1,10 @@
-import { ConflictException, Injectable } from "@nestjs/common";
-import { Prisma } from "@prisma/client";
+import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
-import { lockActionableReleaseOrder } from "./release-order-action-boundary";
-import { claimReleaseGateDecision } from "./release-gate-decision.repository";
-import type { ReleaseGateDecisionReference } from "./release-gate-decision.types";
-import { startProductionReleaseExecution } from "./environment-version-production-reservation-boundary";
+import {
+  reserveEnvironmentVersionAction,
+  type EnvironmentVersionActionReservationInput,
+} from "./environment-version-action-reservation.repository";
+import { replayEnvironmentVersionAction } from "./environment-version-action-replay.repository";
 
 @Injectable()
 export class EnvironmentVersionRepository {
@@ -114,85 +114,14 @@ export class EnvironmentVersionRepository {
     `.then((rows) => rows[0]?.sourceVersionId ?? null);
   }
 
-  reserve(input: {
-    teamId: string;
-    projectId: string;
-    actorId: string;
-    environmentId: string;
-    configRevisionId: string | null;
-    manifestId: string;
-    releaseOrderId: string;
-    releaseRunId?: string;
-    mode: "deploy" | "rollback";
-    branch: string;
-    commitSha: string;
-    params: Record<string, unknown>;
-    providerKey?: string;
-    gateDecision?: ReleaseGateDecisionReference;
-  }) {
-    return this.prisma.$transaction(async (tx) => {
-      await lockActionableReleaseOrder(tx, input);
-      if (!input.providerKey) {
-        throw new ConflictException("环境部署缺少 Deployment Provider");
-      }
-      if (input.releaseRunId) {
-        if (!input.gateDecision) {
-          throw new ConflictException("Production 执行缺少已允许的门禁决定");
-        }
-        await startProductionReleaseExecution(tx, {
-          teamId: input.teamId,
-          projectId: input.projectId,
-          releaseOrderId: input.releaseOrderId,
-          environmentId: input.environmentId,
-          configRevisionId: input.configRevisionId,
-          manifestId: input.manifestId,
-          releaseRunId: input.releaseRunId,
-        });
-      }
-      const run = await tx.deploymentRun.create({
-        data: {
-          teamId: input.teamId,
-          projectId: input.projectId,
-          actorId: input.actorId,
-          environmentId: input.environmentId,
-          artifactManifestId: input.manifestId,
-          releaseRunId: input.releaseRunId,
-          mode: input.mode,
-          source: "release_order",
-          trigger: "manual",
-          targetType: "release-artifact",
-          executorKey: "release-artifact",
-          adapterKey: input.providerKey,
-          dryRun: false,
-          status: "running",
-          branch: input.branch,
-          commitSha: input.commitSha,
-          params: input.params as Prisma.InputJsonValue,
-          commandPlan: {
-            version: 1,
-            steps: ["verify_manifest_digest", "deploy_exact_manifest"],
-            checkout: false,
-            pull: false,
-            build: false,
-          },
-        },
-      });
-      if (input.gateDecision) {
-        await claimReleaseGateDecision(tx, {
-          teamId: input.teamId,
-          projectId: input.projectId,
-          releaseOrderId: input.releaseOrderId,
-          actorId: input.actorId,
-          decisionId: input.gateDecision.id,
-          stage: input.gateDecision.stage,
-          inputHash: input.gateDecision.inputHash,
-          actionRunType: "deployment_run",
-          actionRunId: run.id,
-          requireAllowed: true,
-        });
-      }
-      return run;
-    });
+  reserve(input: EnvironmentVersionActionReservationInput) {
+    return this.prisma.$transaction((tx) =>
+      reserveEnvironmentVersionAction(tx, input),
+    );
+  }
+
+  replay(input: Parameters<typeof replayEnvironmentVersionAction>[1]) {
+    return replayEnvironmentVersionAction(this.prisma, input);
   }
 
 }

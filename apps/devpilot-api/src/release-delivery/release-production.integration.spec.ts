@@ -58,6 +58,55 @@ describeIntegration("ReleaseProduction integration", () => {
     ).resolves.toBe(1);
   });
 
+  it("rejects a new confirm while route compensation is required", async () => {
+    const f = fixture;
+    const preview = await f.repository.preview(
+      f.teamId,
+      f.projectId,
+      f.orderId,
+      f.manifestId,
+    );
+    const site = await f.prisma.site.create({
+      data: {
+        teamId: f.teamId,
+        createdById: f.userId,
+        projectId: f.projectId,
+        environmentId: f.productionEnvironmentId,
+        name: "Blocked route saga",
+        primaryDomain: `blocked-${f.suffix}.example.test`,
+        status: "active",
+      },
+    });
+    const saga = await f.prisma.siteRouteSwitchRun.create({
+      data: {
+        operationId: `blocked-confirm-${f.suffix}`,
+        providerKey: "test-route-provider",
+        teamId: f.teamId,
+        siteId: site.id,
+        projectId: f.projectId,
+        environmentId: f.productionEnvironmentId,
+        desiredRoute: {},
+        status: "compensation_required",
+      },
+    });
+    try {
+      await expect(
+        f.repository.confirm({
+          teamId: f.teamId,
+          projectId: f.projectId,
+          releaseOrderId: f.orderId,
+          manifestId: f.manifestId,
+          actorId: f.userId,
+          expectedInputHash: preview.inputHash,
+          idempotencyKey: `blocked-confirm-${f.suffix}`,
+        }),
+      ).rejects.toThrow("compensation_required");
+    } finally {
+      await f.prisma.siteRouteSwitchRun.delete({ where: { id: saga.id } });
+      await f.prisma.site.delete({ where: { id: site.id } });
+    }
+  });
+
   it("rejects cross-project lookup and an unknown Digest", async () => {
     const f = fixture;
     await expect(

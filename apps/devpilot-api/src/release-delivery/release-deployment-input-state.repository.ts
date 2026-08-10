@@ -74,6 +74,7 @@ export async function loadReleaseDeploymentInputState(
               username: true,
               authType: true,
               credentials: true,
+              status: true,
               updatedAt: true,
             },
           },

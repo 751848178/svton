@@ -6,6 +6,7 @@ export const RELEASE_DEPLOYMENT_TARGET_REASON_CODES = [
   "TARGET_DUPLICATED",
   "PROVIDER_MISMATCH",
   "SSH_ROOT_INVALID",
+  "SSH_CONNECTION_INVALID",
 ] as const;
 
 export type ReleaseDeploymentTargetReasonCode =
@@ -16,7 +17,8 @@ export type ReleaseDeploymentTargetMatchState =
   | "missing"
   | "duplicated"
   | "provider_mismatch"
-  | "ssh_root_invalid";
+  | "ssh_root_invalid"
+  | "ssh_connection_invalid";
 
 type Binding = Parameters<typeof matchReleaseDeploymentTargetBindings>[0][number];
 
@@ -42,6 +44,17 @@ export function resolveReleaseDeploymentTargetReadiness<B extends Binding>(
     expectedProviderKey,
   );
   if (matches.length === 1) {
+    if (
+      expectedProviderKey === "ssh-v1" &&
+      !validSshConnection(matches[0].binding.server)
+    ) {
+      return readiness(
+        expectedProviderKey,
+        bindings.length,
+        "ssh_connection_invalid",
+        "SSH_CONNECTION_INVALID",
+      );
+    }
     return readiness(expectedProviderKey, bindings.length, "ready", "TARGET_READY", {
       binding: matches[0].binding as B,
       root: matches[0].root,
@@ -80,6 +93,19 @@ export function resolveReleaseDeploymentTargetReadiness<B extends Binding>(
     bindings.length,
     expectedProviderKey === "ssh-v1" ? "ssh_root_invalid" : "missing",
     expectedProviderKey === "ssh-v1" ? "SSH_ROOT_INVALID" : "TARGET_MISSING",
+  );
+}
+
+function validSshConnection(server: Binding["server"]) {
+  return (
+    server.status === "online" &&
+    Boolean(server.host?.trim()) &&
+    Number.isInteger(server.port) &&
+    Number(server.port) > 0 &&
+    Number(server.port) <= 65_535 &&
+    Boolean(server.username?.trim()) &&
+    (server.authType === "password" || server.authType === "key") &&
+    Boolean(server.credentials?.trim())
   );
 }
 

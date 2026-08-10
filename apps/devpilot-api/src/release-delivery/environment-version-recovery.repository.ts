@@ -5,6 +5,7 @@ import {
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
+import { assertNoActiveProductionRouteSaga } from "../site/production-route-saga.guard";
 import { loadProductionReleaseContext } from "./release-production-context.repository";
 import { productionPreview } from "./release-production-snapshot.utils";
 import { lockActionableReleaseOrder } from "./release-order-action-boundary";
@@ -94,12 +95,7 @@ export class EnvironmentVersionRecoveryRepository {
           }
           return existing;
         }
-        await lockProductionEnvironmentForRelease(tx, {
-          teamId: input.teamId,
-          projectId: input.projectId,
-          environmentId: input.environmentId,
-        });
-        await assertNoActiveReleaseRunForEnvironment(tx, {
+        await assertRecoveryReservationAvailable(tx, {
           teamId: input.teamId,
           projectId: input.projectId,
           environmentId: input.environmentId,
@@ -121,7 +117,8 @@ export class EnvironmentVersionRecoveryRepository {
             verifiedDigest: snapshot.manifest.digest,
             resourceSnapshot: snapshot.config
               .resourceSnapshot as Prisma.InputJsonValue,
-            routeSnapshot: snapshot.config.routeSnapshot as Prisma.InputJsonValue,
+            routeSnapshot: snapshot.config
+              .routeSnapshot as Prisma.InputJsonValue,
             policySnapshot: {
               releasePolicy: snapshot.releasePolicy,
               environmentPolicyReferences: snapshot.config.policySnapshot,
@@ -177,4 +174,13 @@ export class EnvironmentVersionRecoveryRepository {
       throw error;
     }
   }
+}
+
+export async function assertRecoveryReservationAvailable(
+  tx: Prisma.TransactionClient,
+  scope: { teamId: string; projectId: string; environmentId: string },
+) {
+  await lockProductionEnvironmentForRelease(tx, scope);
+  await assertNoActiveProductionRouteSaga(tx, scope);
+  await assertNoActiveReleaseRunForEnvironment(tx, scope);
 }

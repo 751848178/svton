@@ -39,6 +39,25 @@ describe("evaluateIngressRoute D16", () => {
     expect(check.status).toBe("blocked");
     expect(check.reasonCode).toBe("multiple_route_upstreams");
   });
+
+  it("uses the ReleaseRun frozen route after the current config drifts", () => {
+    const source = context({
+      entries: [entry("drifted.example.com", "api", 8080)],
+    });
+    source.promote!.releaseRun = {
+      id: "release-run-1",
+      routeSnapshot: {
+        entries: [entry("app.example.com", "web", 3000)],
+      },
+    } as never;
+
+    const check = evaluateIngressRoute(source, NOW);
+    expect(check).toMatchObject({
+      status: "checked",
+      reasonCode: "route_and_site_bound",
+      evidenceRef: "release-run:release-run-1#routeSnapshot",
+    });
+  });
 });
 
 function entry(domain: string, component: string, port: number) {

@@ -1,15 +1,19 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
+import Link from 'next/link';
+import { useLocale, useTranslations } from 'next-intl';
 import { Button, StatusTag } from '@/components/ui';
 import type {
   EnvironmentVersionCandidate,
   EnvironmentVersionEnvironment,
 } from '../types/environment-version.types';
 import { EnvironmentVersionSummary } from './environment-version-summary';
+import { environmentVersionTargetReadiness } from './environment-version-target-readiness.model';
+import { settingsEnvironmentTabHref } from '../utils/settings-environment-route';
 
 export function EnvironmentVersionCard(props: {
   environment: EnvironmentVersionEnvironment;
+  projectId: string;
   candidates: EnvironmentVersionCandidate[];
   selectedId: string;
   executing: boolean;
@@ -19,7 +23,13 @@ export function EnvironmentVersionCard(props: {
   onRecovery: (sourceVersionId: string) => unknown;
 }) {
   const t = useTranslations('projects');
+  const locale = useLocale();
   const env = props.environment;
+  const target = environmentVersionTargetReadiness(
+    env.targetReadiness,
+    env.name,
+    locale,
+  );
   const production = env.baselineRole === 'production';
   const current = env.environmentVersions.find(
     (item) => item.id === env.currentEnvironmentVersionId,
@@ -86,7 +96,8 @@ export function EnvironmentVersionCard(props: {
             !props.selectedId ||
             props.executing ||
             currentManifestSelected ||
-            props.productionBlocked
+            props.productionBlocked ||
+            !target.ready
           }
         >
           {t('environmentVersionUpgradeShort')}
@@ -94,7 +105,7 @@ export function EnvironmentVersionCard(props: {
         <Button
           className="min-h-11"
           variant="outline"
-          disabled={props.executing || !previous}
+          disabled={props.executing || !previous || !target.ready}
           onClick={() => (previous ? props.onRecovery(previous.id) : undefined)}
         >
           {t('environmentVersionRollback')}
@@ -103,6 +114,17 @@ export function EnvironmentVersionCard(props: {
       {props.productionBlocked ? (
         <p className="text-xs text-amber-800">
           {t('environmentVersionProductionApprovalRequired')}
+        </p>
+      ) : null}
+      {!target.ready ? (
+        <p className="text-xs text-amber-800" role="status">
+          {target.reason}{' '}
+          <Link
+            className="inline-flex min-h-11 items-center font-medium underline underline-offset-2"
+            href={settingsEnvironmentTabHref(props.projectId, env.key, 'targets')}
+          >
+            {t('environmentVersionRepairTarget')}
+          </Link>
         </p>
       ) : null}
     </article>

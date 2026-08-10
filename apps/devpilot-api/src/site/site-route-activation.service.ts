@@ -7,6 +7,7 @@ import {
   type SiteRouteActivationResolveInput,
   type SiteRouteActivationResolveResult,
 } from "./site-route-activation.types";
+import { resolveFrozenRouteSite } from "./site-route-observation.resolver";
 import { resolveFrozenRoute } from "./site-route-snapshot.policy";
 
 @Injectable()
@@ -19,46 +20,63 @@ export class SiteRouteActivationService implements SiteRouteActivationPort {
     if (!input.routeSnapshot) {
       return unavailable("route_not_frozen", [], [], null);
     }
-    const route = resolveFrozenRoute(input.routeSnapshot);
-    if (route.reasonCode !== "route_ready") {
+    const preliminary = resolveFrozenRoute(input.routeSnapshot);
+    if (preliminary.reasonCode !== "route_ready") {
       return unavailable(
-        route.reasonCode,
-        route.domains,
-        route.entries,
-        route.proxyTarget,
+        preliminary.reasonCode,
+        preliminary.domains,
+        preliminary.entries,
+        preliminary.proxyTarget,
       );
     }
-    const site = await this.prisma.site.findFirst({
+    const sites = await this.prisma.site.findMany({
       where: {
         teamId: input.teamId,
         projectId: input.projectId,
-        environmentId: input.environmentId,
-        primaryDomain: { in: route.domains },
       },
-      select: { id: true, primaryDomain: true, status: true },
-      orderBy: [{ status: "desc" }, { updatedAt: "desc" }],
+      select: {
+        id: true,
+        environmentId: true,
+        primaryDomain: true,
+        aliases: true,
+        status: true,
+        updatedAt: true,
+      },
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
     });
-    if (!site) {
-      const routeSwitch = {
-        version: 1,
-        siteId: null,
-        primaryDomain: null,
-        deploymentRunId: null,
-        releaseRunId: null,
-        targetRef: null,
-        proxyTarget: route.proxyTarget,
-        domains: route.domains,
-        entries: route.entries,
-        status: "unavailable",
-        reasonCode: "site_not_found",
-        switchedAt: null,
-      };
+    const observation = resolveFrozenRouteSite({
+      routeSnapshot: input.routeSnapshot,
+      environmentId: input.environmentId,
+      sites,
+    });
+    const route = observation.route;
+    if (route?.reasonCode === "route_ready" && !observation.site) {
       throw new SiteRouteActivationError({
         code: "SITE_ROUTE_ACTIVATION_FAILED",
-        message: "Production 路由声明了域名，但没有可切换的匹配 Site",
-        evidence: { routeSwitch },
+        message: "Production 路由没有唯一可用的活跃 Site",
+        evidence: {
+          routeSwitch: {
+            version: 1,
+            siteId: null,
+            primaryDomain: null,
+            proxyTarget: route.proxyTarget,
+            domains: route.domains,
+            entries: route.entries,
+            status: "unavailable",
+            reasonCode: observation.reasonCode,
+          },
+        },
       });
     }
+    if (!route || observation.reasonCode !== "site_route_matched") {
+      return unavailable(
+        observation.reasonCode,
+        route?.domains ?? [],
+        route?.entries ?? [],
+        route?.proxyTarget ?? null,
+      );
+    }
+    const site = observation.site!;
     return {
       siteId: site.id,
       primaryDomain: site.primaryDomain,

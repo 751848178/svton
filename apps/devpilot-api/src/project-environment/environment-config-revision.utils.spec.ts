@@ -31,6 +31,7 @@ describe("environment config revision governance", () => {
     expect(normalizeResourceReferences([[{
       kind: "site", id: "site-1", sharedEnvironmentIds: ["env-1"],
       risk: "low", impact: "current environment",
+      componentKey: "web", envBindings: [],
     }]])).toHaveLength(1);
   });
 
@@ -54,6 +55,7 @@ describe("environment config revision governance", () => {
       resourceReferences: [{
         kind: "managed_resource", id: "resource-1",
         sharedEnvironmentIds: ["env-1", "env-2"], risk: "medium", impact: "both",
+        componentKey: "api", envBindings: [],
       }],
     }, { type: "body", metatype: CreateEnvironmentConfigRevisionDto });
     expect(result.resourceReferences?.[0]).toMatchObject({ kind: "managed_resource", id: "resource-1" });
@@ -86,6 +88,7 @@ describe("environment config revision governance", () => {
       resourceReferences: [{
         kind: "managed_resource", id: "resource-1",
         sharedEnvironmentIds: ["env-1", "env-2"], risk: "medium", impact: "Both baselines",
+        componentKey: "api", envBindings: [],
       }],
       routeSnapshot: { domains: ["app.example.com"], tlsRequired: true },
       policyReferenceIds: ["policy-1"],
@@ -118,6 +121,7 @@ describe("environment config revision governance", () => {
       resourceReferences: [{
         kind: "managed_resource", id: "resource-1",
         sharedEnvironmentIds: ["env-1", "env-2"], risk: "low", impact: "shared",
+        componentKey: "api", envBindings: [],
       }],
     }, null)).rejects.toThrow("风险不能为 low");
   });
@@ -156,23 +160,17 @@ describe("normalizeRouteSnapshot per-entry model (F448 AC-SET-042/043/046)", () 
     expect(result.domains).toEqual(["demo.f437.example"]);
   });
 
-  it("derives entries from the legacy domains[] when entries are absent", () => {
+  it("keeps an old write genuinely legacy when entries are absent", () => {
     const result = normalizeRouteSnapshot({
       domains: ["demo.f437.example"],
       proxyTarget: "http://127.0.0.1:23992",
       tlsRequired: true,
     });
-    expect(result.entries).toEqual([
-      { domain: "demo.f437.example", path: "/", serviceId: null, component: "", port: null, tlsMode: "managed_cert" },
-    ]);
-  });
-
-  it("extracts component:port from a legacy component-style proxyTarget", () => {
-    const result = normalizeRouteSnapshot({
-      domains: ["app.example.com"],
-      proxyTarget: "api:8080",
+    expect(result).not.toHaveProperty("entries");
+    expect(result).toMatchObject({
+      domains: ["demo.f437.example"],
+      proxyTarget: "http://127.0.0.1:23992",
     });
-    expect(result.entries[0]).toMatchObject({ component: "api", port: 8080, path: "/" });
   });
 
   it("rejects malformed entries (missing domain / bad port / bad tlsMode / non-array)", () => {

@@ -53,6 +53,60 @@ describe('SettingsEnvEntryModal (F448 AC-SET-043)', () => {
     expect(html).toContain('envRoutesTlsManaged');
     expect(html).toContain('envRoutesTlsExisting');
     expect(html).toContain('envRoutesAddEntryConfirm');
+    expect(html).toContain('value="service-web:4173" selected=""');
+    expect(html).toContain('envRoutesErrorHost');
+    expect(html).toContain('disabled=""');
+  });
+
+  it('hydrates edit mode from the exact existing service target and path', () => {
+    const html = renderToStaticMarkup(
+      <SettingsEnvEntryModal
+        open
+        environmentName="Production"
+        targetOptions={[{ serviceId: 'service-api', component: 'backend', port: 4310 }]}
+        initialEntry={{
+          domain: 'api.example.com',
+          path: '/v1',
+          serviceId: 'service-api',
+          component: 'backend',
+          port: 4310,
+          tlsMode: 'managed_cert',
+        }}
+        onClose={() => undefined}
+        onConfirm={() => undefined}
+      />,
+    );
+
+    expect(html).toContain('envRoutesEditEntryTitle');
+    expect(html).toContain('envRoutesSaveEntry');
+    expect(html).toContain('value="api.example.com"');
+    expect(html).toContain('value="/v1"');
+    expect(html).toContain('value="service-api:4310" selected=""');
+  });
+
+  it('shows an explicit conflict and disables save for a duplicate host and path', () => {
+    const initialEntry = {
+      domain: 'api.example.com',
+      path: '/v1',
+      serviceId: 'service-api',
+      component: 'backend',
+      port: 4310,
+      tlsMode: 'managed_cert' as const,
+    };
+    const html = renderToStaticMarkup(
+      <SettingsEnvEntryModal
+        open
+        environmentName="Production"
+        targetOptions={[{ serviceId: 'service-api', component: 'backend', port: 4310 }]}
+        initialEntry={initialEntry}
+        existingEntries={[{ ...initialEntry }]}
+        onClose={() => undefined}
+        onConfirm={() => undefined}
+      />,
+    );
+
+    expect(html).toContain('envRoutesErrorConflict');
+    expect(html).toContain('disabled=""');
   });
 
   it('renders nothing when closed', () => {

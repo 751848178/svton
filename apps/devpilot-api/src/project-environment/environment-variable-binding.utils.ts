@@ -30,13 +30,14 @@ export function secretTargetEnvKey(secret: Pick<SafeSecretReference, "name" | "t
 }
 
 export function resourceVariableOwners(
-  reference: Pick<ResourceReferenceInput, "id" | "kind" | "envBindings">,
+  reference: Pick<ResourceReferenceInput, "id" | "kind" | "componentKey" | "envBindings">,
   sourceKeys: string[],
 ): EnvironmentVariableOwner[] {
   return effectiveResourceBindings(reference, sourceKeys).map((binding) => ({
     key: binding.targetEnvKey,
     source: "resource",
     reference: `${reference.kind}:${reference.id}:${binding.sourceKey}`,
+    scope: reference.componentKey ?? "unassigned",
   }));
 }
 

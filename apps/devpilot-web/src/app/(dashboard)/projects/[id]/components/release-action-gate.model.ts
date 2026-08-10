@@ -55,6 +55,7 @@ function targetReason(
     TARGET_DUPLICATED: ['Staging 存在重复的部署目标绑定', 'Staging has duplicate deployment targets'],
     PROVIDER_MISMATCH: ['部署目标与当前 Provider 不匹配', 'Deployment target does not match the current Provider'],
     SSH_ROOT_INVALID: ['SSH 部署根目录缺失或不安全', 'SSH deployment root is missing or unsafe'],
+    SSH_CONNECTION_INVALID: ['SSH 服务器未在线或连接信息无效', 'SSH server is offline or its connection settings are invalid'],
   } as const;
   return locale.startsWith('zh') ? reasons[code][0] : reasons[code][1];
 }

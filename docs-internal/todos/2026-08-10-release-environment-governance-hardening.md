@@ -71,15 +71,56 @@ Purpose: 通过独立复核和真实行为证据关闭回归风险。
 
 | ID | Status | Atomic TODO | Context Boundary | Evidence |
 |----|--------|-------------|------------------|----------|
-| F669.1 | pending | 独立 CR 审查公共契约、状态机、安全与回归。 | 只读 diff + affected tests。 | P0-P3 finding ledger |
-| F669.2 | pending | 架构师综合调研/CR 并裁决最终边界。 | 跨层依赖、单一职责、文件 <= 200 行。 | architecture verdict |
-| F669.3 | pending | 运行 focused/full risk-matched 检查和真实 Browser/E2E。 | 隔离日志，不触碰共享生产栈。 | commands/logs/screenshots |
-| F669.4 | pending | 同步 TODO/progress/acceptance，提交并推送。 | 仅本任务路径和明确保留的既有改动。 | commit/push evidence |
+| F669.1 | completed | 独立 CR 审查公共契约、状态机、安全与回归。 | 只读 diff + affected tests。 | 多轮 P0-P3 ledger；最终限定范围 GO |
+| F669.2 | completed | 架构师综合调研/CR 并裁决最终边界。 | 跨层依赖、单一职责、文件 <= 200 行。 | Saga、幂等、组件隔离和就绪度综合裁决 |
+| F669.3 | completed | 运行 focused/full risk-matched 检查和真实 Browser/E2E。 | 隔离日志，不触碰共享生产栈。 | API 314/1903、Web 107/479；`f665-browser-final/01-07` |
+| F669.4 | completed | 同步 TODO/architecture，提交并推送。 | 仅本任务路径和明确保留的既有改动。 | `codex/f665-release-environment-governance` + Draft PR #2 |
+
+### F670. 动作真实性与冻结输入
+
+Purpose: 环境版本动作必须具备动作级幂等、先冻结后门禁、且终态门禁只读取 ReleaseRun 冻结事实。
+
+| ID | Status | Atomic TODO | Context Boundary | Evidence |
+|----|--------|-------------|------------------|----------|
+| F670.1 | completed | 为部署/回退 DTO、Web action 与 DeploymentRun reservation 增加动作级幂等键和输入漂移冲突。 | EnvironmentVersion action only。 | reservation focused specs |
+| F670.2 | completed | 将 prepare/freeze 前置，并把 Provider、bindingId、inputHash 写入 gate target/action context。 | EnvironmentVersion execution/gates。 | execution focused specs + API type-check |
+| F670.3 | completed | D14/D15/D16、activation 与 final promote 统一解析 ReleaseRun 冻结 route/config 和唯一 active Site。 | Frozen route/site resolution。 | `f672-frozen-site-final-20260810.log` |
+
+### F671. 组件级运行环境隔离
+
+Purpose: 资源变量只能注入其声明组件，plain/Secret 保持全局，并保证运行文件与证据无明文泄露。
+
+| ID | Status | Atomic TODO | Context Boundary | Evidence |
+|----|--------|-------------|------------------|----------|
+| F671.1 | completed | 输入契约拆分 globalEnvironment 与 componentEnvironments，资源绑定必须提供真实 componentKey。 | Deployment input preparation/snapshot。 | 5 suites / 37 tests |
+| F671.2 | completed | workload/local/SSH 为每个组件生成独立 0600 环境文件。 | Provider adapters/workload runtime。 | workload/local/SSH focused specs（5 suites / 37 tests） |
+| F671.3 | completed | 快照只记录 componentKey、envBindings、key/hash，不记录变量或凭据值。 | Persisted deployment evidence。 | snapshot/no-plaintext assertions |
+
+### F672. 就绪度与路由编辑真实性
+
+Purpose: 每个发布基线环境返回自己的目标就绪度；路由编辑只使用真实组件目标并提供完整草稿操作。
+
+| ID | Status | Atomic TODO | Context Boundary | Evidence |
+|----|--------|-------------|------------------|----------|
+| F672.1 | completed | 目标 readiness 纳入唯一绑定、Provider、SSH root、server online 与连接字段，形成六态。 | API readiness/read model。 | 2 suites / 28 tests + API type-check |
+| F672.2 | completed | EnvironmentVersion 未 ready 时禁用部署/回退并链接精确环境 Targets。 | EnvironmentVersion Web。 | 2 files / 23 tests + Web type-check |
+| F672.3 | completed | 路由编辑器使用真实目标默认值、domain+path identity、编辑/删除、完整校验、draft/current 与 44px 触控动作。 | Routes settings Web。 | 4 files focused tests + Web type-check |
+
+### F673. Production 路由切换事务与恢复
+
+Purpose: Production 切流必须可观测、可补偿、可恢复，并在路由状态未知时阻断新的生产动作。
+
+| ID | Status | Atomic TODO | Context Boundary | Evidence |
+|----|--------|-------------|------------------|----------|
+| F673.1 | completed | 将切流建模为 prepare/apply/probe/final-gate/commit-or-compensate 的持久化 Saga。 | Site route switch + EnvironmentVersion finalization。 | switch/probe/gate/completion failure focused specs |
+| F673.2 | completed | Provider 先握手并 observe 当前路由，apply/compensate 均使用 expectedCurrent CAS。 | Configured HTTP route Provider。 | HTTP 409 fail-close + provider drift specs |
+| F673.3 | completed | 标准上线、恢复、门禁、执行和 reservation 共用非终态 Saga guard 与环境行锁。 | Production command boundaries。 | confirm/recovery/no-side-effect specs |
+| F673.4 | completed | 周期恢复使用 lease、退避、次数上限和带完整责任上下文的精确 CAS 告警。 | Recovery worker/repository。 | 2 suites / 8 tests + API type-check |
 
 ## Verification Plan
 
 - API/Web focused unit and integration tests for every changed policy/presenter/action path.
-- API/Web type-check, production build, i18n parity and `git diff --check`, with noisy output stored under `/tmp/codex-tool-runs/svton/f665-f669/`.
+- API/Web type-check, production build, i18n parity and `git diff --check`, with noisy output stored under `/tmp/codex-tool-runs/svton/`.
 - Current-run Browser evidence for project settings, gate detail, Build/Staging blocked states, Environment Versions deploy/recovery layout at 1484x1324, 1280x800 and 390x844.
 - Negative E2E must prove a missing/mismatched deployment target and a required failed/unavailable gate create no downstream BuildRun/DeploymentRun/EnvironmentVersion.
 
@@ -89,3 +130,6 @@ Purpose: 通过独立复核和真实行为证据关闭回归风险。
 - 2026-08-10 20:20: Renumbered the plan to globally unique F665-F669 after checking the current OpenCode acceptance ledger through F664.
 - 2026-08-10 21:10: Completed three independent read-only audits, current-stack browser reproduction, five architecture maps and the source-backed root-cause matrix. Confirmed P0 EnvironmentVersion Staging global-target bypass and global gate deferrals.
 - 2026-08-10 21:53: Completed implementation slices for fail-closed delivery, target readiness, canonical baselines, resource/Secret variable ownership, safe repository requirement suggestions, real service-port routes, structured route activation, phase-accurate preflight and EnvironmentVersion action UX. Full API tests (306 suites/1861 tests) and full Web tests (104 files/461 tests) passed; API/Web builds and i18n parity passed.
+- 2026-08-10 23:10: Registered F670-F672 after Draft PR architecture review. Completed action idempotency/frozen truth, component-scoped 0600 environment injection, six-state per-environment readiness, EnvironmentVersion repair links and the real-target route editor. This follow-up has focused tests and API/Web type-check evidence; full-suite/browser rerun remains F669.3.
+- 2026-08-11 00:35: Closed all adversarial P0-P2 findings, including actor-bound early idempotent replay, truthful legacy resource repair, all-owner Site resolution and the durable Production route-switch Saga with Provider CAS, compensation, periodic recovery and guarded follow-up actions. Final review verdict is GO.
+- 2026-08-11 00:40: Final verification passed: API 314 suites / 1903 tests, Web 107 files / 479 tests, API/Web type-check and build, i18n parity and diff-check. Current-source Browser evidence at desktop and 390px confirms fail-closed preflight, per-environment target readiness, baseline/custom grouping, component resource mapping, real service ports and the EnvironmentVersion toolbar.

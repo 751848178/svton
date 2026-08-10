@@ -159,6 +159,28 @@ describe("ReleaseGateIngressCapabilityProvider D14/D15 honesty", () => {
     expect(check.reasonCode).toBe("tls_certificate_invalid");
   });
 
+  it("blocks DNS and TLS when two active Sites own the frozen domain", () => {
+    const duplicate = context({
+      dns: {
+        status: "resolved",
+        checkedAt: NOW.toISOString(),
+      },
+    });
+    duplicate.promote!.sites.push({
+      ...duplicate.promote!.sites[0],
+      id: "site-duplicate",
+    });
+
+    expect(provider.evaluate(d14, duplicate, NOW)).toMatchObject({
+      status: "blocked",
+      reasonCode: "multiple_route_sites",
+    });
+    expect(provider.evaluate(d15, duplicate, NOW)).toMatchObject({
+      status: "blocked",
+      reasonCode: "multiple_route_sites",
+    });
+  });
+
   it("returns unavailable (not a pass) when the real TLS probe could not be performed", () => {
     const check = provider.evaluate(
       d15,

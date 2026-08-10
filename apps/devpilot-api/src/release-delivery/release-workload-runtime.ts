@@ -16,37 +16,47 @@ import {
 } from "./release-workload-cleanup-runtime";
 import { sanitizeReleaseWorkloadLogs } from "./release-workload-log-sanitizer";
 import { assertSafeReleaseWorkloadEnvironment } from "./release-workload-environment-policy";
+import {
+  type ReleaseComponentEnvironments,
+  releaseEnvironmentSecrets,
+  releaseWorkloadEnvironment,
+  releaseWorkloadPaths,
+} from "./release-component-environment";
 
 export { cleanupReleaseWorkloads } from "./release-workload-cleanup-runtime";
 
-interface RuntimeInput {
+interface RuntimeInput extends ReleaseComponentEnvironments {
   snapshot: ReleaseStagingWorkloadSnapshot;
   releaseRoot: string;
-  runtimePath: string;
-  runtimeEnvironment: Record<string, string>;
   execute: ReleaseWorkloadCommandExecutor;
 }
 
 export async function runReleaseWorkloads(input: RuntimeInput) {
-  assertSafeReleaseWorkloadEnvironment(input.runtimeEnvironment);
+  const secrets = releaseEnvironmentSecrets(input);
   const ready: Array<Record<string, unknown>> = [];
   const started: ReleaseStagingWorkload[] = [];
   const logs: string[] = [];
+  for (const service of input.snapshot.services) {
+    assertSafeReleaseWorkloadEnvironment(
+      releaseWorkloadEnvironment(input, service),
+    );
+  }
   try {
     for (const service of input.snapshot.services) {
+      const paths = releaseWorkloadPaths(input, service);
       started.push(service);
       await requireCommand(
         input,
         service,
         "WORKLOAD_START_FAILED",
-        buildReleaseWorkloadStartScript(service, input),
+        buildReleaseWorkloadStartScript(service, paths),
         service.startTimeoutMs,
       );
       await requireCommand(
         input,
         service,
         "WORKLOAD_STATUS_FAILED",
-        buildReleaseWorkloadStatusScript(service, input),
+        buildReleaseWorkloadStatusScript(service, paths),
         service.statusTimeoutMs,
       );
       const health = service.health
@@ -110,7 +120,7 @@ export async function runReleaseWorkloads(input: RuntimeInput) {
     (item) => item.health,
   ).length;
   return {
-    logs: sanitizeReleaseWorkloadLogs(logs, input.runtimeEnvironment),
+    logs: sanitizeReleaseWorkloadLogs(logs, secrets),
     evidence: {
       workloadReady: {
         status: "passed",
@@ -159,7 +169,7 @@ function failure(
   return new ReleaseDeploymentProviderError({
     code,
     message: messageText,
-    logs: sanitizeReleaseWorkloadLogs(logs, input.runtimeEnvironment),
+    logs: sanitizeReleaseWorkloadLogs(logs, releaseEnvironmentSecrets(input)),
     ...(workloadCleanupAttempted ? { workloadCleanupAttempted: true } : {}),
   });
 }

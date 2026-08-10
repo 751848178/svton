@@ -42,6 +42,7 @@ export function createSiteRouteSwitchInput(input: {
     proxyTarget: input.activation.proxyTarget,
     targetRef: input.targetRef,
     routeHash,
+    expectedCurrent: null,
   };
 }
 
@@ -58,7 +59,11 @@ export function siteRouteSwitchEvidence(
   return {
     ...input,
     providerKey: receipt.providerKey,
-    status: validation.accepted ? "switched" : receipt.status === "unavailable" ? "unavailable" : "failed",
+    status: validation.accepted
+      ? "switched"
+      : receipt.status === "unavailable"
+        ? "unavailable"
+        : "failed",
     reasonCode: validation.reasonCode,
     switchedAt: validation.accepted ? receipt.observedAt : null,
     receipt,

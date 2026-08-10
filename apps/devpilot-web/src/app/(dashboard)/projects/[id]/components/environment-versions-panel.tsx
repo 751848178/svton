@@ -50,6 +50,7 @@ export function EnvironmentVersionsPanel({ projectId }: { projectId: string }) {
         />
       ) : null}
       <EnvironmentVersionsGrid
+        projectId={projectId}
         environments={versions.environments}
         candidates={versions.candidates}
         executing={versions.executing}

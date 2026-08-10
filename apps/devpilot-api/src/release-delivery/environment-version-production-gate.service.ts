@@ -12,16 +12,23 @@ import {
   type EnvironmentVersionGateContext,
   finalEnvironmentVersionDecision,
 } from "./environment-version-gate-admission";
+import { ProductionRouteSagaGuard } from "../site/production-route-saga.guard";
 
 @Injectable()
 export class EnvironmentVersionProductionGateService {
-  constructor(private readonly gates: ReleaseGateDecisionService) {}
+  constructor(
+    private readonly gates: ReleaseGateDecisionService,
+    private readonly routeSagaGuard: ProductionRouteSagaGuard,
+  ) {}
 
-  admit(
+  async admit(
     context: EnvironmentVersionGateContext,
     stage: "staging" | "production" = "production",
   ) {
-    if (stage === "production" && !context.releaseRunId) return undefined;
+    if (stage === "production") {
+      await this.routeSagaGuard.assertClear(context);
+      if (!context.releaseRunId) return undefined;
+    }
     return admitEnvironmentVersion(this.gates, context, stage);
   }
 

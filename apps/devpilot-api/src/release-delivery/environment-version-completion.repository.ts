@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
-import { SiteRouteSwitchEvidenceRepository } from "../site/site-route-switch-evidence.repository";
+import { SiteRouteSwitchSagaRepository } from "../site/site-route-switch-saga.repository";
 import type { SiteRouteSwitchAttemptPersistence } from "../site/site-route-switch.types";
 import { completeVersionedDeployment } from "./environment-version-write.utils";
 import { claimReleaseGateDecision } from "./release-gate-decision.repository";
@@ -10,7 +10,7 @@ import type { ReleaseGateDecisionReference } from "./release-gate-decision.types
 export class EnvironmentVersionCompletionRepository {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly routeEvidence: SiteRouteSwitchEvidenceRepository,
+    private readonly routeSaga: SiteRouteSwitchSagaRepository,
   ) {}
 
   complete(
@@ -21,14 +21,20 @@ export class EnvironmentVersionCompletionRepository {
       actorId: string;
       gateDecision?: ReleaseGateDecisionReference;
       routeSwitchAttempt?: SiteRouteSwitchAttemptPersistence;
+      routeSwitchOperationId?: string;
     },
   ) {
     return this.prisma.$transaction(async (tx) => {
       const completion = await completeVersionedDeployment(
         tx,
         input,
-        input.routeSwitchAttempt
-          ? (client) => this.routeEvidence.persist(client, input.routeSwitchAttempt!)
+        input.routeSwitchAttempt && input.routeSwitchOperationId
+          ? (client) =>
+              this.routeSaga.commit(
+                client,
+                input.routeSwitchOperationId!,
+                input.routeSwitchAttempt!,
+              )
           : undefined,
       );
       const run = await tx.deploymentRun.findUniqueOrThrow({

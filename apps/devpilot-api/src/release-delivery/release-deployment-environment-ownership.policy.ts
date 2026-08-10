@@ -16,6 +16,9 @@ export function assertReleaseDeploymentEnvironmentOwnership(
 ) {
   const owners: EnvironmentVariableOwner[] = [];
   for (const resource of state.resources) {
+    if (!resource.componentKey) {
+      throw new ConflictException(`资源 ${resource.id} 未绑定真实工作负载组件`);
+    }
     const sourceKeys = environmentKeysFromTemplate(resource.runtime?.envTemplate);
     const unknown = resource.envBindings?.find((binding) =>
       !sourceKeys.includes(binding.sourceKey));
@@ -27,12 +30,12 @@ export function assertReleaseDeploymentEnvironmentOwnership(
     owners.push(...resourceVariableOwners(resource, sourceKeys));
   }
   owners.push(...plainVariableKeys(state.revision.plainVariables).map((key) => ({
-    key, source: "plain" as const, reference: key,
+    key, source: "plain" as const, reference: key, scope: "global",
   })));
   owners.push(...state.secrets.map((secret) => ({
     key: secretTargetEnvKey(secret),
     source: "secret" as const,
-    reference: secret.id,
+    reference: secret.id, scope: "global",
   })));
   const collision = findEnvironmentVariableCollisions(owners)[0];
   if (collision) {

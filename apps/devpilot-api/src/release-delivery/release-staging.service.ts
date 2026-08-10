@@ -147,7 +147,8 @@ export class ReleaseStagingService {
         uri: item.uri,
         digest: manifest.digest,
         deploymentInput: deploymentInput.snapshot,
-        runtimeEnvironment: deploymentInput.runtimeEnvironment,
+        globalEnvironment: deploymentInput.globalEnvironment,
+        componentEnvironments: deploymentInput.componentEnvironments,
         targetConnection: deploymentInput.targetConnection,
         workload,
       });

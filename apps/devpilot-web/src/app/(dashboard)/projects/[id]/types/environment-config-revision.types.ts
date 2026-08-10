@@ -7,6 +7,7 @@ export type EnvironmentConfigResourceReference = {
   impact: string;
   componentKey?: string;
   envBindings?: Array<{ sourceKey: string; targetEnvKey: string }>;
+  bindingStatus?: 'configured' | 'needs_configuration';
 };
 
 export type EnvironmentConfigSecretReference = {

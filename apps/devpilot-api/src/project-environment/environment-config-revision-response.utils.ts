@@ -44,6 +44,11 @@ function normalizeResourceReferences(value: unknown, environmentId: string) {
         ? reference.risk
         : "medium",
       impact: typeof reference.impact === "string" ? reference.impact : "",
+      bindingStatus:
+        typeof reference.componentKey === "string" &&
+        Array.isArray(reference.envBindings)
+          ? "configured"
+          : "needs_configuration",
     };
   });
 }

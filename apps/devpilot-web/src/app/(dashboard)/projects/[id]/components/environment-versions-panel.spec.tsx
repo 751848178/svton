@@ -29,6 +29,7 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 vi.mock('next-intl', () => ({
+  useLocale: () => 'zh-CN',
   useTranslations: () => (key: string, values?: Record<string, unknown>) =>
     values ? `${key}:${JSON.stringify(values)}` : key,
 }));
@@ -306,6 +307,28 @@ describe('EnvironmentVersionsPanel Demo-aligned read model', () => {
     expect(upgrade.disabled).toBe(true);
   });
 
+  it('disables deploy and rollback and links to the exact environment target settings', async () => {
+    mocks.versions.environments[0].targetReadiness = {
+      ...mocks.versions.environments[0].targetReadiness,
+      matchState: 'missing',
+      reasonCode: 'TARGET_MISSING',
+      remediation: 'environment_targets',
+    };
+    await renderPanel();
+    const stagingCard = container.querySelectorAll('article')[0];
+    const actions = [...stagingCard.querySelectorAll('button')];
+
+    expect(
+      actions.find((button) => button.textContent === 'environmentVersionUpgradeShort')?.disabled,
+    ).toBe(true);
+    expect(
+      actions.find((button) => button.textContent === 'environmentVersionRollback')?.disabled,
+    ).toBe(true);
+    expect(
+      stagingCard.querySelector('a')?.getAttribute('href'),
+    ).toBe('/projects/project-1/settings?section=environments&envTab=targets&env=staging');
+  });
+
   it('requires confirmation before upgrading to another manifest', async () => {
     mocks.execute.mockResolvedValue({ environmentVersion: { id: 'version-new' } });
     await renderPanel();
@@ -453,6 +476,16 @@ function environments(): EnvironmentVersionEnvironment[] {
       name: role,
       baselineRole: role,
       currentEnvironmentVersionId: current.id,
+      targetReadiness: {
+        environmentId: `environment-${role}`,
+        environmentKey: role,
+        expectedProviderKey: 'ssh-v1',
+        bindingCount: 1,
+        matchState: 'ready',
+        reasonCode: 'TARGET_READY',
+        remediation: null,
+        currentTarget: null,
+      },
       environmentVersions: [current, history],
     };
   });

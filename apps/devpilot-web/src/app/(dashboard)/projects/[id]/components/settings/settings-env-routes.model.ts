@@ -15,11 +15,6 @@ import type {
 import type { DeploymentRun } from '../../types/operations';
 import type { SettingsRouteEntryDraft } from './settings-env.model';
 
-export const ROUTE_TARGET_OPTIONS: ReadonlyArray<{ component: string; port: number }> = [
-  { component: 'web', port: 3000 },
-  { component: 'api', port: 8080 },
-];
-
 export const ROUTE_TLS_MODES = ['managed_cert', 'existing_cert_asset'] as const;
 export type RouteTlsMode = (typeof ROUTE_TLS_MODES)[number];
 
