@@ -12,7 +12,10 @@ assert.ok(start >= 0, `${stepName}: missing step`);
 const next = source.indexOf('step("', start + 1);
 const region = source.slice(start, next < 0 ? source.length : next);
 
-assert.match(region, /select:\s*\{ id: true, status: true, error: true \}/);
+assert.match(
+  region,
+  /select:\s*\{ id: true, status: true, error: true, logs: true, result: true \}/,
+);
 assert.match(
   region,
   /select:\s*\{ status: true, errorCode: true, errorMessage: true \}/,
@@ -20,6 +23,8 @@ assert.match(
 for (const field of [
   "winnerMessage",
   "deploymentRunError",
+  "deploymentRunLogs",
+  "deploymentRunResult",
   "releaseRunErrorCode",
   "releaseRunErrorMessage",
 ]) {

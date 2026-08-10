@@ -899,7 +899,7 @@ async function main() {
     ]);
     const deploys = await prisma.deploymentRun.findMany({
       where: { releaseRunId: concurrentRunId },
-      select: { id: true, status: true, error: true },
+      select: { id: true, status: true, error: true, logs: true, result: true },
     });
     const run = await prisma.releaseRun.findUnique({
       where: { id: concurrentRunId },
@@ -927,6 +927,8 @@ async function main() {
       deploymentRunId: winnerRunId,
       deploymentRunStatus: deploys[0]?.status,
       deploymentRunError: deploys[0]?.error,
+      deploymentRunLogs: deploys[0]?.logs,
+      deploymentRunResult: deploys[0]?.result,
       releaseRunStatus: run?.status,
       releaseRunErrorCode: run?.errorCode,
       releaseRunErrorMessage: run?.errorMessage,
