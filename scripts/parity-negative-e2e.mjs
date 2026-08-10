@@ -899,13 +899,14 @@ async function main() {
     ]);
     const deploys = await prisma.deploymentRun.findMany({
       where: { releaseRunId: concurrentRunId },
-      select: { id: true, status: true },
+      select: { id: true, status: true, error: true },
     });
     const run = await prisma.releaseRun.findUnique({
       where: { id: concurrentRunId },
-      select: { status: true },
+      select: { status: true, errorCode: true, errorMessage: true },
     });
-    const winnerBody = (first.status < 300 ? first : second).body;
+    const winner = first.status < 300 ? first : second;
+    const winnerBody = winner.body;
     const winnerRunId =
       winnerBody?.run?.id ?? winnerBody?.deploymentRunId ?? winnerBody?.id;
     const loser = first.status < 300 ? second : first;
@@ -919,12 +920,16 @@ async function main() {
       ok,
       firstStatus: first.status,
       secondStatus: second.status,
+      winnerMessage: winner.message,
       loserMessage: loser.message,
       loserStatus: loser.status,
       deploymentRunCount: deploys.length,
       deploymentRunId: winnerRunId,
       deploymentRunStatus: deploys[0]?.status,
+      deploymentRunError: deploys[0]?.error,
       releaseRunStatus: run?.status,
+      releaseRunErrorCode: run?.errorCode,
+      releaseRunErrorMessage: run?.errorMessage,
       approvalConsumed:
         (
           await prisma.operationApproval.findUnique({
