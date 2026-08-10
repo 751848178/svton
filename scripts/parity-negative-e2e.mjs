@@ -1138,10 +1138,11 @@ async function main() {
         changeSummary: "F457 negative e2e: production probe-failure route (R4)",
       },
     );
-    r4ProductionId = r4.id;
+    const created = requireConfigRevisionCreateResponse(r4);
+    r4ProductionId = created.id;
     return {
-      r4RevisionId: r4.id,
-      revision: r4.revision,
+      r4RevisionId: created.id,
+      revision: created.revision,
       proxyTarget:
         "http://parity-target-workload/parity-negative-probe-missing-457",
       nowCurrent:
@@ -1150,7 +1151,7 @@ async function main() {
             where: { id: productionEnvId },
             select: { currentConfigRevisionId: true },
           })
-        ).currentConfigRevisionId === r4.id,
+        ).currentConfigRevisionId === created.id,
     };
   });
   let probeRunId;
