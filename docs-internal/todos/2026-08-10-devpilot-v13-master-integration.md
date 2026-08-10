@@ -20,8 +20,8 @@
 - [x] M2 Preview and map all merge conflicts, including affected source/test relationships. `completed`
 - [x] M3 Merge the V13 branch into master and resolve each conflict semantically. `completed`
 - [x] M4 Restore and integrate the local Dockerfile fix without regressing V13 image provenance. `completed`
-- [ ] M5 Run conflict-focused checks plus API/Web/type/lint/parity and Docker build/runtime checks. `in_progress`
-- [ ] M6 Commit and push master, then close the existing PR without merge. `pending`
+- [x] M5 Run conflict-focused checks plus API/Web/type/lint/parity and Docker build/runtime checks. `completed`
+- [ ] M6 Commit and push master, then close the existing PR without merge. `in_progress`
 - [ ] M7 Remove clean V13 worktrees and verified redundant local/remote branches; recheck repository state. `pending`
 
 ## Acceptance
@@ -33,3 +33,21 @@
 - PR #1 is closed and not used to perform the merge.
 - V13-specific worktrees and redundant branches are removed only after ancestry or accepted patch-equivalence is proven.
 - `.codex/config.toml`, `check2.mjs`, Pi worktrees, and unrelated resources are unchanged.
+
+## Validation Evidence
+
+- Merge source: `codex/devpilot-project-delivery-v13@d640e7d3`; validated merge commit:
+  `master@80f5c1ed`.
+- API full test: 300 passed suites, 1831 passed tests, with repository-configured
+  integration skips unchanged.
+- Web full test: 99 passed files, 443 passed tests.
+- API/Web builds, explicit type checks, API/Web lint, and 93 parity self-tests passed.
+- `docker-compose.devpilot-app.yml` and `docker-compose.devpilot-parity.yml`
+  both render successfully.
+- The local Devpilot images rebuilt from the merged tree; API health returned
+  200 and `/projects` followed the expected authentication redirect to a 200
+  login page with no runtime error log matches.
+- Isolated C5 `c5-80f5c1ed-69a808ddb62093207c7e7ac9ccb871ab` passed the full
+  history/release chain and route audit (`verified`), then destroyed with
+  `verified_zero_residuals` across containers, networks, volumes, and images.
+- Protected user files were restored with their original SHA-256 hashes.
