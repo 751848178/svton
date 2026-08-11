@@ -89,7 +89,7 @@ RUN set -eux; \
     tar -xzf /tmp/trivy-db.tar.gz -C /out/trivy-cache/db; \
     grep -F '2026-08-11T01:05:09.651160722Z' /out/trivy-cache/db/metadata.json
 RUN set -eux; \
-    echo "cd087178050a0abf3664375e5c9a7f4bbc0810c59fa53771d44fd6467662c648  /tmp/semgrep-rule-manifest.txt" | sha256sum -c -; \
+    echo "50f2b21179f82f6c7248122df5a141974c14c3657965cfe9d7465eb0841179ae  /tmp/semgrep-rule-manifest.txt" | sha256sum -c -; \
     curl -fsSL "https://codeload.github.com/semgrep/semgrep-rules/tar.gz/40b8c63f75dc7c22c8a77482d73bfb864b146f7e" -o /tmp/semgrep-rules.tar.gz; \
     echo "b7e483abf001c405a3e908251ff66cb198a26702aff5fe4c5f0c4b2fffec4919  /tmp/semgrep-rules.tar.gz" | sha256sum -c -; \
     mkdir -p /tmp/semgrep-rules /out/semgrep-rules-manifest /out/licenses/semgrep-rules; \
@@ -110,8 +110,8 @@ RUN set -eux; \
     (cd /out/semgrep-rules-manifest && find . -type f -print | LC_ALL=C sort | \
       while read -r rule_file; do sha256sum "$rule_file"; done) \
       > /tmp/semgrep-selected-files.sha256; \
-    test "$(wc -l < /tmp/semgrep-selected-files.sha256)" = '2075'; \
-    echo '67ebc323d193c658fa86ff175823e4aceee40bd822d5b34f1c1928cf8780a678  /tmp/semgrep-selected-files.sha256' | sha256sum -c -; \
+    test "$(wc -l < /tmp/semgrep-selected-files.sha256)" = '2050'; \
+    echo 'fd7c589911672528ba190da81f9d0777343bb5c2c8678e8810268afa5d97aca3  /tmp/semgrep-selected-files.sha256' | sha256sum -c -; \
     cp /tmp/semgrep-rules/LICENSE /out/licenses/semgrep-rules/LICENSE; \
     test ! -e /out/semgrep-rules-manifest/.pre-commit-config.yaml
 
@@ -123,12 +123,13 @@ COPY --from=acceptance-tools /out/licenses/ /opt/devpilot/security/licenses/
 COPY --from=acceptance-tools /out/semgrep-rules-manifest/ /opt/devpilot/security/semgrep-rules-manifest/
 COPY --from=acceptance-tools /out/trivy-cache/ /opt/devpilot/security/trivy-cache/
 COPY apps/devpilot-api/security/semgrep-rule-manifest.txt /opt/devpilot/security/semgrep-rule-manifest.txt
+COPY apps/devpilot-api/security/dependency-public-fixture/ /tmp/dependency-public-fixture/
 ENV SEMGREP_SEND_METRICS=off
 ENV SEMGREP_ENABLE_VERSION_CHECK=0
 LABEL io.svton.devpilot.acceptance-profile="controlled-local-acceptance-v2" \
       io.svton.devpilot.pnpm-package="sha512:279278f83be782f6faaefbacbccc503301c4ec2cdafd40983e7c26aeeee7c38270f5c8e635b43464691b897abe1675b40c06df6edadde922532b7368aa9a5267" \
       io.svton.devpilot.semgrep-rules="40b8c63f75dc7c22c8a77482d73bfb864b146f7e" \
-      io.svton.devpilot.semgrep-rule-manifest="sha256:cd087178050a0abf3664375e5c9a7f4bbc0810c59fa53771d44fd6467662c648" \
+      io.svton.devpilot.semgrep-rule-manifest="sha256:50f2b21179f82f6c7248122df5a141974c14c3657965cfe9d7465eb0841179ae" \
       io.svton.devpilot.trivy-db="sha256:e5c54b277db94d2973c2d4fdf68c94be8729a3d5fc2e48e7da04b6dacdf0bb71"
 RUN gitleaks version | grep -F "8.30.1" \
  && semgrep --version | grep -F "1.172.0" \
@@ -143,18 +144,24 @@ RUN gitleaks version | grep -F "8.30.1" \
       python -c "import json; value=json.load(open('/tmp/semgrep-manifest-proof.json')); assert not value.get('errors')" \
         || exit 1; \
     done
-RUN mkdir -p /home /tmp/pnpm-offline-proof \
- && printf '{"name":"offline-proof","version":"1.0.0","private":true}\n' \
-      > /tmp/pnpm-offline-proof/package.json \
- && printf "lockfileVersion: '6.0'\nsettings:\n  autoInstallPeers: true\n  excludeLinksFromLockfile: false\nimporters:\n  .: {}\n" \
-      > /tmp/pnpm-offline-proof/pnpm-lock.yaml \
+RUN "$PNPM_EXECUTABLE" fetch --frozen-lockfile --ignore-scripts \
+      --store-dir=/tmp/dependency-public-store \
+      --config.registry=https://registry.npmjs.org \
+      --dir=/tmp/dependency-public-fixture \
+ && chmod -R a-w /tmp/dependency-public-store \
+ && mkdir -p /home /tmp/pnpm-offline-proof \
+ && cp -R /tmp/dependency-public-fixture/. /tmp/pnpm-offline-proof/ \
+ && cp -R /tmp/dependency-public-store /tmp/pnpm-offline-proof/store \
  && chown -R 3000:3000 /home /tmp/pnpm-offline-proof
 USER 3000:3000
 ENV HOME=/home
 RUN --network=none test "$("$PNPM_EXECUTABLE" --version)" = '8.12.0' \
  && "$PNPM_EXECUTABLE" install --offline --frozen-lockfile \
+      --ignore-scripts \
       --store-dir=/tmp/pnpm-offline-proof/store \
-      --dir=/tmp/pnpm-offline-proof
+      --dir=/tmp/pnpm-offline-proof \
+ && test -f /tmp/pnpm-offline-proof/node_modules/is-number/package.json \
+ && test ! -e /tmp/pnpm-offline-proof/preinstall-ran
 USER root
 RUN node -e "const fs=require('node:fs'); const p=require('./dist/release-delivery/release-build-acceptance-profile'); const s=require('./dist/release-delivery/release-build-supply-proof.policy'); const profile=p.resolveRegisteredReleaseBuildProfile('controlled-local-acceptance-v2'); fs.writeFileSync('/opt/devpilot/security/release-build-supply-proof.json', JSON.stringify(s.expectedReleaseBuildSupplyProof(profile)), {mode:0o444});" \
  && chmod 0444 /opt/devpilot/security/release-build-supply-proof.json

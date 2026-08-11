@@ -49,8 +49,9 @@ export async function resolveReleasePackageContext(input: {
   return null;
 }
 
-export function lockedInstallArgs(manager: ReleasePackageManager) {
-  if (manager === "pnpm") return ["install", "--frozen-lockfile", "--offline"];
+export function lockedInstallArgs(manager: ReleasePackageManager, storeRoot?: string) {
+  if (manager === "pnpm") return ["install", "--frozen-lockfile", "--offline",
+    "--ignore-scripts", ...(storeRoot ? [`--store-dir=${join(storeRoot, "store")}`] : [])];
   if (manager === "yarn") {
     return ["install", "--frozen-lockfile", "--non-interactive", "--offline"];
   }

@@ -84,6 +84,8 @@ describe("filesystem isolated build worker exchange", () => {
     const adapter = new FilesystemIsolatedReleaseBuildExecutorService(
       runtime,
       new ReleaseBuildSourceSnapshotService(),
+      { prepare: jest.fn().mockResolvedValue(dependency()),
+        acceptResult: jest.fn().mockResolvedValue(undefined) } as never,
     );
     const execution = adapter.execute({
       buildRunId: "build-integration-1",
@@ -130,6 +132,15 @@ async function waitForJob(root: string) {
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
   throw new Error("Build worker request was not published");
+}
+
+function dependency() {
+  return { fetchRunId: `dep_${"1".repeat(64)}`,
+    combinationHash: "1".repeat(64), lockfileDigest: "2".repeat(64),
+    profileId: "controlled-local-acceptance-v2", profileVersion: 6,
+    pnpmVersion: "8.12.0", platformOs: "linux", platformArch: "arm64",
+    registryPolicyDigest: "3".repeat(64), mode: "reuse", leaseToken: null,
+    storeDigest: "4".repeat(64) } as const;
 }
 
 async function exists(path: string) {

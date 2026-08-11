@@ -97,6 +97,7 @@ export class LocalReleaseBuildExecutorService extends ReleaseBuildExecutorPort {
         sourceCommitSha: input.sourceCommitSha,
         sourceSnapshotDigest: prepared.sourceSnapshot.snapshotDigest,
         checkoutRoot: root,
+        dependencyStoreRoot: input.dependencyStoreRoot,
         components: input.components,
         profile,
         env: environment,

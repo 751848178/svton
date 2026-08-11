@@ -1,7 +1,8 @@
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { assertExternalOciJob, dockerCreateArguments } from "./release-build-external-oci.policy";
+import { assertExternalOciJob, dependencyFetchDockerArguments,
+  dockerCreateArguments } from "./release-build-external-oci.policy";
 
 describe("external OCI launcher argv policy", () => {
   let root: string;
@@ -21,7 +22,7 @@ describe("external OCI launcher argv policy", () => {
       "/job/broker-input.json",
     ]));
     expect(args.join(" ")).not.toMatch(/docker\.sock|worker-hmac|\/exchange/);
-    expect(args.filter((arg) => arg.startsWith("--mount="))).toHaveLength(4);
+    expect(args.filter((arg) => arg.startsWith("--mount="))).toHaveLength(5);
   });
 
   it("rejects mutable images and paths outside the private job", async () => {
@@ -32,13 +33,28 @@ describe("external OCI launcher argv policy", () => {
       .rejects.toThrow("escapes");
   });
 
+  it("runs the trusted fetcher with only lock control and store output mounts", async () => {
+    const job = await fixture();
+    const args = dependencyFetchDockerArguments({ name: "dp-fetch-0123456789abcdef",
+      launcherLabel: job.launcherLabel, image: job.image,
+      controlRoot: job.controlRoot, outputRoot: job.outputRoot });
+    expect(args).toEqual(expect.arrayContaining([
+      "--network", "bridge", "--read-only", "--cap-drop", "ALL",
+      "npm_config_registry=https://registry.npmjs.org",
+      "/app/apps/devpilot-api/dist/release-delivery/release-dependency-fetcher.main.js",
+    ]));
+    expect(args.filter((arg) => arg.startsWith("--mount="))).toHaveLength(2);
+    expect(args.join(" ")).not.toMatch(/\/source|docker\.sock|HMAC|secret/i);
+  });
+
   async function fixture() {
-    const paths = ["control", "source", "work", "output"]
+    const paths = ["control", "source", "dependency", "work", "output"]
       .map((value) => join(root, value));
     await Promise.all(paths.map((path) => mkdir(path)));
     return { name: "dp-build-0123456789abcdef", image:
       `registry.test/devpilot/api@sha256:${"a".repeat(64)}`,
     launcherLabel: "launcher_instance_01",
-    controlRoot: paths[0], sourceRoot: paths[1], workRoot: paths[2], outputRoot: paths[3] };
+    controlRoot: paths[0], sourceRoot: paths[1], dependencyStoreRoot: paths[2],
+    workRoot: paths[3], outputRoot: paths[4] };
   }
 });

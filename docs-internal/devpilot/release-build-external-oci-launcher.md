@@ -62,3 +62,22 @@ build and artifact collection. Repository commands never mutate `/source`.
 The host acceptance run must retain the launcher log, exact job image digest,
 heartbeat proof, Docker inspect evidence and focused build result. Failure to
 prove any of them is a product blocker, never a passed or deferred gate.
+
+## Lockfile-bound dependency store
+
+For pnpm projects, the API binds the exact signed `pnpm-lock.yaml` bytes to the
+registered pnpm/profile/OS/architecture/registry-policy digests. A separate
+non-root fetch job receives only that lockfile and fixed control data, runs the
+registered pnpm executable with `fetch --frozen-lockfile --ignore-scripts`, and
+publishes an immutable manifest with a digest for every store file. Concurrent
+requests share only a completed combination digest; interrupted or unverified
+stores are never exposed to a build.
+
+The fetcher permits only the server-owned `https://registry.npmjs.org` policy and
+rejects project npmrc/auth, git/local/link dependencies and non-registry
+tarballs before execution. This is an application-level allowlist, not a claim
+of kernel- or network-level domain filtering; deployments that require an
+egress firewall must replace the fetch Provider with one enforcing that network
+boundary. The repository build container remains `network=none`: it verifies
+the exact read-only dependency-store manifest, copies the store into its private
+writable work directory, then installs offline/frozen with scripts disabled.

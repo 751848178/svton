@@ -30,6 +30,12 @@ export function buildSourcePolicySnapshot(
     externalRequiredChecks: profile.externalRequiredChecks,
     requiredIndependentApprovals: profile.requiredIndependentApprovals,
     highRiskPathPrefixes: [...new Set(profile.highRiskPathPrefixes)].sort(),
+    sastCapability: {
+      engine: profile.sastCapability.engine,
+      rulePaths: [...profile.sastCapability.rulePaths],
+      unsupportedExtensions: [...profile.sastCapability.unsupportedExtensions].sort(),
+    },
+    dependencyStorePolicy: profile.dependencyStorePolicy,
     packageManagers: Object.entries(profile.packageManagers)
       .map(([id, manager]) => ({ id, ...manager }))
       .sort((left, right) => left.id.localeCompare(right.id)),

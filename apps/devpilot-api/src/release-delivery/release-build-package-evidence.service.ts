@@ -26,6 +26,7 @@ export class ReleaseBuildPackageEvidenceService {
     sourceCommitSha: string;
     sourceSnapshotDigest: string;
     checkoutRoot: string;
+    dependencyStoreRoot?: string;
     components: ReleaseBuildComponent[];
     profile: RegisteredReleaseBuildProfile;
     env: NodeJS.ProcessEnv;
@@ -57,7 +58,10 @@ export class ReleaseBuildPackageEvidenceService {
 
   private runInstalls(input: EvidenceInput, contexts: ReleasePackageContext[]) {
     return Promise.all(contexts.map((context) =>
-      this.run(input, context, "install", lockedInstallArgs(context.manager), context.root),
+      this.run(input, context, "install", lockedInstallArgs(
+        context.manager,
+        input.dependencyStoreRoot,
+      ), context.root),
     ));
   }
 

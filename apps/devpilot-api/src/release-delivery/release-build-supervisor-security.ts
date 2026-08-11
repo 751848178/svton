@@ -6,6 +6,7 @@ import { ReleaseBuildPreScriptSecurityService } from "./release-build-pre-script
 import { ReleaseBuildScannerEvidenceService } from "./release-build-scanner-evidence.service";
 import { ReleaseBuildWorkerExtractedSnapshotService } from "./release-build-worker-extracted-snapshot.service";
 import type { RegisteredReleaseBuildProfile } from "./release-build-acceptance-profile";
+import { assertReleaseBuildSastCapability } from "./release-build-sast-capability.guard";
 import type { ReleaseBuildWorkerRequest } from "./release-build-worker-envelope.policy";
 
 export async function scanSupervisorSource(input: {
@@ -18,6 +19,10 @@ export async function scanSupervisorSource(input: {
   cancelGraceMs: number;
   signal?: AbortSignal;
 }) {
+  assertReleaseBuildSastCapability(
+    input.profile,
+    input.request.sourceManifest.entries,
+  );
   const artifactRoot = join(input.trustedRoot, "artifacts");
   await mkdir(artifactRoot, { recursive: true, mode: 0o700 });
   const config = new ConfigService({ RELEASE_BUILD_ARTIFACT_ROOT: artifactRoot });

@@ -10,6 +10,7 @@ import { ReleaseBuildRuntimeProfileService } from "./release-build-runtime-profi
 import type { ReleaseBuildExecutionResult } from "./release-build.types";
 import type { ReleaseBuildWorkerRequest } from "./release-build-worker-envelope.policy";
 import { createWritableBrokerWorkspace } from "./release-build-broker-workspace";
+import { verifyDependencyStore } from "./release-dependency-store-filesystem";
 
 export type ReleaseBuildBrokerInput = {
   version: 1;
@@ -17,6 +18,7 @@ export type ReleaseBuildBrokerInput = {
   jobRoot: string;
   workRoot: string;
   buildRoot: string;
+  dependencyStoreRoot: string;
   artifactRoot: string;
   supplyProofFile: string;
   commandPath: string;
@@ -44,6 +46,15 @@ export async function runReleaseBuildBroker(
       input.buildRoot,
       input.workRoot,
     );
+    const dependency = input.request.identity.dependency;
+    if (!dependency.storeDigest) throw new Error("Dependency store digest is missing");
+    const expectedStore = { combinationHash: dependency.combinationHash,
+      storeDigest: dependency.storeDigest };
+    await verifyDependencyStore(input.dependencyStoreRoot, expectedStore);
+    const writableDependencyStore = await createWritableBrokerWorkspace(
+      input.dependencyStoreRoot, input.workRoot, "dependency-store",
+    );
+    await verifyDependencyStore(writableDependencyStore, expectedStore);
     const config = brokerConfig(input);
     const runtime = new ReleaseBuildRuntimeProfileService(config);
     const evidence = new LocalReleaseEvidenceArtifactService(config);
@@ -60,6 +71,7 @@ export async function runReleaseBuildBroker(
       releaseOrderId: request.identity.releaseOrderId,
       sourceCommitSha: request.identity.sourceCommitSha,
       checkoutRoot: writableBuildRoot,
+      dependencyStoreRoot: writableDependencyStore,
       components: request.components,
     });
     return { version: 1, status: "succeeded", result };
@@ -76,7 +88,8 @@ export async function runReleaseBuildBroker(
 async function assertBrokerInput(input: ReleaseBuildBrokerInput) {
   if (input.version !== 1 || input.request.version !== 1) throw invalid();
   const job = await realpath(input.jobRoot);
-  for (const value of [input.workRoot, input.buildRoot, input.artifactRoot, input.supplyProofFile]) {
+  for (const value of [input.workRoot, input.buildRoot, input.dependencyStoreRoot,
+    input.artifactRoot, input.supplyProofFile]) {
     if (!isAbsolute(value)) throw invalid();
     const target = await realpath(value);
     const path = relative(job, target);

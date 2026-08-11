@@ -12,6 +12,7 @@ import type {
   ReleaseBuildExecutionResult,
 } from "./release-build.types";
 import { ReleaseBuildExecutorPort } from "./release-build.types";
+import { ReleaseDependencyApiCoordinator } from "./release-dependency-api-coordinator.service";
 import {
   sameWorkerIdentity,
   signWorkerCancellation,
@@ -40,6 +41,7 @@ export class FilesystemIsolatedReleaseBuildExecutorService
   constructor(
     private readonly runtime: ReleaseBuildRuntimeProfileService,
     private readonly snapshots: ReleaseBuildSourceSnapshotService,
+    private readonly dependencies: ReleaseDependencyApiCoordinator,
   ) { super(); }
 
   async execute(input: ReleaseBuildExecutionInput, signal?: AbortSignal) {
@@ -83,6 +85,11 @@ export class FilesystemIsolatedReleaseBuildExecutorService
     if (afterArchive.snapshotDigest !== snapshot.snapshotDigest) {
       throw workerFailure("BUILD_SOURCE_CHANGED_DURING_ARCHIVE");
     }
+    const deadline = new Date(Date.now() + this.runtime.runTimeoutMs);
+    const dependency = await this.dependencies.prepare({
+      buildRunId: input.buildRunId, checkoutRoot: input.checkoutRoot,
+      manifest: archive.manifest, profileId: profile.id, deadline,
+    });
     const profileSnapshot = buildSourcePolicySnapshot(profile);
     const identity: ReleaseBuildWorkerIdentity = {
       contract: "external-oci-launcher-v1",
@@ -98,7 +105,8 @@ export class FilesystemIsolatedReleaseBuildExecutorService
       profileId: profile.id,
       profileVersion: profile.profileVersion,
       profileSnapshotHash: sourcePolicySnapshotHash(profileSnapshot),
-      deadline: new Date(Date.now() + this.runtime.runTimeoutMs).toISOString(),
+      dependency,
+      deadline: deadline.toISOString(),
     };
     this.jobs.set(input.buildRunId, identity);
     await writeImmutableWorkerJson(inputDirectory, "request.json", signWorkerRequest({
@@ -138,6 +146,8 @@ export class FilesystemIsolatedReleaseBuildExecutorService
           !sameWorkerIdentity(result.identity, identity)) {
           throw workerFailure("UNTRUSTED_WORKER_ATTESTATION_INVALID");
         }
+        await this.dependencies.acceptResult(identity.buildRunId,
+          identity.dependency, result);
         if (result.status === "succeeded" && result.result) return result.result;
         if (result.failure) throw new ReleaseBuildExecutionError(result.failure);
         throw workerFailure(result.error?.code || "UNTRUSTED_WORKER_FAILED");

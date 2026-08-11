@@ -4,6 +4,7 @@ import { constants } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import type { RegisteredReleaseBuildProfile } from "./release-build-acceptance-profile";
+import { RELEASE_DEPENDENCY_STORE_POLICY } from "./release-dependency-store-profile";
 import { ReleaseBuildPackageEvidenceService } from "./release-build-package-evidence.service";
 import { LocalReleaseEvidenceArtifactService } from "./local-release-evidence-artifact.service";
 
@@ -94,6 +95,8 @@ function profile(pnpm: string): RegisteredReleaseBuildProfile {
     externalRequiredChecks: 0,
     requiredIndependentApprovals: 1,
     highRiskPathPrefixes: [],
+    sastCapability: capability(),
+    dependencyStorePolicy: RELEASE_DEPENDENCY_STORE_POLICY,
     packageManagers: {
       npm: { executable: pnpm, toolVersion: "fixture" },
       pnpm: { executable: pnpm, toolVersion: "fixture" },
@@ -102,6 +105,11 @@ function profile(pnpm: string): RegisteredReleaseBuildProfile {
     scanners: [],
     supplyChain: { schemaVersion: 1, baseImageDigests: [], artifactDigests: {} },
   };
+}
+
+function capability() {
+  return { engine: "semgrep-oss-1.172.0" as const, rulePaths: [],
+    unsupportedExtensions: [".cls", ".trigger", ".ex", ".exs"] };
 }
 
 async function resolveExecutable(name: string) {

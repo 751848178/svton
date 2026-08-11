@@ -8,9 +8,11 @@ import { exactOciImage } from "./release-build-launcher-proof.policy";
 import { resolveRegisteredReleaseBuildProfile } from "./release-build-acceptance-profile";
 import { runExternalOciBroker } from "./release-build-external-oci-runner";
 import { expectedReleaseBuildSupplyProof } from "./release-build-supply-proof.policy";
+import { createDependencyStoreManifest } from "./release-dependency-store-filesystem";
 
 const exec = promisify(execFile);
 const image = process.env.RELEASE_BUILD_OCI_INTEGRATION_IMAGE;
+let storeDigest = "";
 const describeDocker = process.platform === "linux" && process.getuid?.() === 0 &&
   process.env.RELEASE_BUILD_OCI_INTEGRATION === "1" && exactOciImage(image)
   ? describe : describe.skip;
@@ -19,7 +21,19 @@ describeDocker("external OCI launcher real Docker boundary", () => {
   let root: string;
   beforeEach(async () => {
     root = await mkdtemp(join(tmpdir(), "oci-launcher-real-"));
-    await Promise.all([mkdir(join(root, "source")), mkdir(join(root, "output"))]);
+    await Promise.all([mkdir(join(root, "source")), mkdir(join(root, "output")),
+      mkdir(join(root, "dependency-store", "store"), { recursive: true })]);
+    const profile = resolveRegisteredReleaseBuildProfile("controlled-local-acceptance-v2")!;
+    const manifest = await createDependencyStoreManifest({
+      pendingRoot: join(root, "dependency-store"), combinationHash: "1".repeat(64),
+      lockfileDigest: "2".repeat(64), profileId: profile.id,
+      profileVersion: profile.profileVersion, pnpmVersion: "8.12.0",
+      platformOs: "linux", platformArch: "arm64",
+      registryPolicyDigest: profile.dependencyStorePolicy.registryPolicyDigest,
+    });
+    storeDigest = manifest.storeDigest;
+    await writeFile(join(root, "dependency-store", "manifest.json"),
+      JSON.stringify(manifest));
     await chown(join(root, "output"), 3_000, 3_000);
     await chmod(join(root, "output"), 0o700);
   });
@@ -58,10 +72,12 @@ function broker(root: string, jobId: string, success = false) {
   return { version: 1, request: { version: 1, identity: {
     jobId, buildRunId: "build", projectId: "project", releaseOrderId: "order",
     profileId: "controlled-local-acceptance-v2", sourceCommitSha: "a".repeat(40),
+    dependency: { combinationHash: "1".repeat(64), storeDigest },
   }, components: success ? [{ key: "api", name: "api", workingDirectory: ".",
     buildCommand: "pnpm run build", artifactOutputs: ["dist"], buildEnvironment: {} }] : []
   } as never, jobRoot: root, workRoot: join(root, "unused"),
   buildRoot: join(root, "source"), artifactRoot: join(root, "output"),
+  dependencyStoreRoot: join(root, "dependency-store"),
   supplyProofFile: join(root, "unused-proof"), commandPath: "/usr/bin:/bin",
   commandTimeoutMs: 1_000, cancelGraceMs: 50,
   prepared: { security: {}, sourceSnapshot: {

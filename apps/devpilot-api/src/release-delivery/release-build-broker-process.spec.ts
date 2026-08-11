@@ -9,6 +9,7 @@ describe("release build broker child boundary", () => {
         jobRoot: "/work/jobs/random-job",
         workRoot: "/work/jobs/random-job/work",
         buildRoot: "/work/jobs/random-job/work/source",
+        dependencyStoreRoot: "/work/jobs/random-job/dependency-store",
         artifactRoot: "/work/jobs/random-job/raw-artifacts",
         supplyProofFile: "/work/jobs/random-job/control/supply-proof.json",
         commandPath: "/usr/local/bin:/usr/bin:/bin",

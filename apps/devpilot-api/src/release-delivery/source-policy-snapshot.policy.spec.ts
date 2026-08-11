@@ -1,4 +1,5 @@
 import type { RegisteredReleaseBuildProfile } from "./release-build-acceptance-profile";
+import { RELEASE_DEPENDENCY_STORE_POLICY } from "./release-dependency-store-profile";
 import {
   buildSourcePolicySnapshot,
   sourcePolicySnapshotHash,
@@ -10,6 +11,11 @@ describe("source policy canonical snapshot", () => {
     const reordered: RegisteredReleaseBuildProfile = {
       ...first,
       highRiskPathPrefixes: [...first.highRiskPathPrefixes].reverse(),
+      sastCapability: {
+        ...first.sastCapability,
+        unsupportedExtensions: [...first.sastCapability.unsupportedExtensions].reverse(),
+      },
+      dependencyStorePolicy: RELEASE_DEPENDENCY_STORE_POLICY,
       scanners: [...first.scanners].reverse(),
     };
     expect(sourcePolicySnapshotHash(buildSourcePolicySnapshot(first))).toBe(
@@ -41,6 +47,16 @@ describe("source policy canonical snapshot", () => {
       },
       externalRequiredChecks: 0,
       requiredIndependentApprovals: 2,
+      sastCapability: {
+        engine: "semgrep-oss-1.172.0",
+        rulePaths: ["generic", "typescript"],
+        unsupportedExtensions: [".cls", ".ex", ".exs", ".trigger"],
+      },
+      dependencyStorePolicy: expect.objectContaining({
+        contract: "lockfile-bound-dependency-store-v1",
+        registry: "https://registry.npmjs.org",
+        lifecycleScripts: "forbidden",
+      }),
       scanners: [{
         id: "secretScan",
         executable: "/opt/bin/scanner",
@@ -59,6 +75,10 @@ function profile(): RegisteredReleaseBuildProfile {
     externalRequiredChecks: 0,
     requiredIndependentApprovals: 2,
     highRiskPathPrefixes: ["z/", "a/"],
+    sastCapability: { engine: "semgrep-oss-1.172.0",
+      rulePaths: ["generic", "typescript"],
+      unsupportedExtensions: [".cls", ".trigger", ".ex", ".exs"] },
+    dependencyStorePolicy: RELEASE_DEPENDENCY_STORE_POLICY,
     packageManagers: {
       pnpm: { executable: "/opt/bin/pnpm", toolVersion: "8.12.0" },
     },

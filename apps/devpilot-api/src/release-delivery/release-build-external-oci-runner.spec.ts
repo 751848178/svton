@@ -39,7 +39,8 @@ describeRootLinux("external OCI broker lifecycle", () => {
   let root: string;
   beforeEach(async () => {
     root = await mkdtemp(join(tmpdir(), "oci-runner-")); calls.length = 0; failStart = false;
-    await Promise.all([mkdir(join(root, "source")), mkdir(join(root, "output"))]);
+    await Promise.all([mkdir(join(root, "source")), mkdir(join(root, "output")),
+      mkdir(join(root, "dependency-store"))]);
   });
   afterEach(async () => rm(root, { recursive: true, force: true }));
 
@@ -61,6 +62,7 @@ describeRootLinux("external OCI broker lifecycle", () => {
         jobId: "job_0123456789", buildRunId: "build", projectId: "project",
       } } as never, jobRoot: root, workRoot: join(root, "unused"),
       buildRoot: join(root, "source"), artifactRoot: join(root, "output"),
+      dependencyStoreRoot: join(root, "dependency-store"),
       supplyProofFile: join(root, "unused-proof"), commandPath: "/usr/bin:/bin",
       commandTimeoutMs: 1_000, cancelGraceMs: 50,
       prepared: { security: {}, sourceSnapshot: {

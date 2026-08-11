@@ -3,8 +3,13 @@ export function supervisorGateSummary(
   prepared: { security: unknown; sourceSnapshot: unknown },
   supplyChainDigest: string,
   externalOci: boolean,
+  dependencyStore?: { fetchRunId: string; storeDigest: string },
 ) {
-  return { ...value, security: { ...(prepared.security as object),
+  return { ...value, dependencyStore: dependencyStore ? {
+    status: "passed", contract: "lockfile-bound-dependency-store-v1",
+    ...dependencyStore,
+  } : { status: "unavailable", reasonCode: "dependency_store_evidence_missing" },
+  security: { ...(prepared.security as object),
     sourceSnapshot: prepared.sourceSnapshot,
     executionControls: { status: "passed", profile: "controlled-local-acceptance-v2",
       trustBoundary: externalOci ? "trusted-host-supervisor-per-job-oci" : "trusted-test-fixture",

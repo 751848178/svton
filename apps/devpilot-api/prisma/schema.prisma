@@ -3000,6 +3000,8 @@ model BuildRun {
   triggeredById  String?
   repositoryIdentityId String?
   repositoryIdentityRevisionId String?
+  dependencyFetchRunId String?
+  dependencyStoreDigest String?
   revision       Int
   sourceBranch   String
   sourceCommitSha String
@@ -3022,6 +3024,7 @@ model BuildRun {
   triggeredBy    User?    @relation("BuildRunActor", fields: [triggeredById], references: [id], onDelete: SetNull)
   repositoryIdentity ProjectRepositoryIdentity? @relation(fields: [repositoryIdentityId], references: [id], onDelete: Restrict)
   repositoryIdentityRevision ProjectRepositoryIdentityRevision? @relation(fields: [repositoryIdentityRevisionId], references: [id], onDelete: Restrict)
+  dependencyFetchRun ReleaseDependencyFetchRun? @relation(fields: [dependencyFetchRunId], references: [id], onDelete: Restrict)
   manifest       ArtifactManifest?
   stageAttempt   ReleaseStageAttempt?
   gateEvaluations GateEvaluation[]
@@ -3032,9 +3035,37 @@ model BuildRun {
   @@index([triggeredById])
   @@index([repositoryIdentityId])
   @@index([repositoryIdentityRevisionId])
+  @@index([dependencyFetchRunId], map: "BuildRun_dependency_fetch_idx")
   @@index([sourceCommitSha])
   @@index([status])
   @@index([createdAt])
+}
+
+// 公开锁文件依赖的受控预取状态；组合哈希全局唯一且不包含凭据。
+model ReleaseDependencyFetchRun {
+  id                   String   @id @default(cuid())
+  combinationHash      String   @unique(map: "DependencyFetch_combination_key")
+  lockfileDigest       String
+  profileId            String
+  profileVersion       Int
+  pnpmVersion          String
+  platformOs           String
+  platformArch         String
+  registryPolicyDigest String
+  status               String   @default("queued") // queued | fetching | verifying | succeeded | failed | blocked | unavailable
+  storeDigest          String?
+  leaseToken           String?
+  leasedAt             DateTime?
+  errorCode            String?
+  errorMessage         String?  @db.Text
+  finishedAt           DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  buildRuns            BuildRun[]
+
+  @@index([status, leasedAt], map: "DependencyFetch_status_lease_idx")
+  @@index([lockfileDigest], map: "DependencyFetch_lock_digest_idx")
 }
 
 // 成功 BuildRun 产生的不可变制品清单；同一 digest 可来自不同 BuildRun

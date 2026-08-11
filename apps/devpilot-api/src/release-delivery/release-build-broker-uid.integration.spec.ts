@@ -46,6 +46,7 @@ function brokerOptions(jobRoot: string, workRoot: string) {
     broker: {
       version: 1, request: { version: 1 } as never, jobRoot, workRoot,
       buildRoot: join(workRoot, "source"), artifactRoot: join(jobRoot, "raw"),
+      dependencyStoreRoot: join(jobRoot, "dependency-store"),
       supplyProofFile: join(jobRoot, "control/proof.json"),
       commandPath: "/usr/local/bin:/usr/bin:/bin",
       commandTimeoutMs: 1_000, cancelGraceMs: 50,

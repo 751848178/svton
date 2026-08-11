@@ -6,6 +6,7 @@ import type {
   ReleaseBuildExecutionResult,
 } from "./release-build.types";
 import type { WorkerSourceManifest } from "./release-build-worker-source-manifest";
+import type { DependencyFetchIdentity } from "./release-dependency-fetch-oci-runner";
 
 export const RELEASE_BUILD_WORKER_CONTRACT =
   "external-oci-launcher-v1" as const;
@@ -24,6 +25,11 @@ export type ReleaseBuildWorkerIdentity = {
   profileId: string;
   profileVersion: number;
   profileSnapshotHash: string;
+  dependency: DependencyFetchIdentity & {
+    mode: "fetch" | "reuse";
+    leaseToken: string | null;
+    storeDigest: string | null;
+  };
   deadline: string;
 };
 
@@ -42,6 +48,8 @@ export type ReleaseBuildWorkerResult = {
   result?: ReleaseBuildExecutionResult;
   error?: { code: string; message: string };
   failure?: ReleaseBuildFailure;
+  dependencyStore?: { fetchRunId: string; combinationHash: string;
+    storeDigest: string };
   signature: string;
 };
 

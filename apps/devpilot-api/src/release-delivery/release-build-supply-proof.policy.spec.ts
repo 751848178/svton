@@ -38,4 +38,16 @@ describe("release build supply proof", () => {
     chmodSync(target, 0o660);
     expect(verifyReleaseBuildSupplyProof(target, profile)).toBe(false);
   });
+
+  it("binds the exact SAST capability into the supply digest", () => {
+    const changed = {
+      ...profile,
+      sastCapability: {
+        ...profile.sastCapability,
+        unsupportedExtensions: [...profile.sastCapability.unsupportedExtensions, ".new"],
+      },
+    };
+    expect(expectedReleaseBuildSupplyProof(changed).supplyChainDigest)
+      .not.toBe(expectedReleaseBuildSupplyProof(profile).supplyChainDigest);
+  });
 });

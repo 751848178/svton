@@ -120,6 +120,7 @@ export interface ReleaseBuildExecutionInput {
   releaseOrderId: string;
   sourceCommitSha: string;
   checkoutRoot: string;
+  dependencyStoreRoot?: string;
   components: ReleaseBuildComponent[];
 }
 
@@ -133,6 +134,8 @@ export interface ReleaseBuildExecutionResult {
   };
   logs: string[];
   gateSummary: Record<string, unknown>;
+  dependencyStore?: { fetchRunId: string; combinationHash: string;
+    storeDigest: string };
 }
 
 export abstract class ReleaseBuildExecutorPort {

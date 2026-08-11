@@ -10,7 +10,11 @@ export function validateReleaseScannerReport(
   }
   if (!isRecord(value)) return invalid(`${scannerId}_report_invalid`);
   if (scannerId === "sast") {
-    if (!Array.isArray(value.results)) return invalid("semgrep_report_invalid");
+    if (!Array.isArray(value.results) ||
+      (value.errors !== undefined &&
+        (!Array.isArray(value.errors) || value.errors.length > 0))) {
+      return invalid("semgrep_report_invalid");
+    }
     return {
       valid: true,
       findings: value.results.length,

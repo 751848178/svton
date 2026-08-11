@@ -1,6 +1,23 @@
 import { validateReleaseScannerReport } from "./release-build-scanner-report.policy";
 
 describe("release scanner report policy", () => {
+  it.each([
+    { results: [] },
+    { results: [], errors: [] },
+  ])("accepts Semgrep only with no reported errors", (report) => {
+    expect(validateReleaseScannerReport("sast", report))
+      .toMatchObject({ valid: true, findings: 0 });
+  });
+
+  it.each([
+    { results: [], errors: [{ message: "InvalidRuleSchemaError" }] },
+    { results: [], errors: null },
+  ])("rejects error-bearing or malformed Semgrep reports", (report) => {
+    expect(validateReleaseScannerReport("sast", report)).toEqual({
+      valid: false, reasonCode: "semgrep_report_invalid",
+    });
+  });
+
   it("accepts the real Trivy 0.73 repository shape with omitted Results", () => {
     expect(validateReleaseScannerReport("vulnerabilities", envelope())).toEqual({
       valid: true, findings: 0, report: envelope(),

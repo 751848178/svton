@@ -3,6 +3,7 @@ import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { RegisteredReleaseBuildProfile } from "./release-build-acceptance-profile";
+import { RELEASE_DEPENDENCY_STORE_POLICY } from "./release-dependency-store-profile";
 import { ReleaseBuildScannerEvidenceService } from "./release-build-scanner-evidence.service";
 import { LocalReleaseEvidenceArtifactService } from "./local-release-evidence-artifact.service";
 
@@ -107,6 +108,9 @@ function profile(executable: string): RegisteredReleaseBuildProfile {
     externalRequiredChecks: 0,
     requiredIndependentApprovals: 1,
     highRiskPathPrefixes: [],
+    sastCapability: { engine: "semgrep-oss-1.172.0", rulePaths: [],
+      unsupportedExtensions: [".cls", ".trigger", ".ex", ".exs"] },
+    dependencyStorePolicy: RELEASE_DEPENDENCY_STORE_POLICY,
     packageManagers: {
       npm: { executable: "/missing/npm", toolVersion: "fixture" },
       pnpm: { executable: "/missing/pnpm", toolVersion: "fixture" },

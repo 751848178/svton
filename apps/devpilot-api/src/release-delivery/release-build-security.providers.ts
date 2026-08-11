@@ -3,12 +3,16 @@ import { ReleaseBuildScannerEvidenceService } from "./release-build-scanner-evid
 import { ReleaseBuildSourceSnapshotService } from "./release-build-source-snapshot.service";
 import { FilesystemIsolatedReleaseBuildExecutorService } from "./filesystem-isolated-release-build-executor.service";
 import { ReleaseBuildExecutorPort } from "./release-build.types";
+import { ReleaseDependencyFetchRepository } from "./release-dependency-fetch.repository";
+import { ReleaseDependencyApiCoordinator } from "./release-dependency-api-coordinator.service";
 
 export const releaseBuildSecurityProviders = [
   ReleaseBuildScannerEvidenceService,
   ReleaseBuildSourceSnapshotService,
   ReleaseBuildPreScriptSecurityService,
   FilesystemIsolatedReleaseBuildExecutorService,
+  ReleaseDependencyFetchRepository,
+  ReleaseDependencyApiCoordinator,
 ];
 
 export const filesystemReleaseBuildExecutorProvider = {

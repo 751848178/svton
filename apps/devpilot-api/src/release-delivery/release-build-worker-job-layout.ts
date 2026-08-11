@@ -1,5 +1,6 @@
-import { chmod, chown, lstat, mkdir, mkdtemp, readdir, rename, rm } from "node:fs/promises";
+import { chmod, chown, cp, lstat, mkdir, mkdtemp, readdir, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
+import { verifyDependencyStore } from "./release-dependency-store-filesystem";
 
 export async function createBrokerJobLayout(input: {
   root: string;
@@ -45,6 +46,18 @@ export async function transferBuildWorkspace(input: {
   await rename(input.source, target);
   if (input.immutable) await sealSourceTree(target);
   else await chownTree(target, input.uid, input.gid);
+  return target;
+}
+
+export async function transferDependencyStore(input: {
+  source: string; jobRoot: string; combinationHash: string; storeDigest: string;
+}) {
+  const target = join(input.jobRoot, "dependency-store");
+  await verifyDependencyStore(input.source, input);
+  await cp(input.source, target, { recursive: true, force: false,
+    errorOnExist: true, dereference: false });
+  await verifyDependencyStore(target, input);
+  await sealSourceTree(target);
   return target;
 }
 

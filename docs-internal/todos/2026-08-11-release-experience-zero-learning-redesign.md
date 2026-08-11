@@ -38,3 +38,4 @@
 - 2026-08-11: 创建 F674-F678；完成 master/Docker 基线确认并开始三路只读 invest 与当前运行态截图审计。
 - 2026-08-11: F677 实施完成：服务端 checkpoint/两阶段 Build/Production post+promote、双基线组件身份、统一变量与路由要求、readiness v2，以及方向 A 的 blocker-first/渐进披露 UI；外部 Provider 缺口继续 fail-closed，转入 F678 独立 CR 与运行态验收。
 - 2026-08-11: F678 架构 CR 的最终源码修复已完成：收紧迁移索引、host launcher 目录与供应证明、只读源码/可写构建副本、launcher 停机回收、legacy promotion 唯一反查和 UI 领域阻断展示。Docker、迁移应用、Browser/API/DB 运行态验收仍未执行，因此 F674/F678 保持 `in_progress`，不得视为生产签收。
+- 2026-08-12: F678 供应链源码收口：Semgrep 固定为已验证可解析的 26 个 OSS 规则子树并对不支持扩展前置 fail-closed；新增 lockfile-bound pnpm dependency-store 的签名策略、持久化 CAS、不可变逐文件证明、受信 fetcher 与离线 build 消费链。固定 npm registry 是应用层 allowlist，不冒充网络防火墙；Docker/DB/Browser 运行态仍未执行，F674/F678 继续 `in_progress`。

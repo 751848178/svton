@@ -1,5 +1,6 @@
 import { SourcePolicyRevisionRepository } from "./source-policy-revision.repository";
 import type { RegisteredReleaseBuildProfile } from "./release-build-acceptance-profile";
+import { RELEASE_DEPENDENCY_STORE_POLICY } from "./release-dependency-store-profile";
 
 describe("SourcePolicyRevisionRepository", () => {
   it("persists a full v2 snapshot and reuses only its exact hash", async () => {
@@ -70,6 +71,9 @@ function profile(): RegisteredReleaseBuildProfile {
     externalRequiredChecks: 0,
     requiredIndependentApprovals: 2,
     highRiskPathPrefixes: ["infra/"],
+    sastCapability: { engine: "semgrep-oss-1.172.0", rulePaths: [],
+      unsupportedExtensions: [".cls", ".trigger", ".ex", ".exs"] },
+    dependencyStorePolicy: RELEASE_DEPENDENCY_STORE_POLICY,
     packageManagers: {},
     scanners: [{
       id: "secretScan", executable: "/opt/scanner", argvTemplate: ["scan"],

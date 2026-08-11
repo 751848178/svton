@@ -1,3 +1,6 @@
+import { RELEASE_DEPENDENCY_STORE_POLICY,
+  type ReleaseDependencyStorePolicy } from "./release-dependency-store-profile";
+
 export type ReleaseBuildScannerId =
   | "secretScan"
   | "sast"
@@ -20,12 +23,20 @@ export type RegisteredReleaseBuildProfile = {
   externalRequiredChecks: number;
   requiredIndependentApprovals: number;
   highRiskPathPrefixes: readonly string[];
+  sastCapability: ReleaseBuildSastCapability;
+  dependencyStorePolicy: ReleaseDependencyStorePolicy;
   packageManagers: Readonly<Partial<Record<"npm" | "pnpm" | "yarn", {
     executable: string;
     toolVersion: string;
   }>>>;
   scanners: readonly ReleaseBuildScannerProfile[];
   supplyChain: ReleaseBuildSupplyChain;
+};
+
+export type ReleaseBuildSastCapability = {
+  engine: "semgrep-oss-1.172.0";
+  rulePaths: readonly string[];
+  unsupportedExtensions: readonly string[];
 };
 
 export type ReleaseBuildSupplyChain = {
@@ -43,7 +54,7 @@ const HIGH_RISK_PATHS = [
 ] as const;
 
 const SEMGREP_RULE_PATHS = [
-  "ai", "apex", "bash", "c", "clojure", "csharp", "dockerfile", "elixir",
+  "ai", "bash", "c", "clojure", "csharp", "dockerfile",
   "generic", "go", "html", "java", "javascript", "json", "kotlin", "ocaml",
   "package_managers", "php", "problem-based-packs", "python", "ruby", "rust",
   "scala", "solidity", "swift", "terraform", "typescript", "yaml",
@@ -54,11 +65,17 @@ const SEMGREP_CONFIG_ARGV = SEMGREP_RULE_PATHS.flatMap((path) => [
 
 const PROFILE: RegisteredReleaseBuildProfile = {
   id: "controlled-local-acceptance-v2",
-  profileVersion: 4,
-  runnerVersion: "release-build-runner-v4",
+  profileVersion: 6,
+  runnerVersion: "release-build-runner-v6",
   externalRequiredChecks: 0,
   requiredIndependentApprovals: 1,
   highRiskPathPrefixes: HIGH_RISK_PATHS,
+  sastCapability: {
+    engine: "semgrep-oss-1.172.0",
+    rulePaths: SEMGREP_RULE_PATHS,
+    unsupportedExtensions: [".cls", ".trigger", ".ex", ".exs"],
+  },
+  dependencyStorePolicy: RELEASE_DEPENDENCY_STORE_POLICY,
   packageManagers: {
     pnpm: {
       executable: "/opt/devpilot/pnpm/8.12.0/bin/pnpm.cjs",
@@ -74,7 +91,7 @@ const PROFILE: RegisteredReleaseBuildProfile = {
       "scan", ...SEMGREP_CONFIG_ARGV,
       "--metrics", "off", "--disable-version-check",
       "--json", "--output", "{reportPath}", "{checkoutRoot}",
-    ], "67ebc323d193c658fa86ff175823e4aceee40bd822d5b34f1c1928cf8780a678"),
+    ], "fd7c589911672528ba190da81f9d0777343bb5c2c8678e8810268afa5d97aca3"),
     scanner("vulnerabilities", "/usr/local/bin/trivy", "0.73.0", [
       "fs", "--format", "json", "--output", "{reportPath}",
       "--cache-dir", "/opt/devpilot/security/trivy-cache",
@@ -97,7 +114,7 @@ const PROFILE: RegisteredReleaseBuildProfile = {
       pnpmPackage: "sha512:279278f83be782f6faaefbacbccc503301c4ec2cdafd40983e7c26aeeee7c38270f5c8e635b43464691b897abe1675b40c06df6edadde922532b7368aa9a5267",
       semgrepRequirements: "sha256:278aedc50045986f04e0eb268e5e42883bed7bdf6bff64d08cc2ef455f0b334c",
       semgrepRules: "sha256:b7e483abf001c405a3e908251ff66cb198a26702aff5fe4c5f0c4b2fffec4919",
-      semgrepRuleManifest: "sha256:cd087178050a0abf3664375e5c9a7f4bbc0810c59fa53771d44fd6467662c648",
+      semgrepRuleManifest: "sha256:50f2b21179f82f6c7248122df5a141974c14c3657965cfe9d7465eb0841179ae",
       trivyDatabase: "sha256:e5c54b277db94d2973c2d4fdf68c94be8729a3d5fc2e48e7da04b6dacdf0bb71",
       trivyDatabaseLayer: "sha256:4cdc607a113f80be2873b1dd3ebf08bc6f3d171e491dbee48dd2debe837aa848",
       gitleaksAmd64: "sha256:551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb",

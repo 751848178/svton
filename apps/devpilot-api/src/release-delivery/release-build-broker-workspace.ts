@@ -5,12 +5,13 @@ import { isAbsolute, join, relative } from "node:path";
 export async function createWritableBrokerWorkspace(
   sourceRoot: string,
   workRoot: string,
+  directory = "build",
 ) {
   const source = await realpath(sourceRoot);
   const work = await realpath(workRoot);
   if (overlaps(source, work))
     throw new Error("Release Build source and writable workspace overlap");
-  const build = join(work, "build");
+  const build = join(work, directory);
   await mkdir(build, { mode: 0o700 });
   await copyDirectory(source, build);
   return realpath(build);

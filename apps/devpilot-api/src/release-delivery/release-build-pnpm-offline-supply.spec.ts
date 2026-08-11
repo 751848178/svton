@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { resolveRegisteredReleaseBuildProfile } from "./release-build-acceptance-profile";
+import { lockedInstallArgs } from "./release-build-package-policy";
 
 const PNPM_SHA512 = "279278f83be782f6faaefbacbccc503301c4ec2cdafd40983e7c26aeeee7c38270f5c8e635b43464691b897abe1675b40c06df6edadde922532b7368aa9a5267";
 const PNPM_EXECUTABLE = "/opt/devpilot/pnpm/8.12.0/bin/pnpm.cjs";
@@ -30,6 +31,9 @@ describe("controlled acceptance pnpm supply", () => {
     expect(dockerfile).toContain("RUN --network=none");
     expect(dockerfile).toContain('"$PNPM_EXECUTABLE" install --offline --frozen-lockfile');
     expect(dockerfile).toContain("--dir=/tmp/pnpm-offline-proof");
+    expect(dockerfile).toContain('fetch --frozen-lockfile --ignore-scripts');
+    expect(dockerfile).toContain("node_modules/is-number/package.json");
+    expect(dockerfile).toContain("test ! -e /tmp/pnpm-offline-proof/preinstall-ran");
   });
 
   it("uses the same mounted store for dependency install and rebuild", () => {
@@ -41,5 +45,12 @@ describe("controlled acceptance pnpm supply", () => {
     expect(dockerfile).toContain(
       'rebuild --store-dir=/pnpm/store',
     );
+  });
+
+  it("forces build jobs to use the private offline store without lifecycle scripts", () => {
+    expect(lockedInstallArgs("pnpm", "/work/dependency-store")).toEqual([
+      "install", "--frozen-lockfile", "--offline", "--ignore-scripts",
+      "--store-dir=/work/dependency-store/store",
+    ]);
   });
 });

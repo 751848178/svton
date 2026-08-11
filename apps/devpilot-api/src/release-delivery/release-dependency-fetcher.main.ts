@@ -1,0 +1,64 @@
+import { createHash } from "node:crypto";
+import { constants } from "node:fs";
+import { open } from "node:fs/promises";
+import { resolveRegisteredReleaseBuildProfile } from "./release-build-acceptance-profile";
+import { runReleaseBuildArgv } from "./release-build-argv-command-runner";
+
+type FetchInput = {
+  schemaVersion: 1; combinationHash: string; lockfileDigest: string;
+  profileId: string; profileVersion: number; pnpmVersion: string;
+  platformOs: "linux"; platformArch: "amd64" | "arm64";
+  registryPolicyDigest: string;
+};
+
+async function main() {
+  const input = await readInput(process.argv[2]);
+  const profile = resolveRegisteredReleaseBuildProfile(input.profileId);
+  const policy = profile?.dependencyStorePolicy;
+  if (!profile || profile.profileVersion !== input.profileVersion ||
+    policy?.pnpmVersion !== input.pnpmVersion || policy.platformOs !== input.platformOs ||
+    !policy.platformArchitectures.includes(input.platformArch) ||
+    policy.registryPolicyDigest !== input.registryPolicyDigest) throw invalid();
+  const lock = await readBounded("/job/pnpm-lock.yaml", 10 * 1024 * 1024);
+  if (createHash("sha256").update(lock).digest("hex") !== input.lockfileDigest)
+    throw invalid();
+  const executable = profile.packageManagers.pnpm?.executable;
+  if (!executable) throw invalid();
+  const outcome = await runReleaseBuildArgv({
+    executable,
+    args: ["fetch", "--frozen-lockfile", "--ignore-scripts",
+      "--store-dir=/output/store", "--config.registry=https://registry.npmjs.org",
+      "--config.ignore-scripts=true", "--dir=/job"],
+    cwd: "/job", env: { PATH: "/usr/local/bin:/usr/bin:/bin", HOME: "/home",
+      TMPDIR: "/tmp", CI: "true", npm_config_registry: policy.registry },
+    timeoutMs: 10 * 60_000, cancelGraceMs: 5_000,
+  });
+  if (outcome.kind !== "completed" || outcome.exitCode !== 0)
+    throw new Error("Dependency fetch failed");
+  process.stdout.write(JSON.stringify({ schemaVersion: 1, status: "succeeded",
+    combinationHash: input.combinationHash }));
+}
+
+async function readInput(path: string) {
+  const value = JSON.parse((await readBounded(path, 64 * 1024)).toString("utf8"));
+  if (value?.schemaVersion !== 1 || !hex(value.combinationHash) ||
+    !hex(value.lockfileDigest) || !hex(value.registryPolicyDigest) ||
+    typeof value.profileId !== "string" || !Number.isInteger(value.profileVersion) ||
+    typeof value.pnpmVersion !== "string" || value.platformOs !== "linux" ||
+    !["amd64", "arm64"].includes(value.platformArch)) throw invalid();
+  return value as FetchInput;
+}
+async function readBounded(path: string, limit: number) {
+  const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try { const stat = await handle.stat();
+    if (!stat.isFile() || stat.size > limit) throw invalid();
+    return handle.readFile();
+  } finally { await handle.close(); }
+}
+function hex(value: unknown) { return typeof value === "string" && /^[a-f0-9]{64}$/.test(value); }
+function invalid() { return new Error("Dependency fetch input is invalid"); }
+
+void main().catch((error) => {
+  process.stderr.write(error instanceof Error ? error.message : "Dependency fetch failed");
+  process.exitCode = 1;
+});

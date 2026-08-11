@@ -297,3 +297,22 @@ flowchart TD
 - This closure is source, focused-test and type-check evidence. The gated real
   Docker fixture, migration application and browser/API/DB acceptance remain
   unexecuted boundaries and continue to block production signoff.
+
+## Dependency Supply Closure (2026-08-12)
+
+- Semgrep is frozen to the 26 OSS rule subtrees that the pinned engine parses;
+  Apex and Elixir extensions fail closed from the signed source manifest before
+  scanner, workspace, repository command or artifact creation. Scanner reports
+  with a non-empty `errors` collection are unavailable rather than passed.
+- `lockfile-bound-dependency-store-v1` binds signed lockfile bytes to the pinned
+  pnpm, build profile, platform and registry policy. Its durable fetch CAS only
+  exposes a verified immutable per-file manifest; BuildRun records the exact
+  fetch run and store digest.
+- The trusted dependency fetcher uses a fixed npm registry application policy,
+  receives no repository source, npmrc, auth or build secrets, and disables
+  scripts. This does not assert a kernel-level egress firewall. The untrusted
+  build job remains offline and consumes only a verified read-only store copied
+  into its private writable work tree.
+- Focused policy/CAS/worker/migration tests, API type-check and Prisma schema
+  validation are source evidence only. Docker fetch/build runtime, migration
+  deployment and Browser/API/DB acceptance remain unexecuted and fail closed.

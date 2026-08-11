@@ -8,7 +8,9 @@ import { runExternalOciBroker } from "./release-build-external-oci-runner";
 import { promoteBrokerArtifacts } from "./release-build-broker-artifact-promoter";
 import { releaseBuildFailureDetail } from "./release-build-failure.utils";
 import { expectedReleaseBuildSupplyProof } from "./release-build-supply-proof.policy";
-import { scanSupervisorSource } from "./release-build-supervisor-security";
+import { prepareWorkerBuild,
+  prepareWorkerBrokerRoots,
+  materializeWorkerDependency } from "./release-build-worker-preparation";
 import { supervisorGateSummary } from "./release-build-supervisor-result.presenter";
 import { watchSupervisorCancellation } from "./release-build-supervisor-cancellation";
 import { signWorkerResult, verifyWorkerRequest,
@@ -18,14 +20,12 @@ import {
   workerJobDirectory,
   writeImmutableWorkerJson,
 } from "./release-build-worker-exchange";
-import { createBrokerJobLayout,
-  transferBuildWorkspace } from "./release-build-worker-job-layout";
+import { createBrokerJobLayout } from "./release-build-worker-job-layout";
 import { readReleaseBuildWorkerSecret } from "./release-build-worker-secret";
 import { hashWorkerFile } from "./release-build-worker-source-archive";
 import { verifyExtractedWorkerSource } from "./release-build-worker-source-manifest";
 import { buildSourcePolicySnapshot,
   sourcePolicySnapshotHash } from "./source-policy-snapshot.policy";
-
 export type FilesystemWorkerConfig = {
   inputRoot: string; outputRoot: string; workRoot: string; secretFile: string;
   commandPath: string; tarExecutable: string; commandTimeoutMs: number;
@@ -50,15 +50,14 @@ export class ReleaseBuildFilesystemWorker {
     });
     const signal = combineSignals(cancellation.signal, shutdownSignal);
     let broker: Awaited<ReturnType<typeof createBrokerJobLayout>> | undefined;
+    let dependencyStore: { fetchRunId: string; combinationHash: string;
+      storeDigest: string } | undefined;
     try {
       const sourceRoot = await this.extractAndVerify(inputDirectory, trustedRoot, request);
-      const scanned = await scanSupervisorSource({
-        request, profile, sourceRoot, trustedRoot,
-        commandPath: this.config.commandPath,
-        commandTimeoutMs: this.config.commandTimeoutMs,
-        cancelGraceMs: this.config.cancelGraceMs,
-        signal,
-      });
+      const prepared = await prepareWorkerBuild({ request, profile, sourceRoot,
+        trustedRoot, config: this.config, signal });
+      const scanned = prepared.scanned;
+      dependencyStore = prepared.dependencyStore;
       broker = await createBrokerJobLayout({
         root: join(this.config.workRoot, "broker-jobs"),
         buildRunId: request.identity.buildRunId,
@@ -66,15 +65,16 @@ export class ReleaseBuildFilesystemWorker {
         gid: this.config.brokerGid,
         externalOci: Boolean(this.config.externalOci),
       });
-      const buildRoot = await transferBuildWorkspace({
-        source: scanned.prepared.buildRoot, workRoot: broker.workRoot,
-        uid: this.config.brokerUid, gid: this.config.brokerGid,
+      const { buildRoot, dependencyStoreRoot } = await prepareWorkerBrokerRoots({
+        prepared, broker, uid: this.config.brokerUid, gid: this.config.brokerGid,
         immutable: Boolean(this.config.externalOci),
       });
       const brokerInput: Parameters<typeof runReleaseBuildBrokerProcess>[0] = {
         broker: {
-          version: 1, request: unsigned(request), jobRoot: broker.jobRoot,
-          workRoot: broker.workRoot, buildRoot, artifactRoot: broker.artifactRoot,
+          version: 1, request: materializeWorkerDependency(
+            request, dependencyStore.storeDigest), jobRoot: broker.jobRoot,
+          workRoot: broker.workRoot, buildRoot, dependencyStoreRoot,
+          artifactRoot: broker.artifactRoot,
           supplyProofFile: join(broker.jobRoot, "control", "supply-proof.json"),
           commandPath: this.config.commandPath,
           commandTimeoutMs: this.config.commandTimeoutMs,
@@ -113,14 +113,16 @@ export class ReleaseBuildFilesystemWorker {
           scanned.prepared,
           expectedReleaseBuildSupplyProof(profile).supplyChainDigest,
           Boolean(this.config.externalOci),
+          { fetchRunId: dependencyStore.fetchRunId,
+            storeDigest: dependencyStore.storeDigest },
         ),
-      });
+      }, undefined, dependencyStore);
     } catch (error) {
       const failure = releaseBuildFailureDetail(error, signal);
       await this.writeResult(
         outputDirectory, request,
         failure.status === "canceled" ? "canceled" : "failed",
-        undefined, failure,
+        undefined, failure, dependencyStore,
       );
     } finally {
       await broker?.cleanup();
@@ -154,12 +156,14 @@ export class ReleaseBuildFilesystemWorker {
   }
 
   private async writeResult(directory: string, request: ReleaseBuildWorkerRequest,
-    status: "succeeded" | "failed" | "canceled", result?: unknown, failure?: unknown) {
+    status: "succeeded" | "failed" | "canceled", result?: unknown, failure?: unknown,
+    dependencyStore?: { fetchRunId: string; combinationHash: string; storeDigest: string }) {
     const secret = await readReleaseBuildWorkerSecret(this.config.secretFile);
     await writeImmutableWorkerJson(directory, "result.json", signWorkerResult({
       version: 1, identity: request.identity, status,
       ...(result ? { result: result as never } : {}),
       ...(failure ? { failure: failure as never } : {}),
+      ...(dependencyStore ? { dependencyStore } : {}),
     }, secret));
   }
 
@@ -188,10 +192,6 @@ export class ReleaseBuildFilesystemWorker {
   }
 }
 
-function unsigned(request: ReleaseBuildWorkerRequest) {
-  const { signature: _signature, ...value } = request;
-  return value;
-}
 async function exists(path: string) { try { await access(path); return true; } catch { return false; } }
 function combineSignals(first: AbortSignal, second?: AbortSignal) {
   return second ? AbortSignal.any([first, second]) : first;

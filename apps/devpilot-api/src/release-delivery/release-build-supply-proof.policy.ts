@@ -21,6 +21,14 @@ export function expectedReleaseBuildSupplyProof(
       profileId: profile.id,
       profileVersion: profile.profileVersion,
       runnerVersion: profile.runnerVersion,
+      sastCapability: {
+        engine: profile.sastCapability.engine,
+        rulePaths: [...profile.sastCapability.rulePaths],
+        unsupportedExtensions: [...new Set(
+          profile.sastCapability.unsupportedExtensions,
+        )].sort(),
+      },
+      dependencyStorePolicy: profile.dependencyStorePolicy,
       packageManagers: profile.packageManagers,
       scanners: profile.scanners,
       supplyChain: profile.supplyChain,

@@ -25,7 +25,8 @@ export async function runExternalOciBroker(input: {
   await chown(workRoot, 3_000, 3_000);
   const containerInput: ReleaseBuildBrokerInput = {
     ...input.broker, jobRoot: "/", workRoot: "/work", buildRoot: "/source",
-    artifactRoot: "/output", supplyProofFile: "/job/supply-proof.json",
+    dependencyStoreRoot: "/dependency-store", artifactRoot: "/output",
+    supplyProofFile: "/job/supply-proof.json",
   };
   await Promise.all([
     writeFile(join(controlRoot, "broker-input.json"), JSON.stringify(containerInput),
@@ -39,7 +40,9 @@ export async function runExternalOciBroker(input: {
     `${label}:${input.broker.request.identity.jobId}`)
     .digest("hex").slice(0, 24)}`;
   const job = { name, launcherLabel: label, image: input.image, controlRoot,
-    sourceRoot: input.broker.buildRoot, workRoot, outputRoot: input.broker.artifactRoot };
+    sourceRoot: input.broker.buildRoot,
+    dependencyStoreRoot: input.broker.dependencyStoreRoot,
+    workRoot, outputRoot: input.broker.artifactRoot };
   await assertExternalOciJob(job, input.broker.jobRoot);
   const executable = assertDockerExecutable(input.dockerExecutable);
   let createAttempted = false;
