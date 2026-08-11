@@ -619,7 +619,7 @@ model SiteRouteSwitchRun {
   @@index([environmentId])
   @@index([deploymentRunId])
   @@index([releaseRunId])
-  @@index([deploymentRunId, promotionCandidateHash])
+  @@index([deploymentRunId, promotionCandidateHash], map: "SiteRouteSwitchRun_deployment_candidate_idx")
   @@index([status])
   @@index([status, updatedAt])
   @@index([status, nextRecoveryAt])
@@ -1007,7 +1007,7 @@ model ProjectRepositoryIdentityRevision {
   revision       Int
   expectedRevision Int
   defaultBranch  String
-  verifiedCommitSha String
+  verifiedCommitSha String   @db.VarChar(64)
   reason         String   @db.Text
   idempotencyKey String
   createdAt      DateTime @default(now())
@@ -3198,10 +3198,10 @@ model ProductionPromotionCommand {
   @@index([releaseRunId])
   @@index([actorId])
   @@index([status])
-  @@index([status, leaseExpiresAt])
-  @@index([leaseOwner])
-  @@index([routeSwitchOperationId])
-  @@index([legacyReconcileRequired, status])
+  @@index([status, leaseExpiresAt], map: "ProductionPromotionCommand_status_lease_idx")
+  @@index([leaseOwner], map: "ProductionPromotionCommand_lease_owner_idx")
+  @@index([routeSwitchOperationId], map: "ProductionPromotionCommand_route_operation_idx")
+  @@index([legacyReconcileRequired, status], map: "ProductionPromotionCommand_legacy_reconcile_idx")
   @@index([createdAt])
 }
 
