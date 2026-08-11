@@ -78,7 +78,11 @@ async function main() {
     process.stderr.write(`release-build launcher heartbeat: ${safe(error)}\n`);
   }), 5_000);
   heartbeatTimer.unref();
-  const worker = new ReleaseBuildFilesystemWorker(config);
+  const worker = new ReleaseBuildFilesystemWorker({ ...config, externalOci: {
+    ...config.externalOci,
+    dependencyNetworkMode: engine.dependencyNetworkMode,
+    engineEvidenceDigest: engine.engineEvidenceDigest,
+  } });
   const stop = () => { stopping = true; shutdown.abort(); };
   process.once("SIGTERM", stop);
   process.once("SIGINT", stop);
