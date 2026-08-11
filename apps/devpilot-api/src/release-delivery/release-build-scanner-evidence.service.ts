@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { constants } from "node:fs";
-import { access, readFile, rm } from "node:fs/promises";
+import { access, open, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { redactRepositoryValue } from "../repository-analysis/repository-analysis-redact.utils";
 import type {
@@ -41,7 +41,7 @@ export class ReleaseBuildScannerEvidenceService {
         unavailableReleaseBuildEvidence(`${scanner.id}_tool_missing`),
       ];
     }
-    const reportPath = join(input.temporaryRoot, `${scanner.id}.json`);
+    const reportPath = join(input.reportRoot, `${scanner.id}.json`);
     const args = scanner.argvTemplate.map((value) =>
       value
         .replaceAll("{checkoutRoot}", input.checkoutRoot)
@@ -105,8 +105,9 @@ export type ScannerExecutionInput = {
   releaseOrderId: string;
   buildRunId: string;
   sourceCommitSha: string;
+  sourceSnapshotDigest: string;
   checkoutRoot: string;
-  temporaryRoot: string;
+  reportRoot: string;
   profile: RegisteredReleaseBuildProfile;
   env: NodeJS.ProcessEnv;
   timeoutMs: number;
@@ -115,11 +116,16 @@ export type ScannerExecutionInput = {
 };
 
 async function readJson(path: string) {
+  let handle: Awaited<ReturnType<typeof open>> | undefined;
   try {
-    const content = await readFile(path, "utf8");
-    if (Buffer.byteLength(content) > 10 * 1024 * 1024) return null;
+    handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const stat = await handle.stat();
+    if (!stat.isFile() || stat.size > 10 * 1024 * 1024) return null;
+    const content = await handle.readFile("utf8");
     return JSON.parse(content) as unknown;
   } catch {
     return null;
+  } finally {
+    await handle?.close().catch(() => undefined);
   }
 }

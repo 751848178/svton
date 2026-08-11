@@ -54,6 +54,7 @@ import { seedParityVersionHistory } from "./lib/parity-seed-version-history.mjs"
 import { detachParitySeedProject } from "./lib/parity-seed-bootstrap.mjs";
 import { buildRuntimeImagesSequentially } from "./lib/parity-runtime-image-build.mjs";
 import { cleanupC5WebBuildOutput } from "./lib/parity-isolated-c5-web-build-output.mjs";
+import { seedParityReleaseActors } from "./lib/parity-seed-release-actors.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const composeFile = resolve(root, "docker-compose.devpilot-parity.yml");
@@ -70,6 +71,8 @@ let verifiedRuntimeImageIds;
 // seed, the DB, the API and the runtime evidence.
 const IDS = {
   user: "parity-user-0001",
+  reviewerUser: "parity-reviewer-0001",
+  confirmerUser: "parity-confirmer-0001",
   team: "parity-team-0001",
   project: "parity-project-0001",
   envStaging: "parity-env-staging",
@@ -353,31 +356,22 @@ async function seed() {
   const pinnedCommit = await fixturePinnedCommit();
   const at = new Date();
   try {
-    // 1. User + Team + membership (owner)
-    await prisma.user.upsert({
-      where: { id: IDS.user },
-      create: {
-        id: IDS.user,
-        email: "parity-user-0001@parity.test",
-        name: "Parity Seed User",
-        role: "admin",
-      },
-      update: { name: "Parity Seed User" },
-    });
+    // 1. Team + three distinct, login-capable release actors.
     await prisma.team.upsert({
       where: { id: IDS.team },
       create: { id: IDS.team, name: "Parity Team" },
       update: {},
     });
-    await prisma.teamMember.upsert({
-      where: { teamId_userId: { teamId: IDS.team, userId: IDS.user } },
-      create: {
-        teamId: IDS.team,
-        userId: IDS.user,
-        role: "owner",
-      },
-      update: { role: "owner" },
+    const bcrypt = createRequire(
+      resolve(root, "apps/devpilot-api/package.json"),
+    )("bcrypt");
+    const releaseActors = await seedParityReleaseActors({
+      prisma,
+      ids: IDS,
+      environment: process.env,
+      hashPassword: (password) => bcrypt.hash(password, 10),
     });
+    console.log(`[parity-seed] release actors ${JSON.stringify(releaseActors)}`);
     // The API bootstraps admin@parity.local at startup; make that user a team
     // owner too so the runtime API flow (login as the bootstrap admin) can
     // act on the seeded parity project/order.

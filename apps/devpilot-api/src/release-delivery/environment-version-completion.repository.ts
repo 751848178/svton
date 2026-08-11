@@ -6,6 +6,9 @@ import { completeVersionedDeployment } from "./environment-version-write.utils";
 import { claimReleaseGateDecision } from "./release-gate-decision.repository";
 import type { ReleaseGateDecisionReference } from "./release-gate-decision.types";
 import { completeProductionPromotionCommand } from "./production-promotion-command-completion.repository";
+import type { FrozenProductionCandidate } from "./production-promotion-candidate.policy";
+import type { ProductionPromotionLease } from "./production-promotion-lease.policy";
+import { assertProductionPromotionCurrent } from "./production-promotion-final-validation.repository";
 
 @Injectable()
 export class EnvironmentVersionCompletionRepository {
@@ -31,9 +34,28 @@ export class EnvironmentVersionCompletionRepository {
         errorCode?: string;
         errorMessage?: string;
       };
+      promotionLease?: ProductionPromotionLease;
+      productionCandidate?: FrozenProductionCandidate;
     },
   ) {
     return this.prisma.$transaction(async (tx) => {
+      const decisions = input.gateDecisions ??
+        (input.gateDecision ? [input.gateDecision] : []);
+      if (input.status === "completed" && input.promotionCommand) {
+        if (!input.promotionLease || !input.productionCandidate ||
+          !input.routeSwitchOperationId || decisions.length !== 2) {
+          throw new Error("PRODUCTION_PROMOTION_FINAL_VALIDATION_INPUT_MISSING");
+        }
+        await assertProductionPromotionCurrent(tx, {
+          commandId: input.promotionCommand.id,
+          lease: input.promotionLease,
+          candidate: input.productionCandidate,
+          actorId: input.actorId,
+          routeSwitchOperationId: input.routeSwitchOperationId,
+          preDecision: decisions[0],
+          postDecision: decisions[1],
+        });
+      }
       const completion = await completeVersionedDeployment(
         tx,
         input,
@@ -58,10 +80,9 @@ export class EnvironmentVersionCompletionRepository {
           result: input.promotionCommand.result,
           errorCode: input.promotionCommand.errorCode,
           errorMessage: input.promotionCommand.errorMessage,
+          lease: input.promotionLease,
         });
       }
-      const decisions = input.gateDecisions ??
-        (input.gateDecision ? [input.gateDecision] : []);
       for (const decision of decisions) {
         await claimReleaseGateDecision(tx, {
           teamId: input.teamId,

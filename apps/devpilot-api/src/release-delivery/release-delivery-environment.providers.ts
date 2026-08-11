@@ -11,6 +11,7 @@ import { SiteRouteSwitchEvidenceRepository } from "../site/site-route-switch-evi
 import { SiteRouteSwitchSagaOrchestrator } from "../site/site-route-switch-saga.orchestrator";
 import { SiteRouteSwitchSagaRecoveryService } from "../site/site-route-switch-saga-recovery.service";
 import { SiteRouteSwitchSagaRecoveryRepository } from "../site/site-route-switch-saga-recovery.repository";
+import { SiteRouteSwitchSagaReadbackService } from "../site/site-route-switch-saga-readback.service";
 import { SiteRouteSwitchSagaRepository } from "../site/site-route-switch-saga.repository";
 import { ConfiguredSiteRouteSwitchProvider } from "../site/configured-site-route-switch-provider.service";
 import { HttpSiteRouteSwitchProvider } from "../site/http-site-route-switch-provider.service";
@@ -31,6 +32,8 @@ import { ProductionPromotionAwaitingRepository } from "./production-promotion-aw
 import { ProductionPromotionCommandRepository } from "./production-promotion-command.repository";
 import { ProductionPromotionObservationRepository } from "./production-promotion-observation.repository";
 import { ProductionPromotionService } from "./production-promotion.service";
+import { ProductionPromotionRecoveryRepository } from "./production-promotion-recovery.repository";
+import { ProductionPromotionRecoveryService } from "./production-promotion-recovery.service";
 
 export const releaseDeliveryEnvironmentProviders = [
   EnvironmentVersionRepository,
@@ -46,6 +49,8 @@ export const releaseDeliveryEnvironmentProviders = [
   ProductionPromotionCommandRepository,
   ProductionPromotionObservationRepository,
   ProductionPromotionService,
+  ProductionPromotionRecoveryRepository,
+  ProductionPromotionRecoveryService,
   ProductionRouteSagaGuard,
   SiteRouteActivationService,
   SiteFinalProbeService,
@@ -56,6 +61,7 @@ export const releaseDeliveryEnvironmentProviders = [
   SiteRouteSwitchSagaRecoveryRepository,
   SiteRouteSwitchSagaOrchestrator,
   SiteRouteSwitchSagaRecoveryService,
+  SiteRouteSwitchSagaReadbackService,
   HttpSiteRouteSwitchProvider,
   UnconfiguredSiteRouteSwitchProvider,
   ConfiguredSiteRouteSwitchProvider,

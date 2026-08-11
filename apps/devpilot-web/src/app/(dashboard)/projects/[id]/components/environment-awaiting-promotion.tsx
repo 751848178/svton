@@ -9,6 +9,7 @@ import type {
   ProductionPromotionResumeInput,
 } from '../types/environment-version.types';
 import { releaseOrderHref } from '../utils/project-route.utils';
+import { frozenProductionCandidate } from '../utils/production-promotion-candidate.model';
 
 export function EnvironmentAwaitingPromotion(props: {
   projectId: string;
@@ -25,7 +26,7 @@ export function EnvironmentAwaitingPromotion(props: {
   const deployment = release?.deploymentRuns.find(
     (item) => item.status === 'awaiting_validation',
   );
-  const candidate = frozenCandidate(deployment?.result);
+  const candidate = frozenProductionCandidate(deployment?.result);
   if (!release || !deployment || !candidate) return null;
   const detailsHref = releaseOrderHref(
     props.projectId,
@@ -66,21 +67,4 @@ export function EnvironmentAwaitingPromotion(props: {
       </div>
     </section>
   );
-}
-
-function frozenCandidate(value: unknown) {
-  const result = record(value);
-  const candidate = record(result.productionCandidate);
-  return typeof candidate.candidateHash === 'string' &&
-    /^[a-f0-9]{64}$/.test(candidate.candidateHash) &&
-    typeof candidate.releaseOrderId === 'string' &&
-    typeof candidate.manifestId === 'string'
-    ? candidate as { candidateHash: string; releaseOrderId: string; manifestId: string }
-    : null;
-}
-
-function record(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : {};
 }

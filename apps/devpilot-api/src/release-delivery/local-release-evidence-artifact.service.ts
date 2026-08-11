@@ -15,7 +15,8 @@ export class LocalReleaseEvidenceArtifactService extends ReleaseEvidenceArtifact
   constructor(config: ConfigService) {
     super();
     this.root = resolve(
-      config.get<string>("RELEASE_BUILD_ARTIFACT_ROOT") ||
+      config.get<string>("RELEASE_BUILD_EVIDENCE_ROOT") ||
+        config.get<string>("RELEASE_BUILD_ARTIFACT_ROOT") ||
         join(process.cwd(), "storage", "release-artifacts"),
       "evidence",
     );

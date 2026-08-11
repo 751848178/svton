@@ -25,7 +25,7 @@ describeRuntime("F426 V13 Docker runtime profile", () => {
       runtime,
       new ReleaseBuildArtifactService(config),
       evidence.packages,
-      evidence.scanners,
+      evidence.preScript,
     );
     runtime.assertAvailable();
     await mkdir(runtime.workRoot, { recursive: true });

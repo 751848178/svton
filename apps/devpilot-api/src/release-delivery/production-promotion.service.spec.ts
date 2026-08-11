@@ -58,12 +58,46 @@ describe("Production promotion resume", () => {
       expect.objectContaining({ status: "failed" }),
     );
   });
+
+  it.each([
+    ["reserved", 1, 1, 1],
+    ["pre_gate_allowed", 0, 1, 1],
+    ["route_switched", 0, 1, 1],
+    ["observed", 0, 0, 1],
+    ["post_gate_allowed", 0, 0, 0],
+  ])("resumes phase %s without replaying completed evidence side effects",
+    async (phase, preCalls, probeCalls, postCalls) => {
+      const deps = fixture();
+      deps.commands.reserve.mockResolvedValue(reservation(phase));
+      await deps.service.resume(input());
+      expect(deps.gates.promote).toHaveBeenCalledTimes(preCalls);
+      expect(deps.siteProbe.probe).toHaveBeenCalledTimes(probeCalls);
+      expect(deps.gates.postRoute).toHaveBeenCalledTimes(postCalls);
+      expect(deps.routeSaga.apply).toHaveBeenCalledTimes(1);
+      expect(deps.completion.complete).toHaveBeenCalledTimes(1);
+    });
+
+  it("stops a reclaimed command before side effects when provider readback is unknown", async () => {
+    const deps = fixture();
+    deps.commands.reserve.mockResolvedValue({
+      ...reservation("route_switched"),
+      recovered: true,
+    });
+    deps.routeReadback.inspect.mockResolvedValue("unknown");
+    await expect(deps.service.resume(input())).rejects.toThrow(
+      "PRODUCTION_PROMOTION_RECOVERY_PENDING_READBACK",
+    );
+    expect(deps.routeSaga.apply).not.toHaveBeenCalled();
+    expect(deps.completion.complete).not.toHaveBeenCalled();
+  });
 });
 
 function fixture() {
   const commands = {
     reserve: jest.fn().mockResolvedValue(reservation()),
     finish: jest.fn().mockResolvedValue({ count: 1 }),
+    heartbeat: jest.fn().mockResolvedValue(undefined),
+    advance: jest.fn().mockResolvedValue(undefined),
   };
   const gates = {
     promote: jest.fn().mockResolvedValue(decision(true, "pre")),
@@ -74,16 +108,20 @@ function fixture() {
     apply: jest.fn().mockResolvedValue(attempt()),
     compensate: jest.fn().mockResolvedValue("compensated"),
   };
+  const routeReadback = { inspect: jest.fn().mockResolvedValue("switched") };
   const siteProbe = { probe: jest.fn().mockResolvedValue(probe()) };
-  const observations = { record: jest.fn().mockResolvedValue(undefined) };
+  const observations = {
+    record: jest.fn().mockResolvedValue(undefined),
+    loadExact: jest.fn().mockResolvedValue({ probe: probe() }),
+  };
   const completion = {
     complete: jest.fn((value) => Promise.resolve(value)),
   };
   return {
-    commands, gates, routeSaga, siteProbe, observations, completion,
+    commands, gates, routeSaga, routeReadback, siteProbe, observations, completion,
     service: new ProductionPromotionService(
       commands as never, gates as never, routeActivation as never,
-      routeSaga as never, siteProbe as never, observations as never,
+      routeSaga as never, routeReadback as never, siteProbe as never, observations as never,
       completion as never,
     ),
   };
@@ -98,9 +136,20 @@ function input() {
   };
 }
 
-function reservation() {
+function reservation(phase = "reserved") {
+  const hasPre = phase !== "reserved";
+  const hasPost = phase === "post_gate_allowed" || phase === "committing";
   return {
-    command: { id: "command-1", status: "running" },
+    command: {
+      id: "command-1", status: "running", phase,
+      preDecisionId: hasPre ? "decision-pre" : null,
+      preDecisionInputHash: hasPre ? "preprepre" : null,
+      preDecisionActionHash: hasPre ? "pre-action" : null,
+      postDecisionId: hasPost ? "decision-post" : null,
+      postDecisionInputHash: hasPost ? "postpostpost" : null,
+      postDecisionActionHash: hasPost ? "post-action" : null,
+      routeSwitchOperationId: hasPre ? "site-route:deployment-1:site-1" : null,
+    },
     candidate: {
       ...input(), version: 1, releaseOrderId: "order-1",
       configRevisionId: "config-1", manifestId: "manifest-1",
@@ -113,7 +162,12 @@ function reservation() {
     routeSnapshot: { domains: ["app.example.com"], tlsRequired: true },
     deploymentResult: { workloadReady: { status: "passed" } },
     deploymentLogs: ["deployed"],
-    idempotentReplay: false,
+    shouldExecute: true,
+    recovered: false,
+    lease: {
+      owner: "owner-1", token: "token-1", tokenHash: "token-hash-1",
+      expiresAt: new Date("2099-08-11T00:00:00.000Z"),
+    },
   };
 }
 
@@ -152,6 +206,7 @@ function probe() {
 function decision(allowed: boolean, id = "manual") {
   return {
     id: `decision-${id}`, stage: "production", inputHash: id.repeat(8), allowed,
+    actionInputHash: `${id}-action`,
     blockerGateIds: [], manualGateIds: allowed ? [] : ["P03"],
   };
 }

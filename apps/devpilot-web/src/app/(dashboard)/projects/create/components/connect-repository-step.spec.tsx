@@ -25,24 +25,32 @@ describe('ConnectRepositoryStep repository-first layout', () => {
     expect(html.indexOf('https://github.com/organization/repository.git')).toBeLessThan(detailsAt);
     expect(html.indexOf('intakeProjectName')).toBeGreaterThan(detailsAt);
     expect(html.indexOf('branchLabel')).toBeGreaterThan(detailsAt);
+    expect(html.indexOf('intakeVisibility')).toBeLessThan(detailsAt);
     expect(html).toContain('autofocus=""');
     expect(html).toContain('intakeOptionalDetails');
   });
 
   it('uses a 44px disclosure target and nests private credentials for the 390px flow', () => {
-    const html = renderToStaticMarkup(<ConnectRepositoryStep intake={fixture('private')} />);
+    const html = renderToStaticMarkup(
+      <ConnectRepositoryStep intake={fixture('private', 'inline')} />,
+    );
     expect(html).toContain('min-h-11');
     expect(html).toContain('intakePrivateCredentialHint');
     expect(html.indexOf('intakePrivateCredentialHint')).toBeGreaterThan(html.indexOf('<details'));
+    expect(html).toContain('private-repository-credential-hint');
+    expect(html).toContain('autoComplete="off"');
   });
 });
 
-function fixture(visibility: 'public' | 'private') {
+function fixture(
+  visibility: 'public' | 'private',
+  credentialMode: 'managed' | 'inline' = 'managed',
+) {
   return {
     projectId: null,
     form: {
       repositoryUrl: '', visibility, name: '', branch: '', description: '',
-      credentialMode: 'managed', teamCredentialId: '', credentialType: 'https_token',
+      credentialMode, teamCredentialId: '', credentialType: 'https_token',
       credentialName: '', credentialUsername: '', credentialSecret: '',
     },
     updateForm: vi.fn(),

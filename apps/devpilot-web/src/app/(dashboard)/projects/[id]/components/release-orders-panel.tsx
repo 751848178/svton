@@ -4,7 +4,7 @@ import React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { LoadingState } from '@svton/ui';
-import { Button, EmptyState, ErrorBanner } from '@/components/ui';
+import { EmptyState, ErrorBanner } from '@/components/ui';
 import { scopedRequestIdentity } from '../hooks/use-scoped-request-guard';
 import type { ReleaseOrdersHook } from '../hooks/use-release-orders';
 import { releaseOrderHref } from '../utils/project-route.utils';
@@ -15,11 +15,9 @@ import { ReleaseOrderListToolbar } from './release-order-list-toolbar';
 export function ReleaseOrdersPanel({
   projectId,
   orders,
-  onCreate,
 }: {
   projectId: string;
   orders: ReleaseOrdersHook;
-  onCreate?: () => void;
 }) {
   const t = useTranslations('projects');
   const router = useRouter();
@@ -61,17 +59,6 @@ export function ReleaseOrdersPanel({
       {!orders.loading && orders.items.length === 0 ? (
         <EmptyState
           title={t(filtered ? 'releaseOrdersFilteredEmpty' : 'releaseOrdersEmpty')}
-          action={
-            !filtered && onCreate ? (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={onCreate}
-              >
-                {t('createReleaseOrder')}
-              </Button>
-            ) : undefined
-          }
         />
       ) : null}
       {!orders.loading && orders.items.length > 0 ? (

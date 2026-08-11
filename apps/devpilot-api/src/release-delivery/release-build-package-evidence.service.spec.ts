@@ -68,6 +68,7 @@ describe("ReleaseBuildPackageEvidenceService", () => {
       releaseOrderId: "order-1",
       buildRunId: "build-1",
       sourceCommitSha: "b".repeat(40),
+      sourceSnapshotDigest: "snapshot-digest",
       checkoutRoot: checkout,
       components: [{
         key: "component-1",

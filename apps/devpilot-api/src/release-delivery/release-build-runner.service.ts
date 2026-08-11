@@ -125,6 +125,7 @@ export class ReleaseBuildRunnerService {
           id: postDecision.id,
           stage: postDecision.stage,
           inputHash: postDecision.inputHash,
+          actionInputHash: postDecision.actionInputHash,
         },
       });
       artifactCommitted = true;

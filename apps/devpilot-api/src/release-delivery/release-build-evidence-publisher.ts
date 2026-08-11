@@ -11,6 +11,7 @@ export async function publishReleaseBuildEvidence(input: {
   releaseOrderId: string;
   buildRunId: string;
   sourceCommitSha: string;
+  sourceSnapshotDigest: string;
   profile: RegisteredReleaseBuildProfile;
   category: string;
   toolId: string;
@@ -25,6 +26,7 @@ export async function publishReleaseBuildEvidence(input: {
 }): Promise<ReleaseBuildGateEvidence> {
   const identityBase = {
     sourceCommitSha: input.sourceCommitSha,
+    sourceSnapshotDigest: input.sourceSnapshotDigest,
     buildRunId: input.buildRunId,
     profileId: input.profile.id,
     profileVersion: input.profile.profileVersion,

@@ -25,23 +25,23 @@ export function ConnectRepositoryStep({ intake }: { intake: ProjectIntakeHook })
           placeholder="https://github.com/organization/repository.git"
         />
       </Field>
+      <Field label={t('intakeVisibility')}>
+        <Select
+          value={form.visibility}
+          onChange={(event) =>
+            updateForm({ visibility: event.target.value as 'public' | 'private' })
+          }
+          options={[
+            { label: t('intakeVisibilityPublic'), value: 'public' },
+            { label: t('intakeVisibilityPrivate'), value: 'private' },
+          ]}
+        />
+      </Field>
       <details className="rounded-lg border bg-muted/20">
         <summary className="flex min-h-11 cursor-pointer items-center px-4 text-sm font-medium">
           {t('intakeOptionalDetails')}
         </summary>
         <div className="grid gap-4 border-t p-4 sm:grid-cols-2">
-          <Field label={t('intakeVisibility')}>
-            <Select
-              value={form.visibility}
-              onChange={(event) =>
-                updateForm({ visibility: event.target.value as 'public' | 'private' })
-              }
-              options={[
-                { label: t('intakeVisibilityPublic'), value: 'public' },
-                { label: t('intakeVisibilityPrivate'), value: 'private' },
-              ]}
-            />
-          </Field>
           <Field label={t('intakeProjectName')} helper={t('intakeNameHelper')}>
             <Input
               value={form.name}
@@ -79,11 +79,15 @@ function PrivateCredentialFields({ intake }: { intake: ProjectIntakeHook }) {
   const t = useTranslations('projects');
   const { form, updateForm } = intake;
   return (
-    <div className="space-y-4 rounded-lg border p-4">
-      <p className="text-sm text-muted-foreground">{t('intakePrivateCredentialHint')}</p>
+    <fieldset className="space-y-4 rounded-lg border p-4">
+      <legend className="px-1 text-sm font-medium">{t('intakeVisibilityPrivate')}</legend>
+      <p id="private-repository-credential-hint" className="text-sm text-muted-foreground">
+        {t('intakePrivateCredentialHint')}
+      </p>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label={t('intakeCredentialMode')}>
           <Select
+            aria-describedby="private-repository-credential-hint"
             value={form.credentialMode}
             onChange={(event) =>
               updateForm({ credentialMode: event.target.value as 'managed' | 'inline' })
@@ -141,6 +145,8 @@ function PrivateCredentialFields({ intake }: { intake: ProjectIntakeHook }) {
               <Input
                 required
                 type="password"
+                autoComplete="off"
+                aria-describedby="private-repository-credential-hint"
                 value={form.credentialSecret}
                 onChange={(event) => updateForm({ credentialSecret: event.target.value })}
               />
@@ -148,7 +154,7 @@ function PrivateCredentialFields({ intake }: { intake: ProjectIntakeHook }) {
           </>
         ) : null}
       </div>
-    </div>
+    </fieldset>
   );
 }
 

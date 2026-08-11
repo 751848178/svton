@@ -1,14 +1,28 @@
 # Controlled-local Build executor for the disposable V13 acceptance stack.
 # This overlay is inert unless the caller also selects --profile v13-acceptance.
 services:
+  release-build-worker-init:
+    profiles: ["v13-acceptance"]
+    build:
+      target: api-acceptance
+    command: ["/usr/bin/install", "-d", "-o", "2000", "-g", "2000", "-m", "0750", "/exchange/input", "/exchange/output"]
+    network_mode: "none"
+    cap_drop: ["ALL"]
+    cap_add: ["CHOWN", "DAC_OVERRIDE"]
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - devpilot-v13-worker-input:/exchange/input
+      - devpilot-v13-worker-output:/exchange/output
+
   api:
     profiles: ["v13-acceptance"]
     container_name: devpilot-v13-f426-api
     restart: "no"
     build:
       target: api-acceptance
-    # Trusted disposable fixtures only: commands still share the API process
-    # and staging network, so this is not an untrusted-code sandbox.
+    depends_on:
+      release-build-worker-init:
+        condition: service_completed_successfully
     read_only: true
     cap_drop: ["ALL"]
     security_opt: ["no-new-privileges:true"]
@@ -19,7 +33,13 @@ services:
       RELEASE_BUILD_EXECUTION_ENABLED: "true"
       RELEASE_BUILD_EXECUTOR_PROFILE: controlled-local-acceptance-v2
       RELEASE_BUILD_WORK_ROOT: /var/lib/devpilot/release-build/work
-      RELEASE_BUILD_ARTIFACT_ROOT: /var/lib/devpilot/release-build/artifacts
+      RELEASE_BUILD_ARTIFACT_ROOT: /exchange/output/artifacts
+      RELEASE_BUILD_EVIDENCE_ROOT: /exchange/input/api-evidence
+      RELEASE_BUILD_UNTRUSTED_WORKER_PROVIDER: filesystem-isolated-worker-v1
+      RELEASE_BUILD_WORKER_INPUT_ROOT: /exchange/input
+      RELEASE_BUILD_WORKER_OUTPUT_ROOT: /exchange/output
+      RELEASE_BUILD_WORKER_HMAC_SECRET_FILE: /run/secrets/release-build-worker-hmac
+      RELEASE_BUILD_WORKER_SHARED_GID: "2000"
       RELEASE_BUILD_RUN_TIMEOUT_MS: "180000"
       RELEASE_BUILD_COMMAND_TIMEOUT_MS: "120000"
       RELEASE_BUILD_CANCEL_GRACE_MS: "5000"
@@ -31,6 +51,49 @@ services:
       RELEASE_STAGING_DEPLOYMENT_TIMEOUT_MS: "120000"
     volumes:
       - devpilot-v13-release-build:/var/lib/devpilot/release-build
+      - devpilot-v13-worker-input:/exchange/input:rw
+      - devpilot-v13-worker-output:/exchange/output:ro
+    secrets:
+      - source: release-build-worker-hmac
+        target: release-build-worker-hmac
+        mode: 0440
+
+  release-build-worker:
+    profiles: ["v13-acceptance"]
+    build:
+      target: api-acceptance
+    command: ["node", "dist/release-delivery/release-build-filesystem-worker.main.js"]
+    user: "2000:2000"
+    read_only: true
+    network_mode: "none"
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 128
+    mem_limit: 2g
+    cpus: 2
+    depends_on:
+      release-build-worker-init:
+        condition: service_completed_successfully
+    environment:
+      RELEASE_BUILD_WORKER_INPUT_ROOT: /exchange/input
+      RELEASE_BUILD_WORKER_OUTPUT_ROOT: /exchange/output
+      RELEASE_BUILD_WORKER_HMAC_SECRET_FILE: /run/secrets/release-build-worker-hmac
+      RELEASE_BUILD_WORK_ROOT: /work
+      RELEASE_BUILD_COMMAND_PATH: /pnpm:/usr/local/bin:/usr/bin:/bin
+      RELEASE_BUILD_COMMAND_TIMEOUT_MS: "120000"
+      RELEASE_BUILD_CANCEL_GRACE_MS: "5000"
+    tmpfs:
+      - /work:rw,nosuid,nodev,size=1g,uid=2000,gid=2000,mode=0700
+      - /tmp:rw,nosuid,nodev,size=64m,uid=2000,gid=2000,mode=0700
+    volumes:
+      - devpilot-v13-worker-input:/exchange/input:ro
+      - devpilot-v13-worker-output:/exchange/output:rw
+    secrets:
+      - source: release-build-worker-hmac
+        target: release-build-worker-hmac
+        uid: "2000"
+        gid: "2000"
+        mode: 0440
 
   web:
     profiles: ["v13-acceptance"]
@@ -39,3 +102,9 @@ services:
 
 volumes:
   devpilot-v13-release-build: {}
+  devpilot-v13-worker-input: {}
+  devpilot-v13-worker-output: {}
+
+secrets:
+  release-build-worker-hmac:
+    file: ${RELEASE_BUILD_WORKER_HMAC_SECRET_FILE:?set a 32-byte secret file}

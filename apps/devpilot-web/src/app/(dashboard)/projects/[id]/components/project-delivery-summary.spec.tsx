@@ -41,6 +41,23 @@ describe('project delivery home summary', () => {
     const html = renderToStaticMarkup(<ProjectDeliveryEnvironmentStrip summary={summary} />);
     expect(html.match(/projectDeliveryCurrentVersionUnknown/g)).toHaveLength(2);
   });
+
+  it('gives open_release exactly one local modal owner', () => {
+    const summary = fixture();
+    summary.checkpoints[0] = {
+      id: 'release', scope: 'project', status: 'action_required',
+      reasonCodes: ['release_action_required'], evidenceRefs: [],
+      action: { kind: 'open_release', href: '/projects/project-1' },
+    };
+    summary.nextAction = summary.checkpoints[0].action;
+    const html = renderToStaticMarkup(
+      <ProjectDeliveryWeakSummary summary={summary} onOpenRelease={() => undefined} />,
+    );
+
+    expect(html.match(/data-current-action="open_release"/g)).toHaveLength(1);
+    expect(html).toContain('createReleaseOrder');
+    expect(html).not.toContain('href="/projects/project-1"');
+  });
 });
 
 function fixture(): ProjectDeliverySummary {

@@ -49,6 +49,30 @@ describe("ReleaseGateDecisionService", () => {
     ).resolves.toBe(allowed);
   });
 
+  it("derives build_pre action hash and requester on the server", async () => {
+    const allowed = decision(true);
+    decisions.persist.mockResolvedValue(allowed);
+    await service.assertAllowed({
+      ...scope,
+      checkpoint: "build_pre_execution",
+      actionInput: { sourceCommitSha: "a".repeat(40) },
+    });
+    const identity = evaluator.evaluate.mock.calls[0][3];
+    expect(identity).toEqual({
+      actionInputHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      requesterActorId: scope.actorId,
+    });
+    expect(decisions.persist.mock.calls[0][1]).toMatchObject({
+      actionInputHash: identity.actionInputHash,
+      requesterActorId: scope.actorId,
+      snapshot: {
+        version: 3,
+        actionInputHash: identity.actionInputHash,
+        requesterActorId: scope.actorId,
+      },
+    });
+  });
+
   it("exposes the blocked decision through the stable exception contract", () => {
     const denied = decision(false);
     expect(new ReleaseGateBlockedException(denied).getResponse()).toMatchObject(
@@ -66,6 +90,8 @@ function decision(allowed: boolean) {
     stage: "build" as const,
     checkpoint: "build_pre_execution" as const,
     phase: "commit" as const,
+    actionInputHash: "action-hash",
+    requesterActorId: "user-1",
     allowed,
     blockerGateIds: allowed ? [] : ["C01"],
     manualGateIds: [],

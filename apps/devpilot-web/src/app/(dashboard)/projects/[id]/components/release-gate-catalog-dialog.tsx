@@ -2,8 +2,7 @@
 
 import React from 'react';
 import { useLocale, useTranslations } from 'next-intl';
-import { Button } from '@svton/ui';
-import { Modal, StatusTag } from '@/components/ui';
+import { Button, Modal, StatusTag } from '@/components/ui';
 import type {
   LocalizedGateText,
   ReleaseGateCatalog,
@@ -46,16 +45,21 @@ export function ReleaseGateCatalogDialog(props: Props) {
       open={props.open}
       onClose={props.onClose}
       title={t('releaseGateCatalogDialogTitle', { count: filteredChecks.length })}
+      ariaCloseLabel={t('releaseGateCancel')}
+      ariaDescriptionId={`${props.dialogId}-description`}
       width={760}
       footer={
         <>
           <Button
+            className="min-h-11"
             variant="ghost"
             onClick={props.onClose}
           >
             {t('releaseGateCancel')}
           </Button>
-          <Button onClick={props.onClose}>{t('releaseGateClose')}</Button>
+          <Button className="min-h-11" onClick={props.onClose}>
+            {t('releaseGateClose')}
+          </Button>
         </>
       }
     >
@@ -63,7 +67,9 @@ export function ReleaseGateCatalogDialog(props: Props) {
         id={props.dialogId}
         className="space-y-5"
       >
-        <p className="text-sm text-muted-foreground">{t('releaseGateCatalogDialogDescription')}</p>
+        <p id={`${props.dialogId}-description`} className="text-sm text-muted-foreground">
+          {t('releaseGateCatalogDialogDescription')}
+        </p>
         <dl className="grid grid-cols-2 gap-3 min-[821px]:grid-cols-4">
           {PHASES.map((phase) => (
             <div

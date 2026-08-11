@@ -18,4 +18,22 @@ describe("SourcePolicyRevision migration", () => {
       "SourcePolicyRevision_projectId_profileId_profileVersion_key",
     );
   });
+
+  it("adds canonical v2 snapshots and additive manual approvals", async () => {
+    const sql = await readFile(
+      resolve(
+        __dirname,
+        "../../prisma/migrations/20260811150000_gate_manual_approval/migration.sql",
+      ),
+      "utf8",
+    );
+    expect(sql).toContain("ADD COLUMN `snapshotVersion`");
+    expect(sql).toContain("ADD COLUMN `snapshot` JSON NULL");
+    expect(sql).toContain("WHERE `snapshot` IS NULL");
+    expect(sql).toContain("CREATE TABLE `GateManualApproval`");
+    expect(sql).toContain(
+      "(`gateEvaluationId`, `evaluationInputHash`, `actionInputHash`, `reviewerActorId`)",
+    );
+    expect(sql).not.toContain("UPDATE `GateEvaluation`");
+  });
 });

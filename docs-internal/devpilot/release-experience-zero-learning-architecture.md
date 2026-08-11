@@ -2,7 +2,7 @@
 
 ## Evidence Boundary
 
-- Source: `master@3e5cc991`, inspected in the isolated `codex/f674-release-ux-redesign` worktree.
+- Source: original audit at `master@3e5cc991`; current CR implementation baseline is `6df52a8e` in the isolated `codex/f674-release-ux-redesign` worktree.
 - Runtime: rebuilt `devpilot-app` API/Web images from that commit; authenticated current-run Browser evidence is stored in `/tmp/codex-tool-runs/svton/f674-current-audit/`.
 - Data: current MySQL project/environment/run inventory was read without mutation. The primary Picshare predates governance finalization and remains a legacy fixture.
 - Status words in this document are limited to `verified_fixed`, `partially_fixed`, `not_fixed`, and `not_applicable`.
@@ -218,3 +218,13 @@ flowchart TD
 - Manual confirmations resolve gate, checkpoint and candidate scope on the server before checking stage-specific permission. Candidate observation gaps, including D18 without a real observability Provider, remain explicit blockers.
 - The Web uses the server-owned `nextAction` as the only primary task, repository-first progressive intake, blocker-first preflight, five environment setup steps, exact awaiting-validation continuation and task-oriented version actions. Desktop and 390px DOM checks cover progressive disclosure, wrapping and 44px targets.
 - The isolated acceptance image target pins scanner versions, rules, database metadata and artifact hashes. This is build-supply evidence only; browser/API/DB release signoff still requires a fresh task-owned runtime and the negative no-side-effect matrix.
+
+## Second Architecture Review Closure (2026-08-11)
+
+- Manual gate approval is additive and action-bound. Canonical SourcePolicy v2 snapshots include stable schema/versioned input, reviewer threshold and requester identity; final reservation revalidates the exact action hash and never converts legacy waivers into approvals.
+- Exact-commit source scanning happens before repository scripts. The API emits a `git archive` tree plus canonical path/mode/size/digest manifest; a separate non-root, networkless filesystem worker verifies signed request/result envelopes and writes private, no-follow evidence through atomic/CAS exchange directories.
+- Production promotion uses owner/token leases, heartbeat, expiry reclaim and independent recovery. Final completion revalidates lease, exact candidate, required decisions, manual approval counts and append-only P09 observation inside the completion transaction.
+- Directory and detail now project the same `PROJECT_DELIVERY_SUMMARY_SELECT` and call the same readiness policy. Directory loading stays two bulk operations: one project relation query and one windowed recent-activity query, with no per-project readiness reads.
+- The parity seed provisions three independent login subjects for requester, source reviewer and Production confirmer. The API/Web Node base and acceptance Debian base are pinned to registry-verified OCI multiarch index digests recorded in `/tmp/codex-tool-runs/svton/f674-q4-base-digests.log`.
+- Web action ownership is singular: directory cards follow the server deep link, the current-checkpoint card alone opens a release, and `awaiting_validation` resumes the exact release/deployment/candidate without redirecting to a generic environment action. Private repository credentials remain progressive, Production disabled actions expose a reason, design-system modals label their title and use 44px close/actions, and upgrade/recovery remain aligned at 390px.
+- These items are source/focused-test/typecheck closure only. No Docker, database migration application or shared runtime mutation occurred in this review round; runtime acceptance remains a separate signoff boundary.

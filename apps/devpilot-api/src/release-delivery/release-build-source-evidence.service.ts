@@ -57,6 +57,7 @@ export class ReleaseBuildSourceEvidenceService {
         id: policy.id,
         profileId: policy.profileId,
         profileVersion: policy.profileVersion,
+        snapshotVersion: policy.snapshotVersion,
         externalRequiredChecks: policy.externalRequiredChecks,
         requiredIndependentApprovals: policy.requiredIndependentApprovals,
         snapshotHash: policy.snapshotHash,

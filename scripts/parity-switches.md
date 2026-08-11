@@ -73,6 +73,20 @@ production provider.
 | `RELEASE_BUILD_COMMAND_PATH`                  | includes `/pnpm`                        | fixture builds run under the API image's pnpm (fixture has ZERO deps → no network installs)           |
 | `DEVPILOT_BOOTSTRAP_ADMIN_EMAIL` / `PASSWORD` | `admin@parity.local` / `ParityDemo123!` | bootstrap admin for the runtime API flow                                                              |
 
+The release parity seed also provisions three independent, login-capable team
+admins. Their subjects are intentionally distinct so requester/executor,
+independent source reviewer, and Production confirmer evidence cannot collapse
+onto the bootstrap admin or one actor:
+
+| release role | email | default parity-only password | override |
+| --- | --- | --- | --- |
+| requester | `parity-requester@parity.test` | `ParityRequester123!` | `PARITY_REQUESTER_PASSWORD` |
+| independent reviewer | `parity-reviewer@parity.test` | `ParityReviewer123!` | `PARITY_REVIEWER_PASSWORD` |
+| Production confirmer | `parity-confirmer@parity.test` | `ParityConfirmer123!` | `PARITY_CONFIRMER_PASSWORD` |
+
+These credentials belong only to the disposable parity database and are
+re-hashed on every idempotent seed. They are not application defaults.
+
 ### Build-stage gate admission (concrete gap fixed in F454)
 
 The commit-phase gates C02/C03/C06/C07/C09/C10 are provider-capability gates

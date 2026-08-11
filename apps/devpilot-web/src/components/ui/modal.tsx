@@ -11,9 +11,11 @@
  * 单一职责：透传 props，归一化类型。行为与 @svton/ui Modal 完全一致。
  */
 
-import { Modal as UiModal, type ModalProps } from '@svton/ui';
+import { Modal as UiModal, type ModalProps as UiModalProps } from '@svton/ui';
 
-export type { ModalProps };
+export interface ModalProps extends UiModalProps {
+  ariaDescriptionId?: string;
+}
 
 // 断言为普通函数组件，绕过跨包 ForwardRefExoticComponent 类型标识差异
 const ModalComponent = UiModal as unknown as (props: ModalProps) => JSX.Element;

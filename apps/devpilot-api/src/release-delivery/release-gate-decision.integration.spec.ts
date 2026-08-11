@@ -178,6 +178,13 @@ describeIntegration("ReleaseGateDecision integration", () => {
         status: "needs_human",
         providerKey: "test.manual-provider",
         reasonCode: "manual_review_required",
+        summary: {
+          decisionIdentity: {
+            checkpoint: "build_pre_execution",
+            actionInputHash: "action-hash",
+            requesterActorId: userId,
+          },
+        },
         sourceSystem: "integration",
         inputHash,
         expiresAt: new Date(Date.now() + 60_000),
@@ -185,16 +192,18 @@ describeIntegration("ReleaseGateDecision integration", () => {
     });
     const confirmed = await evaluations.confirmManual({
       ...scope(),
+      actorId: otherUserId,
       evaluationId: evaluation.id,
       gateId: "C06",
       reason: "Reviewed exact evidence",
     });
     expect(confirmed).toMatchObject({
-      waiver: expect.objectContaining({
-        kind: "manual_confirmation",
-        actorId: userId,
+      manualApprovals: [expect.objectContaining({
+        reviewerActorId: otherUserId,
+        requesterActorId: userId,
         evaluationInputHash: inputHash,
-      }),
+        actionInputHash: "action-hash",
+      })],
     });
   });
 });
@@ -208,6 +217,8 @@ function draft(
     stage: "build",
     checkpoint: "build_pre_execution",
     phase: "commit",
+    actionInputHash: "action-hash",
+    requesterActorId: "user-1",
     allowed: true,
     blockerGateIds: [],
     manualGateIds: [],
@@ -217,12 +228,14 @@ function draft(
     evidenceOnlyGateIds: [],
     integrityErrors: [],
     snapshot: {
-      version: 2,
+      version: 3,
       stage: "build",
       checkpoint: "build_pre_execution",
       phase: "commit",
       requiredGateIds: [],
       actionInput,
+      actionInputHash: "action-hash",
+      requesterActorId: "user-1",
       evaluations: [],
     },
   };

@@ -40,17 +40,16 @@ vi.mock('../hooks/use-release-orders', () => ({
   useReleaseOrders: mocks.useReleaseOrders,
 }));
 vi.mock('./project-delivery-header', () => ({
-  ProjectDeliveryHeader: ({
-    showCreate,
-    onCreate,
-  }: {
-    showCreate: boolean;
-    onCreate?: () => void;
-  }) => showCreate && onCreate ? <button onClick={onCreate}>create-release-order</button> : null,
+  ProjectDeliveryHeader: () => <div>project-header</div>,
 }));
 vi.mock('./project-delivery-summary', () => ({
   ProjectDeliveryEnvironmentStrip: () => <div>versions</div>,
-  ProjectDeliveryWeakSummary: () => <div>summary</div>,
+  ProjectDeliveryWeakSummary: ({ onOpenRelease }: { onOpenRelease?: () => void }) => (
+    <div>
+      summary
+      {onOpenRelease ? <button onClick={onOpenRelease}>create-release-order</button> : null}
+    </div>
+  ),
 }));
 vi.mock('./release-orders-panel', () => ({
   ReleaseOrdersPanel: () => <div>release-orders-active-child</div>,
@@ -116,6 +115,11 @@ describe('ProjectDeliveryRoute create action owner', () => {
     expect(container.textContent).toContain(active);
     expect(container.textContent).not.toContain(inactive);
     expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(
+      Array.from(container.querySelectorAll('button')).filter(
+        (button) => button.textContent === 'create-release-order',
+      ),
+    ).toHaveLength(1);
     await act(async () => {
       container.querySelector('button')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });

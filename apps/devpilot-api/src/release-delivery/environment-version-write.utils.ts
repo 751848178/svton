@@ -128,7 +128,7 @@ export async function completeVersionedDeployment(
       select: { operationApprovalId: true },
     });
     if (releaseRun.operationApprovalId) {
-      await tx.operationApproval.updateMany({
+      const consumed = await tx.operationApproval.updateMany({
         where: {
           id: releaseRun.operationApprovalId,
           status: "approved",
@@ -136,6 +136,9 @@ export async function completeVersionedDeployment(
         },
         data: { consumedAt: finishedAt },
       });
+      if (consumed.count !== 1) {
+        throw new Error("PRODUCTION_OPERATION_APPROVAL_CONSUME_CONFLICT");
+      }
     }
   }
   return { version, transitioned: true };

@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useReleaseBuilds } from '../hooks/use-release-builds';
 import type { ReleaseOrderEvidenceHook } from '../hooks/use-release-order-evidence';
 import { useProductionReleases } from '../hooks/use-production-releases';
+import { useProductionPromotionResume } from '../hooks/use-production-promotion-resume';
 import { useReleaseProductionFocusNormalizer } from '../hooks/use-release-production-focus-normalizer';
 import { useReleaseStagingDeployments } from '../hooks/use-release-staging-deployments';
 import { releaseProductionErrorLabelKey } from '../utils/release-copy.model';
@@ -12,6 +13,8 @@ import { ReleaseProductionApprovalCard } from './release-production-approval-car
 import { ReleaseProductionConfirmDialog } from './release-production-confirm-dialog';
 import { ReleaseProductionEvidenceSection } from './release-production-evidence-section';
 import { ReleaseProductionPrimaryAction } from './release-production-primary-action';
+import { releaseProductionCurrentRun } from './release-production-current-run.model';
+import { ReleaseProductionPromotionProgress } from './release-production-promotion-progress';
 import {
   productionStageCopy,
   ReleaseProductionStageCard,
@@ -71,13 +74,20 @@ export function ReleaseOrderProductionStep(props: Props) {
     ? releaseProductionErrorLabelKey(production.error)
     : null;
   const releaseRuns = evidence?.productionReleaseRuns.items || [];
-  const approvalRun = useMemo(() => {
-    if (props.focusedReleaseRunId) {
-      const focused = releaseRuns.find((run) => run.id === props.focusedReleaseRunId);
-      if (focused) return focused;
-    }
-    return releaseRuns[0] || null;
-  }, [props.focusedReleaseRunId, releaseRuns]);
+  const current = useMemo(
+    () => releaseProductionCurrentRun(
+      releaseRuns,
+      props.focusedReleaseRunId,
+      props.releaseOrderId,
+    ),
+    [props.focusedReleaseRunId, props.releaseOrderId, releaseRuns],
+  );
+  const approvalRun = current.approvalRun;
+  const promotion = useProductionPromotionResume(
+    props.projectId,
+    current.awaitingResume?.environmentId || '',
+    props.onChanged,
+  );
 
   const focusedRun =
     releaseRuns.find((run) =>
@@ -95,56 +105,40 @@ export function ReleaseOrderProductionStep(props: Props) {
     onClose: props.onCloseLog,
   });
 
-  const succeededOnline = releaseRuns.some((run) =>
-    ['succeeded', 'completed'].includes(run.status.toLowerCase()),
-  );
-  const currentOnline = useMemo(() => {
-    const latest = releaseRuns.find((run) =>
-      ['succeeded', 'completed'].includes(run.status.toLowerCase()),
-    );
-    return latest?.verifiedDigest || '';
-  }, [releaseRuns]);
-  const pendingApprovals = releaseRuns.filter(
-    (run) => run.operationApproval.status === 'pending',
-  ).length;
-  const activeRun = approvalRun
-    ? ['awaiting_approval', 'approved', 'running', 'awaiting_validation'].includes(approvalRun.status) ||
-      approvalRun.operationApproval.status === 'pending'
-    : false;
-  const needsRecovery = Boolean(
-    approvalRun &&
-    (approvalRun.status === 'failed' || approvalRun.operationApproval.status === 'rejected'),
-  );
-  const stageCopy = productionStageCopy(approvalRun, succeededOnline);
+  const stageCopy = productionStageCopy(approvalRun, current.succeededOnline);
 
   const primaryAction = (
     <ReleaseProductionPrimaryAction
       frozen={props.productionArtifactFrozen}
-      needsRecovery={needsRecovery}
-      active={activeRun}
+      needsRecovery={current.needsRecovery}
+      active={current.active}
       runStatus={approvalRun?.status}
       approvalStatus={approvalRun?.operationApproval.status}
       recoveryHref={props.recoveryHref}
-      awaitingValidationHref={`/projects/${encodeURIComponent(props.projectId)}?view=environment-versions`}
+      awaitingValidationReady={Boolean(current.awaitingResume)}
+      resuming={promotion.resuming}
       snapshotReady={Boolean(snapshot)}
       confirming={production.confirming}
       onRequest={() => setDialogOpen(true)}
+      onResume={() => {
+        if (current.awaitingResume) void promotion.resume(current.awaitingResume.input);
+      }}
     />
   );
 
   return (
     <div className="space-y-4">
       <ReleaseProductionStageCard
-        currentOnline={currentOnline}
+        currentOnline={current.currentOnline}
         releaseVersion={props.releaseVersion}
-        pendingApprovals={pendingApprovals}
-        online={succeededOnline}
+        pendingApprovals={current.pendingApprovals}
+        online={current.succeededOnline}
         titleKey={stageCopy.titleKey}
         descriptionKey={stageCopy.descriptionKey}
         primaryAction={primaryAction}
         manifestId={manifestId}
         candidates={candidates}
-        selectDisabled={builds.loading || staging.loading || production.confirming || activeRun}
+        selectDisabled={builds.loading || staging.loading || production.confirming || current.active}
         onManifestChange={(next) => {
           setRequestedManifestId(next);
           setDialogOpen(false);
@@ -160,6 +154,7 @@ export function ReleaseOrderProductionStep(props: Props) {
           onConfirm={production.confirm}
         />}
       />
+      <ReleaseProductionPromotionProgress run={approvalRun} />
       {approvalRun ? (
         <ReleaseProductionApprovalCard
           projectId={props.projectId}
@@ -175,6 +170,9 @@ export function ReleaseOrderProductionStep(props: Props) {
         >
           {t(productionErrorKey)}
         </p>
+      ) : null}
+      {promotion.error ? (
+        <p className="text-sm text-destructive" role="alert">{promotion.error}</p>
       ) : null}
       <ReleaseProductionEvidenceSection
         projectId={props.projectId}

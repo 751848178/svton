@@ -10,6 +10,10 @@ import {
   type ReleaseGateDecisionTarget,
 } from "./release-gate-decision.types";
 import { ReleaseGateEvaluationService } from "./release-gate-evaluation.service";
+import {
+  releaseGateActionIdentity,
+  type ReleaseGateActionIdentity,
+} from "./release-gate-action-identity.policy";
 
 type DecisionScope = {
   teamId: string;
@@ -36,18 +40,37 @@ export class ReleaseGateDecisionService {
   ) {}
 
   async catalog(scope: DecisionScope, buildInput: ReleaseGateDecisionInput) {
-    const evaluation = await this.evaluator.evaluate(scope, buildInput.target);
+    const buildCheckpoint = defaultCheckpointForStage("build");
+    const buildIdentity = releaseGateActionIdentity({
+      checkpoint: buildCheckpoint,
+      actionInput: buildInput.actionInput,
+      requesterActorId: scope.actorId,
+    });
+    const evaluation = await this.evaluator.evaluate(
+      scope,
+      buildInput.target,
+      buildCheckpoint,
+      buildIdentity,
+    );
     const entries = await Promise.all(
       RELEASE_GATE_DECISION_STAGES.map(
         async (stage) => {
           const checkpoint = defaultCheckpointForStage(stage);
+          const actionInput = stage === "build"
+            ? buildInput.actionInput
+            : { source: "catalog" };
           return [
             stage,
             await this.persist(
               scope,
               checkpoint,
               evaluation.checks,
-              stage === "build" ? buildInput.actionInput : { source: "catalog" },
+              actionInput,
+              releaseGateActionIdentity({
+                checkpoint,
+                actionInput,
+                requesterActorId: scope.actorId,
+              }),
             ),
           ] as const;
         },
@@ -71,12 +94,23 @@ export class ReleaseGateDecisionService {
       requestKey,
       ...scope
     } = input;
-    const evaluation = await this.evaluator.evaluate(scope, target, checkpoint);
+    const actionIdentity = releaseGateActionIdentity({
+      checkpoint,
+      actionInput,
+      requesterActorId: scope.actorId,
+    });
+    const evaluation = await this.evaluator.evaluate(
+      scope,
+      target,
+      checkpoint,
+      actionIdentity,
+    );
     const decision = await this.persist(
       scope,
       checkpoint,
       evaluation.checks,
       actionInput,
+      actionIdentity,
       requestKey,
     );
     if (!decision.allowed) {
@@ -90,6 +124,7 @@ export class ReleaseGateDecisionService {
     checkpoint: ReleaseGateCheckpoint,
     checks: Parameters<typeof buildReleaseGateDecision>[0]["checks"],
     actionInput?: Record<string, string | null>,
+    actionIdentity?: ReleaseGateActionIdentity,
     requestKey?: string,
   ) {
     return this.decisions.persist(
@@ -98,7 +133,11 @@ export class ReleaseGateDecisionService {
         checkpoint,
         checks,
         actionInput,
-        actorId: scope.actorId,
+        actionIdentity: actionIdentity ?? releaseGateActionIdentity({
+          checkpoint,
+          actionInput,
+          requesterActorId: scope.actorId,
+        }),
       }),
       requestKey,
     );

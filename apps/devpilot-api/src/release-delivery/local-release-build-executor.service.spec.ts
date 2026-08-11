@@ -24,6 +24,8 @@ describe("LocalReleaseBuildExecutorService", () => {
           ({
             RELEASE_BUILD_EXECUTION_ENABLED: true,
             RELEASE_BUILD_EXECUTOR_PROFILE: "controlled-local-acceptance-v2",
+            NODE_ENV: "test",
+            RELEASE_BUILD_TRUSTED_TEST_FIXTURE: true,
             RELEASE_BUILD_WORK_ROOT: work,
             RELEASE_BUILD_COMMAND_TIMEOUT_MS: 5_000,
             RELEASE_BUILD_CANCEL_GRACE_MS: 100,
@@ -38,7 +40,7 @@ describe("LocalReleaseBuildExecutorService", () => {
       new ReleaseBuildRuntimeProfileService(config),
       new ReleaseBuildArtifactService(config),
       evidence.packages,
-      evidence.scanners,
+      evidence.preScript,
     );
   });
 

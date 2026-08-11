@@ -1,5 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { ControlAccessPolicyService } from "../control-access-policy";
+import { ConfigService } from "@nestjs/config";
+import { resolveConfiguredReleaseDeploymentProviderKey } from "../release-delivery/release-deployment-provider-profile";
 import type { ProjectDirectoryQueryDto } from "./dto/project-directory-query.dto";
 import { toProjectDirectoryItem } from "./project-directory-presenter.utils";
 import { ProjectDirectoryRepository } from "./project-directory.repository";
@@ -13,6 +15,7 @@ export class ProjectDirectoryService {
   constructor(
     private readonly repository: ProjectDirectoryRepository,
     private readonly access: ControlAccessPolicyService,
+    private readonly config: ConfigService,
   ) {}
 
   async list(
@@ -38,7 +41,10 @@ export class ProjectDirectoryService {
     );
     const authorized = decisions
       .filter((decision) => decision.allowed)
-      .map((decision) => toProjectDirectoryItem(decision.project));
+      .map((decision) => toProjectDirectoryItem(
+        decision.project,
+        resolveConfiguredReleaseDeploymentProviderKey(this.config),
+      ));
     const filtered = authorized
       .filter((project) => matchesQuery(project, query.query))
       .filter((project) => !query.status || project.status === query.status)

@@ -17,8 +17,14 @@ describe("GateEvaluationRepository C03 independent approval", () => {
     summary: {
       evidenceIdentity: {
         sourcePolicyRevisionId: "policy-1",
+        sourcePolicySnapshotHash: "policy-hash",
         sourceCommitSha: "a".repeat(40),
         commitAuthorUserId: "author-1",
+      },
+      decisionIdentity: {
+        checkpoint: "build_pre_execution",
+        actionInputHash: "action-hash",
+        requesterActorId: "requester-1",
       },
     },
   };
@@ -29,20 +35,25 @@ describe("GateEvaluationRepository C03 independent approval", () => {
       const prisma = prismaDouble();
       const repository = new GateEvaluationRepository(prisma as never);
       await expect(repository.confirmManual(input(actorId))).rejects.toThrow();
-      expect(prisma.gateEvaluation.updateMany).not.toHaveBeenCalled();
+      expect(prisma.gateManualApproval.upsert).not.toHaveBeenCalled();
     },
   );
 
-  it("accepts a distinct second actor and binds the waiver to inputHash", async () => {
+  it("accepts a distinct second actor and appends an exact approval", async () => {
     const prisma = prismaDouble();
     const repository = new GateEvaluationRepository(prisma as never);
     await expect(repository.confirmManual(input("reviewer-1"))).resolves.toEqual({
       ...row,
-      waiver: { stored: true },
+      manualApprovals: [{ id: "approval-1" }],
     });
-    expect(prisma.gateEvaluation.updateMany).toHaveBeenCalledWith(
+    expect(prisma.gateManualApproval.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ id: row.id, inputHash: row.inputHash }),
+        create: expect.objectContaining({
+          evaluationInputHash: row.inputHash,
+          actionInputHash: "action-hash",
+          requesterActorId: "requester-1",
+          reviewerActorId: "reviewer-1",
+        }),
       }),
     );
   });
@@ -51,11 +62,21 @@ describe("GateEvaluationRepository C03 independent approval", () => {
     return {
       gateEvaluation: {
         findFirst: jest.fn().mockResolvedValue(row),
-        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
         findUniqueOrThrow: jest.fn().mockResolvedValue({
           ...row,
-          waiver: { stored: true },
+          manualApprovals: [{ id: "approval-1" }],
         }),
+      },
+      gateManualApproval: {
+        upsert: jest.fn().mockResolvedValue({ id: "approval-1" }),
+      },
+      project: {
+        findUnique: jest.fn().mockResolvedValue({
+          currentSourcePolicyRevisionId: "policy-1",
+        }),
+      },
+      sourcePolicyRevision: {
+        findFirst: jest.fn().mockResolvedValue({ id: "policy-1" }),
       },
       buildRun: { findUnique: jest.fn() },
     };

@@ -6,6 +6,7 @@ import {
   resolveRegisteredReleaseBuildProfile,
   type RegisteredReleaseBuildProfile,
 } from "./release-build-acceptance-profile";
+import { resolveReleaseBuildWorkerRuntime } from "./release-build-worker-runtime-config";
 
 const CHILD_ENVIRONMENT_KEYS = [
   "CI",
@@ -30,11 +31,17 @@ export class ReleaseBuildRuntimeProfileService {
   private readonly configuredWorkRoot: string | undefined;
   private readonly configuredArtifactRoot: string | undefined;
   readonly registeredProfile: RegisteredReleaseBuildProfile | null;
+  private readonly trustedTestFixture: boolean;
+  private readonly worker: ReturnType<typeof resolveReleaseBuildWorkerRuntime>;
 
   constructor(config: ConfigService) {
     this.profile =
       config.get<string>("RELEASE_BUILD_EXECUTOR_PROFILE") || "disabled";
     this.registeredProfile = resolveRegisteredReleaseBuildProfile(this.profile);
+    this.trustedTestFixture =
+      config.get("NODE_ENV") === "test" &&
+      boolean(config.get("RELEASE_BUILD_TRUSTED_TEST_FIXTURE"));
+    this.worker = resolveReleaseBuildWorkerRuntime(config, this.trustedTestFixture);
     this.executionEnabled = boolean(
       config.get("RELEASE_BUILD_EXECUTION_ENABLED"),
     );
@@ -63,6 +70,7 @@ export class ReleaseBuildRuntimeProfileService {
       Boolean(this.registeredProfile) &&
       Boolean(this.configuredWorkRoot) &&
       Boolean(this.configuredArtifactRoot) &&
+      this.worker.ready &&
       isAbsolute(this.configuredWorkRoot || "") &&
       isAbsolute(this.configuredArtifactRoot || "") &&
       !overlaps(this.workRoot, this.artifactRoot) &&
@@ -75,12 +83,21 @@ export class ReleaseBuildRuntimeProfileService {
     return this.executionEnabled || this.profile !== "disabled";
   }
 
+  get unavailableReason() {
+    if (this.registeredProfile && !this.worker.ready) {
+      return "untrusted_worker_provider_missing";
+    }
+    return "build_executor_disabled_or_invalid";
+  }
+
   assertAvailable() {
     if (!this.available) {
       throw new UnprocessableEntityException({
-        code: "BUILD_EXECUTOR_DISABLED",
-        message: "受控构建执行器未启用或运行目录配置无效",
-        action: "仅在隔离验收 profile 中配置独立工作目录和制品目录后重试。",
+        code: this.unavailableReason.toUpperCase(),
+        message: this.unavailableReason === "untrusted_worker_provider_missing"
+          ? "缺少可证明隔离的非可信源码 Build Worker Provider"
+          : "受控构建执行器未启用或运行目录配置无效",
+        action: "安装实现 release-build-untrusted-worker-v1 的独立 Worker Provider。",
       });
     }
   }
@@ -97,6 +114,7 @@ export class ReleaseBuildRuntimeProfileService {
         concurrencyScope: "single-process",
         workspacePolicy: "dedicated-build-root",
         environmentKeys: CHILD_ENVIRONMENT_KEYS,
+        workerIsolation: workerIsolation(false),
       };
     }
     return {
@@ -115,8 +133,28 @@ export class ReleaseBuildRuntimeProfileService {
       concurrencyScope: "single-process",
       workspacePolicy: "dedicated-build-root",
       environmentKeys: CHILD_ENVIRONMENT_KEYS,
+      workerIsolation: workerIsolation(
+        this.trustedTestFixture,
+        this.worker.filesystem,
+      ),
     };
   }
+
+  get workerInputRoot() { return this.worker.inputRoot; }
+  get workerOutputRoot() { return this.worker.outputRoot; }
+  get workerSecretFile() { return this.worker.secretFile; }
+  get workerPollIntervalMs() { return this.worker.pollIntervalMs; }
+  get workerSharedGid() { return this.worker.sharedGid; }
+}
+
+function workerIsolation(testFixture: boolean, filesystem = false) {
+  return {
+    contractVersion: "release-build-untrusted-worker-v1" as const,
+    provider: filesystem
+      ? "filesystem-isolated-worker-v1" as const
+      : testFixture ? "test-fixture-only" as const : "missing" as const,
+    untrustedRepositories: filesystem,
+  };
 }
 
 function number(config: ConfigService, key: string, fallback: number) {

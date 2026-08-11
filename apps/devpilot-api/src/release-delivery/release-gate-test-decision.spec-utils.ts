@@ -24,6 +24,7 @@ export async function persistAllowedTestDecision(
   },
 ): Promise<ReleaseGateDecision> {
   const inputHash = input.inputHash || randomUUID();
+  const actionInputHash = stableHash({ scope: "test-action", inputHash });
   const phase = input.checkpoint
     ? releaseGateCheckpointPolicy(input.checkpoint).phase
     : ({
@@ -42,7 +43,11 @@ export async function persistAllowedTestDecision(
       allowed: true,
       definitionVersion: "test",
       inputHash,
-      inputSnapshot: {},
+      inputSnapshot: {
+        version: 3,
+        actionInputHash,
+        requesterActorId: input.actorId,
+      },
       blockerGateIds: [],
       manualGateIds: [],
       confirmedManualGateIds: [],
@@ -62,6 +67,8 @@ export async function persistAllowedTestDecision(
           ? "staging_pre_execution"
           : "production_pre_execution"),
     phase,
+    actionInputHash,
+    requesterActorId: input.actorId,
     allowed: true,
     blockerGateIds: [],
     manualGateIds: [],

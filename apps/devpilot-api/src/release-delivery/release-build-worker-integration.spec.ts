@@ -1,0 +1,127 @@
+import { execFile } from "node:child_process";
+import { ConfigService } from "@nestjs/config";
+import {
+  access,
+  mkdir,
+  mkdtemp,
+  readdir,
+  rm,
+  writeFile,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
+import { FilesystemIsolatedReleaseBuildExecutorService } from "./filesystem-isolated-release-build-executor.service";
+import { ReleaseBuildFilesystemWorker } from "./release-build-filesystem-worker";
+import { ReleaseBuildRuntimeProfileService } from "./release-build-runtime-profile.service";
+import { ReleaseBuildSourceSnapshotService } from "./release-build-source-snapshot.service";
+import { readImmutableWorkerJson } from "./release-build-worker-exchange";
+import {
+  verifyWorkerResult,
+  type ReleaseBuildWorkerResult,
+} from "./release-build-worker-envelope.policy";
+
+const exec = promisify(execFile);
+const secret = "integration-worker-secret-is-at-least-32-bytes";
+
+describe("filesystem isolated build worker exchange", () => {
+  let scope: string;
+
+  beforeEach(async () => {
+    scope = await mkdtemp(join(tmpdir(), "release-worker-integration-"));
+  });
+  afterEach(async () => rm(scope, { recursive: true, force: true }));
+
+  it("returns an authenticated fail-closed scan result without running build", async () => {
+    const repository = join(scope, "repository");
+    const inputRoot = join(scope, "input");
+    const outputRoot = join(scope, "output");
+    const secretFile = join(scope, "worker.secret");
+    await Promise.all([
+      mkdir(repository),
+      mkdir(inputRoot),
+      mkdir(outputRoot),
+      writeFile(secretFile, secret, { mode: 0o600 }),
+    ]);
+    await writeFile(join(repository, "credential.txt"), [
+      "-----BEGIN RSA PRIVATE KEY-----",
+      "fixture-must-never-reach-repository-scripts",
+      "-----END RSA PRIVATE KEY-----",
+    ].join("\n"));
+    await writeFile(join(repository, "build.js"), "throw new Error('must not run')");
+    await git(repository, ["init", "-q"]);
+    await git(repository, ["config", "user.email", "fixture@example.test"]);
+    await git(repository, ["config", "user.name", "Fixture"]);
+    await git(repository, ["add", "."]);
+    await git(repository, ["commit", "-q", "-m", "fixture"]);
+    const commit = (await git(repository, ["rev-parse", "HEAD"])).trim();
+    const runtime = new ReleaseBuildRuntimeProfileService(new ConfigService({
+      RELEASE_BUILD_EXECUTION_ENABLED: true,
+      RELEASE_BUILD_EXECUTOR_PROFILE: "controlled-local-acceptance-v2",
+      RELEASE_BUILD_WORK_ROOT: join(scope, "api-work"),
+      RELEASE_BUILD_ARTIFACT_ROOT: join(outputRoot, "artifacts"),
+      RELEASE_BUILD_UNTRUSTED_WORKER_PROVIDER: "filesystem-isolated-worker-v1",
+      RELEASE_BUILD_WORKER_INPUT_ROOT: inputRoot,
+      RELEASE_BUILD_WORKER_OUTPUT_ROOT: outputRoot,
+      RELEASE_BUILD_WORKER_HMAC_SECRET_FILE: secretFile,
+      RELEASE_BUILD_WORKER_SHARED_GID: process.getgid?.() ?? 1,
+      RELEASE_BUILD_WORKER_POLL_INTERVAL_MS: 10,
+      RELEASE_BUILD_RUN_TIMEOUT_MS: 10_000,
+      RELEASE_BUILD_COMMAND_TIMEOUT_MS: 5_000,
+      RELEASE_BUILD_COMMAND_PATH: process.env.PATH,
+    }));
+    const adapter = new FilesystemIsolatedReleaseBuildExecutorService(
+      runtime,
+      new ReleaseBuildSourceSnapshotService(),
+    );
+    const execution = adapter.execute({
+      buildRunId: "build-integration-1",
+      projectId: "project-1",
+      releaseOrderId: "order-1",
+      sourceCommitSha: commit,
+      checkoutRoot: repository,
+      components: [{
+        key: "api", name: "api", workingDirectory: ".",
+        buildCommand: "node build.js", artifactOutputs: ["dist"],
+        buildEnvironment: {},
+      }],
+    });
+    const jobId = await waitForJob(inputRoot);
+    const worker = new ReleaseBuildFilesystemWorker({
+      inputRoot, outputRoot, secretFile,
+      workRoot: join(scope, "worker-work"),
+      commandPath: process.env.PATH || "/usr/bin:/bin",
+      tarExecutable: "/usr/bin/tar",
+      commandTimeoutMs: 5_000,
+      cancelGraceMs: 50,
+    });
+    await worker.runJob(jobId);
+    await expect(execution).rejects.toMatchObject({
+      detail: { code: "BUILD_PRE_SCRIPT_SECURITY_BLOCKED" },
+    });
+    const result = await readImmutableWorkerJson<ReleaseBuildWorkerResult>(
+      join(outputRoot, jobId, "result.json"),
+    );
+    expect(verifyWorkerResult(result, secret)).toBe(true);
+    expect(result.status).toBe("failed");
+  });
+});
+
+async function waitForJob(root: string) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const entries = await readdir(root);
+    if (entries.length === 1 && await exists(join(root, entries[0], "request.json"))) {
+      return entries[0];
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error("Build worker request was not published");
+}
+
+async function exists(path: string) {
+  try { await access(path); return true; } catch { return false; }
+}
+
+async function git(cwd: string, args: string[]) {
+  return (await exec("/usr/bin/git", args, { cwd })).stdout;
+}

@@ -11,6 +11,7 @@ import {
   type EnvironmentSettingsTab,
 } from "./project-delivery-environment-readiness.policy";
 import { resolveProjectDeliveryServiceParity } from "./project-delivery-service-parity.policy";
+import { exactCurrentEnvironmentVersion } from "./current-environment-version.utils";
 
 export function projectDeliveryReadiness(
   project: ProjectDeliverySummaryRecord,
@@ -37,7 +38,7 @@ export function projectDeliveryReadiness(
       environmentTarget(project.id, role, environment, providerKey),
       environmentRoute(project.id, role, environment),
     ]),
-    release(project.id, baselines),
+    release(project, baselines),
   ];
   return {
     checkpoints,
@@ -113,15 +114,15 @@ function environmentRoute(
     projectId, environment, "configure_routes", "routes"));
 }
 
-function release(projectId: string, baselines: Baseline[]) {
+function release(project: ProjectDeliverySummaryRecord, baselines: Baseline[]) {
   const ready = baselines.every(({ environment }) =>
-    Boolean(environment?.currentEnvironmentVersion));
+    Boolean(environment && exactCurrentEnvironmentVersion(project, environment)));
   return checkpoint(
     "release",
     "project",
     ready,
     "release_action_required",
-    action(projectId, "open_release", ""),
+    action(project.id, "open_release", ""),
   );
 }
 

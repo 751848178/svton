@@ -30,6 +30,8 @@ describe("ReleaseBuildRecoveryService", () => {
     await writeFile(join(stale, "marker"), "stale");
     const runtime = new ReleaseBuildRuntimeProfileService(
       config({
+        NODE_ENV: "test",
+        RELEASE_BUILD_TRUSTED_TEST_FIXTURE: true,
         RELEASE_BUILD_EXECUTION_ENABLED: true,
         RELEASE_BUILD_EXECUTOR_PROFILE: "controlled-local-acceptance-v2",
         RELEASE_BUILD_WORK_ROOT: workRoot,
@@ -58,6 +60,8 @@ describe("ReleaseBuildRecoveryService", () => {
     await symlink(workRoot, artifactRoot);
     const runtime = new ReleaseBuildRuntimeProfileService(
       config({
+        NODE_ENV: "test",
+        RELEASE_BUILD_TRUSTED_TEST_FIXTURE: true,
         RELEASE_BUILD_EXECUTION_ENABLED: true,
         RELEASE_BUILD_EXECUTOR_PROFILE: "controlled-local-acceptance-v2",
         RELEASE_BUILD_WORK_ROOT: workRoot,
@@ -85,7 +89,7 @@ describe("ReleaseBuildRecoveryService", () => {
         recovery as never,
       ).onApplicationBootstrap(),
     ).rejects.toMatchObject({
-      response: { code: "BUILD_EXECUTOR_DISABLED" },
+      response: { code: "BUILD_EXECUTOR_DISABLED_OR_INVALID" },
     });
     expect(recovery.recoverInterrupted).not.toHaveBeenCalled();
   });

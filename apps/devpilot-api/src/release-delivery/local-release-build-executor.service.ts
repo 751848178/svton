@@ -11,7 +11,8 @@ import { releaseBuildExecutionFailure } from "./release-build-execution-failure"
 import { sanitizeBuildLogs } from "./release-build-log.utils";
 import { ReleaseBuildRuntimeProfileService } from "./release-build-runtime-profile.service";
 import { ReleaseBuildPackageEvidenceService } from "./release-build-package-evidence.service";
-import { ReleaseBuildScannerEvidenceService } from "./release-build-scanner-evidence.service";
+import { ReleaseBuildPreScriptSecurityService } from "./release-build-pre-script-security.service";
+import { releaseBuildGateSummary } from "./release-build-gate-summary";
 import {
   assertReleaseBuildCheckoutRoot,
   confinedReleaseBuildDirectory,
@@ -28,7 +29,7 @@ export class LocalReleaseBuildExecutorService extends ReleaseBuildExecutorPort {
     private readonly runtime: ReleaseBuildRuntimeProfileService,
     private readonly artifacts: ReleaseBuildArtifactService,
     private readonly packages: ReleaseBuildPackageEvidenceService,
-    private readonly scanners: ReleaseBuildScannerEvidenceService,
+    private readonly preScript: ReleaseBuildPreScriptSecurityService,
   ) {
     super();
   }
@@ -48,8 +49,8 @@ export class LocalReleaseBuildExecutorService extends ReleaseBuildExecutorPort {
     }
 
     const logs: string[] = [];
-    const root = await realpath(input.checkoutRoot);
-    await assertReleaseBuildCheckoutRoot(this.runtime.workRoot, root);
+    const sourceRoot = await realpath(input.checkoutRoot);
+    await assertReleaseBuildCheckoutRoot(this.runtime.workRoot, sourceRoot);
     const runtimeRoot = join(
       this.runtime.workRoot,
       "runtime",
@@ -74,11 +75,27 @@ export class LocalReleaseBuildExecutorService extends ReleaseBuildExecutorPort {
         home,
         temporary,
       );
+      const prepared = await this.preScript.prepare({
+        projectId: input.projectId,
+        releaseOrderId: input.releaseOrderId,
+        buildRunId: input.buildRunId,
+        sourceCommitSha: input.sourceCommitSha,
+        sourceRoot,
+        runtimeRoot,
+        workRoot: this.runtime.workRoot,
+        profile,
+        env: environment,
+        timeoutMs: this.runtime.commandTimeoutMs,
+        cancelGraceMs: this.runtime.cancelGraceMs,
+        signal,
+      });
+      const root = prepared.buildRoot;
       const packageEvidence = await this.packages.execute({
         projectId: input.projectId,
         releaseOrderId: input.releaseOrderId,
         buildRunId: input.buildRunId,
         sourceCommitSha: input.sourceCommitSha,
+        sourceSnapshotDigest: prepared.sourceSnapshot.snapshotDigest,
         checkoutRoot: root,
         components: input.components,
         profile,
@@ -110,19 +127,6 @@ export class LocalReleaseBuildExecutorService extends ReleaseBuildExecutorPort {
         logs.push(result.stdout, result.stderr);
         assertControlledBuildCommand(component.name, result, logs);
       }
-      const security = await this.scanners.execute({
-        projectId: input.projectId,
-        releaseOrderId: input.releaseOrderId,
-        buildRunId: input.buildRunId,
-        sourceCommitSha: input.sourceCommitSha,
-        checkoutRoot: root,
-        temporaryRoot: temporary,
-        profile,
-        env: environment,
-        timeoutMs: this.runtime.commandTimeoutMs,
-        cancelGraceMs: this.runtime.cancelGraceMs,
-        signal,
-      });
       if (signal?.aborted) {
         throw releaseBuildExecutionFailure(
           "BUILD_COMMAND_CANCELED",
@@ -149,39 +153,13 @@ export class LocalReleaseBuildExecutorService extends ReleaseBuildExecutorPort {
       return {
         artifact,
         logs: sanitizeBuildLogs(logs),
-        gateSummary: {
-          source: { status: "passed", checkout: "exact_commit" },
-          install: packageEvidence.install,
-          build: { status: "passed", components: input.components.length },
-          tests: packageEvidence.tests,
-          quality: packageEvidence.quality,
-          artifact: {
-            status: "passed",
-            contractVersion: 1,
-            collection: "declared-outputs-only",
-            components: artifact.items.length,
-            environmentBoundComponents: artifact.items.filter(
-              (item) => item.environment.mode === "baked",
-            ).length,
-          },
-          security: {
-            secretScan: security.secretScan,
-            sast: security.sast,
-            vulnerabilities: security.vulnerabilities,
-            executionControls: {
-              status: "passed",
-              profile: profile.id,
-              trustBoundary: "disposable-api-container",
-              untrustedSandbox: false,
-              controls: [
-                "minimal_environment",
-                "working_directory_confinement",
-                "bounded_process_group",
-              ],
-              limitations: ["shared_api_process", "shared_container_network"],
-            },
-          },
-        },
+        gateSummary: releaseBuildGateSummary({
+          profile,
+          packageEvidence,
+          prepared,
+          artifact,
+          componentCount: input.components.length,
+        }),
       };
     } finally {
       await rm(runtimeRoot, { recursive: true, force: true }).catch(

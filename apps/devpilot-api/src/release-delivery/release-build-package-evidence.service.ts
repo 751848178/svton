@@ -24,6 +24,7 @@ export class ReleaseBuildPackageEvidenceService {
     releaseOrderId: string;
     buildRunId: string;
     sourceCommitSha: string;
+    sourceSnapshotDigest: string;
     checkoutRoot: string;
     components: ReleaseBuildComponent[];
     profile: RegisteredReleaseBuildProfile;

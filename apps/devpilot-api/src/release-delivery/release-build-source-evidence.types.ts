@@ -18,6 +18,7 @@ export type ReleaseBuildSourceEvidence = {
     id: string;
     profileId: string;
     profileVersion: number;
+    snapshotVersion: number;
     externalRequiredChecks: number;
     requiredIndependentApprovals: number;
     snapshotHash: string;

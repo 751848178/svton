@@ -17,15 +17,11 @@ describe('ProjectDeliveryHeader production site entry', () => {
     const withSite = renderToStaticMarkup(
       <ProjectDeliveryHeader
         summary={summary('pay.example.com')}
-        showCreate
-        onCreate={vi.fn()}
       />,
     );
     const withoutSite = renderToStaticMarkup(
       <ProjectDeliveryHeader
         summary={summary(null)}
-        showCreate
-        onCreate={vi.fn()}
       />,
     );
 
@@ -41,8 +37,6 @@ describe('ProjectDeliveryHeader production site entry', () => {
     const markup = renderToStaticMarkup(
       <ProjectDeliveryHeader
         summary={summary('pay.example.com')}
-        showCreate
-        onCreate={vi.fn()}
       />,
     );
 

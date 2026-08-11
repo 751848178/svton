@@ -1,8 +1,13 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
-import { stableHash } from "../release-orchestration/utils/release-hash.utils";
 import type { RegisteredReleaseBuildProfile } from "./release-build-acceptance-profile";
+import {
+  buildSourcePolicySnapshot,
+  SOURCE_POLICY_SNAPSHOT_VERSION,
+  sourcePolicySnapshotHash,
+  sourcePolicySnapshotsEqual,
+} from "./source-policy-snapshot.policy";
 
 @Injectable()
 export class SourcePolicyRevisionRepository {
@@ -20,19 +25,29 @@ export class SourcePolicyRevisionRepository {
         FOR UPDATE
       `);
       if (locked.length === 0) throw new NotFoundException("项目不存在");
+      const snapshot = buildSourcePolicySnapshot(profile);
+      const snapshotHash = sourcePolicySnapshotHash(snapshot);
       const existing = await tx.sourcePolicyRevision.findUnique({
         where: {
-          projectId_profileId_profileVersion: {
+          projectId_profileId_profileVersion_snapshotHash: {
             projectId,
             profileId: profile.id,
             profileVersion: profile.profileVersion,
+            snapshotHash,
           },
         },
       });
+      if (existing && !sourcePolicySnapshotsEqual(existing.snapshot, snapshot)) {
+        throw new ConflictException(
+          "SourcePolicyRevision 快照与哈希不一致，必须先修复策略数据",
+        );
+      }
       const revision = existing ?? await this.create(tx, {
         teamId,
         projectId,
         profile,
+        snapshot,
+        snapshotHash,
       });
       await tx.project.update({
         where: { id: projectId },
@@ -59,6 +74,8 @@ export class SourcePolicyRevisionRepository {
       teamId: string;
       projectId: string;
       profile: RegisteredReleaseBuildProfile;
+      snapshot: ReturnType<typeof buildSourcePolicySnapshot>;
+      snapshotHash: string;
     },
   ) {
     const latest = await tx.sourcePolicyRevision.findFirst({
@@ -66,20 +83,18 @@ export class SourcePolicyRevisionRepository {
       orderBy: { revision: "desc" },
       select: { revision: true },
     });
-    const snapshot = {
-      version: 1,
-      profileId: input.profile.id,
-      profileVersion: input.profile.profileVersion,
-      externalRequiredChecks: input.profile.externalRequiredChecks,
-      requiredIndependentApprovals: input.profile.requiredIndependentApprovals,
-    };
     return tx.sourcePolicyRevision.create({
       data: {
         teamId: input.teamId,
         projectId: input.projectId,
         revision: (latest?.revision ?? 0) + 1,
-        ...snapshot,
-        snapshotHash: stableHash({ scope: "source-policy", snapshot }),
+        profileId: input.profile.id,
+        profileVersion: input.profile.profileVersion,
+        externalRequiredChecks: input.profile.externalRequiredChecks,
+        requiredIndependentApprovals: input.profile.requiredIndependentApprovals,
+        snapshotVersion: SOURCE_POLICY_SNAPSHOT_VERSION,
+        snapshot: input.snapshot as Prisma.InputJsonValue,
+        snapshotHash: input.snapshotHash,
       },
     });
   }

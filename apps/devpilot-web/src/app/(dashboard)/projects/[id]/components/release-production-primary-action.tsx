@@ -10,10 +10,12 @@ interface Props {
   runStatus?: string;
   approvalStatus?: string;
   recoveryHref: string;
-  awaitingValidationHref: string;
+  awaitingValidationReady: boolean;
+  resuming: boolean;
   snapshotReady: boolean;
   confirming: boolean;
   onRequest: () => void;
+  onResume: () => void;
 }
 
 export function ReleaseProductionPrimaryAction(props: Props) {
@@ -22,6 +24,7 @@ export function ReleaseProductionPrimaryAction(props: Props) {
     return (
       <LinkButton
         data-primary="true"
+        className="min-h-11"
         href={props.recoveryHref}
       >
         {t('releaseProductionRecoveryLink')}
@@ -30,14 +33,32 @@ export function ReleaseProductionPrimaryAction(props: Props) {
   }
   if (props.active) {
     if (props.runStatus === 'awaiting_validation') {
+      if (!props.awaitingValidationReady) {
+        return (
+          <div className="max-w-xs text-right">
+            <Button className="min-h-11" disabled>
+              {t('environmentVersionContinueProduction')}
+            </Button>
+            <p className="mt-1 text-xs text-muted-foreground" role="status">
+              {t('releaseProductionResumeCandidateUnavailable')}
+            </p>
+          </div>
+        );
+      }
       return (
-        <LinkButton data-primary="true" href={props.awaitingValidationHref}>
+        <Button
+          data-primary="true"
+          className="min-h-11"
+          loading={props.resuming}
+          disabled={!props.awaitingValidationReady || props.resuming}
+          onClick={props.onResume}
+        >
           {t('environmentVersionContinueProduction')}
-        </LinkButton>
+        </Button>
       );
     }
     return (
-      <Button disabled>
+      <Button className="min-h-11" disabled>
         {props.runStatus === 'running'
           ? t('releaseProductionRunningDisabled')
           : props.approvalStatus === 'approved'
@@ -46,14 +67,26 @@ export function ReleaseProductionPrimaryAction(props: Props) {
       </Button>
     );
   }
-  if (props.frozen) return <Button disabled>{t('releaseProductionArtifactFrozen')}</Button>;
-  return (
+  if (props.frozen) {
+    return <Button className="min-h-11" disabled>{t('releaseProductionArtifactFrozen')}</Button>;
+  }
+  const request = (
     <Button
       data-primary="true"
+      className="min-h-11"
       onClick={props.onRequest}
       disabled={!props.snapshotReady || props.confirming}
     >
       {t('requestProductionApproval')}
     </Button>
+  );
+  if (props.snapshotReady) return request;
+  return (
+    <div className="max-w-xs text-right">
+      {request}
+      <p className="mt-1 text-xs text-muted-foreground" role="status">
+        {t('releaseProductionSnapshotUnavailable')}
+      </p>
+    </div>
   );
 }

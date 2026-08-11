@@ -54,6 +54,8 @@ describe("F454 parity fixture artifact build under the v2 runtime", () => {
     const canonicalArtifactRoot = await realpath(artifactRoot);
     const nodeBin = dirname(process.execPath);
     const config = new ConfigService({
+      NODE_ENV: "test",
+      RELEASE_BUILD_TRUSTED_TEST_FIXTURE: true,
       RELEASE_BUILD_EXECUTION_ENABLED: true,
       RELEASE_BUILD_EXECUTOR_PROFILE: "controlled-local-acceptance-v2",
       RELEASE_BUILD_WORK_ROOT: await realpath(workRoot),
@@ -68,7 +70,7 @@ describe("F454 parity fixture artifact build under the v2 runtime", () => {
       runtime,
       new ReleaseBuildArtifactService(config),
       evidence.packages,
-      evidence.scanners,
+      evidence.preScript,
     );
     runtime.assertAvailable();
   });

@@ -82,6 +82,8 @@ model User {
   createdReleasePolicyRevisions ReleasePolicyRevision[] @relation("ReleasePolicyRevisionActor")
   gateEvaluations GateEvaluation[] @relation("GateEvaluationActor")
   releaseGateDecisions ReleaseGateDecision[] @relation("ReleaseGateDecisionActor")
+  requestedGateManualApprovals GateManualApproval[] @relation("GateManualApprovalRequester")
+  reviewedGateManualApprovals GateManualApproval[] @relation("GateManualApprovalReviewer")
   productionPromotionCommands ProductionPromotionCommand[] @relation("ProductionPromotionCommandActor")
 
   createdAt     DateTime  @default(now())
@@ -164,6 +166,7 @@ model Team {
   sourcePolicyRevisions SourcePolicyRevision[]
   gateEvaluations GateEvaluation[]
   releaseGateDecisions ReleaseGateDecision[]
+  gateManualApprovals GateManualApproval[]
   productionPromotionCommands ProductionPromotionCommand[]
 
   createdAt   DateTime @default(now())
@@ -578,6 +581,10 @@ model SiteRouteSwitchRun {
   proxyTarget     String?
   domains         Json?
   result          Json?
+  promotionCandidateHash String?
+  promotionObservedAt DateTime?
+  promotionProbeHash String?
+  promotionObservation Json?
   desiredRoute    Json
   previousRoute   Json?
   applyReceipt    Json?
@@ -610,6 +617,7 @@ model SiteRouteSwitchRun {
   @@index([environmentId])
   @@index([deploymentRunId])
   @@index([releaseRunId])
+  @@index([deploymentRunId, promotionCandidateHash])
   @@index([status])
   @@index([status, updatedAt])
   @@index([status, nextRecoveryAt])
@@ -783,6 +791,7 @@ model Project {
   currentSourcePolicyRevision SourcePolicyRevision? @relation("CurrentSourcePolicyRevision", fields: [currentSourcePolicyRevisionId], references: [id], onDelete: SetNull)
   gateEvaluations GateEvaluation[]
   releaseGateDecisions ReleaseGateDecision[]
+  gateManualApprovals GateManualApproval[]
   productionPromotionCommands ProductionPromotionCommand[]
   generatedArtifactClaim GeneratedProjectArtifactClaim?
 
@@ -850,15 +859,18 @@ model SourcePolicyRevision {
   profileVersion               Int
   externalRequiredChecks       Int
   requiredIndependentApprovals Int
+  snapshotVersion                Int      @default(1)
+  snapshot                       Json
   snapshotHash                 String
   createdAt                    DateTime @default(now())
 
   team                         Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
   project                      Project  @relation("ProjectSourcePolicyRevisionHistory", fields: [projectId], references: [id], onDelete: Cascade)
   currentForProject            Project? @relation("CurrentSourcePolicyRevision")
+  manualApprovals              GateManualApproval[]
 
   @@unique([projectId, revision])
-  @@unique([projectId, profileId, profileVersion])
+  @@unique([projectId, profileId, profileVersion, snapshotHash], map: "SourcePolicyRevision_profile_snapshot_key")
   @@index([teamId])
   @@index([createdAt])
 }
@@ -2964,6 +2976,7 @@ model ReleaseOrder {
   legacyPlans    ReleasePlan[]
   gateEvaluations GateEvaluation[]
   gateDecisions ReleaseGateDecision[]
+  gateManualApprovals GateManualApproval[]
   productionPromotionCommands ProductionPromotionCommand[]
 
   @@unique([projectId, releaseVersion])
@@ -3140,6 +3153,20 @@ model ProductionPromotionCommand {
   candidateHash   String
   inputHash       String
   status          String   @default("running") // running | completed | failed | blocked
+  phase           String   @default("reserved") // reserved | pre_gate_allowed | route_switched | observed | post_gate_allowed | committing
+  leaseOwner      String?
+  leaseTokenHash  String?
+  leaseExpiresAt  DateTime?
+  heartbeatAt     DateTime?
+  attemptCount    Int      @default(0)
+  preDecisionId   String?
+  preDecisionInputHash String?
+  preDecisionActionHash String?
+  postDecisionId  String?
+  postDecisionInputHash String?
+  postDecisionActionHash String?
+  routeSwitchOperationId String?
+  observationRecordedAt DateTime?
   result          Json?
   errorCode       String?
   errorMessage    String?  @db.Text
@@ -3162,6 +3189,9 @@ model ProductionPromotionCommand {
   @@index([releaseRunId])
   @@index([actorId])
   @@index([status])
+  @@index([status, leaseExpiresAt])
+  @@index([leaseOwner])
+  @@index([routeSwitchOperationId])
   @@index([createdAt])
 }
 
@@ -3229,6 +3259,7 @@ model GateEvaluation {
   releaseRun        ReleaseRun?  @relation(fields: [releaseRunId], references: [id], onDelete: SetNull)
   buildRun          BuildRun?    @relation(fields: [buildRunId], references: [id], onDelete: SetNull)
   actor             User?        @relation("GateEvaluationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  manualApprovals   GateManualApproval[]
 
   @@unique([releaseOrderId, gateId, inputHash])
   @@index([teamId])
@@ -3237,6 +3268,43 @@ model GateEvaluation {
   @@index([buildRunId])
   @@index([actorId])
   @@index([status])
+  @@index([expiresAt])
+  @@index([createdAt])
+}
+
+// 追加式人工确认；每次确认绑定精确门禁、动作、请求人和冻结源码策略。
+model GateManualApproval {
+  id                       String   @id @default(cuid())
+  teamId                   String
+  projectId                String
+  releaseOrderId           String
+  gateEvaluationId         String
+  evaluationInputHash      String
+  actionInputHash          String
+  requesterActorId         String
+  reviewerActorId          String
+  sourcePolicyRevisionId   String?
+  sourcePolicySnapshotHash String?
+  sourceCommitSha          String?
+  reason                   String   @db.Text
+  confirmedAt              DateTime @default(now())
+  expiresAt                DateTime?
+  createdAt                DateTime @default(now())
+
+  team                 Team                  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project              Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  releaseOrder         ReleaseOrder          @relation(fields: [releaseOrderId], references: [id], onDelete: Cascade)
+  gateEvaluation       GateEvaluation        @relation(fields: [gateEvaluationId], references: [id], onDelete: Cascade)
+  sourcePolicyRevision SourcePolicyRevision? @relation(fields: [sourcePolicyRevisionId], references: [id], onDelete: SetNull)
+  requester            User                  @relation("GateManualApprovalRequester", fields: [requesterActorId], references: [id], onDelete: Restrict)
+  reviewer             User                  @relation("GateManualApprovalReviewer", fields: [reviewerActorId], references: [id], onDelete: Restrict)
+
+  @@unique([gateEvaluationId, evaluationInputHash, actionInputHash, reviewerActorId])
+  @@index([teamId])
+  @@index([projectId])
+  @@index([releaseOrderId])
+  @@index([sourcePolicyRevisionId])
+  @@index([actionInputHash])
   @@index([expiresAt])
   @@index([createdAt])
 }

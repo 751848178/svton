@@ -16,6 +16,13 @@ import {
   loadPromotionDeployment,
   lockProductionPromotionRuns,
 } from "./production-promotion-command-boundary";
+import {
+  createProductionPromotionLease,
+  ProductionPromotionLeaseLostError,
+  productionPromotionLeaseTokenHash,
+  promotionLeaseIsActive,
+  type ProductionPromotionLease,
+} from "./production-promotion-lease.policy";
 
 @Injectable()
 export class ProductionPromotionCommandRepository {
@@ -24,6 +31,8 @@ export class ProductionPromotionCommandRepository {
   reserve(input: ProductionPromotionResumeInput) {
     return this.prisma.$transaction(async (tx) => {
       await lockProductionPromotionRuns(tx, input);
+      await tx.$queryRaw`SELECT id FROM ProductionPromotionCommand
+        WHERE deploymentRunId = ${input.deploymentRunId} FOR UPDATE`;
       const deployment = await loadPromotionDeployment(tx, input);
       const candidate = exactFrozenCandidate(deployment.result, input);
       const inputHash = promotionCommandInputHash(input);
@@ -35,7 +44,18 @@ export class ProductionPromotionCommandRepository {
       });
       if (existing) {
         assertPromotionCommandReplay(existing, inputHash);
-        return reserved(existing, deployment, candidate, true);
+        if (existing.status !== "running" ||
+          promotionLeaseIsActive(existing.leaseExpiresAt)) {
+          return reserved(existing, deployment, candidate, false, undefined, false);
+        }
+        assertPromotionCandidateState(deployment, candidate);
+        await assertPromotionApproval(tx, deployment.releaseRun, candidate);
+        const lease = createProductionPromotionLease();
+        const reclaimed = await tx.productionPromotionCommand.update({
+          where: { id: existing.id },
+          data: leaseData(lease, { attemptCount: { increment: 1 } }),
+        });
+        return reserved(reclaimed, deployment, candidate, true, lease, true);
       }
       assertPromotionCandidateState(deployment, candidate);
       await assertPromotionApproval(tx, deployment.releaseRun, candidate);
@@ -43,52 +63,90 @@ export class ProductionPromotionCommandRepository {
         where: { deploymentRunId: input.deploymentRunId, status: "running" },
         select: { id: true },
       });
-      if (active) {
-        throw new ConflictException("Production promotion 已有执行中的命令");
-      }
+      if (active) throw new ConflictException("Production promotion 已有待恢复命令");
+      const lease = createProductionPromotionLease();
       const command = await tx.productionPromotionCommand.create({
         data: {
-          teamId: input.teamId,
-          projectId: input.projectId,
+          teamId: input.teamId, projectId: input.projectId,
           releaseOrderId: candidate.releaseOrderId,
           releaseRunId: input.releaseRunId,
-          deploymentRunId: input.deploymentRunId,
-          actorId: input.actorId,
+          deploymentRunId: input.deploymentRunId, actorId: input.actorId,
           idempotencyKey: input.idempotencyKey,
-          candidateHash: input.candidateHash,
-          inputHash,
+          candidateHash: input.candidateHash, inputHash,
+          attemptCount: 1, ...leaseData(lease),
         },
       });
-      return reserved(command, deployment, candidate, false);
+      return reserved(command, deployment, candidate, true, lease, false);
     });
   }
 
-  finish(input: {
+  async heartbeat(commandId: string, lease: ProductionPromotionLease) {
+    const renewed = createProductionPromotionLease(new Date());
+    const result = await this.prisma.productionPromotionCommand.updateMany({
+      where: leaseWhere(commandId, lease),
+      data: {
+        heartbeatAt: new Date(), leaseExpiresAt: renewed.expiresAt,
+      },
+    });
+    if (result.count !== 1) throw new ProductionPromotionLeaseLostError();
+    return { ...lease, expiresAt: renewed.expiresAt };
+  }
+
+  async advance(input: {
     commandId: string;
-    status: "completed" | "failed" | "blocked";
-    result?: Record<string, unknown>;
-    errorCode?: string;
-    errorMessage?: string;
+    lease: ProductionPromotionLease;
+    from: string;
+    to: string;
+    data?: Prisma.ProductionPromotionCommandUpdateManyMutationInput;
   }) {
-    return this.prisma.productionPromotionCommand.updateMany({
-      where: { id: input.commandId, status: "running" },
+    const result = await this.prisma.productionPromotionCommand.updateMany({
+      where: { ...leaseWhere(input.commandId, input.lease), phase: input.from },
+      data: { ...input.data, phase: input.to, heartbeatAt: new Date() },
+    });
+    if (result.count !== 1) throw new ProductionPromotionLeaseLostError();
+  }
+
+  async finish(input: {
+    commandId: string; lease: ProductionPromotionLease;
+    status: "completed" | "failed" | "blocked";
+    result?: Record<string, unknown>; errorCode?: string; errorMessage?: string;
+  }) {
+    const updated = await this.prisma.productionPromotionCommand.updateMany({
+      where: leaseWhere(input.commandId, input.lease),
       data: {
         status: input.status,
         result: input.result as Prisma.InputJsonValue | undefined,
-        errorCode: input.errorCode,
-        errorMessage: input.errorMessage,
+        errorCode: input.errorCode, errorMessage: input.errorMessage,
+        leaseOwner: null, leaseTokenHash: null, leaseExpiresAt: null,
         finishedAt: new Date(),
       },
     });
+    if (updated.count !== 1) throw new ProductionPromotionLeaseLostError();
   }
 }
 
+function leaseWhere(id: string, lease: ProductionPromotionLease) {
+  return {
+    id, status: "running",
+    leaseOwner: lease.owner,
+    leaseTokenHash: productionPromotionLeaseTokenHash(lease.token),
+  };
+}
+function leaseData(lease: ProductionPromotionLease, extra = {}) {
+  return {
+    leaseOwner: lease.owner, leaseTokenHash: lease.tokenHash,
+    leaseExpiresAt: lease.expiresAt, heartbeatAt: new Date(), ...extra,
+  };
+}
 function reserved(
-  command: { id: string; status: string; inputHash: string; result: unknown; errorCode: string | null; errorMessage: string | null },
+  command: any,
   deployment: Awaited<ReturnType<typeof loadPromotionDeployment>>,
   candidate: ReturnType<typeof exactFrozenCandidate>,
-  idempotentReplay: boolean,
+  shouldExecute: boolean,
+  lease?: ProductionPromotionLease,
+  recovered = false,
 ): ReservedProductionPromotionCommand {
   return { command, candidate, routeSnapshot: deployment.releaseRun.routeSnapshot,
-    deploymentResult: deployment.result, deploymentLogs: deployment.logs, idempotentReplay };
+    deploymentResult: deployment.result, deploymentLogs: deployment.logs,
+    shouldExecute, lease, recovered };
 }

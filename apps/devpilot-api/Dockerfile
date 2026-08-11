@@ -1,5 +1,5 @@
 # ---- base: shared install layer (also used by devpilot-web build, cache-reused) ----
-FROM node:20 AS base
+FROM node:20@sha256:8f693eaa7e0a8e71560c9a82b55fd54c2ae920a2ba5d2cde28bac7d1c01c9ba5 AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable && corepack prepare pnpm@8.12.0 --activate
@@ -39,7 +39,7 @@ RUN echo '278aedc50045986f04e0eb268e5e42883bed7bdf6bff64d08cc2ef455f0b334c  /tmp
       -r /tmp/semgrep-requirements.lock \
  && semgrep --version | grep -F '1.172.0'
 
-FROM debian:bookworm-slim AS acceptance-tools
+FROM debian:bookworm-slim@sha256:abd67ffcfa541b485a3dff59865ab629aa048a6c613e639d36e7456b0b229241 AS acceptance-tools
 ARG TARGETARCH
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl \

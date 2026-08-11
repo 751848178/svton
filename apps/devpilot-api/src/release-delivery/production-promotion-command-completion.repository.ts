@@ -1,5 +1,7 @@
 import { ConflictException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
+import type { ProductionPromotionLease } from "./production-promotion-lease.policy";
+import { productionPromotionLeaseTokenHash } from "./production-promotion-lease.policy";
 
 export async function completeProductionPromotionCommand(
   tx: Prisma.TransactionClient,
@@ -11,6 +13,7 @@ export async function completeProductionPromotionCommand(
     result?: Record<string, unknown>;
     errorCode?: string;
     errorMessage?: string;
+    lease?: ProductionPromotionLease;
   },
 ) {
   const transitioned = await tx.productionPromotionCommand.updateMany({
@@ -19,6 +22,11 @@ export async function completeProductionPromotionCommand(
       deploymentRunId: input.deploymentRunId,
       candidateHash: input.candidateHash,
       status: "running",
+      ...(input.lease ? {
+        leaseOwner: input.lease.owner,
+        leaseTokenHash: productionPromotionLeaseTokenHash(input.lease.token),
+      } : {}),
+      ...(input.status === "completed" ? { phase: "committing" } : {}),
     },
     data: {
       status: input.status,
@@ -26,6 +34,9 @@ export async function completeProductionPromotionCommand(
       errorCode: input.errorCode,
       errorMessage: input.errorMessage,
       finishedAt: new Date(),
+      leaseOwner: null,
+      leaseTokenHash: null,
+      leaseExpiresAt: null,
     },
   });
   if (transitioned.count === 1) return;

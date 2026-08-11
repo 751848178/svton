@@ -6,6 +6,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { ProjectDirectoryQueryDto } from "./dto/project-directory-query.dto";
 import { ProjectDirectoryRepository } from "./project-directory.repository";
 import { ProjectDirectoryService } from "./project-directory.service";
+import { ConfigService } from "@nestjs/config";
 
 const describeIntegration =
   process.env.RUN_PROJECT_DIRECTORY_INTEGRATION === "1"
@@ -20,7 +21,10 @@ describeIntegration("project directory real MySQL integration", () => {
   const access = {
     canRead: jest.fn().mockResolvedValue(true),
   } as unknown as ControlAccessPolicyService;
-  const service = new ProjectDirectoryService(repository, access);
+  const service = new ProjectDirectoryService(repository, access, new ConfigService({
+    RELEASE_STAGING_DEPLOYMENT_ENABLED: true,
+    RELEASE_DEPLOYMENT_PROVIDER_PROFILE: "ssh-v1",
+  }));
   const suffix = randomUUID();
   const userId = `user-${suffix}`;
   const teamA = `team-a-${suffix}`;

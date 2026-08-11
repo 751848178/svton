@@ -74,6 +74,7 @@ export default function CreateProjectPage() {
           <div className="flex gap-3">
             {intake.step > 1 ? (
               <Button
+                className="min-h-11"
                 type="button"
                 variant="outline"
                 disabled={intake.mutating}
@@ -83,6 +84,7 @@ export default function CreateProjectPage() {
               </Button>
             ) : null}
             <Button
+              className="min-h-11"
               type="submit"
               variant="primary"
               loading={intake.mutating}

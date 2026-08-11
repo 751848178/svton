@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback, ReactNode } from 'react';
+import React, { useRef, useEffect, useCallback, useId, ReactNode } from 'react';
 import { cn } from '../../lib/utils';
 import { Portal } from '../Portal';
 import { useOverlay } from '../../hooks/useOverlay';
@@ -17,12 +17,15 @@ export interface ModalProps {
   className?: string;
   /** 关闭按钮的本地化 accessible name；缺省用英文 "Close"。 */
   ariaCloseLabel?: string;
+  /** 指向正文描述节点，供辅助技术在标题之后朗读。 */
+  ariaDescriptionId?: string;
 }
 
 export const Modal = React.forwardRef<HTMLDivElement, ModalProps>(function Modal(props, ref) {
-  const { open, onClose, children, title, footer, width = 480, mask = true, maskClosable = true, centered = true, className, ariaCloseLabel = 'Close' } = props;
+  const { open, onClose, children, title, footer, width = 480, mask = true, maskClosable = true, centered = true, className, ariaCloseLabel = 'Close', ariaDescriptionId } = props;
   const panelRef = useRef<HTMLDivElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const titleId = useId();
 
   const { state, ref: transitionRef } = useTransitionState(open, 200);
 
@@ -103,7 +106,8 @@ export const Modal = React.forwardRef<HTMLDivElement, ModalProps>(function Modal
         )}
         role="dialog"
         aria-modal="true"
-        aria-label={typeof title === 'string' ? title : undefined}
+        aria-labelledby={title ? titleId : undefined}
+        aria-describedby={ariaDescriptionId}
       >
         <div
           ref={setPanelRef}
@@ -117,8 +121,8 @@ export const Modal = React.forwardRef<HTMLDivElement, ModalProps>(function Modal
         >
           {title && (
             <div className="px-6 py-4 border-b border-border flex items-center justify-between">
-              <div className="text-base font-medium">{title}</div>
-              <button onClick={onClose} className="p-1 text-xl text-muted-foreground hover:text-foreground leading-none" aria-label={ariaCloseLabel}>×</button>
+              <div id={titleId} className="text-base font-medium">{title}</div>
+              <button onClick={onClose} className="inline-flex min-h-11 min-w-11 items-center justify-center text-xl text-muted-foreground hover:text-foreground leading-none" aria-label={ariaCloseLabel}>×</button>
             </div>
           )}
           <div className="flex-1 p-6 overflow-auto">{children}</div>

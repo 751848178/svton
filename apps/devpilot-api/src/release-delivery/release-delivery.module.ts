@@ -3,7 +3,6 @@ import { ControlAccessPolicyModule } from "../control-access-policy";
 import { PrismaModule } from "../prisma/prisma.module";
 import { RepositoryAnalysisModule } from "../repository-analysis/repository-analysis.module";
 import { RepositoryIdentityModule } from "../repository-identity/repository-identity.module";
-import { LocalReleaseBuildExecutorService } from "./local-release-build-executor.service";
 import { LocalReleaseStagingExecutorService } from "./local-release-staging-executor.service";
 import { releaseDeploymentProviders } from "./release-deployment.providers";
 import { ReleaseBuildArtifactService } from "./release-build-artifact.service";
@@ -19,7 +18,6 @@ import { ReleaseBuildRuntimeProfileService } from "./release-build-runtime-profi
 import { ReleaseBuildRuntimeSupervisorService } from "./release-build-runtime-supervisor.service";
 import { ReleaseBuildService } from "./release-build.service";
 import { ReleaseBuildSourceResolverService } from "./release-build-source-resolver.service";
-import { ReleaseBuildExecutorPort } from "./release-build.types";
 import { ReleaseStagingRepository } from "./release-staging.repository";
 import { ReleaseStagingService } from "./release-staging.service";
 import { ReleaseStagingExecutorPort } from "./release-staging.types";
@@ -82,7 +80,10 @@ import { ProjectDeliverySummaryService } from "./project-delivery-summary.servic
 import { LocalReleaseEvidenceArtifactService } from "./local-release-evidence-artifact.service";
 import { ReleaseEvidenceArtifactPort } from "./release-evidence-artifact.port";
 import { ReleaseBuildPackageEvidenceService } from "./release-build-package-evidence.service";
-import { ReleaseBuildScannerEvidenceService } from "./release-build-scanner-evidence.service";
+import {
+  filesystemReleaseBuildExecutorProvider,
+  releaseBuildSecurityProviders,
+} from "./release-build-security.providers";
 import { ReleaseBuildSourceEvidenceService } from "./release-build-source-evidence.service";
 import { SourcePolicyRevisionRepository } from "./source-policy-revision.repository";
 
@@ -123,7 +124,6 @@ import { SourcePolicyRevisionRepository } from "./source-policy-revision.reposit
     ReleaseBuildRunnerService,
     ReleaseBuildRuntimeProfileService,
     ReleaseBuildRuntimeSupervisorService,
-    LocalReleaseBuildExecutorService,
     LocalReleaseStagingExecutorService,
     ...releaseDeploymentProviders,
     ReleaseBuildRepository,
@@ -172,13 +172,10 @@ import { SourcePolicyRevisionRepository } from "./source-policy-revision.reposit
     ProjectDeliverySummaryService,
     LocalReleaseEvidenceArtifactService,
     ReleaseBuildPackageEvidenceService,
-    ReleaseBuildScannerEvidenceService,
+    ...releaseBuildSecurityProviders,
     ReleaseBuildSourceEvidenceService,
     SourcePolicyRevisionRepository,
-    {
-      provide: ReleaseBuildExecutorPort,
-      useExisting: LocalReleaseBuildExecutorService,
-    },
+    filesystemReleaseBuildExecutorProvider,
     {
       provide: ReleaseEvidenceArtifactPort,
       useExisting: LocalReleaseEvidenceArtifactService,

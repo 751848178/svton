@@ -47,6 +47,8 @@ export interface ProjectDirectoryItem {
     domain: string | null;
   };
   activity: ProjectDirectoryActivity;
+  checkpoints: import("../release-delivery/project-delivery-summary.types").ProjectDeliveryCheckpoint[];
+  nextAction: import("../release-delivery/project-delivery-summary.types").ProjectDeliveryAction | null;
 }
 
 export interface ProjectDirectoryResponse {

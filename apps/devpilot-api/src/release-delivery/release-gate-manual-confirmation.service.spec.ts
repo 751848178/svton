@@ -45,6 +45,19 @@ describe("ReleaseGateManualConfirmationService", () => {
       .resolves.toEqual({ permission: "build" });
   });
 
+  it("allows exact build_pre confirmation before a BuildRun exists", async () => {
+    evaluations.manualConfirmationTarget.mockResolvedValue({
+      id: "evaluation-1", gateId: "C03", buildRunId: null,
+      releaseRunId: null, summary: { decisionIdentity: {
+        checkpoint: "build_pre_execution",
+        actionInputHash: "action-hash",
+        requesterActorId: "requester-1",
+      } },
+    });
+    await expect(service.resolve({ ...input, gateId: "C03" }))
+      .resolves.toEqual({ permission: "build" });
+  });
+
   it("requires exact candidate identity for a persisted promote gate", async () => {
     evaluations.manualConfirmationTarget.mockResolvedValue({
       id: "evaluation-1", gateId: "P03", buildRunId: "build-1",

@@ -35,6 +35,20 @@ export type PersistedReleaseGateEvaluation = ReleaseGateEvaluation & {
   persistedAt: string;
   waiver: unknown;
   waiverExpiresAt: string | null;
+  manualApprovals: PersistedGateManualApproval[];
+};
+
+export type PersistedGateManualApproval = {
+  id: string;
+  evaluationInputHash: string;
+  actionInputHash: string;
+  requesterActorId: string;
+  reviewerActorId: string;
+  sourcePolicyRevisionId: string | null;
+  sourcePolicySnapshotHash: string | null;
+  sourceCommitSha: string | null;
+  confirmedAt: string;
+  expiresAt: string | null;
 };
 
 export type ReleaseGateDecisionTarget = {
@@ -69,15 +83,18 @@ export type ReleaseGateDecisionReference = {
   id: string;
   stage: ReleaseGateDecisionStage;
   inputHash: string;
+  actionInputHash: string;
 };
 
 export type ReleaseGateDecisionSnapshot = {
-  version: 2;
+  version: 3;
   stage: ReleaseGateDecisionStage;
   checkpoint: ReleaseGateCheckpoint;
   phase: ReleaseGatePhase;
   requiredGateIds: string[];
   actionInput: Record<string, string | null>;
+  actionInputHash: string;
+  requesterActorId: string;
   evaluations: Array<{
     gateId: string;
     evaluationId: string;
@@ -91,6 +108,7 @@ export type ReleaseGateDecisionSnapshot = {
     fresh: boolean | null;
     waiver: unknown;
     waiverExpiresAt: string | null;
+    manualApprovals: PersistedGateManualApproval[];
   }>;
 };
 
@@ -98,6 +116,8 @@ export type ReleaseGateDecisionDraft = {
   stage: ReleaseGateDecisionStage;
   checkpoint: ReleaseGateCheckpoint;
   phase: ReleaseGatePhase;
+  actionInputHash: string;
+  requesterActorId: string;
   allowed: boolean;
   blockerGateIds: string[];
   manualGateIds: string[];

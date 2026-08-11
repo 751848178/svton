@@ -19,6 +19,7 @@ export const releaseGateEvidenceSelect = {
           id: true,
           profileId: true,
           profileVersion: true,
+          snapshotVersion: true,
           externalRequiredChecks: true,
           requiredIndependentApprovals: true,
           snapshotHash: true,

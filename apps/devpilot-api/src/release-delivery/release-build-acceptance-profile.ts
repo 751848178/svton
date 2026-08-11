@@ -15,10 +15,10 @@ export type ReleaseBuildScannerProfile = {
 
 export type RegisteredReleaseBuildProfile = {
   id: "controlled-local-acceptance-v2";
-  profileVersion: 2;
+  profileVersion: number;
   runnerVersion: string;
-  externalRequiredChecks: 0;
-  requiredIndependentApprovals: 1;
+  externalRequiredChecks: number;
+  requiredIndependentApprovals: number;
   highRiskPathPrefixes: readonly string[];
   packageManagers: Readonly<Partial<Record<"npm" | "pnpm" | "yarn", {
     executable: string;

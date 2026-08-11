@@ -59,14 +59,31 @@ describe("ReleaseBuildScannerEvidenceService", () => {
     expect(stored).toContain("[REDACTED]");
   });
 
+  it("refuses a scanner report symlink instead of following it", async () => {
+    const outside = join(scope, "outside.json");
+    await writeFile(outside, "[]");
+    await writeFile(executable, `#!/usr/bin/env node
+import fs from "node:fs";
+fs.symlinkSync(${JSON.stringify(outside)}, process.argv.at(-1));
+`, { mode: 0o700 });
+    const base = profile(executable);
+    const fixture = { ...base, scanners: [base.scanners[0]] };
+    const result = await service.execute(input(fixture));
+    expect(result.secretScan).toMatchObject({
+      status: "unavailable",
+      reasonCode: "secretScan_report_missing",
+    });
+  });
+
   function input(profileValue: RegisteredReleaseBuildProfile) {
     return {
       projectId: "project-1",
       releaseOrderId: "order-1",
       buildRunId: "build-1",
       sourceCommitSha: "a".repeat(40),
+      sourceSnapshotDigest: "snapshot-digest",
       checkoutRoot: checkout,
-      temporaryRoot: temporary,
+      reportRoot: temporary,
       profile: profileValue,
       env: { PATH: process.env.PATH },
       timeoutMs: 5_000,

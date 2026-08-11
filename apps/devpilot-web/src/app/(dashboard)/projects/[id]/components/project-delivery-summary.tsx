@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
+import { Button } from '@/components/ui';
 import type {
   ProjectDeliveryBaselineRole,
   ProjectDeliveryCheckpoint,
@@ -11,7 +12,13 @@ import type {
 import { releaseEnvironmentLabelKey } from '../utils/release-copy.model';
 import { projectDeliveryReasonKey } from './project-delivery-reason-copy';
 
-export function ProjectDeliveryWeakSummary({ summary }: { summary: ProjectDeliverySummary }) {
+export function ProjectDeliveryWeakSummary({
+  summary,
+  onOpenRelease,
+}: {
+  summary: ProjectDeliverySummary;
+  onOpenRelease?: () => void;
+}) {
   const t = useTranslations('projects');
   const pending = summary.checkpoints.filter((item) => item.status !== 'ready');
   const next = summary.nextAction;
@@ -42,9 +49,18 @@ export function ProjectDeliveryWeakSummary({ summary }: { summary: ProjectDelive
               : t('projectDeliveryAllReadyDescription')}
           </p>
         </div>
-        {next ? (
+        {next?.kind === 'open_release' && onOpenRelease ? (
+          <Button
+            className="min-h-11 shrink-0"
+            onClick={onOpenRelease}
+            data-current-action="open_release"
+          >
+            {t('createReleaseOrder')}
+          </Button>
+        ) : next ? (
           <Link
             href={next.href}
+            data-current-action={next.kind}
             className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {t('projectDeliveryFixNow')}

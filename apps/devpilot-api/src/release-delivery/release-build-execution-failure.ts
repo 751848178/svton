@@ -7,6 +7,7 @@ export function releaseBuildExecutionFailure(
   logs: string[],
   action: string,
   status: "failed" | "canceled" = "failed",
+  details: Record<string, unknown> = {},
 ) {
   return new ReleaseBuildExecutionError({
     code,
@@ -15,7 +16,7 @@ export function releaseBuildExecutionFailure(
       ...logs,
       `result ${status === "canceled" ? "canceled" : "failed"}: ${code} ${message}`,
     ]),
-    gateSummary: { build: { status: "failed" }, action },
+    gateSummary: { build: { status: "failed" }, action, ...details },
     status,
   });
 }

@@ -7,6 +7,7 @@ import type { ReleaseBuildInputSnapshot } from "./release-build.types";
 import { releaseBuildInclude } from "./release-build.prisma";
 import { lockActionableReleaseOrder } from "./release-order-action-boundary";
 import { claimReleaseGateDecision } from "./release-gate-decision.repository";
+import { assertBuildGateDecisionCurrent } from "./release-build-gate-final-validation.repository";
 
 @Injectable()
 export class ReleaseBuildRepository {
@@ -139,6 +140,7 @@ export class ReleaseBuildRepository {
         project.repositoryIdentity,
         project.repositoryConnection,
       );
+      await assertBuildGateDecisionCurrent(tx, input);
       const latest = await tx.buildRun.findFirst({
         where: { releaseOrderId: input.releaseOrderId },
         orderBy: { revision: "desc" },

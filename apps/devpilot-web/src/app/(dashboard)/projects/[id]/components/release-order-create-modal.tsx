@@ -34,12 +34,16 @@ export function ReleaseOrderCreateModal({
       open={open}
       onClose={onClose}
       title={t('createReleaseOrder')}
+      ariaCloseLabel={tc('close')}
+      ariaDescriptionId="release-order-create-description"
     >
       <form
         onSubmit={(event) => void submit(event)}
         className="space-y-4"
       >
-        <p className="text-sm text-muted-foreground">{t('createReleaseOrderDescription')}</p>
+        <p id="release-order-create-description" className="text-sm text-muted-foreground">
+          {t('createReleaseOrderDescription')}
+        </p>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('releaseVersionLabel')}</span>
           <Input
@@ -60,6 +64,7 @@ export function ReleaseOrderCreateModal({
         </label>
         <div className="flex justify-end gap-2 pt-2">
           <Button
+            className="min-h-11"
             type="button"
             variant="secondary"
             onClick={onClose}
@@ -68,6 +73,7 @@ export function ReleaseOrderCreateModal({
             {tc('cancel')}
           </Button>
           <Button
+            className="min-h-11"
             type="submit"
             loading={orders.creating}
             disabled={!releaseVersion.trim()}

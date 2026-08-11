@@ -38,8 +38,15 @@ export class ReleaseGateManualConfirmationService {
       }
       return { permission: "production" as const };
     }
-    if (!row.buildRunId) {
-      throw new UnprocessableEntityException("Build 人工门禁缺少精确 BuildRun");
+    const identity = record(record(row.summary).decisionIdentity);
+    const preBuild = definition.phase === "commit" &&
+      identity.checkpoint === "build_pre_execution" &&
+      typeof identity.actionInputHash === "string" &&
+      typeof identity.requesterActorId === "string";
+    if (!row.buildRunId && !preBuild) {
+      throw new UnprocessableEntityException(
+        "Build 人工门禁缺少精确 BuildRun 或 build_pre 动作身份",
+      );
     }
     return { permission: "build" as const };
   }

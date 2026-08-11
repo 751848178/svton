@@ -5,6 +5,7 @@ import type {
   ProjectDirectoryItem,
   ProjectDirectoryStatus,
 } from "./project-directory.types";
+import type { ProjectDeliveryCheckpoint } from "../release-delivery/project-delivery-summary.types";
 
 type DirectoryEnvironment = ProjectDirectoryRecord["environments"][number];
 
@@ -43,23 +44,8 @@ export function productionSummary(
 }
 
 export function projectDirectoryStatus(
-  project: ProjectDirectoryRecord,
-  proof: {
-    repositoryReady: boolean;
-    stagingReady: boolean;
-    productionReady: boolean;
-    productionOnline: boolean;
-  },
+  checkpoints: ProjectDeliveryCheckpoint[],
 ): ProjectDirectoryStatus {
-  const finalized =
-    project.onboardingStatus === "ready" &&
-    project.onboardingFinalizedAt !== null &&
-    (project.onboardingRevision ?? 0) > 0;
-  return finalized &&
-    proof.repositoryReady &&
-    proof.stagingReady &&
-    proof.productionReady &&
-    proof.productionOnline
-    ? "online"
-    : "needs_configuration";
+  return checkpoints.every((checkpoint) => checkpoint.status === "ready")
+    ? "online" : "needs_configuration";
 }

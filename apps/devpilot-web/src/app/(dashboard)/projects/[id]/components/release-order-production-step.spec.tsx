@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   builds: {} as Record<string, unknown>,
   staging: {} as Record<string, unknown>,
   production: {} as Record<string, unknown>,
+  resume: vi.fn(),
 }));
 vi.mock('next-intl', () => ({ useTranslations: () => (key: string) => key }));
 vi.mock('@svton/ui', () => ({
@@ -67,10 +68,27 @@ vi.mock('../hooks/use-release-staging-deployments', () => ({
 vi.mock('../hooks/use-production-releases', () => ({
   useProductionReleases: () => mocks.production,
 }));
+vi.mock('../hooks/use-production-promotion-resume', () => ({
+  useProductionPromotionResume: () => ({ resume: mocks.resume, resuming: false, error: '' }),
+}));
 vi.mock('@/components/ui', () => ({
-  Button: (props: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props} />,
+  Button: ({
+    loading: _loading,
+    ...props
+  }: React.ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean }) => <button {...props} />,
   EmptyState: () => null,
   ErrorBanner: () => null,
+  Modal: ({
+    open,
+    title,
+    children,
+    footer,
+  }: {
+    open: boolean;
+    title: string;
+    children: React.ReactNode;
+    footer: React.ReactNode;
+  }) => open ? <section aria-label={title}>{children}{footer}</section> : null,
   LinkButton: ({ href, children }: React.PropsWithChildren<{ href: string }>) => (
     <a href={href}>{children}</a>
   ),
@@ -117,6 +135,8 @@ describe('ReleaseOrderProductionStep confirmation dialog', () => {
       error: '',
       confirm: vi.fn().mockResolvedValue({ id: 'run-1' }),
     };
+    mocks.resume.mockReset();
+    mocks.resume.mockResolvedValue({ status: 'succeeded' });
   });
 
   afterEach(async () => act(async () => root.unmount()));
@@ -328,6 +348,18 @@ describe('ReleaseOrderProductionStep confirmation dialog', () => {
     const awaiting = productionRun('release-awaiting');
     awaiting.status = 'awaiting_validation';
     awaiting.operationApproval.status = 'approved';
+    awaiting.deploymentRuns = [{
+      id: 'deployment-awaiting',
+      environmentId: awaiting.environmentId,
+      status: 'awaiting_validation',
+      result: {
+        productionCandidate: {
+          candidateHash: 'a'.repeat(64),
+          releaseOrderId: awaiting.releaseOrderId,
+          manifestId: awaiting.artifactManifestId,
+        },
+      },
+    }] as never;
     const evidence = {
       evidence: {
         buildRuns: { items: [], total: 0, hasMore: false },
@@ -348,12 +380,16 @@ describe('ReleaseOrderProductionStep confirmation dialog', () => {
     ));
 
     expect(container.textContent).toContain('environmentVersionAwaitingValidation');
-    const continueLink = Array.from(container.querySelectorAll('a')).find(
+    const continueButton = Array.from(container.querySelectorAll('button')).find(
       (item) => item.textContent === 'environmentVersionContinueProduction',
     );
-    expect(continueLink?.getAttribute('href')).toBe(
-      '/projects/project-1?view=environment-versions',
-    );
+    expect(continueButton).not.toBeNull();
+    await act(async () => continueButton?.click());
+    expect(mocks.resume).toHaveBeenCalledWith({
+      releaseRunId: 'release-awaiting',
+      deploymentRunId: 'deployment-awaiting',
+      candidateHash: 'a'.repeat(64),
+    });
   });
 
   it('does not offer a new production approval after the release artifact is frozen', async () => {

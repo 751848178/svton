@@ -17,12 +17,27 @@ describe("ReleaseBuildRuntimeProfileService", () => {
     expect(() => runtime.assertAvailable()).toThrow();
   });
 
-  it("accepts the server-registered v2 profile with distinct roots", () => {
+  it("rejects v2 when no untrusted worker provider is configured", () => {
+    const runtime = profile({
+      RELEASE_BUILD_EXECUTION_ENABLED: true,
+      RELEASE_BUILD_EXECUTOR_PROFILE: "controlled-local-acceptance-v2",
+    });
+    expect(() => runtime.assertAvailable()).toThrow(
+      "缺少可证明隔离的非可信源码 Build Worker Provider",
+    );
+  });
+
+  it("accepts v2 with a distinct filesystem worker exchange", () => {
     const runtime = profile({
       RELEASE_BUILD_EXECUTION_ENABLED: true,
       RELEASE_BUILD_EXECUTOR_PROFILE: "controlled-local-acceptance-v2",
       RELEASE_BUILD_WORK_ROOT: "/tmp/devpilot-f426/work",
       RELEASE_BUILD_ARTIFACT_ROOT: "/tmp/devpilot-f426/artifacts",
+      RELEASE_BUILD_UNTRUSTED_WORKER_PROVIDER:
+        "filesystem-isolated-worker-v1",
+      RELEASE_BUILD_WORKER_INPUT_ROOT: "/tmp/devpilot-f426/input",
+      RELEASE_BUILD_WORKER_OUTPUT_ROOT: "/tmp/devpilot-f426/output",
+      RELEASE_BUILD_WORKER_HMAC_SECRET_FILE: "/run/secrets/build-worker",
       RELEASE_BUILD_RUN_TIMEOUT_MS: 180_000,
       RELEASE_BUILD_COMMAND_TIMEOUT_MS: 120_000,
       RELEASE_BUILD_CANCEL_GRACE_MS: 5_000,
@@ -39,6 +54,11 @@ describe("ReleaseBuildRuntimeProfileService", () => {
       maxConcurrency: 2,
       concurrencyScope: "single-process",
       workspacePolicy: "dedicated-build-root",
+      workerIsolation: {
+        contractVersion: "release-build-untrusted-worker-v1",
+        provider: "filesystem-isolated-worker-v1",
+        untrustedRepositories: true,
+      },
       environmentKeys: ["CI", "HOME", "LANG", "LC_ALL", "PATH", "TMPDIR"],
       scannerRules: expect.arrayContaining([
         expect.objectContaining({ id: "secretScan" }),

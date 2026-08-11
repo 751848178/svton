@@ -110,6 +110,7 @@ export function evaluateReleaseRequiredChecks(
       commitAuthorUserId: evidence.commitAuthorUserId,
       profileId: policy.profileId,
       profileVersion: policy.profileVersion,
+      requiredIndependentApprovals: policy.requiredIndependentApprovals,
     },
   });
 }

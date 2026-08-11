@@ -49,6 +49,7 @@ describe("ReleaseStagingService", () => {
       id: "decision-staging-1",
       stage: "staging",
       inputHash: "decision-hash",
+      actionInputHash: "action-hash",
     });
     inputs.prepare.mockResolvedValue({
       snapshot: deploymentInputSnapshot(),
@@ -84,6 +85,7 @@ describe("ReleaseStagingService", () => {
           id: "decision-staging-1",
           stage: "staging",
           inputHash: "decision-hash",
+          actionInputHash: "action-hash",
         },
       }),
     );

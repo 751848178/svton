@@ -90,6 +90,11 @@ export function gateDecisionReference(
   decision?: ReleaseGateDecision,
 ): ReleaseGateDecisionReference | undefined {
   return decision
-    ? { id: decision.id, stage: decision.stage, inputHash: decision.inputHash }
+    ? {
+        id: decision.id,
+        stage: decision.stage,
+        inputHash: decision.inputHash,
+        actionInputHash: decision.actionInputHash,
+      }
     : undefined;
 }

@@ -83,6 +83,8 @@ function decision(stage: "staging" | "production", allowed: boolean) {
         ? ("staging_pre_execution" as const)
         : ("production_pre_execution" as const),
     phase: stage === "staging" ? ("build" as const) : ("deploy" as const),
+    actionInputHash: "action-hash",
+    requesterActorId: "user-1",
     allowed,
     blockerGateIds: allowed ? [] : [stage === "staging" ? "B06" : "D17"],
     manualGateIds: [],

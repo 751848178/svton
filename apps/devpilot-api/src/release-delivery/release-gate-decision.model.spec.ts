@@ -4,6 +4,10 @@ import type { PersistedReleaseGateEvaluation } from "./release-gate-decision.typ
 
 describe("release gate checkpoint decision model", () => {
   const now = new Date("2026-08-05T08:00:00.000Z");
+  const actionIdentity = {
+    actionInputHash: "action-hash",
+    requesterActorId: "requester-1",
+  };
 
   it.each([
     ["build_pre_execution", "build", "commit", 6],
@@ -18,10 +22,11 @@ describe("release gate checkpoint decision model", () => {
     const decision = buildReleaseGateDecision({
       checkpoint,
       checks: checks(),
+      actionIdentity,
       now,
     });
     expect(decision).toMatchObject({ checkpoint, stage, phase, allowed: true });
-    expect(decision.snapshot).toMatchObject({ version: 2, checkpoint });
+    expect(decision.snapshot).toMatchObject({ version: 3, checkpoint });
     expect(decision.snapshot.requiredGateIds).toHaveLength(count);
     expect(decision.snapshot.evaluations).toHaveLength(count);
   });
@@ -39,6 +44,7 @@ describe("release gate checkpoint decision model", () => {
       buildReleaseGateDecision({
         checkpoint: "build_pre_execution",
         checks: input,
+        actionIdentity,
         now,
       }),
     ).toMatchObject({ allowed: true, blockerGateIds: [] });
@@ -46,6 +52,7 @@ describe("release gate checkpoint decision model", () => {
       buildReleaseGateDecision({
         checkpoint: "build_post_execution",
         checks: input,
+        actionIdentity,
         now,
       }),
     ).toMatchObject({ allowed: false, blockerGateIds: ["C07", "C09", "C10"] });
@@ -60,6 +67,7 @@ describe("release gate checkpoint decision model", () => {
       buildReleaseGateDecision({
         checkpoint: "build_pre_execution",
         checks: input,
+        actionIdentity,
         now,
       }),
     ).toMatchObject({
@@ -81,6 +89,7 @@ describe("release gate checkpoint decision model", () => {
       buildReleaseGateDecision({
         checkpoint: "production_pre_execution",
         checks: input,
+        actionIdentity,
         now,
       }),
     ).toMatchObject({ allowed: false, blockerGateIds: ["D17"] });
@@ -91,22 +100,23 @@ describe("release gate checkpoint decision model", () => {
     const c03 = input.find((check) => check.id === "C03")!;
     c03.status = "manual";
     c03.persistedStatus = "needs_human";
-    c03.waiver = {
-      kind: "manual_confirmation",
-      actorId: "reviewer-1",
-      confirmedAt: now.toISOString(),
-      evaluationInputHash: c03.evaluationInputHash,
+    c03.evidenceIdentity = {
+      requiredIndependentApprovals: 1,
+      sourcePolicyRevisionId: "policy-1",
+      sourcePolicySnapshotHash: "policy-hash",
+      sourceCommitSha: "a".repeat(40),
     };
+    c03.manualApprovals = [approval(c03.evaluationInputHash)];
     expect(buildReleaseGateDecision({
       checkpoint: "build_pre_execution",
       checks: input,
-      actorId: "reviewer-1",
+      actionIdentity: { ...actionIdentity, requesterActorId: "reviewer-1" },
       now,
     })).toMatchObject({ allowed: false, manualGateIds: ["C03"] });
     expect(buildReleaseGateDecision({
       checkpoint: "build_pre_execution",
       checks: input,
-      actorId: "requester-1",
+      actionIdentity,
       now,
     })).toMatchObject({ allowed: true, confirmedManualGateIds: ["C03"] });
   });
@@ -130,5 +140,21 @@ function checks(): PersistedReleaseGateEvaluation[] {
     persistedAt: "2026-08-05T07:00:00.000Z",
     waiver: null,
     waiverExpiresAt: null,
+    manualApprovals: [],
   }));
+}
+
+function approval(evaluationInputHash: string) {
+  return {
+    id: "approval-1",
+    evaluationInputHash,
+    actionInputHash: "action-hash",
+    requesterActorId: "requester-1",
+    reviewerActorId: "reviewer-1",
+    sourcePolicyRevisionId: "policy-1",
+    sourcePolicySnapshotHash: "policy-hash",
+    sourceCommitSha: "a".repeat(40),
+    confirmedAt: "2026-08-05T07:30:00.000Z",
+    expiresAt: "2026-08-06T07:00:00.000Z",
+  };
 }

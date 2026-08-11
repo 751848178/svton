@@ -2,6 +2,7 @@ import type { ReleaseBuildArgvOutcome } from "./release-build-argv-command-runne
 
 export type ReleaseBuildEvidenceIdentity = {
   sourceCommitSha: string;
+  sourceSnapshotDigest: string;
   buildRunId: string;
   profileId: string;
   profileVersion: number;

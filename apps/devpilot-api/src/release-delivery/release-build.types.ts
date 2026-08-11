@@ -37,6 +37,11 @@ export interface ReleaseBuildRuntimeDescriptor {
   concurrencyScope: "single-process";
   workspacePolicy: "dedicated-build-root";
   environmentKeys: readonly string[];
+  workerIsolation: {
+    contractVersion: "release-build-untrusted-worker-v1";
+    provider: "missing" | "test-fixture-only" | "filesystem-isolated-worker-v1";
+    untrustedRepositories: boolean;
+  };
 }
 
 interface ReleaseBuildInputSnapshotBase {

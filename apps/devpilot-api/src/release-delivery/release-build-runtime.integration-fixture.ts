@@ -134,6 +134,7 @@ export class ReleaseBuildRuntimeFixture {
         id: decision.id,
         stage: decision.stage,
         inputHash: decision.inputHash,
+        actionInputHash: decision.actionInputHash,
       },
     };
     return {
@@ -156,6 +157,11 @@ export class ReleaseBuildRuntimeFixture {
       stage: "build",
       checkpoint: "build_post_execution",
     });
-    return { id: decision.id, stage: decision.stage, inputHash: decision.inputHash };
+    return {
+      id: decision.id,
+      stage: decision.stage,
+      inputHash: decision.inputHash,
+      actionInputHash: decision.actionInputHash,
+    };
   }
 }

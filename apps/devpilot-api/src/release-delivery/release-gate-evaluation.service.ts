@@ -9,6 +9,7 @@ import type {
   ReleaseGateCheckpoint,
   ReleaseGateDecisionTarget,
 } from "./release-gate-decision.types";
+import type { ReleaseGateActionIdentity } from "./release-gate-action-identity.policy";
 import { GateEvaluationRepository } from "./gate-evaluation.repository";
 
 type EvaluationScope = {
@@ -32,6 +33,7 @@ export class ReleaseGateEvaluationService {
     scope: EvaluationScope,
     target?: ReleaseGateDecisionTarget,
     checkpoint?: ReleaseGateCheckpoint,
+    actionIdentity?: ReleaseGateActionIdentity,
   ) {
     const order = await this.evidence.load(
       scope.teamId,
@@ -75,6 +77,8 @@ export class ReleaseGateEvaluationService {
           checkpoint: checkpoint ?? null,
           deploymentRunId: target?.deploymentRunId ?? null,
           candidateHash: target?.candidateHash ?? null,
+          actionInputHash: actionIdentity?.actionInputHash ?? "",
+          requesterActorId: actionIdentity?.requesterActorId ?? scope.actorId,
         },
       },
       evaluated,

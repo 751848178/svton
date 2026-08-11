@@ -54,21 +54,19 @@ export function ProjectDeliveryRoute({
 
   return (
     <div className="space-y-6">
-      <ProjectDeliveryHeader
-        summary={delivery.summary}
-        showCreate={isHome && canOpenRelease}
-        onCreate={canOpenRelease ? () => setCreateOpen(true) : undefined}
-      />
+      <ProjectDeliveryHeader summary={delivery.summary} />
       {isHome ? (
         <>
-          <ProjectDeliveryWeakSummary summary={delivery.summary} />
+          <ProjectDeliveryWeakSummary
+            summary={delivery.summary}
+            onOpenRelease={canOpenRelease ? () => setCreateOpen(true) : undefined}
+          />
           <ProjectDeliveryEnvironmentStrip summary={delivery.summary} />
         </>
       ) : null}
       <ProjectDeliveryContent
         projectId={projectId}
         orders={orders}
-        onCreate={canOpenRelease ? () => setCreateOpen(true) : undefined}
       />
       <ReleaseOrderCreateModal
         open={createOpen}
