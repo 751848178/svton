@@ -86,24 +86,32 @@ export function ProjectSettingsContent({ detail }: { detail: DetailHook }) {
 
         <section className="min-w-0 space-y-4">
           {isLegacy ? (
-            <p className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-              {t('settingsLegacySectionHint')}
-            </p>
-          ) : null}
-          {renderSection(section, {
-            detail,
-            analysis,
-            projectId,
-            onSelectAnalysisRun: (runId) => {
-              const next = new URLSearchParams(searchParams);
-              next.set('analysisRunId', runId);
-              router.replace(settingsHref(projectId, 'repository', next), { scroll: false });
-            },
-          })}
+            <details className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              <summary className="min-h-11 cursor-pointer py-3 font-medium">
+                {t('settingsLegacySectionHint')}
+              </summary>
+              <div className="pb-3">
+                {renderSection(section, sectionContext())}
+              </div>
+            </details>
+          ) : renderSection(section, sectionContext())}
         </section>
       </div>
     </div>
   );
+
+  function sectionContext() {
+    return {
+      detail,
+      analysis,
+      projectId,
+      onSelectAnalysisRun: (runId: string) => {
+        const next = new URLSearchParams(searchParams);
+        next.set('analysisRunId', runId);
+        router.replace(settingsHref(projectId, 'repository', next), { scroll: false });
+      },
+    };
+  }
 }
 
 function renderSection(

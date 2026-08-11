@@ -5,7 +5,10 @@ import { ReleaseGateDeployEvidenceRepository } from "./release-gate-deploy-evide
 import { ReleaseGateEvidenceRepository } from "./release-gate-evidence.repository";
 import type { ReleaseGateEvidenceContext } from "./release-gate-evidence.repository";
 import { ReleaseGatePromoteEvidenceRepository } from "./release-gate-promote-evidence.repository";
-import type { ReleaseGateDecisionTarget } from "./release-gate-decision.types";
+import type {
+  ReleaseGateCheckpoint,
+  ReleaseGateDecisionTarget,
+} from "./release-gate-decision.types";
 import { GateEvaluationRepository } from "./gate-evaluation.repository";
 
 type EvaluationScope = {
@@ -25,7 +28,11 @@ export class ReleaseGateEvaluationService {
     private readonly evaluations: GateEvaluationRepository,
   ) {}
 
-  async evaluate(scope: EvaluationScope, target?: ReleaseGateDecisionTarget) {
+  async evaluate(
+    scope: EvaluationScope,
+    target?: ReleaseGateDecisionTarget,
+    checkpoint?: ReleaseGateCheckpoint,
+  ) {
     const order = await this.evidence.load(
       scope.teamId,
       scope.projectId,
@@ -36,6 +43,7 @@ export class ReleaseGateEvaluationService {
     const context: ReleaseGateEvidenceContext = {
       ...order,
       decisionTarget: target,
+      decisionCheckpoint: checkpoint,
       deploy: await this.deployEvidence.load(
         scope.teamId,
         scope.projectId,

@@ -54,13 +54,13 @@ describe('ProjectDeliveryHeader production site entry', () => {
 
 function summary(productionDomain: string | null): ProjectDeliverySummary {
   return {
-    version: 1,
+    version: 2,
     scope: { teamId: 'team-1', actorId: 'actor-1', projectId: 'project-1' },
     project: { id: 'project-1', name: 'Payments' },
     repository: null,
     intake: { projectType: null, architecture: null, componentCount: null },
     baselines: { staging: null, production: null },
-    resources: { bound: 0, total: 0 },
+    resources: { bound: 0, total: 0, byEnvironment: { staging: 0, production: 0 } },
     entries: {
       active: productionDomain ? 1 : 0,
       total: productionDomain ? 1 : 0,
@@ -68,5 +68,7 @@ function summary(productionDomain: string | null): ProjectDeliverySummary {
       productionDomain,
     },
     currentVersions: { staging: null, production: null },
+    checkpoints: [],
+    nextAction: null,
   };
 }

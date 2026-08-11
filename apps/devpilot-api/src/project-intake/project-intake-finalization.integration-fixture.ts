@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { RepositoryIdentityFinalizerService } from "../repository-identity/repository-identity-finalizer.service";
 import { ProjectGovernanceBaselineService } from "../project/project-governance-baseline.service";
+import { ProjectGovernanceServiceTopologyService } from "../project/project-governance-service-topology.service";
 import { ProjectGovernanceFinalizationService } from "../project/project-governance-finalization.service";
 import { GeneratedProjectDraftService } from "../project/generated-project-draft.service";
 import { ProjectService } from "../project/project.service";
@@ -43,6 +44,7 @@ export class ProjectIntakeFinalizationIntegrationFixture {
     this.governance = new ProjectGovernanceFinalizationService(
       prisma,
       new ProjectGovernanceBaselineService(),
+      new ProjectGovernanceServiceTopologyService(),
     );
     this.generatedDrafts = new GeneratedProjectDraftService(prisma);
     const registry = new RegistryService();

@@ -20,6 +20,7 @@ export class EnvironmentVersionCompletionRepository {
       releaseOrderId: string;
       actorId: string;
       gateDecision?: ReleaseGateDecisionReference;
+      gateDecisions?: ReleaseGateDecisionReference[];
       routeSwitchAttempt?: SiteRouteSwitchAttemptPersistence;
       routeSwitchOperationId?: string;
     },
@@ -40,15 +41,17 @@ export class EnvironmentVersionCompletionRepository {
       const run = await tx.deploymentRun.findUniqueOrThrow({
         where: { id: input.deploymentRunId },
       });
-      if (input.gateDecision) {
+      const decisions = input.gateDecisions ??
+        (input.gateDecision ? [input.gateDecision] : []);
+      for (const decision of decisions) {
         await claimReleaseGateDecision(tx, {
           teamId: input.teamId,
           projectId: input.projectId,
           releaseOrderId: input.releaseOrderId,
           actorId: input.actorId,
-          decisionId: input.gateDecision.id,
-          stage: input.gateDecision.stage,
-          inputHash: input.gateDecision.inputHash,
+          decisionId: decision.id,
+          stage: decision.stage,
+          inputHash: decision.inputHash,
           actionRunType: "deployment_run",
           actionRunId: run.id,
           requireAllowed: input.status === "completed",

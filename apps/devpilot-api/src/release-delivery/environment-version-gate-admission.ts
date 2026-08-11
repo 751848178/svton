@@ -14,6 +14,9 @@ export type EnvironmentVersionGateContext = {
   providerKey?: string;
   bindingId?: string;
   deploymentInputHash?: string;
+  workloadInputHash?: string;
+  workloadServiceCount?: number;
+  workloadHealthConfigured?: boolean;
   idempotencyKey?: string;
 };
 
@@ -24,7 +27,10 @@ export function admitEnvironmentVersion(
 ) {
   return gates.assertAllowed({
     ...scope(context),
-    stage,
+    checkpoint:
+      stage === "staging"
+        ? "staging_pre_execution"
+        : "production_pre_execution",
     target: target(context),
     actionInput: {
       checkpoint: "pre_execution",
@@ -45,14 +51,13 @@ export function admitEnvironmentVersion(
 export function finalEnvironmentVersionDecision(
   gates: ReleaseGateDecisionService,
   context: EnvironmentVersionGateContext & { deploymentRunId: string },
-  checkpoint: "post_execution" | "execution_failed",
 ) {
   return gates.assertAllowed({
     ...scope(context),
-    stage: "production",
+    checkpoint: "production_post_deploy",
     target: target(context),
     actionInput: {
-      checkpoint,
+      checkpoint: "post_deploy",
       deploymentRunId: context.deploymentRunId,
       environmentId: context.environmentId,
       configRevisionId: context.configRevisionId,
@@ -65,6 +70,25 @@ export function finalEnvironmentVersionDecision(
       idempotencyKey: context.idempotencyKey ?? null,
     },
     requestKey: `final:${context.releaseRunId}:${context.deploymentRunId}`,
+  });
+}
+
+export function promoteEnvironmentVersionDecision(
+  gates: ReleaseGateDecisionService,
+  context: EnvironmentVersionGateContext & { deploymentRunId: string },
+) {
+  return gates.assertAllowed({
+    ...scope(context),
+    checkpoint: "production_promote",
+    target: target(context),
+    actionInput: {
+      checkpoint: "promote",
+      deploymentRunId: context.deploymentRunId,
+      releaseRunId: context.releaseRunId ?? null,
+      manifestId: context.manifestId,
+      deploymentInputHash: context.deploymentInputHash ?? null,
+    },
+    requestKey: `promote:${context.releaseRunId}:${context.deploymentRunId}`,
   });
 }
 
@@ -88,5 +112,8 @@ function target(context: EnvironmentVersionGateContext) {
     providerKey: context.providerKey,
     bindingId: context.bindingId,
     deploymentInputHash: context.deploymentInputHash,
+    workloadInputHash: context.workloadInputHash,
+    workloadServiceCount: context.workloadServiceCount,
+    workloadHealthConfigured: context.workloadHealthConfigured,
   };
 }

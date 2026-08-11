@@ -20,7 +20,7 @@ export interface ProjectDeliveryCurrentVersionSummary {
 }
 
 export interface ProjectDeliverySummaryResponse {
-  version: 1;
+  version: 2;
   scope: { teamId: string; actorId: string; projectId: string };
   project: { id: string; name: string };
   repository: {
@@ -33,7 +33,11 @@ export interface ProjectDeliverySummaryResponse {
     ProjectDeliveryBaselineRole,
     ProjectDeliveryBaselineSummary | null
   >;
-  resources: { bound: number; total: number };
+  resources: {
+    bound: number;
+    total: number;
+    byEnvironment: Record<ProjectDeliveryBaselineRole, number>;
+  };
   entries: {
     active: number;
     total: number;
@@ -44,4 +48,33 @@ export interface ProjectDeliverySummaryResponse {
     ProjectDeliveryBaselineRole,
     ProjectDeliveryCurrentVersionSummary | null
   >;
+  checkpoints: ProjectDeliveryCheckpoint[];
+  nextAction: ProjectDeliveryAction | null;
+}
+
+export type ProjectDeliveryCheckpointStatus =
+  | "ready"
+  | "action_required"
+  | "blocked"
+  | "not_applicable";
+
+export interface ProjectDeliveryAction {
+  kind: string;
+  href: string;
+}
+
+export interface ProjectDeliveryCheckpoint {
+  id:
+    | "intake"
+    | "baseline_topology"
+    | "services"
+    | "config"
+    | "targets"
+    | "routes"
+    | "release";
+  scope: ProjectDeliveryBaselineRole | "project";
+  status: ProjectDeliveryCheckpointStatus;
+  reasonCodes: string[];
+  evidenceRefs: string[];
+  action: ProjectDeliveryAction | null;
 }

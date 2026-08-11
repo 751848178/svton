@@ -101,7 +101,7 @@ describeIntegration(
       expect(approval.consumedAt).not.toBeNull();
     });
 
-    it("defers D06/D09 at admit and finalize while preflight evidence stays unavailable", async () => {
+    it("records exact standard and single-host applicability without generic deferral", async () => {
       const f = fixture;
       const decisions = await prisma.releaseGateDecision.findMany({
         where: {
@@ -118,13 +118,8 @@ describeIntegration(
       );
       expect(pre).toBeDefined();
       expect(post).toBeDefined();
-      expect(pre!.deferredGateIds).toEqual(
-        expect.arrayContaining(["D06", "D09", "D17", "D20"]),
-      );
-      expect(post!.deferredGateIds).toEqual(
-        expect.arrayContaining(["D06", "D09", "D20"]),
-      );
-      expect(post!.deferredGateIds).not.toContain("D17");
+      expect(pre!.deferredGateIds).toEqual([]);
+      expect(post!.deferredGateIds).toEqual([]);
       expect(post!.allowed).toBe(true);
 
       const evaluations = await prisma.gateEvaluation.findMany({
@@ -140,14 +135,14 @@ describeIntegration(
         evaluations.some(
           (item) =>
             item.gateId === "D06" &&
-            item.reasonCode === "traffic_strategy_provider_missing",
+            item.reasonCode === "d06_not_applicable_standard_strategy",
         ),
       ).toBe(true);
       expect(
         evaluations.some(
           (item) =>
             item.gateId === "D09" &&
-            item.reasonCode === "network_policy_provider_missing",
+            item.reasonCode === "network_policy_not_applicable_single_host",
         ),
       ).toBe(true);
     });

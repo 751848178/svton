@@ -8,35 +8,35 @@ import type {
   ProjectDeliveryCurrentVersionSummary,
   ProjectDeliverySummaryResponse,
 } from "./project-delivery-summary.types";
+import { projectDeliveryReadiness } from "./project-delivery-readiness.presenter";
+import {
+  projectDeliveryEntrySummary,
+  projectDeliveryResourceSummary,
+} from "./project-delivery-scope-summary.presenter";
 
 type Environment = ProjectDeliverySummaryRecord["environments"][number];
-type ScopedResource = {
-  teamId: string;
-  projectId: string | null;
-  environmentId: string | null;
-};
-
 export function presentProjectDeliverySummary(
   project: ProjectDeliverySummaryRecord,
   actorId: string,
 ): ProjectDeliverySummaryResponse {
   const staging = baseline(project, "staging");
   const production = baseline(project, "production");
-  const activeEnvironmentIds = new Set(
-    project.environments
-      .filter(
-        (item) => exactEnvironment(project, item) && item.status === "active",
-      )
-      .map(({ id }) => id),
+  const resources = projectDeliveryResourceSummary(project, {
+    staging: staging?.id,
+    production: production?.id,
+  });
+  const entries = projectDeliveryEntrySummary(project, production?.id);
+  const intake = repositoryIntakeSummary(project);
+  const readiness = projectDeliveryReadiness(
+    project,
+    Boolean(repository(project) && intake.componentCount !== null),
   );
-  const resources = resourceSummary(project, activeEnvironmentIds);
-  const entries = entrySummary(project, activeEnvironmentIds, production?.id);
   return {
-    version: 1,
+    version: 2,
     scope: { teamId: project.teamId, actorId, projectId: project.id },
     project: { id: project.id, name: project.name },
     repository: repository(project),
-    intake: repositoryIntakeSummary(project),
+    intake,
     baselines: {
       staging: staging ? baselineSummary(project, staging) : null,
       production: production ? baselineSummary(project, production) : null,
@@ -47,6 +47,7 @@ export function presentProjectDeliverySummary(
       staging: currentVersion(project, staging),
       production: currentVersion(project, production),
     },
+    ...readiness,
   };
 }
 
@@ -122,54 +123,6 @@ function currentVersion(
   };
 }
 
-function resourceSummary(
-  project: ProjectDeliverySummaryRecord,
-  activeEnvironmentIds: Set<string>,
-) {
-  const rows: ScopedResource[] = [
-    ...project.resourceInstances,
-    ...project.managedResources,
-    ...project.secretKeys,
-    ...project.cdnConfigs,
-    ...project.sites,
-  ].filter((item) => exactResource(project, item));
-  return {
-    bound: rows.filter(
-      (item) =>
-        item.environmentId && activeEnvironmentIds.has(item.environmentId),
-    ).length,
-    total: rows.length,
-  };
-}
-
-function entrySummary(
-  project: ProjectDeliverySummaryRecord,
-  activeEnvironmentIds: Set<string>,
-  productionEnvironmentId: string | undefined,
-) {
-  const sites = project.sites.filter(
-    (site) =>
-      exactResource(project, site) && site.primaryDomain.trim().length > 0,
-  );
-  return {
-    active: sites.filter(
-      (site) =>
-        site.status === "active" &&
-        site.environmentId &&
-        activeEnvironmentIds.has(site.environmentId),
-    ).length,
-    total: sites.length,
-    productionDomain:
-      sites
-        .find(
-          (site) =>
-            site.status === "active" &&
-            site.environmentId === productionEnvironmentId,
-        )
-        ?.primaryDomain.trim() ?? null,
-  };
-}
-
 function exactEnvironment(
   project: ProjectDeliverySummaryRecord,
   environment: Environment,
@@ -177,14 +130,5 @@ function exactEnvironment(
   return (
     environment.teamId === project.teamId &&
     environment.projectId === project.id
-  );
-}
-
-function exactResource(
-  project: ProjectDeliverySummaryRecord,
-  resource: ScopedResource,
-) {
-  return (
-    resource.teamId === project.teamId && resource.projectId === project.id
   );
 }

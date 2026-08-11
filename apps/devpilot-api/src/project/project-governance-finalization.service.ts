@@ -10,12 +10,14 @@ import type {
   ProjectGovernanceFinalizationInput,
   ProjectGovernanceFinalizationResult,
 } from "./project-governance-finalization.types";
+import { ProjectGovernanceServiceTopologyService } from "./project-governance-service-topology.service";
 
 @Injectable()
 export class ProjectGovernanceFinalizationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly baselines: ProjectGovernanceBaselineService,
+    private readonly topology: ProjectGovernanceServiceTopologyService,
   ) {}
 
   async finalize(
@@ -89,6 +91,11 @@ export class ProjectGovernanceFinalizationService {
     }
 
     const environments = await this.baselines.ensure(tx, input);
+    await this.topology.materialize(tx, {
+      teamId: input.teamId,
+      projectId: input.projectId,
+      environments,
+    });
     const result = {
       projectId: project.id,
       onboardingRevision: input.expectedRevision + 1,

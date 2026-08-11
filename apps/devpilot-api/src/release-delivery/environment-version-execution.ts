@@ -130,6 +130,11 @@ export async function executeEnvironmentVersion(
     providerKey: deps.executor.providerKey,
     bindingId: frozenInput.deploymentInput.snapshot.target.bindingId,
     deploymentInputHash: frozenInput.deploymentInput.snapshot.inputHash,
+    workloadInputHash: frozenInput.workload.inputHash,
+    workloadServiceCount: frozenInput.workload.services.length,
+    workloadHealthConfigured: frozenInput.workload.services.every(
+      (service) => Boolean(service.health),
+    ),
     idempotencyKey: input.idempotencyKey,
   };
   const admissionDecision = await deps.productionGates.admit(

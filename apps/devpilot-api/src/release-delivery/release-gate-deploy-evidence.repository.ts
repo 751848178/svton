@@ -73,6 +73,14 @@ export class ReleaseGateDeployEvidenceRepository {
             },
           },
         },
+        applicationServices: {
+          where: { status: "active", application: { status: "active" } },
+          select: {
+            id: true,
+            releaseComponentKey: true,
+            metadata: true,
+          },
+        },
       },
     });
     if (!environment) return emptyDeployEvidence();

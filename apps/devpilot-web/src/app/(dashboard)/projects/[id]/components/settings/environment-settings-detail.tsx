@@ -71,8 +71,13 @@ export function EnvironmentSettingsDetail({
   const tablistId = useId();
   const panelId = `${tablistId}-${envTab}-panel`;
   const summaryInputId = useId();
-  const governance = useEnvironmentConfigGovernance(environment, projectId, detail.loadProject);
-  const targets = useEnvironmentDeploymentTargets(environment.id);
+  const governance = useEnvironmentConfigGovernance(
+    environment,
+    projectId,
+    detail.loadProject,
+    envTab === 'protection',
+  );
+  const targets = useEnvironmentDeploymentTargets(environment.id, envTab === 'targets');
   const [secrets, setSecrets] = useState<EnvironmentConfigSecretReference[]>([]);
   const [policyIds, setPolicyIds] = useState<string[]>([]);
   const [resources, setResources] = useState<EnvironmentConfigResourceReference[]>([]);

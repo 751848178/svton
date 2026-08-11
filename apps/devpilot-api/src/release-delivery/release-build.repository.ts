@@ -30,7 +30,12 @@ export class ReleaseBuildRepository {
                 services: {
                   where: { status: "active" },
                   orderBy: { id: "asc" },
-                  select: { id: true, name: true, deployConfig: true },
+                  select: {
+                    id: true,
+                    releaseComponentKey: true,
+                    name: true,
+                    deployConfig: true,
+                  },
                 },
               },
             },

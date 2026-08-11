@@ -31,6 +31,7 @@ export function useEnvironmentConfigGovernance(
   environment: ProjectEnvironment,
   projectId: string,
   onSaved: (updated: ProjectEnvironment) => void,
+  loadPolicies = true,
 ) {
   const [data, setData] = useState<EnvironmentConfigRevisionList | null>(null);
   const [policies, setPolicies] = useState<Policy[]>([]);
@@ -47,7 +48,9 @@ export function useEnvironmentConfigGovernance(
         apiRequest<EnvironmentConfigRevisionList>(
           `GET:/project-environments/${environment.id}/config-revisions`,
         ),
-        apiRequest<Policy[]>('GET:/control-access-policies'),
+        loadPolicies
+          ? apiRequest<Policy[]>('GET:/control-access-policies')
+          : Promise.resolve([]),
       ]);
       setData(revisionList);
       setPolicies(allPolicies.filter((policy) =>
@@ -60,7 +63,7 @@ export function useEnvironmentConfigGovernance(
     } finally {
       setLoading(false);
     }
-  }, [environment.id, projectId]);
+  }, [environment.id, loadPolicies, projectId]);
 
   useEffect(() => {
     // A sibling editor can advance the current revision without changing the

@@ -55,7 +55,7 @@ describeIntegration("F426 Build runtime persistence", () => {
     const run = await reserve();
     await Promise.allSettled([
       fixture.results.cancelActive(run.id),
-      fixture.results.succeed(success(run)),
+      fixture.results.succeed(await success(run)),
     ]);
     const stored = await fixture.prisma.buildRun.findUniqueOrThrow({
       where: { id: run.id },
@@ -152,7 +152,7 @@ describeIntegration("F426 Build runtime persistence", () => {
     };
   }
 
-  function success(run: {
+  async function success(run: {
     id: string;
     sourceBranch: string;
     sourceCommitSha: string;
@@ -178,6 +178,8 @@ describeIntegration("F426 Build runtime persistence", () => {
       logReference: `build-log://${run.id}`,
       logSummary: { redacted: true, lines: ["ok"] },
       gateSummary: { build: { status: "passed" } },
+      actorId: fixture.userId,
+      gateDecision: await fixture.postBuildDecision(),
     };
   }
 });

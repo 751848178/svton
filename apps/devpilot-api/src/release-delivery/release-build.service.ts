@@ -113,6 +113,7 @@ export class ReleaseBuildService {
       return this.runner.run({
         buildRun,
         teamId,
+        actorId,
         projectId,
         releaseOrderId,
         source,

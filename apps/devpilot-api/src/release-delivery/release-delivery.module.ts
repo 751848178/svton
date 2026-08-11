@@ -44,6 +44,7 @@ import { ReleaseOrderListService } from "./release-order-list.service";
 import { EnvironmentVersionController } from "./environment-version.controller";
 import { releaseDeliveryEnvironmentProviders } from "./release-delivery-environment.providers";
 import { ReleaseGateCapabilityRegistryService } from "./release-gate-capability-registry.service";
+import { ReleaseGateProductionApplicabilityProvider } from "./release-gate-production-applicability.provider";
 import { ReleaseGateArtifactCapabilityProvider } from "./release-gate-artifact-capability.provider";
 import { ReleaseGateBuildCapabilityProvider } from "./release-gate-build-capability.provider";
 import { ReleaseGateCatalogController } from "./release-gate-catalog.controller";
@@ -137,6 +138,7 @@ import { ProjectDeliverySummaryService } from "./project-delivery-summary.servic
     ReleaseDeliveryCompatibilityService,
     ...releaseDeliveryEnvironmentProviders,
     ReleaseGateCapabilityRegistryService,
+    ReleaseGateProductionApplicabilityProvider,
     ReleaseGateArtifactCapabilityProvider,
     ReleaseGateSourceCapabilityProvider,
     ReleaseGateBuildCapabilityProvider,

@@ -12,6 +12,7 @@ import { RepositoryIdentityCoordinatorService } from '../repository-identity/rep
 import { RepositoryIdentityFinalizerService } from '../repository-identity/repository-identity-finalizer.service';
 import { RepositoryIdentityReadRepository } from '../repository-identity/repository-identity-read.repository';
 import { ProjectGovernanceBaselineService } from '../project/project-governance-baseline.service';
+import { ProjectGovernanceServiceTopologyService } from '../project/project-governance-service-topology.service';
 import { ProjectGovernanceFinalizationService } from '../project/project-governance-finalization.service';
 import { RepositoryAnalysisAuditService } from '../repository-analysis/repository-analysis-audit.service';
 import { RepositoryAnalysisRunRepository } from '../repository-analysis/repository-analysis-run.repository';
@@ -78,7 +79,7 @@ export function createIntakeService(client: PrismaClient, localRoot: string) {
   const contracts = new RepositoryIntakeContractService(contractRepository);
   const reviews = new RepositoryIntakeReviewService(contractRepository, contracts, apply);
   const governance = new ProjectGovernanceFinalizationService(
-    db, new ProjectGovernanceBaselineService(),
+    db, new ProjectGovernanceBaselineService(), new ProjectGovernanceServiceTopologyService(),
   );
   const finalization = new ProjectIntakeFinalizationService(
     new ProjectIntakeFinalizationRecordRepository(db),

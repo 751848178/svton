@@ -38,6 +38,7 @@ import { ReleaseGateMigrationCapabilityProvider } from "./release-gate-migration
 import { ReleaseGateObservabilityCapabilityProvider } from "./release-gate-observability-capability.provider";
 import { ReleaseGatePromoteEvidenceRepository } from "./release-gate-promote-evidence.repository";
 import { ReleaseGatePromotionCapabilityProvider } from "./release-gate-promotion-capability.provider";
+import { ReleaseGateProductionApplicabilityProvider } from "./release-gate-production-applicability.provider";
 import { ReleaseGateRecoveryStrategyProvider } from "./release-gate-recovery-strategy.provider";
 import { ReleaseGateRuntimeCapabilityProvider } from "./release-gate-runtime-capability.provider";
 import { ReleaseGateSourceCapabilityProvider } from "./release-gate-source-capability.provider";
@@ -500,6 +501,7 @@ export async function createProductionRealGateFixture(
     new ReleaseGatePromotionCapabilityProvider(),
     new ReleaseGateObservabilityCapabilityProvider(),
     new ReleaseGateRecoveryStrategyProvider(),
+    new ReleaseGateProductionApplicabilityProvider(),
   );
   const gateEvaluator = new ReleaseGateEvaluationService(
     new ReleaseGateEvidenceRepository(db),

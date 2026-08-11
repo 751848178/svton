@@ -10,6 +10,7 @@ import { ReleaseGateRecoveryStrategyProvider } from "./release-gate-recovery-str
 import { ReleaseGateObservabilityCapabilityProvider } from "./release-gate-observability-capability.provider";
 import { ReleaseGateRuntimeCapabilityProvider } from "./release-gate-runtime-capability.provider";
 import { ReleaseGateSourceCapabilityProvider } from "./release-gate-source-capability.provider";
+import { ReleaseGateProductionApplicabilityProvider } from "./release-gate-production-applicability.provider";
 
 export function createReleaseGateRegistry() {
   return new ReleaseGateCapabilityRegistryService(
@@ -24,5 +25,6 @@ export function createReleaseGateRegistry() {
     new ReleaseGatePromotionCapabilityProvider(),
     new ReleaseGateObservabilityCapabilityProvider(),
     new ReleaseGateRecoveryStrategyProvider(),
+    new ReleaseGateProductionApplicabilityProvider(),
   );
 }

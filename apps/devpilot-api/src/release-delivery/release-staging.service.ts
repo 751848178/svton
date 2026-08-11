@@ -68,7 +68,7 @@ export class ReleaseStagingService {
       actorId: input.actorId,
       projectId: input.projectId,
       releaseOrderId: input.releaseOrderId,
-      stage: "staging",
+      checkpoint: "staging_pre_execution",
       target: {
         buildRunId: manifest.buildRun.id,
         manifestId: manifest.id,

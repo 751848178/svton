@@ -9,7 +9,7 @@ describe("project delivery summary presenter", () => {
     );
 
     expect(result).toMatchObject({
-      version: 1,
+      version: 2,
       scope: { teamId: "team-1", actorId: "actor-1", projectId: "project-1" },
       repository: {
         provider: "github",
@@ -22,7 +22,11 @@ describe("project delivery summary presenter", () => {
         componentCount: 1,
       },
       baselines: { staging: { ready: true }, production: { ready: true } },
-      resources: { bound: 4, total: 6 },
+      resources: {
+        bound: 4,
+        total: 6,
+        byEnvironment: { staging: 1, production: 3 },
+      },
       entries: {
         active: 1,
         total: 2,
@@ -73,7 +77,11 @@ describe("project delivery summary presenter", () => {
 
     const result = presentProjectDeliverySummary(record, "actor-2");
 
-    expect(result.resources).toEqual({ bound: 2, total: 4 });
+    expect(result.resources).toEqual({
+      bound: 2,
+      total: 4,
+      byEnvironment: { staging: 0, production: 2 },
+    });
     expect(result.entries).toEqual({
       active: 0,
       total: 1,

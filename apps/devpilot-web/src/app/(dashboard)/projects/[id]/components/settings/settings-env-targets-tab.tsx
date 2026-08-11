@@ -12,10 +12,8 @@ import React, { useState } from 'react';
 
 import { useTranslations } from 'next-intl';
 import { useEnvironmentActions } from '../../hooks/use-environment-actions';
-import { useEnvironmentDeploymentTargets } from '../../hooks/use-environment-deployment-targets';
 import type { useProjectDetail } from '../../hooks/use-project-detail';
 import type { ProjectEnvironment } from '../../types';
-import type { EnvironmentDeploymentTargetBinding } from '../../types';
 import { BindServerBlock } from '../environment-bind-server-block';
 import {
   SettingsEnvTargetEditDialog,
@@ -24,6 +22,10 @@ import {
 } from './settings-env-target-edit-dialog';
 import { SubtabShell } from './settings-subtab-shell';
 import type { DeploymentTargetsHook } from './settings-env-tab-switch';
+import {
+  EnvironmentTargetBindingRow,
+  EnvironmentTargetSharedScope,
+} from './settings-env-target-rows';
 
 type DetailHook = ReturnType<typeof useProjectDetail>;
 
@@ -34,7 +36,7 @@ export function EnvTargetsTab({
 }: {
   environment: ProjectEnvironment;
   detail: DetailHook;
-  targets?: DeploymentTargetsHook;
+  targets: DeploymentTargetsHook;
 }) {
   const t = useTranslations('projects');
   const projectId = detail.project?.id ?? '';
@@ -42,8 +44,7 @@ export function EnvTargetsTab({
     environment,
     onSaved: detail.loadProject,
   });
-  const ownTargets = useEnvironmentDeploymentTargets(environment.id);
-  const resolvedTargets = targets ?? ownTargets;
+  const resolvedTargets = targets;
   const [editing, setEditing] = useState<TargetEditDraft | null>(null);
   const bindings = resolvedTargets.data?.bindings ?? [];
   const current = resolvedTargets.data?.currentTarget ?? null;
@@ -81,7 +82,7 @@ export function EnvTargetsTab({
               </thead>
               <tbody>
                 {bindings.map((binding) => (
-                  <BindingRow
+                  <EnvironmentTargetBindingRow
                     key={binding.id}
                     binding={binding}
                     isCurrent={current?.bindingId === binding.id}
@@ -94,7 +95,7 @@ export function EnvTargetsTab({
               </tbody>
             </table>
           </div>
-          <SharedScopeLine
+          <EnvironmentTargetSharedScope
             bindings={bindings}
             environmentKeys={environmentKeyById(detail)}
             t={t}
@@ -128,102 +129,6 @@ export function EnvTargetsTab({
         }}
       />
     </SubtabShell>
-  );
-}
-
-function BindingRow({
-  binding,
-  isCurrent,
-  currentTargetRef,
-  t,
-  onAdjust,
-  onUnbind,
-}: {
-  binding: EnvironmentDeploymentTargetBinding;
-  isCurrent: boolean;
-  currentTargetRef: string | null;
-  t: ReturnType<typeof useTranslations<'projects'>>;
-  onAdjust: () => void;
-  onUnbind: () => void;
-}) {
-  return (
-    <tr className="border-b">
-      <td className="py-2 pr-3">
-        <span className="font-medium">{binding.server.name}</span>
-        {binding.role ? (
-          <span className="ml-1 rounded bg-muted px-1 py-0.5 text-[10px] text-slate-700">
-            {binding.role}
-          </span>
-        ) : null}
-        {isCurrent ? (
-          <span className="ml-1.5 inline-block rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700">
-            {t('envTargetCurrentBadge')}
-          </span>
-        ) : null}
-      </td>
-      <td className="py-2 pr-3">
-        {currentTargetRef ? (
-          <span className="font-mono text-xs">{currentTargetRef}</span>
-        ) : binding.providerKey ? (
-          <span className="font-mono text-xs">{binding.providerKey}</span>
-        ) : (
-          <span className="text-xs text-muted-foreground">{t('envTargetNotApplicable')}</span>
-        )}
-      </td>
-      <td className="py-2 pr-3 font-mono text-xs text-muted-foreground">
-        {binding.server.host || t('envTargetNotApplicable')}
-      </td>
-      <td className="py-2 pr-3 text-xs text-muted-foreground">{t('envTargetNotApplicable')}</td>
-      <td className="py-2 pr-3 text-xs">
-        {binding.server.status === 'online' ? (
-          <span className="text-green-700">{t('envTargetStatusOnline')}</span>
-        ) : (
-          <span className="text-red-600">{t('envTargetStatusOffline')}</span>
-        )}
-      </td>
-      <td className="py-2 text-right text-xs">
-        <button
-          type="button"
-          className="text-primary hover:underline"
-          onClick={onAdjust}
-        >
-          {t('envTargetAdjust')}
-        </button>
-        <button
-          type="button"
-          className="ml-3 text-red-600 hover:underline"
-          onClick={onUnbind}
-        >
-          {t('envUnbindServer')}
-        </button>
-      </td>
-    </tr>
-  );
-}
-
-function SharedScopeLine({
-  bindings,
-  environmentKeys,
-  t,
-}: {
-  bindings: EnvironmentDeploymentTargetBinding[];
-  environmentKeys: Record<string, string>;
-  t: ReturnType<typeof useTranslations<'projects'>>;
-}) {
-  const shared = bindings.filter((binding) => binding.sharedEnvironmentIds.length > 0);
-  return (
-    <p className="text-[11px] text-muted-foreground">
-      {shared.length === 0
-        ? t('envTargetIsolationDefault')
-        : shared
-            .map((binding) => {
-              const keys = binding.sharedEnvironmentIds
-                .map((id) => environmentKeys[id] ?? id)
-                .join(', ');
-              return `${binding.server.name} → ${keys}`;
-            })
-            .join('；')}
-    </p>
   );
 }
 

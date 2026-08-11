@@ -17,7 +17,6 @@ import {
   findRepositoryApplication,
   findRepositoryService,
 } from './repository-suggestion-match.utils';
-
 @Injectable()
 export class RepositorySuggestionBuilderService {
   constructor(private readonly prisma: PrismaService) {}
@@ -153,6 +152,7 @@ function serviceDraft(
     environmentKey: environmentId ? undefined : 'production',
     serviceId: currentService?.id,
     serviceName: currentService?.name || detected.name,
+    releaseComponentKey: detected.key,
     kind: detected.container.composeFiles.length > 0 ? 'docker-compose' : 'container',
     runtime: detected.runtime,
     ports: detected.ports,

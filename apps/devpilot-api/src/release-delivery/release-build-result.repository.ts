@@ -4,6 +4,9 @@ import { PrismaService } from "../prisma/prisma.service";
 import { assertReproducibleArtifact } from "./release-build-reproducibility.repository";
 import { canceledBuildLogSummary } from "./release-build-terminal-evidence";
 import type { ReleaseBuildArtifactItem } from "./release-build.types";
+import { createReleaseBuildManifest } from "./release-build-manifest.writer";
+import type { ReleaseGateDecisionReference } from "./release-gate-decision.types";
+import { claimReleaseGateDecision } from "./release-gate-decision.repository";
 import { releaseBuildInclude } from "./release-build.prisma";
 import { lockActionableReleaseOrder } from "./release-order-action-boundary";
 
@@ -27,6 +30,8 @@ interface CompleteBuildInput {
   logReference: string;
   logSummary: Record<string, unknown>;
   gateSummary: Record<string, unknown>;
+  actorId: string;
+  gateDecision: ReleaseGateDecisionReference;
 }
 
 @Injectable()
@@ -53,70 +58,19 @@ export class ReleaseBuildResultRepository {
           "BuildRun 已由其他终态占用，不能写入 Manifest",
         );
       }
-      await tx.artifactManifest.create({
-        data: {
-          teamId: input.teamId,
-          projectId: input.projectId,
-          releaseOrderId: input.releaseOrderId,
-          buildRunId: input.buildRunId,
-          digest: input.digest,
-          provenance: {
-            source: "release_build",
-            immutable: true,
-            sourceBranch: input.sourceBranch,
-            sourceCommitSha: input.sourceCommitSha,
-            repositoryIdentityId: input.repositoryIdentityId,
-            repositoryIdentityRevisionId: input.repositoryIdentityRevisionId,
-            repositoryProvider: input.repositoryProvider,
-            canonicalRepositoryUrl: input.canonicalRepositoryUrl,
-            inputHash: input.inputHash,
-            artifactContractVersion: 1,
-            collection: "declared-outputs-only",
-            reproducibility: prior
-              ? { status: "matched", priorManifestId: prior.id }
-              : { status: "baseline" },
-            contentIndex: input.contentIndex,
-            componentEnvironments: input.items.map((item) => ({
-              componentKey: item.componentKey,
-              ...item.environment,
-            })),
-          },
-          items: {
-            create: [
-              {
-                componentKey: "project-bundle",
-                artifactType: "zip",
-                uri: input.uri,
-                digest: input.digest,
-                metadata: {
-                  sizeBytes: input.sizeBytes,
-                  contentIndex: input.contentIndex,
-                  provenance: {
-                    sourceCommitSha: input.sourceCommitSha,
-                    inputHash: input.inputHash,
-                  },
-                },
-              },
-              ...input.items.map((item) => ({
-                componentKey: item.componentKey,
-                artifactType: item.artifactType,
-                uri: item.uri,
-                digest: item.digest,
-                metadata: {
-                  sizeBytes: item.sizeBytes,
-                  outputs: item.outputs,
-                  contentIndex: item.contentIndex,
-                  environment: item.environment,
-                  provenance: {
-                    sourceCommitSha: input.sourceCommitSha,
-                    inputHash: input.inputHash,
-                  },
-                },
-              })),
-            ],
-          },
-        },
+      await claimReleaseGateDecision(tx, {
+        teamId: input.teamId,
+        projectId: input.projectId,
+        releaseOrderId: input.releaseOrderId,
+        actorId: input.actorId,
+        decisionId: input.gateDecision.id,
+        stage: input.gateDecision.stage,
+        inputHash: input.gateDecision.inputHash,
+        actionRunType: "build_run_post_gate",
+        actionRunId: input.buildRunId,
+        requireAllowed: true,
       });
+      await createReleaseBuildManifest(tx, input, prior?.id ?? null);
       await tx.releaseOrder.updateMany({
         where: { id: input.releaseOrderId, status: { not: "canceled" } },
         data: { status: "active" },
@@ -134,6 +88,25 @@ export class ReleaseBuildResultRepository {
       select: { status: true, manifest: { select: { digest: true } } },
     });
     return run?.status === "succeeded" && run.manifest?.digest === input.digest;
+  }
+
+  async recordCandidateEvidence(input: {
+    buildRunId: string;
+    logReference: string;
+    logSummary: Record<string, unknown>;
+    gateSummary: Record<string, unknown>;
+  }) {
+    const claimed = await this.prisma.buildRun.updateMany({
+      where: { id: input.buildRunId, status: "running" },
+      data: {
+        logReference: input.logReference,
+        logSummary: input.logSummary as Prisma.InputJsonValue,
+        gateSummary: input.gateSummary as Prisma.InputJsonValue,
+      },
+    });
+    if (claimed.count !== 1) {
+      throw new ConflictException("BuildRun 已进入终态，不能写入候选门禁证据");
+    }
   }
 
   fail(input: {

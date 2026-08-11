@@ -1,11 +1,12 @@
 import { Injectable, UnprocessableEntityException } from "@nestjs/common";
 import { buildReleaseGateDecision } from "./release-gate-decision.model";
+import { defaultCheckpointForStage } from "./release-gate-checkpoint.policy";
 import { ReleaseGateDecisionRepository } from "./release-gate-decision.repository";
 import {
   RELEASE_GATE_DECISION_STAGES,
+  type ReleaseGateCheckpoint,
   type ReleaseGateDecision,
   type ReleaseGateDecisionInput,
-  type ReleaseGateDecisionStage,
   type ReleaseGateDecisionTarget,
 } from "./release-gate-decision.types";
 import { ReleaseGateEvaluationService } from "./release-gate-evaluation.service";
@@ -38,18 +39,18 @@ export class ReleaseGateDecisionService {
     const evaluation = await this.evaluator.evaluate(scope, buildInput.target);
     const entries = await Promise.all(
       RELEASE_GATE_DECISION_STAGES.map(
-        async (stage) =>
-          [
+        async (stage) => {
+          const checkpoint = defaultCheckpointForStage(stage);
+          return [
             stage,
             await this.persist(
               scope,
-              stage,
+              checkpoint,
               evaluation.checks,
-              stage === "build"
-                ? buildInput.actionInput
-                : { source: "catalog" },
+              stage === "build" ? buildInput.actionInput : { source: "catalog" },
             ),
-          ] as const,
+          ] as const;
+        },
       ),
     );
     return { evaluation, decisions: Object.fromEntries(entries) };
@@ -57,29 +58,26 @@ export class ReleaseGateDecisionService {
 
   async assertAllowed(
     input: DecisionScope & {
-      stage: ReleaseGateDecisionStage;
+      checkpoint: ReleaseGateCheckpoint;
       target?: ReleaseGateDecisionTarget;
       actionInput?: Record<string, string | null>;
       requestKey?: string;
-      deferredReasons?: Record<string, string[]>;
     },
   ) {
     const {
-      stage,
+      checkpoint,
       target,
       actionInput,
       requestKey,
-      deferredReasons,
       ...scope
     } = input;
-    const evaluation = await this.evaluator.evaluate(scope, target);
+    const evaluation = await this.evaluator.evaluate(scope, target, checkpoint);
     const decision = await this.persist(
       scope,
-      stage,
+      checkpoint,
       evaluation.checks,
       actionInput,
       requestKey,
-      deferredReasons,
     );
     if (!decision.allowed) {
       throw new ReleaseGateBlockedException(decision);
@@ -89,19 +87,17 @@ export class ReleaseGateDecisionService {
 
   private persist(
     scope: DecisionScope,
-    stage: ReleaseGateDecisionStage,
+    checkpoint: ReleaseGateCheckpoint,
     checks: Parameters<typeof buildReleaseGateDecision>[0]["checks"],
     actionInput?: Record<string, string | null>,
     requestKey?: string,
-    deferredReasons?: Record<string, string[]>,
   ) {
     return this.decisions.persist(
       scope,
       buildReleaseGateDecision({
-        stage,
+        checkpoint,
         checks,
         actionInput,
-        deferredReasons,
       }),
       requestKey,
     );

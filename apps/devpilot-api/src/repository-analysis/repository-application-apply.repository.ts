@@ -100,6 +100,7 @@ export class RepositoryApplicationApplyRepository {
     const name = stringValue(value.serviceName) || stringValue(value.applicationName);
     if (!name) throw new Error('serviceName is required');
     const baseData = {
+      releaseComponentKey: stringValue(value.releaseComponentKey),
       kind: safeKind(value.kind),
       runtime: stringValue(value.runtime),
       ports: optionalJson(value.ports),

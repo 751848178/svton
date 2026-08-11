@@ -12,9 +12,11 @@ const WORKLOAD_SERVICE_SELECT = {
   orderBy: { id: "asc" as const },
   select: {
     id: true,
+    releaseComponentKey: true,
     applicationId: true,
     name: true,
     kind: true,
+    ports: true,
     deployConfig: true,
   },
 } as const;

@@ -11,6 +11,7 @@ import {
   admitEnvironmentVersion,
   type EnvironmentVersionGateContext,
   finalEnvironmentVersionDecision,
+  promoteEnvironmentVersionDecision,
 } from "./environment-version-gate-admission";
 import { ProductionRouteSagaGuard } from "../site/production-route-saga.guard";
 
@@ -39,8 +40,14 @@ export class EnvironmentVersionProductionGateService {
     return finalEnvironmentVersionDecision(
       this.gates,
       context,
-      "post_execution",
     );
+  }
+
+  promote(
+    context: EnvironmentVersionGateContext & { deploymentRunId: string },
+  ) {
+    if (!context.releaseRunId) return undefined;
+    return promoteEnvironmentVersionDecision(this.gates, context);
   }
 
   async denied(
@@ -53,7 +60,6 @@ export class EnvironmentVersionProductionGateService {
       return await finalEnvironmentVersionDecision(
         this.gates,
         context,
-        "execution_failed",
       );
     } catch (gateError) {
       return gateError instanceof ReleaseGateBlockedException

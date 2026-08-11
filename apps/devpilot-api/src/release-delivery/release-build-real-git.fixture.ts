@@ -180,7 +180,13 @@ export class ReleaseBuildRealGitFixture {
       new ReleaseBuildRepository(this.db),
       new ReleaseBuildSourceResolverService(reads, credentials, gitExecutor),
       gatePolicyTestDouble(this.prisma) as never,
-      new ReleaseBuildRunnerService(results, gitExecutor, executor, runtime),
+      new ReleaseBuildRunnerService(
+        results,
+        gitExecutor,
+        executor,
+        runtime,
+        gatePolicyTestDouble(this.prisma) as never,
+      ),
       runtime,
       new ReleaseBuildRuntimeSupervisorService(runtime),
     );

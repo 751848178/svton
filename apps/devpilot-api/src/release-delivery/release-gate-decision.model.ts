@@ -1,27 +1,22 @@
 import { RELEASE_GATE_DEFINITIONS } from "./release-gate-definition.catalog";
+import { releaseGateCheckpointPolicy } from "./release-gate-checkpoint.policy";
 import type {
   PersistedReleaseGateEvaluation,
+  ReleaseGateCheckpoint,
   ReleaseGateDecisionDraft,
-  ReleaseGateDecisionStage,
 } from "./release-gate-decision.types";
-
-const STAGE_PHASE = {
-  build: "commit",
-  staging: "build",
-  production: "deploy",
-} as const;
 const EVIDENCE_ONLY_GATE_IDS = new Set(["P03"]);
 
 export function buildReleaseGateDecision(input: {
-  stage: ReleaseGateDecisionStage;
+  checkpoint: ReleaseGateCheckpoint;
   checks: PersistedReleaseGateEvaluation[];
   actionInput?: Record<string, string | null>;
-  deferredReasons?: Record<string, string[]>;
   now?: Date;
 }): ReleaseGateDecisionDraft {
-  const phase = STAGE_PHASE[input.stage];
+  const policy = releaseGateCheckpointPolicy(input.checkpoint);
+  const requiredIds = new Set(policy.requiredGateIds);
   const definitions = RELEASE_GATE_DEFINITIONS.filter(
-    (definition) => definition.phase === phase && definition.delivery === "mvp",
+    (definition) => requiredIds.has(definition.id),
   );
   const byId = new Map<string, PersistedReleaseGateEvaluation[]>();
   for (const check of input.checks) {
@@ -50,10 +45,6 @@ export function buildReleaseGateDecision(input: {
       integrityErrors.push(`${definition.id}:definition_drift`);
       continue;
     }
-    if (input.deferredReasons?.[check.id]?.includes(check.reasonCode)) {
-      deferredGateIds.push(check.id);
-      continue;
-    }
     if (check.status === "manual") {
       if (hasManualConfirmation(check, now))
         confirmedManualGateIds.push(check.id);
@@ -72,8 +63,9 @@ export function buildReleaseGateDecision(input: {
   }
 
   return {
-    stage: input.stage,
-    phase,
+    stage: policy.stage,
+    checkpoint: input.checkpoint,
+    phase: policy.phase,
     allowed:
       integrityErrors.length === 0 &&
       blockerGateIds.length === 0 &&
@@ -88,9 +80,11 @@ export function buildReleaseGateDecision(input: {
       .map((check) => check.id),
     integrityErrors,
     snapshot: {
-      version: 1,
-      stage: input.stage,
-      phase,
+      version: 2,
+      stage: policy.stage,
+      checkpoint: input.checkpoint,
+      phase: policy.phase,
+      requiredGateIds: [...policy.requiredGateIds],
       actionInput: input.actionInput ?? {},
       evaluations: requiredChecks.map(snapshotEvaluation),
     },

@@ -1,7 +1,7 @@
 export type ProjectDeliveryBaselineRole = 'staging' | 'production';
 
 export interface ProjectDeliverySummary {
-  version: 1;
+  version: 2;
   scope: { teamId: string; actorId: string; projectId: string };
   project: { id: string; name: string };
   repository: {
@@ -18,7 +18,11 @@ export interface ProjectDeliverySummary {
     ProjectDeliveryBaselineRole,
     { id: string; key: string; name: string; ready: boolean } | null
   >;
-  resources: { bound: number; total: number };
+  resources: {
+    bound: number;
+    total: number;
+    byEnvironment: Record<ProjectDeliveryBaselineRole, number>;
+  };
   entries: {
     active: number;
     total: number;
@@ -37,4 +41,15 @@ export interface ProjectDeliverySummary {
       effectiveAt: string;
     } | null
   >;
+  checkpoints: ProjectDeliveryCheckpoint[];
+  nextAction: { kind: string; href: string } | null;
+}
+
+export interface ProjectDeliveryCheckpoint {
+  id: 'intake' | 'baseline_topology' | 'services' | 'config' | 'targets' | 'routes' | 'release';
+  scope: ProjectDeliveryBaselineRole | 'project';
+  status: 'ready' | 'action_required' | 'blocked' | 'not_applicable';
+  reasonCodes: string[];
+  evidenceRefs: string[];
+  action: { kind: string; href: string } | null;
 }

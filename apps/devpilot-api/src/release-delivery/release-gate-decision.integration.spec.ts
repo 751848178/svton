@@ -206,6 +206,7 @@ function draft(
 ): ReleaseGateDecisionDraft {
   return {
     stage: "build",
+    checkpoint: "build_pre_execution",
     phase: "commit",
     allowed: true,
     blockerGateIds: [],
@@ -216,9 +217,11 @@ function draft(
     evidenceOnlyGateIds: [],
     integrityErrors: [],
     snapshot: {
-      version: 1,
+      version: 2,
       stage: "build",
+      checkpoint: "build_pre_execution",
       phase: "commit",
+      requiredGateIds: [],
       actionInput,
       evaluations: [],
     },

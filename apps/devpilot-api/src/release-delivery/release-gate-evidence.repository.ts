@@ -3,7 +3,10 @@ import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import type { ReleaseGateDeployEvidence } from "./release-gate-deploy-evidence.types";
 import type { ReleaseGatePromoteEvidence } from "./release-gate-promote-evidence.types";
-import type { ReleaseGateDecisionTarget } from "./release-gate-decision.types";
+import type {
+  ReleaseGateCheckpoint,
+  ReleaseGateDecisionTarget,
+} from "./release-gate-decision.types";
 
 export const releaseGateEvidenceSelect = {
   id: true,
@@ -83,6 +86,7 @@ export type ReleaseGateEvidenceContext = Prisma.ReleaseOrderGetPayload<{
   deploy?: ReleaseGateDeployEvidence;
   promote?: ReleaseGatePromoteEvidence;
   decisionTarget?: ReleaseGateDecisionTarget;
+  decisionCheckpoint?: ReleaseGateCheckpoint;
 };
 
 @Injectable()

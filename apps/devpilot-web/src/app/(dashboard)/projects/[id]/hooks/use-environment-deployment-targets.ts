@@ -12,7 +12,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { apiRequest } from '@/lib/api-client';
 import type { EnvironmentDeploymentTargets } from '../types';
 
-export function useEnvironmentDeploymentTargets(environmentId: string) {
+export function useEnvironmentDeploymentTargets(environmentId: string, enabled = true) {
   const [data, setData] = useState<EnvironmentDeploymentTargets | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -33,8 +33,12 @@ export function useEnvironmentDeploymentTargets(environmentId: string) {
   }, [environmentId]);
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
     void load();
-  }, [load]);
+  }, [enabled, load]);
 
   return { data, loading, error, reload: load };
 }

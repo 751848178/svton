@@ -30,7 +30,7 @@ describe("EnvironmentVersionProductionGateService", () => {
     await service.admit({ ...context, releaseRunId: undefined }, "staging");
     expect(gates.assertAllowed).toHaveBeenCalledWith(
       expect.objectContaining({
-        stage: "staging",
+        checkpoint: "staging_pre_execution",
         requestKey: "pre:staging:manifest-1",
         target: expect.objectContaining({
           environmentId: "environment-1",
@@ -78,6 +78,10 @@ function decision(stage: "staging" | "production", allowed: boolean) {
   return {
     id: `decision-${stage}-${allowed}`,
     stage,
+    checkpoint:
+      stage === "staging"
+        ? ("staging_pre_execution" as const)
+        : ("production_pre_execution" as const),
     phase: stage === "staging" ? ("build" as const) : ("deploy" as const),
     allowed,
     blockerGateIds: allowed ? [] : [stage === "staging" ? "B06" : "D17"],

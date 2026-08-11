@@ -78,7 +78,12 @@ export interface ReleaseBuildResolvedSource {
         id: string;
         name: string;
         repoPath: string | null;
-        services: Array<{ id: string; name: string; deployConfig: unknown }>;
+        services: Array<{
+          id: string;
+          releaseComponentKey: string | null;
+          name: string;
+          deployConfig: unknown;
+        }>;
       }>;
     };
   };

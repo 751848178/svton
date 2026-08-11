@@ -60,7 +60,12 @@ export class RepositoryIdentityReadRepository {
                 services: {
                   where: { status: "active" },
                   orderBy: { id: "asc" as const },
-                  select: { id: true, name: true, deployConfig: true },
+                  select: {
+                    id: true,
+                    releaseComponentKey: true,
+                    name: true,
+                    deployConfig: true,
+                  },
                 },
               },
             },

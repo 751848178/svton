@@ -49,6 +49,7 @@ export async function loadReleaseDeploymentInputState(
           plainVariables: true,
           secretReferences: true,
           resourceReferences: true,
+          routeSnapshot: true,
         },
       },
       serverBindings: {
@@ -194,7 +195,5 @@ export async function loadReleaseDeploymentInputState(
 }
 
 function completeReferenceArray(value: unknown, parsedCount: number) {
-  return (
-    value == null || (Array.isArray(value) && value.length === parsedCount)
-  );
+  return value == null || (Array.isArray(value) && value.length === parsedCount);
 }

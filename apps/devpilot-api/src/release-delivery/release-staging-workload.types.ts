@@ -16,6 +16,7 @@ export interface ReleaseStagingWorkload {
   componentKey: string;
   name: string;
   kind: string;
+  ports?: number[];
   artifactDigest: string;
   workingDirectory: string;
   executionMode: ReleaseWorkloadExecutionMode;

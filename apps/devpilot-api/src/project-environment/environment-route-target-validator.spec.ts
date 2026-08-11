@@ -29,6 +29,15 @@ describe('validateRouteSnapshotTargets', () => {
     })).resolves.toBeUndefined();
     expect(tx.applicationService.findFirst).not.toHaveBeenCalled();
   });
+
+  it('rejects custom targets in governed baselines', async () => {
+    await expect(validateRouteSnapshotTargets(transaction(null) as never, {
+      ...scope,
+      baselineRole: 'production',
+    }, {
+      entries: [{ serviceId: null, component: 'custom-worker', port: 9123 }],
+    })).rejects.toThrow('必须选择真实服务');
+  });
 });
 
 function transaction(result: unknown) {

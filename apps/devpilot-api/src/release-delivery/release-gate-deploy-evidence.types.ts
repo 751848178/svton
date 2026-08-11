@@ -41,6 +41,11 @@ export type ReleaseGateDeployEvidence = {
         updatedAt: Date;
       };
     }>;
+    applicationServices: Array<{
+      id: string;
+      releaseComponentKey: string | null;
+      metadata: unknown;
+    }>;
   } | null;
   secrets: Array<{
     id: string;

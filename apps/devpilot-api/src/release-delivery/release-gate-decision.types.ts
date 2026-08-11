@@ -13,6 +13,18 @@ export const RELEASE_GATE_DECISION_STAGES = [
 export type ReleaseGateDecisionStage =
   (typeof RELEASE_GATE_DECISION_STAGES)[number];
 
+export const RELEASE_GATE_CHECKPOINTS = [
+  "build_pre_execution",
+  "build_post_execution",
+  "staging_pre_execution",
+  "production_pre_execution",
+  "production_post_deploy",
+  "production_promote",
+] as const;
+
+export type ReleaseGateCheckpoint =
+  (typeof RELEASE_GATE_CHECKPOINTS)[number];
+
 export type PersistedReleaseGateEvaluation = ReleaseGateEvaluation & {
   evaluationId: string;
   evaluationInputHash: string;
@@ -39,6 +51,9 @@ export type ReleaseGateDecisionTarget = {
   providerKey?: string;
   bindingId?: string;
   deploymentInputHash?: string;
+  workloadInputHash?: string;
+  workloadServiceCount?: number;
+  workloadHealthConfigured?: boolean;
 };
 
 export type ReleaseGateDecisionInput = {
@@ -53,9 +68,11 @@ export type ReleaseGateDecisionReference = {
 };
 
 export type ReleaseGateDecisionSnapshot = {
-  version: 1;
+  version: 2;
   stage: ReleaseGateDecisionStage;
+  checkpoint: ReleaseGateCheckpoint;
   phase: ReleaseGatePhase;
+  requiredGateIds: string[];
   actionInput: Record<string, string | null>;
   evaluations: Array<{
     gateId: string;
@@ -75,6 +92,7 @@ export type ReleaseGateDecisionSnapshot = {
 
 export type ReleaseGateDecisionDraft = {
   stage: ReleaseGateDecisionStage;
+  checkpoint: ReleaseGateCheckpoint;
   phase: ReleaseGatePhase;
   allowed: boolean;
   blockerGateIds: string[];

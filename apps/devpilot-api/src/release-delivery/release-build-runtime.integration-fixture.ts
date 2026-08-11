@@ -146,4 +146,16 @@ export class ReleaseBuildRuntimeFixture {
       expectedCanonicalKey: "example.com/repo",
     };
   }
+
+  async postBuildDecision() {
+    const decision = await persistAllowedTestDecision(this.prisma, {
+      teamId: this.teamId,
+      actorId: this.userId,
+      projectId: this.projectId,
+      releaseOrderId: this.orderId,
+      stage: "build",
+      checkpoint: "build_post_execution",
+    });
+    return { id: decision.id, stage: decision.stage, inputHash: decision.inputHash };
+  }
 }

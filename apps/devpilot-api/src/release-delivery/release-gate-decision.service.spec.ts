@@ -26,7 +26,7 @@ describe("ReleaseGateDecisionService", () => {
     decisions.persist.mockResolvedValue(denied);
 
     await expect(
-      service.assertAllowed({ ...scope, stage: "build" }),
+      service.assertAllowed({ ...scope, checkpoint: "build_pre_execution" }),
     ).rejects.toEqual(
       expect.objectContaining({
         decision: denied,
@@ -45,7 +45,7 @@ describe("ReleaseGateDecisionService", () => {
     const allowed = decision(true);
     decisions.persist.mockResolvedValue(allowed);
     await expect(
-      service.assertAllowed({ ...scope, stage: "build" }),
+      service.assertAllowed({ ...scope, checkpoint: "build_pre_execution" }),
     ).resolves.toBe(allowed);
   });
 
@@ -64,6 +64,7 @@ function decision(allowed: boolean) {
   return {
     id: `decision-${allowed}`,
     stage: "build" as const,
+    checkpoint: "build_pre_execution" as const,
     phase: "commit" as const,
     allowed,
     blockerGateIds: allowed ? [] : ["C01"],

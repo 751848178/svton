@@ -1,7 +1,13 @@
 import { BadRequestException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
+import { applicationServicePorts } from './application-service-port.utils';
 
-type EnvironmentScope = { id: string; teamId: string; projectId: string };
+type EnvironmentScope = {
+  id: string;
+  teamId: string;
+  projectId: string;
+  baselineRole?: string | null;
+};
 type RouteEntry = { serviceId?: unknown; component?: unknown; port?: unknown };
 
 export async function validateRouteSnapshotTargets(
@@ -13,7 +19,14 @@ export async function validateRouteSnapshotTargets(
     ? routeSnapshot.entries as RouteEntry[]
     : [];
   for (const [index, entry] of entries.entries()) {
-    if (entry.serviceId == null) continue;
+    if (entry.serviceId == null) {
+      if (scope.baselineRole === 'staging' || scope.baselineRole === 'production') {
+        throw new BadRequestException(
+          `治理基线入口 ${index + 1} 必须选择真实服务与持久化端口`,
+        );
+      }
+      continue;
+    }
     if (typeof entry.serviceId !== 'string' || !entry.serviceId.trim()) {
       throw new BadRequestException(`入口 ${index + 1} 的 serviceId 无效`);
     }
@@ -30,7 +43,7 @@ export async function validateRouteSnapshotTargets(
     if (!service) {
       throw new BadRequestException(`入口 ${index + 1} 引用了未知或跨环境的服务`);
     }
-    const ports = servicePorts(service.ports, service.deployConfig);
+    const ports = applicationServicePorts(service.ports, service.deployConfig);
     if (typeof entry.port !== 'number' || !ports.includes(entry.port)) {
       throw new BadRequestException(
         `入口 ${index + 1} 的端口不属于服务 ${service.name} 的已持久化端口`,
@@ -40,33 +53,4 @@ export async function validateRouteSnapshotTargets(
       throw new BadRequestException(`入口 ${index + 1} 的组件名称与服务 ${service.name} 不匹配`);
     }
   }
-}
-
-function servicePorts(ports: unknown, deployConfig: unknown): number[] {
-  const config = record(deployConfig);
-  return [...new Set([ports, config.ports, config.port].flatMap(readPorts))];
-}
-
-function readPorts(value: unknown): number[] {
-  if (Array.isArray(value)) return value.flatMap(readPorts);
-  if (typeof value === 'number') return validPort(value) ? [value] : [];
-  if (typeof value === 'string') {
-    const port = Number(value.includes(':') ? value.split(':').at(-1) : value);
-    return validPort(port) ? [port] : [];
-  }
-  if (value && typeof value === 'object') {
-    const item = value as Record<string, unknown>;
-    return readPorts(item.target ?? item.containerPort ?? item.port);
-  }
-  return [];
-}
-
-function validPort(value: number) {
-  return Number.isInteger(value) && value > 0 && value <= 65_535;
-}
-
-function record(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : {};
 }

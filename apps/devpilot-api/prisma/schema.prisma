@@ -1311,6 +1311,7 @@ model ApplicationService {
   serverId          String?
   siteId            String?
   managedResourceId String?
+  releaseComponentKey String?
   name              String
   kind              String   @default("docker-compose") // docker-compose | container | static | external
   runtime           String?
@@ -1344,6 +1345,7 @@ model ApplicationService {
   updatedAt         DateTime @updatedAt
 
   @@unique([applicationId, environmentId, name])
+  @@unique([environmentId, releaseComponentKey])
   @@index([teamId])
   @@index([projectId])
   @@index([applicationId])

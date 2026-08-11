@@ -13,7 +13,7 @@ vi.mock('next-intl', () => ({
 }));
 
 describe('project delivery home summary', () => {
-  it('renders real weak facts and both exact current environment versions', () => {
+  it('renders one server-owned next action and progressively disclosed versions', () => {
     const summary = fixture();
     const html = renderToStaticMarkup(
       <>
@@ -21,12 +21,11 @@ describe('project delivery home summary', () => {
         <ProjectDeliveryEnvironmentStrip summary={summary} />
       </>,
     );
-    expect(html).toContain('projectDeliveryRuntimeBaseline');
-    expect(html).toContain('projectDeliveryType_web_application');
-    expect(html).toContain('projectDeliveryArchitecture_monorepo');
-    expect(html).toContain('projectDeliveryResourceBindingValue');
-    expect(html).toContain('&quot;bound&quot;:0');
-    expect(html).toContain('projectDeliverySiteEntriesValue');
+    expect(html).toContain('projectDeliveryNow');
+    expect(html).toContain('projectDeliveryCheckpoint_targets');
+    expect(html.match(/projectDeliveryFixNow/g)).toHaveLength(1);
+    expect(html).toContain('projectDeliveryReasonTargetMissing');
+    expect(html).toContain('min-h-11');
     expect(html).toContain('releaseEnvironmentStaging');
     expect(html).toContain('releaseEnvironmentProduction');
     expect(html.match(/projectDeliveryReleaseVersion/g)).toHaveLength(2);
@@ -55,7 +54,7 @@ function fixture(): ProjectDeliverySummary {
     effectiveAt: '2026-08-04T00:00:00.000Z',
   });
   return {
-    version: 1,
+    version: 2,
     scope: { teamId: 'team-1', actorId: 'actor-1', projectId: 'project-1' },
     project: { id: 'project-1', name: 'Payments' },
     repository: {
@@ -68,8 +67,17 @@ function fixture(): ProjectDeliverySummary {
       staging: { id: 'env-staging', key: 'staging', name: 'Staging', ready: true },
       production: { id: 'env-production', key: 'production', name: 'Production', ready: false },
     },
-    resources: { bound: 0, total: 0 },
+    resources: { bound: 0, total: 0, byEnvironment: { staging: 0, production: 0 } },
     entries: { active: 0, total: 0, unit: 'site', productionDomain: null },
     currentVersions: { staging: current('staging'), production: current('production') },
+    checkpoints: [{
+      id: 'targets',
+      scope: 'production',
+      status: 'action_required',
+      reasonCodes: ['deployment_target_missing'],
+      evidenceRefs: [],
+      action: { kind: 'bind_target', href: '/projects/project-1/settings' },
+    }],
+    nextAction: { kind: 'bind_target', href: '/projects/project-1/settings' },
   };
 }

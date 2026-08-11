@@ -1,47 +1,57 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import type {
   ProjectDeliveryBaselineRole,
+  ProjectDeliveryCheckpoint,
   ProjectDeliverySummary,
 } from '../types/project-delivery-summary.types';
 import { releaseEnvironmentLabelKey } from '../utils/release-copy.model';
 
 export function ProjectDeliveryWeakSummary({ summary }: { summary: ProjectDeliverySummary }) {
   const t = useTranslations('projects');
-  const ready = (['staging', 'production'] as const).filter(
-    (role) => summary.baselines[role]?.ready,
-  ).length;
-  const items = [
-    [t('projectDeliveryShape'), intakeLabel(summary, t)],
-    [
-      t('projectDeliveryEnvironmentReadiness'),
-      t('projectDeliveryEnvironmentReadinessValue', { ready }),
-    ],
-    [
-      t('projectDeliveryResourceBinding'),
-      t('projectDeliveryResourceBindingValue', summary.resources),
-    ],
-    [
-      t('projectDeliverySiteEntries'),
-      t('projectDeliverySiteEntriesValue', {
-        active: summary.entries.active,
-        total: summary.entries.total,
-      }),
-    ],
-  ];
+  const pending = summary.checkpoints.filter((item) => item.status !== 'ready');
+  const next = pending.find((item) => item.action)?.action ?? summary.nextAction;
+  const current = pending[0];
   return (
     <section
-      aria-label={t('projectDeliveryRuntimeBaseline')}
-      className="grid gap-3 rounded-lg border bg-muted/20 p-4 sm:grid-cols-2 xl:grid-cols-4"
+      aria-label={t('projectDeliveryNow')}
+      className="rounded-lg border border-primary/30 bg-primary/[0.03] p-4 sm:p-5"
     >
-      {items.map(([label, value]) => (
-        <div key={label}>
-          <p className="text-xs text-muted-foreground">{label}</p>
-          <p className="mt-1 font-medium">{value}</p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+            {t('projectDeliveryNow')}
+          </p>
+          <h2 className="mt-1 text-lg font-semibold">
+            {current ? checkpointLabel(current, t) : t('projectDeliveryAllReady')}
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {current
+              ? t('projectDeliveryScopedReason', {
+                  scope: scopeLabel(current.scope, t),
+                  reason: reasonLabel(current.reasonCodes[0], t),
+                })
+              : t('projectDeliveryAllReadyDescription')}
+          </p>
         </div>
-      ))}
+        {next ? (
+          <Link
+            href={next.href}
+            className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {t('projectDeliveryFixNow')}
+          </Link>
+        ) : null}
+      </div>
+      <p className="mt-4 border-t pt-3 text-xs text-muted-foreground">
+        {t('projectDeliveryEvidenceSummary', {
+          ready: summary.checkpoints.length - pending.length,
+          total: summary.checkpoints.length,
+        })}
+      </p>
     </section>
   );
 }
@@ -49,22 +59,15 @@ export function ProjectDeliveryWeakSummary({ summary }: { summary: ProjectDelive
 export function ProjectDeliveryEnvironmentStrip({ summary }: { summary: ProjectDeliverySummary }) {
   const t = useTranslations('projects');
   return (
-    <section
-      aria-label={t('projectDeliveryCurrentVersions')}
-      className="grid gap-3 lg:grid-cols-2"
-    >
+    <section aria-label={t('projectDeliveryCurrentVersions')} className="grid gap-3 lg:grid-cols-2">
       {(['staging', 'production'] as const).map((role) => (
-        <EnvironmentVersionCard
-          key={role}
-          role={role}
-          summary={summary}
-        />
+        <EnvironmentTaskCard key={role} role={role} summary={summary} />
       ))}
     </section>
   );
 }
 
-function EnvironmentVersionCard({
+function EnvironmentTaskCard({
   role,
   summary,
 }: {
@@ -73,41 +76,104 @@ function EnvironmentVersionCard({
 }) {
   const t = useTranslations('projects');
   const version = summary.currentVersions[role];
+  const blockers = summary.checkpoints.filter(
+    (item) => item.scope === role && item.status !== 'ready',
+  );
+  const next = blockers.find((item) => item.action)?.action;
   return (
     <article className="rounded-lg border p-4">
-      <p className="text-xs font-medium tracking-wide text-muted-foreground">
-        {t(releaseEnvironmentLabelKey(role))}
-      </p>
-      {version ? (
-        <div className="mt-2">
-          <p className="text-lg font-semibold">
-            {t('projectDeliveryReleaseVersion', { version: version.releaseVersion })}
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-medium tracking-wide text-muted-foreground">
+            {t(releaseEnvironmentLabelKey(role))}
           </p>
-          <p className="mt-1 break-all font-mono text-xs text-muted-foreground">
-            {version.manifestDigest}
+          <p className="mt-1 font-semibold">
+            {blockers.length
+              ? t('projectDeliveryActionRequired', { count: blockers.length })
+              : t('projectDeliveryEnvironmentReady')}
           </p>
         </div>
-      ) : (
-        <p className="mt-2 text-sm text-muted-foreground">
-          {t('projectDeliveryCurrentVersionUnknown')}
+        <span className={blockers.length
+          ? 'rounded-full bg-amber-500/10 px-2 py-1 text-xs text-amber-700'
+          : 'rounded-full bg-emerald-500/10 px-2 py-1 text-xs text-emerald-700'}>
+          {blockers.length ? t('projectDeliveryBlocked') : t('projectDeliveryReady')}
+        </span>
+      </div>
+      {blockers[0] ? (
+        <p className="mt-3 text-sm text-muted-foreground">
+          {reasonLabel(blockers[0].reasonCodes[0], t)}
         </p>
-      )}
+      ) : null}
+      {next ? (
+        <Link className="mt-3 inline-flex min-h-11 items-center text-sm font-medium text-primary hover:underline" href={next.href}>
+          {t('projectDeliveryConfigureEnvironment')}
+        </Link>
+      ) : null}
+      {role === 'production' ? <ProductionRiskSummary summary={summary} /> : null}
+      <details className="mt-3 border-t pt-3 text-xs text-muted-foreground">
+        <summary className="min-h-11 cursor-pointer py-3 font-medium">
+          {t('projectDeliveryTechnicalDetails')}
+        </summary>
+        {version ? (
+          <div className="space-y-1 pb-2">
+            <p>{t('projectDeliveryReleaseVersion', { version: version.releaseVersion })}</p>
+            <p className="break-all font-mono">{version.manifestDigest}</p>
+          </div>
+        ) : (
+          <p className="pb-2">{t('projectDeliveryCurrentVersionUnknown')}</p>
+        )}
+      </details>
     </article>
+  );
+}
+
+function ProductionRiskSummary({ summary }: { summary: ProjectDeliverySummary }) {
+  const t = useTranslations('projects');
+  const resources = summary.resources.byEnvironment.production;
+  const routeReady = summary.checkpoints.some((item) =>
+    item.id === 'routes' && item.scope === 'production' && item.status === 'ready');
+  return (
+    <dl className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+      <div className="rounded-md bg-muted/40 p-2.5">
+        <dt className="text-muted-foreground">{t('projectDeliveryProductionResources')}</dt>
+        <dd className="mt-1 font-medium">
+          {resources === 0
+            ? t('projectDeliveryZeroResourcesNeutral')
+            : t('projectDeliveryProductionResourceCount', { count: resources })}
+        </dd>
+      </div>
+      <div className={routeReady ? 'rounded-md bg-muted/40 p-2.5' : 'rounded-md bg-amber-500/10 p-2.5'}>
+        <dt className="text-muted-foreground">{t('projectDeliveryProductionRoute')}</dt>
+        <dd className="mt-1 font-medium">
+          {routeReady ? t('projectDeliveryRouteVerified') : t('projectDeliveryZeroRouteBlocked')}
+        </dd>
+      </div>
+    </dl>
   );
 }
 
 type Translator = ReturnType<typeof useTranslations<'projects'>>;
 
-function intakeLabel(summary: ProjectDeliverySummary, t: Translator) {
-  const type = summary.intake.projectType
-    ? t(`projectDeliveryType_${summary.intake.projectType}` as never)
-    : t('projectDeliveryUnknown');
-  const architecture = summary.intake.architecture
-    ? t(`projectDeliveryArchitecture_${summary.intake.architecture}` as never)
-    : t('projectDeliveryUnknown');
-  const components =
-    summary.intake.componentCount === null
-      ? t('projectDeliveryComponentsUnknown')
-      : t('projectDeliveryComponents', { count: summary.intake.componentCount });
-  return `${type} · ${architecture} · ${components}`;
+function checkpointLabel(checkpoint: ProjectDeliveryCheckpoint, t: Translator) {
+  return t(`projectDeliveryCheckpoint_${checkpoint.id}` as never);
+}
+
+function scopeLabel(scope: ProjectDeliveryCheckpoint['scope'], t: Translator) {
+  return scope === 'project' ? t('projectDeliveryProjectScope') : t(releaseEnvironmentLabelKey(scope));
+}
+
+function reasonLabel(reason: string | undefined, t: Translator) {
+  if (!reason) return t('projectDeliveryActionRequiredGeneric');
+  const known: Record<string, string> = {
+    repository_intake_incomplete: 'projectDeliveryReasonRepository',
+    governed_baselines_incomplete: 'projectDeliveryReasonBaselines',
+    baseline_service_topology_mismatch: 'projectDeliveryReasonServices',
+    required_variables_unresolved: 'projectDeliveryReasonVariables',
+    config_revision_missing: 'projectDeliveryReasonConfig',
+    deployment_target_missing: 'projectDeliveryReasonTargetMissing',
+    deployment_target_duplicate: 'projectDeliveryReasonTargetDuplicate',
+    governed_route_missing: 'projectDeliveryReasonRoute',
+    release_action_required: 'projectDeliveryReasonRelease',
+  };
+  return known[reason] ? t(known[reason] as never) : reason;
 }

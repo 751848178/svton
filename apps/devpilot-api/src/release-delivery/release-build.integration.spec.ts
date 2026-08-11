@@ -120,6 +120,8 @@ describeIntegration("ReleaseBuild integration", () => {
       logReference: `build-log://${succeeded.id}`,
       logSummary: { redacted: true, lines: ["ok"] },
       gateSummary: { build: { status: "passed" } },
+      actorId: fixture.userId,
+      gateDecision: await fixture.postBuildDecision(),
     };
     await fixture.results.succeed(completed);
     await expect(
@@ -171,6 +173,7 @@ describeIntegration("ReleaseBuild integration", () => {
         sourceBranch: divergent.sourceBranch,
         sourceCommitSha: divergent.sourceCommitSha,
         inputHash: divergent.inputHash,
+        gateDecision: await fixture.postBuildDecision(),
       }),
     ).rejects.toMatchObject({
       detail: { code: "ARTIFACT_REPRODUCIBILITY_MISMATCH" },

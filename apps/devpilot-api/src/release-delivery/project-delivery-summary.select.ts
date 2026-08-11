@@ -65,6 +65,23 @@ export const PROJECT_DELIVERY_SUMMARY_SELECT =
             teamId: true,
             projectId: true,
             environmentId: true,
+            plainVariables: true,
+            secretReferences: true,
+            resourceReferences: true,
+            routeSnapshot: true,
+          },
+        },
+        serverBindings: {
+          where: { status: "active" },
+          select: { id: true, status: true },
+        },
+        applicationServices: {
+          where: { status: "active", application: { status: "active" } },
+          orderBy: { id: "asc" },
+          select: {
+            id: true,
+            releaseComponentKey: true,
+            metadata: true,
           },
         },
         currentEnvironmentVersion: {

@@ -89,7 +89,11 @@ export async function finalizeDeployedEnvironment(
         tlsProbe: probe.tls,
       };
     }
-    const decision = await deps.productionGates.finalize({
+    const postDecision = await deps.productionGates.finalize({
+      ...context.gateContext,
+      deploymentRunId: context.run.id,
+    });
+    const promoteDecision = await deps.productionGates.promote({
       ...context.gateContext,
       deploymentRunId: context.run.id,
     });
@@ -101,9 +105,11 @@ export async function finalizeDeployedEnvironment(
         ...deploymentEvidence,
         siteProbe: probe,
         routeSwitch,
-        gateDecision: gateDecisionReference(decision),
+        gateDecision: gateDecisionReference(promoteDecision),
       },
-      gateDecision: gateDecisionReference(decision),
+      gateDecisions: [postDecision, promoteDecision]
+        .map(gateDecisionReference)
+        .filter((item): item is NonNullable<typeof item> => Boolean(item)),
       routeSwitchAttempt: attempt,
       routeSwitchOperationId: request?.operationId,
     });
