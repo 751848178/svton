@@ -42,15 +42,28 @@ const HIGH_RISK_PATHS = [
   "scripts/deploy",
 ] as const;
 
+const SEMGREP_RULE_PATHS = [
+  "ai", "apex", "bash", "c", "clojure", "csharp", "dockerfile", "elixir",
+  "generic", "go", "html", "java", "javascript", "json", "kotlin", "ocaml",
+  "package_managers", "php", "problem-based-packs", "python", "ruby", "rust",
+  "scala", "solidity", "swift", "terraform", "typescript", "yaml",
+] as const;
+const SEMGREP_CONFIG_ARGV = SEMGREP_RULE_PATHS.flatMap((path) => [
+  "--config", `/opt/devpilot/security/semgrep-rules-manifest/${path}`,
+]);
+
 const PROFILE: RegisteredReleaseBuildProfile = {
   id: "controlled-local-acceptance-v2",
-  profileVersion: 2,
-  runnerVersion: "release-build-runner-v2",
+  profileVersion: 4,
+  runnerVersion: "release-build-runner-v4",
   externalRequiredChecks: 0,
   requiredIndependentApprovals: 1,
   highRiskPathPrefixes: HIGH_RISK_PATHS,
   packageManagers: {
-    pnpm: { executable: "/usr/local/bin/pnpm", toolVersion: "8.12.0" },
+    pnpm: {
+      executable: "/opt/devpilot/pnpm/8.12.0/bin/pnpm.cjs",
+      toolVersion: "8.12.0",
+    },
   },
   scanners: [
     scanner("secretScan", "/usr/local/bin/gitleaks", "8.30.1", [
@@ -58,10 +71,10 @@ const PROFILE: RegisteredReleaseBuildProfile = {
       "--report-path", "{reportPath}", "--redact", "--no-banner",
     ], "2399b6a4626e78d39182868729a96e145be65b087d807e4d6a5cd6db0946c8c6"),
     scanner("sast", "/usr/local/bin/semgrep", "1.172.0", [
-      "scan", "--config", "/opt/devpilot/security/semgrep-rules",
+      "scan", ...SEMGREP_CONFIG_ARGV,
       "--metrics", "off", "--disable-version-check",
       "--json", "--output", "{reportPath}", "{checkoutRoot}",
-    ], "b7e483abf001c405a3e908251ff66cb198a26702aff5fe4c5f0c4b2fffec4919"),
+    ], "67ebc323d193c658fa86ff175823e4aceee40bd822d5b34f1c1928cf8780a678"),
     scanner("vulnerabilities", "/usr/local/bin/trivy", "0.73.0", [
       "fs", "--format", "json", "--output", "{reportPath}",
       "--cache-dir", "/opt/devpilot/security/trivy-cache",
@@ -81,8 +94,10 @@ const PROFILE: RegisteredReleaseBuildProfile = {
       "sha256:abd67ffcfa541b485a3dff59865ab629aa048a6c613e639d36e7456b0b229241",
     ],
     artifactDigests: {
+      pnpmPackage: "sha512:279278f83be782f6faaefbacbccc503301c4ec2cdafd40983e7c26aeeee7c38270f5c8e635b43464691b897abe1675b40c06df6edadde922532b7368aa9a5267",
       semgrepRequirements: "sha256:278aedc50045986f04e0eb268e5e42883bed7bdf6bff64d08cc2ef455f0b334c",
       semgrepRules: "sha256:b7e483abf001c405a3e908251ff66cb198a26702aff5fe4c5f0c4b2fffec4919",
+      semgrepRuleManifest: "sha256:cd087178050a0abf3664375e5c9a7f4bbc0810c59fa53771d44fd6467662c648",
       trivyDatabase: "sha256:e5c54b277db94d2973c2d4fdf68c94be8729a3d5fc2e48e7da04b6dacdf0bb71",
       trivyDatabaseLayer: "sha256:4cdc607a113f80be2873b1dd3ebf08bc6f3d171e491dbee48dd2debe837aa848",
       gitleaksAmd64: "sha256:551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb",

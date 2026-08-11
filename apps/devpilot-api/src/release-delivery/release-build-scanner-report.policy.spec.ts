@@ -1,0 +1,39 @@
+import { validateReleaseScannerReport } from "./release-build-scanner-report.policy";
+
+describe("release scanner report policy", () => {
+  it("accepts the real Trivy 0.73 repository shape with omitted Results", () => {
+    expect(validateReleaseScannerReport("vulnerabilities", envelope())).toEqual({
+      valid: true, findings: 0, report: envelope(),
+    });
+  });
+
+  it("counts only well-formed Trivy vulnerability results", () => {
+    const report = { ...envelope(), Results: [{ Target: "pnpm-lock.yaml",
+      Class: "lang-pkgs", Type: "pnpm", Vulnerabilities: [{ VulnerabilityID: "CVE-1" }] }] };
+    expect(validateReleaseScannerReport("vulnerabilities", report))
+      .toMatchObject({ valid: true, findings: 1 });
+  });
+
+  it.each([
+    {},
+    { ...envelope(), SchemaVersion: "2" },
+    { ...envelope(), SchemaVersion: 3 },
+    { ...envelope(), ArtifactName: "" },
+    { ...envelope(), Metadata: [] },
+    { ...envelope(), Error: "database failure" },
+    { ...envelope(), Errors: [{ message: "failure" }] },
+    { ...envelope(), Results: {} },
+    { ...envelope(), Results: [{}] },
+    { ...envelope(), Results: [{ Target: "lock", Class: "lang-pkgs",
+      Type: "pnpm", Vulnerabilities: ["malformed"] }] },
+  ])("rejects malformed or error-bearing Trivy reports", (report) => {
+    expect(validateReleaseScannerReport("vulnerabilities", report)).toEqual({
+      valid: false, reasonCode: "trivy_report_invalid",
+    });
+  });
+});
+
+function envelope() {
+  return { SchemaVersion: 2, ArtifactName: "/workspace", ArtifactType: "repository",
+    Metadata: { Branch: "main", Commit: "a".repeat(40) } };
+}

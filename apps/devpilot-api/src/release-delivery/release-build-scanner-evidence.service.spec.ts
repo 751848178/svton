@@ -130,7 +130,9 @@ const found = walk(root).some((value) => value.includes("VULNERABLE"));
 const finding = { RuleID: "fixture", Secret: "raw-secret" };
 const output = kind === "secretScan" ? (found ? [finding] : [])
   : kind === "sast" ? { results: found ? [finding] : [] }
-  : { Results: [{ Vulnerabilities: found ? [finding] : [] }] };
+  : { SchemaVersion: 2, ArtifactName: root, ArtifactType: "repository",
+      Metadata: {}, Results: [{ Target: root, Class: "lang-pkgs", Type: "pnpm",
+        Vulnerabilities: found ? [finding] : [] }] };
 fs.writeFileSync(report, JSON.stringify(output));
 process.exit(found ? 1 : 0);
 `;
