@@ -69,6 +69,7 @@ export type ReleaseGatePromoteEvidence = {
     environmentId: string | null;
     status: string;
     primaryDomain: string;
+    aliases: unknown;
     tls: unknown;
     dns: unknown;
     lastSyncAt: Date | null;

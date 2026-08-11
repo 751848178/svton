@@ -9,39 +9,43 @@ import type {
   ReleaseGatePhase,
 } from '../types/release-gate.types';
 import { releaseGateStatusTone } from './release-gate-summary.model';
+import { ReleaseGateManualConfirmation } from './release-gate-manual-confirmation';
 
 interface Props {
   phase: ReleaseGatePhase;
   checks: ReleaseGateCheck[];
   localize: (text: LocalizedGateText) => string;
   locale: string;
+  confirmingGateId: string;
+  confirmationError: string;
+  onConfirmManual: (gateId: string, evaluationId: string, reason: string) => Promise<boolean>;
 }
 
-export function ReleaseGatePhaseSection({ phase, checks, localize, locale }: Props) {
+export function ReleaseGatePhaseSection(props: Props) {
   const t = useTranslations('projects');
   return (
     <section
-      aria-labelledby={`release-gate-phase-${phase}`}
+      aria-labelledby={`release-gate-phase-${props.phase}`}
       className="space-y-2 rounded-lg border p-3"
     >
       <div className="flex items-center justify-between">
         <h3
-          id={`release-gate-phase-${phase}`}
+          id={`release-gate-phase-${props.phase}`}
           className="text-sm font-semibold"
         >
-          {t(`releaseGatePhase.${phase}`)}
+          {t(`releaseGatePhase.${props.phase}`)}
         </h3>
-        <span className="text-xs text-muted-foreground">{checks.length}</span>
+        <span className="text-xs text-muted-foreground">{props.checks.length}</span>
       </div>
       <div className="space-y-2">
-        {checks.map((check) => (
+        {props.checks.map((check) => (
           <article
             key={check.id}
             className="rounded-md border bg-background p-3 text-xs"
           >
             <div className="flex items-start justify-between gap-2">
               <span>
-                <strong className="font-mono">{check.id}</strong> · {localize(check.title)}
+                <strong className="font-mono">{check.id}</strong> · {props.localize(check.title)}
               </span>
               <StatusTag
                 status={releaseGateStatusTone(check.status)}
@@ -55,7 +59,7 @@ export function ReleaseGatePhaseSection({ phase, checks, localize, locale }: Pro
               />
               <GateMetadata
                 label={t('releaseGateReasonLabel')}
-                value={localize(check.reason)}
+                value={props.localize(check.reason)}
               />
               <GateMetadata
                 label={t('releaseGateEvidenceLabel')}
@@ -63,11 +67,11 @@ export function ReleaseGatePhaseSection({ phase, checks, localize, locale }: Pro
               />
               <GateMetadata
                 label={t('releaseGateCheckedAtLabel')}
-                value={formatTime(check.checkedAt, locale, t('releaseGateMetadataUnavailable'))}
+                value={formatTime(check.checkedAt, props.locale, t('releaseGateMetadataUnavailable'))}
               />
               <GateMetadata
                 label={t('releaseGateExpiresAtLabel')}
-                value={formatTime(check.expiresAt, locale, t('releaseGateMetadataUnavailable'))}
+                value={formatTime(check.expiresAt, props.locale, t('releaseGateMetadataUnavailable'))}
               />
               <GateMetadata
                 className="max-[820px]:hidden"
@@ -75,6 +79,14 @@ export function ReleaseGatePhaseSection({ phase, checks, localize, locale }: Pro
                 value={check.capabilityId || t('releaseGateTargetCapability')}
               />
             </dl>
+            {check.status === 'manual' && check.dispositions.includes('manual') ? (
+              <ReleaseGateManualConfirmation
+                check={check}
+                confirming={props.confirmingGateId === check.id}
+                error={props.confirmationError}
+                onConfirm={props.onConfirmManual}
+              />
+            ) : null}
           </article>
         ))}
       </div>

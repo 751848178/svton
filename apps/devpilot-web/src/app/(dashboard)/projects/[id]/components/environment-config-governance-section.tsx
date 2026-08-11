@@ -6,12 +6,16 @@ import { useTranslations } from 'next-intl';
 import { feedback } from '@/components/ui/feedback/feedback';
 import { useEnvironmentConfigGovernance } from '../hooks/use-environment-config-governance';
 import type { Project, ProjectEnvironment } from '../types';
-import type { EnvironmentConfigResourceReference } from '../types/environment-config-revision.types';
+import type {
+  EnvironmentConfigResourceReference,
+  EnvironmentConfigSecretReference,
+} from '../types/environment-config-revision.types';
 import {
   EnvironmentConfigReferenceEditor,
   type RouteDraft,
 } from './environment-config-reference-editor';
 import { EnvironmentConfigResourceEditor } from './environment-config-resource-editor';
+import { defaultSecretTargetKey } from './settings/settings-variable-binding.model';
 
 const EMPTY_ROUTE: RouteDraft = {
   domains: '', dnsProvider: '', tlsRequired: false, proxyTarget: '',
@@ -28,7 +32,7 @@ export function EnvironmentConfigGovernanceSection({
 }) {
   const t = useTranslations('projects');
   const governance = useEnvironmentConfigGovernance(environment, project.id, onSaved);
-  const [secretIds, setSecretIds] = useState<string[]>([]);
+  const [secretReferences, setSecretReferences] = useState<EnvironmentConfigSecretReference[]>([]);
   const [policyIds, setPolicyIds] = useState<string[]>([]);
   const [resources, setResources] = useState<EnvironmentConfigResourceReference[]>([]);
   const [route, setRoute] = useState<RouteDraft>(EMPTY_ROUTE);
@@ -37,7 +41,10 @@ export function EnvironmentConfigGovernanceSection({
 
   useEffect(() => {
     if (!current) return;
-    setSecretIds(current.secretReferences.map((item) => item.id));
+    setSecretReferences(current.secretReferences.map((item) => ({
+      id: item.id,
+      targetEnvKey: item.targetEnvKey ?? defaultSecretTargetKey(item.name),
+    })));
     setPolicyIds(current.policyReferences.map((item) => item.id));
     setResources(current.resourceReferences);
     setRoute({
@@ -55,7 +62,7 @@ export function EnvironmentConfigGovernanceSection({
   const save = async () => {
     try {
       await governance.save({
-        secretReferenceIds: secretIds,
+        secretReferences,
         resourceReferences: resources,
         routeSnapshot: {
           domains: route.domains.split(/[\n,]/).map((item) => item.trim()).filter(Boolean),
@@ -101,8 +108,15 @@ export function EnvironmentConfigGovernanceSection({
         <>
           <EnvironmentConfigReferenceEditor
             secrets={secrets}
-            secretIds={secretIds}
-            onSecretIdsChange={setSecretIds}
+            secretIds={secretReferences.map((item) => item.id)}
+            onSecretIdsChange={(ids) => setSecretReferences(ids.map((id) => {
+              const currentReference = secretReferences.find((item) => item.id === id);
+              const secret = secrets.find((item) => item.id === id);
+              return currentReference ?? {
+                id,
+                targetEnvKey: defaultSecretTargetKey(secret?.name ?? id),
+              };
+            }))}
             policies={governance.policies}
             policyIds={policyIds}
             onPolicyIdsChange={setPolicyIds}
@@ -114,6 +128,7 @@ export function EnvironmentConfigGovernanceSection({
             environment={environment}
             value={resources}
             onChange={setResources}
+            currentReferences={current?.resourceReferences ?? []}
           />
           <input
             className="w-full rounded-md border bg-background px-2 py-1.5 text-xs"

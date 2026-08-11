@@ -22,12 +22,17 @@ import type { DeploymentRun } from '../../types/operations';
 import { SettingsEnvEntryModal } from './settings-env-entry-modal';
 import {
   buildRouteEntryViews,
-  buildRouteProbeEvidenceHref,
-  type RouteEntryView,
-  type RouteProbeState,
 } from './settings-env-routes.model';
 import { SubtabShell } from './settings-subtab-shell';
 import type { SettingsRouteDraft } from './settings-env.model';
+import type { SettingsRouteEntryDraft } from './settings-env.model';
+import { buildSettingsRouteTargetOptions } from './settings-route-target-options.model';
+import { SettingsEnvRouteRow } from './settings-env-route-row';
+import {
+  removeRouteEntry,
+  upsertRouteEntry,
+} from './settings-route-entry-editor.model';
+import { routeDraftIsCurrent } from './settings-route-draft-status.model';
 
 type DetailHook = ReturnType<typeof useProjectDetail>;
 
@@ -50,7 +55,12 @@ export function EnvRoutesTab({
   const project = detail.project;
   const projectId = project?.id ?? '';
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<SettingsRouteEntryDraft | null>(null);
   const boundSites = (project?.sites ?? []).filter((site) => site.environment?.id === environment.id);
+  const targetOptions = useMemo(
+    () => buildSettingsRouteTargetOptions(project?.applications ?? [], environment.id),
+    [environment.id, project?.applications],
+  );
   const rows = useMemo(
     () =>
       buildRouteEntryViews({
@@ -62,6 +72,7 @@ export function EnvRoutesTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [route.entries, deploymentRuns, environment.id, project?.sites],
   );
+  const current = routeDraftIsCurrent(route, revision);
 
   return (
     <SubtabShell
@@ -77,15 +88,16 @@ export function EnvRoutesTab({
             <p className="mt-0.5 text-xs text-muted-foreground">{t('envRoutesHelper')}</p>
           </div>
           <div className="flex items-center gap-2">
-            {revision ? (
-              <span className="inline-block rounded bg-green-100 px-2 py-1 text-[10px] font-medium text-green-700">
-                {t('envRoutesCurrentBadge')}
-              </span>
-            ) : null}
+            <span className={`inline-block rounded px-2 py-1 text-[10px] font-medium ${current ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-800'}`}>
+              {t(current ? 'envRoutesCurrentBadge' : 'envRoutesDraftBadge')}
+            </span>
             <button
               type="button"
-              onClick={() => setModalOpen(true)}
-              className="rounded-md border px-3 py-1.5 text-xs hover:bg-accent"
+              onClick={() => {
+                setEditingEntry(null);
+                setModalOpen(true);
+              }}
+              className="min-h-11 rounded-md border px-3 py-2 text-xs hover:bg-accent"
             >
               + {t('envRoutesAddEntry')}
             </button>
@@ -106,15 +118,26 @@ export function EnvRoutesTab({
                   <th className="px-3 py-2 font-medium">{t('envRoutesTableTls')}</th>
                   <th className="px-3 py-2 font-medium">{t('envRoutesTableDns')}</th>
                   <th className="px-3 py-2 font-medium">{t('envRoutesTableProbe')}</th>
+                  <th className="px-3 py-2 font-medium">{t('envRoutesTableActions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {rows.map((row) => (
-                  <RouteRow
+                  <SettingsEnvRouteRow
                     key={row.key}
                     row={row}
                     projectId={projectId}
                     t={t}
+                    onEdit={() => {
+                      setEditingEntry(row.entry);
+                      setModalOpen(true);
+                    }}
+                    onDelete={() =>
+                      onRouteChange({
+                        ...route,
+                        entries: removeRouteEntry(route.entries, row.entry),
+                      })
+                    }
                   />
                 ))}
               </tbody>
@@ -155,119 +178,21 @@ export function EnvRoutesTab({
         <SettingsEnvEntryModal
           open={modalOpen}
           environmentName={environment.name}
-          onClose={() => setModalOpen(false)}
+          targetOptions={targetOptions}
+          existingEntries={route.entries}
+          initialEntry={editingEntry}
+          onClose={() => {
+            setModalOpen(false);
+            setEditingEntry(null);
+          }}
           onConfirm={(entry) =>
             onRouteChange({
               ...route,
-              entries: [...route.entries.filter((item) => item.domain !== entry.domain), entry],
+              entries: upsertRouteEntry(route.entries, entry, editingEntry),
             })
           }
         />
       </div>
     </SubtabShell>
   );
-}
-
-type ProjectsTranslator = ReturnType<typeof useTranslations<'projects'>>;
-
-function RouteRow({
-  row,
-  projectId,
-  t,
-}: {
-  row: RouteEntryView;
-  projectId: string;
-  t: ProjectsTranslator;
-}) {
-  const targetLabel =
-    row.entry.component && row.entry.port
-      ? `${row.entry.component} : ${row.entry.port}`
-      : row.entry.component
-        ? row.entry.component
-        : t('envRoutesTargetUnspecified');
-  const tlsLabel = `${t(row.tls.labelKey)}${row.tls.detail ? ` · ${t('envRoutesProbeAt', { at: formatTime(row.tls.detail) })}` : ''}`;
-  const dnsLabel = `${t(row.dns.labelKey)}${row.dns.detail ? ` · ${t('envRoutesProbeAt', { at: formatTime(row.dns.detail) })}` : ''}`;
-  const probeLabel = `${t(row.probe.labelKey)}${row.probe.detail ? ` ${row.probe.detail}` : ''}${row.probe.checkedAt ? ` · ${t('envRoutesProbeAt', { at: formatTime(row.probe.checkedAt) })}` : ''}`;
-  return (
-    <>
-      <tr data-route-entry={row.entry.domain}>
-        <td className="px-3 py-2">
-          <span className="font-medium">{row.entry.domain}</span>
-        </td>
-        <td className="px-3 py-2 font-mono text-xs">{row.entry.path}</td>
-        <td className="px-3 py-2 font-mono text-xs">{targetLabel}</td>
-        <td className="px-3 py-2 text-xs">
-          <ProbeStatusLabel state={row.tls.state} label={tlsLabel} />
-          <span className="ml-1.5 text-[10px] text-muted-foreground">
-            {row.tlsMode === 'existing_cert_asset' ? t('envRoutesTlsExisting') : t('envRoutesTlsManaged')}
-          </span>
-        </td>
-        <td className="px-3 py-2 text-xs">
-          <ProbeStatusLabel state={row.dns.state} label={dnsLabel} />
-        </td>
-        <td className="px-3 py-2 text-xs">
-          <div className="flex flex-wrap items-center gap-2">
-            <ProbeStatusLabel state={row.probe.state} label={probeLabel} />
-            {row.evidence ? (
-              <a
-                href={buildRouteProbeEvidenceHref(projectId, row.evidence.deploymentRunId)}
-                className="text-primary hover:underline"
-                data-route-evidence-link="true"
-              >
-                {t('envRoutesEvidenceLink')}
-              </a>
-            ) : null}
-          </div>
-        </td>
-      </tr>
-      <tr className="border-none">
-        <td
-          colSpan={6}
-          className="px-3 pb-2 pt-0 text-[11px] text-muted-foreground"
-          data-route-readiness={row.entry.domain}
-        >
-          {t('envRoutesReadinessLabel')}{' '}
-          <GateChip t={t} code="D14" gate={row.readiness.d14} />{' '}
-          <GateChip t={t} code="D15" gate={row.readiness.d15} />{' '}
-          <GateChip t={t} code="D16" gate={row.readiness.d16} />
-        </td>
-      </tr>
-    </>
-  );
-}
-
-function GateChip({
-  t,
-  code,
-  gate,
-}: {
-  t: ProjectsTranslator;
-  code: string;
-  gate: RouteEntryView['readiness'][keyof RouteEntryView['readiness']];
-}) {
-  const tone = gate.state === 'ready' ? 'text-green-700' : gate.state === 'blocked' ? 'text-red-600' : 'text-muted-foreground';
-  const label = gate.detailKey ? `${t(gate.labelKey)} · ${t(gate.detailKey)}` : t(gate.labelKey);
-  return (
-    <span className={`inline-flex items-center gap-1 ${tone}`}>
-      <span className="font-mono">{code}</span>
-      <span>{label}</span>
-    </span>
-  );
-}
-
-function ProbeStatusLabel({ state, label }: { state: RouteProbeState; label: string }) {
-  const tone =
-    state === 'ready'
-      ? 'text-green-700'
-      : state === 'blocked'
-        ? 'text-red-600'
-        : 'text-muted-foreground';
-  return <span className={tone}>{label}</span>;
-}
-
-function formatTime(iso: string) {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }

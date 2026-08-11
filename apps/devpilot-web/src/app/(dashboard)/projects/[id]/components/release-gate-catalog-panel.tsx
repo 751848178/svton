@@ -17,7 +17,16 @@ export function ReleaseGateCatalogPanel({
   const t = useTranslations('projects');
   const dialogId = useId();
   const [dialogOpen, setDialogOpen] = useState(false);
-  const { catalog, loading, error, load } = useReleaseGateCatalog(projectId, releaseOrderId);
+  const [filterCapabilityIds, setFilterCapabilityIds] = useState<readonly string[] | null>(null);
+  const {
+    catalog,
+    loading,
+    error,
+    load,
+    confirmManual,
+    confirmingGateId,
+    confirmationError,
+  } = useReleaseGateCatalog(projectId, releaseOrderId);
 
   if (loading && !catalog) {
     return <LoadingState text={t('loading')} />;
@@ -51,12 +60,21 @@ export function ReleaseGateCatalogPanel({
         catalog={catalog}
         dialogId={dialogId}
         dialogOpen={dialogOpen}
-        onOpenCatalog={() => setDialogOpen(true)}
+        onOpenCatalog={(capabilityIds) => {
+          setFilterCapabilityIds(capabilityIds ?? null);
+          setDialogOpen(true);
+        }}
+        onRefresh={() => void load()}
+        refreshing={loading}
       />
       <ReleaseGateCatalogDialog
         catalog={catalog}
         dialogId={dialogId}
         open={dialogOpen}
+        filterCapabilityIds={filterCapabilityIds}
+        confirmingGateId={confirmingGateId}
+        confirmationError={confirmationError}
+        onConfirmManual={confirmManual}
         onClose={() => setDialogOpen(false)}
       />
     </>

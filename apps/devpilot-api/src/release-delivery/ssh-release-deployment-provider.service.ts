@@ -20,6 +20,7 @@ import {
   buildSshPublishScript,
 } from "./ssh-release-deployment-scripts";
 import { ReleaseRuntimeEnvironmentFileService } from "./release-runtime-environment-file.service";
+import { sshReleaseDeploymentEvidence } from "./ssh-release-deployment-evidence";
 import {
   cleanupReleaseWorkloads,
   runReleaseWorkloads,
@@ -59,14 +60,14 @@ export class SshReleaseDeploymentProviderService extends ReleaseDeploymentProvid
   }
 
   async deployExactManifest(input: ExactManifestDeploymentInput) {
-    return this.runtimeFiles.use(input.runtimeEnvironment || {}, (path) =>
-      this.deploy(input, path),
+    return this.runtimeFiles.useComponents(input, (paths) =>
+      this.deploy(input, paths),
     );
   }
 
   private async deploy(
     input: ExactManifestDeploymentInput,
-    runtimeFile: string,
+    runtimeFiles: Record<string, string>,
   ) {
     const target = resolveSshDeploymentTarget(input, {
       host: this.host,
@@ -80,7 +81,12 @@ export class SshReleaseDeploymentProviderService extends ReleaseDeploymentProvid
     assertSshDeploymentInput(input, target);
     const base = `${target.root}/${input.projectId}/${input.environmentId}`;
     const archive = `${base}/.incoming/${input.deploymentRunId}.zip`;
-    const runtime = `${base}/.incoming/${input.deploymentRunId}.env`;
+    const runtimes = Object.fromEntries(
+      Object.keys(runtimeFiles).map((componentKey) => [
+        componentKey,
+        `${base}/.incoming/${input.deploymentRunId}.${componentKey}.env`,
+      ]),
+    );
     const release = `${base}/releases/${input.deploymentRunId}`;
     const active = `${base}/active.json`;
     const pending = `${active}.${input.deploymentRunId}.tmp`;
@@ -97,8 +103,14 @@ export class SshReleaseDeploymentProviderService extends ReleaseDeploymentProvid
       ? {
           snapshot: input.workload,
           releaseRoot: release,
-          runtimePath: `${release}/.devpilot/runtime.env`,
-          runtimeEnvironment: input.runtimeEnvironment || {},
+          runtimePaths: Object.fromEntries(
+            Object.keys(runtimeFiles).map((componentKey) => [
+              componentKey,
+              `${release}/.devpilot/env/${componentKey}.env`,
+            ]),
+          ),
+          globalEnvironment: input.globalEnvironment || {},
+          componentEnvironments: input.componentEnvironments || {},
           execute,
         }
       : undefined;
@@ -120,15 +132,17 @@ export class SshReleaseDeploymentProviderService extends ReleaseDeploymentProvid
       await transport.uploadFile(input.artifact.path, archive, {
         timeoutMs: this.timeoutMs,
       });
-      await transport.uploadFile(runtimeFile, runtime, {
-        timeoutMs: this.timeoutMs,
-        mode: 0o600,
-      });
+      for (const [componentKey, localPath] of Object.entries(runtimeFiles)) {
+        await transport.uploadFile(localPath, runtimes[componentKey], {
+          timeoutMs: this.timeoutMs,
+          mode: 0o600,
+        });
+      }
       const result = await requireSuccessfulSsh(
         transport.execScript(
           buildSshMaterializationScript(input, {
             archive,
-            runtime,
+            runtimes,
             release,
           }),
           {
@@ -163,21 +177,7 @@ export class SshReleaseDeploymentProviderService extends ReleaseDeploymentProvid
           ...result.stdout.split(/\r?\n/).filter(Boolean),
           ...workload.logs,
         ]),
-        evidence: {
-          providerActivated: true,
-          targetType: "ssh-environment",
-          remoteDigestVerified: true,
-          runtimeEnvironmentFileMode: "0600",
-          artifactSizeBytes: input.artifact.sizeBytes,
-          runtimeEnvironmentKeys: Object.keys(
-            input.runtimeEnvironment || {},
-          ).sort(),
-          ...workload.evidence,
-          checkoutInvoked: false,
-          pullInvoked: false,
-          buildInvoked: false,
-          gitInvoked: false,
-        },
+        evidence: sshReleaseDeploymentEvidence(input, workload.evidence),
       };
     } catch (error) {
       const cleanupLogs =
@@ -186,7 +186,7 @@ export class SshReleaseDeploymentProviderService extends ReleaseDeploymentProvid
           : [];
       await transport
         .execScript(
-          `rm -f ${quoteSsh(archive)} ${quoteSsh(runtime)} ${quoteSsh(pending)}\nrm -rf ${quoteSsh(release)}\n`,
+          `rm -f ${quoteSsh(archive)} ${Object.values(runtimes).map(quoteSsh).join(" ")} ${quoteSsh(pending)}\nrm -rf ${quoteSsh(release)}\n`,
           { timeoutMs: this.timeoutMs },
         )
         .catch(() => undefined);

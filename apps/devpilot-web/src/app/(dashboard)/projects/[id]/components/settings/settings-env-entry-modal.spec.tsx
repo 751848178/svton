@@ -29,6 +29,10 @@ describe('SettingsEnvEntryModal (F448 AC-SET-043)', () => {
       <SettingsEnvEntryModal
         open
         environmentName="Production"
+        targetOptions={[
+          { serviceId: 'service-web', component: 'frontend', port: 4173 },
+          { serviceId: 'service-api', component: 'backend', port: 4310 },
+        ]}
         onClose={() => undefined}
         onConfirm={() => undefined}
       />,
@@ -40,12 +44,69 @@ describe('SettingsEnvEntryModal (F448 AC-SET-043)', () => {
     expect(html).toContain('envRoutesHostPlaceholder');
     expect(html).toContain('envRoutesPathLabel');
     expect(html).toContain('envRoutesTargetLabel');
-    expect(html).toContain('web : 3000');
-    expect(html).toContain('api : 8080');
+    expect(html).toContain('frontend : 4173');
+    expect(html).toContain('backend : 4310');
+    expect(html).not.toContain('web : 3000');
+    expect(html).not.toContain('api : 8080');
+    expect(html).toContain('envRoleCustom');
     expect(html).toContain('envRoutesTlsLabel');
     expect(html).toContain('envRoutesTlsManaged');
     expect(html).toContain('envRoutesTlsExisting');
     expect(html).toContain('envRoutesAddEntryConfirm');
+    expect(html).toContain('value="service-web:4173" selected=""');
+    expect(html).toContain('envRoutesErrorHost');
+    expect(html).toContain('disabled=""');
+  });
+
+  it('hydrates edit mode from the exact existing service target and path', () => {
+    const html = renderToStaticMarkup(
+      <SettingsEnvEntryModal
+        open
+        environmentName="Production"
+        targetOptions={[{ serviceId: 'service-api', component: 'backend', port: 4310 }]}
+        initialEntry={{
+          domain: 'api.example.com',
+          path: '/v1',
+          serviceId: 'service-api',
+          component: 'backend',
+          port: 4310,
+          tlsMode: 'managed_cert',
+        }}
+        onClose={() => undefined}
+        onConfirm={() => undefined}
+      />,
+    );
+
+    expect(html).toContain('envRoutesEditEntryTitle');
+    expect(html).toContain('envRoutesSaveEntry');
+    expect(html).toContain('value="api.example.com"');
+    expect(html).toContain('value="/v1"');
+    expect(html).toContain('value="service-api:4310" selected=""');
+  });
+
+  it('shows an explicit conflict and disables save for a duplicate host and path', () => {
+    const initialEntry = {
+      domain: 'api.example.com',
+      path: '/v1',
+      serviceId: 'service-api',
+      component: 'backend',
+      port: 4310,
+      tlsMode: 'managed_cert' as const,
+    };
+    const html = renderToStaticMarkup(
+      <SettingsEnvEntryModal
+        open
+        environmentName="Production"
+        targetOptions={[{ serviceId: 'service-api', component: 'backend', port: 4310 }]}
+        initialEntry={initialEntry}
+        existingEntries={[{ ...initialEntry }]}
+        onClose={() => undefined}
+        onConfirm={() => undefined}
+      />,
+    );
+
+    expect(html).toContain('envRoutesErrorConflict');
+    expect(html).toContain('disabled=""');
   });
 
   it('renders nothing when closed', () => {
@@ -53,6 +114,7 @@ describe('SettingsEnvEntryModal (F448 AC-SET-043)', () => {
       <SettingsEnvEntryModal
         open={false}
         environmentName="Production"
+        targetOptions={[]}
         onClose={() => undefined}
         onConfirm={() => undefined}
       />,

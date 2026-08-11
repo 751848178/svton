@@ -13,7 +13,7 @@ import {
 
 /**
  * Build the ordered list of environment keys to seed from a project config.
- * Falls back to dev/test/staging/prod when the config declares none.
+ * Falls back to the staging/production release baselines when none are declared.
  */
 export function resolveSeedEnvironmentKeys(config: unknown): string[] {
   return environmentKeysFromConfigUtil(config);
@@ -26,6 +26,7 @@ export function buildSeedUpsertArgs(
   key: string,
   index: number,
 ) {
+  const baselineRole = releaseBaselineRole(key);
   return {
     where: { projectId_key: { projectId, key } },
     create: {
@@ -34,6 +35,7 @@ export function buildSeedUpsertArgs(
       key,
       name: labelForKeyUtil(key),
       sortOrder: index * 10,
+      baselineRole,
       config: toJsonValueUtil({
         source: 'project_config',
         initializedBy: 'ProjectEnvironmentService.ensureDefaultsForProject',
@@ -44,4 +46,8 @@ export function buildSeedUpsertArgs(
       sortOrder: index * 10,
     },
   };
+}
+
+function releaseBaselineRole(key: string) {
+  return key === 'staging' || key === 'production' ? key : null;
 }

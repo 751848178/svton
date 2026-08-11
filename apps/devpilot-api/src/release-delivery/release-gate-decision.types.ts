@@ -37,6 +37,8 @@ export type ReleaseGateDecisionTarget = {
    *  evaluate the provider-matched binding — the same resolution the deploy
    *  path uses (AC-SET-022/023). */
   providerKey?: string;
+  bindingId?: string;
+  deploymentInputHash?: string;
 };
 
 export type ReleaseGateDecisionInput = {

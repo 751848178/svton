@@ -58,8 +58,13 @@ export function useProductionApproval(
       await apiRequest(
         `POST:/projects/${projectId}/delivery/environment-versions/${run.environmentId}/actions`,
         isRecovery
-          ? { kind: 'recovery', releaseRunId: run.id }
-          : { kind: 'upgrade', manifestId: run.artifactManifestId, releaseRunId: run.id },
+          ? { kind: 'recovery', releaseRunId: run.id, idempotencyKey: crypto.randomUUID() }
+          : {
+              kind: 'upgrade',
+              manifestId: run.artifactManifestId,
+              releaseRunId: run.id,
+              idempotencyKey: crypto.randomUUID(),
+            },
       );
       await onChanged();
       return true;

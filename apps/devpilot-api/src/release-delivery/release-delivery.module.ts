@@ -48,6 +48,7 @@ import { ReleaseGateArtifactCapabilityProvider } from "./release-gate-artifact-c
 import { ReleaseGateBuildCapabilityProvider } from "./release-gate-build-capability.provider";
 import { ReleaseGateCatalogController } from "./release-gate-catalog.controller";
 import { ReleaseGateCatalogService } from "./release-gate-catalog.service";
+import { ReleaseDeploymentTargetReadinessService } from "./release-deployment-target-readiness.service";
 import { ReleaseGateEvidenceRepository } from "./release-gate-evidence.repository";
 import { ReleaseGateDeployEvidenceRepository } from "./release-gate-deploy-evidence.repository";
 import { ReleaseGateDeployOperationEvidenceRepository } from "./release-gate-deploy-operation-evidence.repository";
@@ -153,6 +154,7 @@ import { ProjectDeliverySummaryService } from "./project-delivery-summary.servic
     ReleaseGateDeployResourceEvidenceRepository,
     ReleaseGatePromoteEvidenceRepository,
     ReleaseGateCatalogService,
+    ReleaseDeploymentTargetReadinessService,
     GateEvaluationRepository,
     ReleaseGateDecisionRepository,
     ReleaseGateDecisionService,

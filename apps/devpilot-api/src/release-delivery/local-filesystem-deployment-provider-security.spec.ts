@@ -2,9 +2,11 @@ import { ConfigService } from "@nestjs/config";
 import {
   mkdtemp,
   mkdir,
+  lstat,
   readFile,
   rm,
   stat,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -31,17 +33,17 @@ describe("LocalFilesystemDeploymentProviderService security", () => {
     });
   });
 
-  it("replaces a malicious extracted runtime file and enforces modes for an empty workload environment", async () => {
+  it("replaces a malicious component env symlink and enforces 0600 without following it", async () => {
+    const attackerTarget = join(scope, "attacker.env");
+    await writeFile(attackerTarget, "attacker", { mode: 0o644 });
     const provider = createProvider({
       list: jest.fn(async () => ["dist/app.txt"]),
       extract: jest.fn(async (_archive, target) => {
-        await mkdir(join(target, ".devpilot"), {
+        await mkdir(join(target, ".devpilot", "env"), {
           recursive: true,
           mode: 0o755,
         });
-        await writeFile(join(target, ".devpilot", "runtime.env"), "attacker", {
-          mode: 0o644,
-        });
+        await symlink(attackerTarget, join(target, ".devpilot", "env", "api.env"));
         await mkdir(join(target, "dist"), { recursive: true });
         await writeFile(join(target, "dist", "app.txt"), "exact artifact");
       }),
@@ -51,12 +53,14 @@ describe("LocalFilesystemDeploymentProviderService security", () => {
       scope,
       "deployments/project-1/staging-1/releases/deployment-1/.devpilot",
     );
+    const environmentFile = join(control, "env", "api.env");
     expect(receipt.evidence.runtimeEnvironmentFileMode).toBe("0600");
-    await expect(readFile(join(control, "runtime.env"), "utf8")).resolves.toBe(
-      "\n",
-    );
+    await expect(readFile(environmentFile, "utf8")).resolves.toBe("\n");
+    await expect(readFile(attackerTarget, "utf8")).resolves.toBe("attacker");
+    expect((await lstat(environmentFile)).isSymbolicLink()).toBe(false);
     expect((await stat(control)).mode & 0o777).toBe(0o700);
-    expect((await stat(join(control, "runtime.env"))).mode & 0o777).toBe(0o600);
+    expect((await stat(join(control, "env"))).mode & 0o777).toBe(0o700);
+    expect((await stat(environmentFile)).mode & 0o777).toBe(0o600);
   });
 
   function createProvider(archive: ReleaseArtifactArchivePort) {

@@ -33,9 +33,6 @@ export class ReleaseGateDeployEvidenceRepository {
         ...(environmentId
           ? { id: environmentId }
           : { baselineRole: "staging" }),
-        ...(configRevisionId !== undefined
-          ? { currentConfigRevisionId: configRevisionId }
-          : {}),
       },
       select: {
         id: true,
@@ -79,8 +76,26 @@ export class ReleaseGateDeployEvidenceRepository {
       },
     });
     if (!environment) return emptyDeployEvidence();
+    const frozenRevision = configRevisionId === undefined
+      ? environment.currentConfigRevision
+      : configRevisionId
+        ? await this.prisma.environmentConfigRevision.findFirst({
+            where: {
+              id: configRevisionId,
+              teamId,
+              projectId,
+              environmentId: environment.id,
+            },
+            select: environmentConfigRevisionSelect,
+          })
+        : null;
+    if (configRevisionId && !frozenRevision) return emptyDeployEvidence();
+    const scopedEnvironment = {
+      ...environment,
+      currentConfigRevision: frozenRevision,
+    };
     const references = resourceReferences(
-      environment.currentConfigRevision?.resourceReferences,
+      frozenRevision?.resourceReferences,
     );
     const managedIds = references
       .filter((item) => item.kind === "managed_resource")
@@ -91,7 +106,7 @@ export class ReleaseGateDeployEvidenceRepository {
         projectId,
         environmentId: environment.id,
         secretIds: referenceIds(
-          environment.currentConfigRevision?.secretReferences,
+          frozenRevision?.secretReferences,
         ),
         references,
       }),
@@ -106,9 +121,27 @@ export class ReleaseGateDeployEvidenceRepository {
         managedResourceIds: managedIds,
       }),
     ]);
-    return { environment, ...resourceEvidence, ...operationEvidence };
+    return {
+      environment: scopedEnvironment,
+      ...resourceEvidence,
+      ...operationEvidence,
+    };
   }
 }
+
+const environmentConfigRevisionSelect = {
+  id: true,
+  projectId: true,
+  environmentId: true,
+  revision: true,
+  snapshotHash: true,
+  plainVariables: true,
+  secretReferences: true,
+  resourceReferences: true,
+  routeSnapshot: true,
+  policyReferences: true,
+  createdAt: true,
+} as const;
 
 function emptyDeployEvidence(): ReleaseGateDeployEvidence {
   return {

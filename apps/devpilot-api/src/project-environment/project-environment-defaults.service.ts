@@ -1,7 +1,7 @@
 /**
  * Project-environment defaults-seeding service.
  *
- * Owns `ensureDefaultsForProject`: seeds the dev/test/staging/prod (or
+ * Owns `ensureDefaultsForProject`: seeds the release baselines (or
  * config-declared) environments for a project via Prisma upserts. Extracted
  * from `ProjectEnvironmentService`. Behavior preserved verbatim.
  */

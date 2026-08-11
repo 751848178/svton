@@ -19,6 +19,7 @@ describe('EnvironmentConfigResourceEditor (AC-SET-026 selectors)', () => {
         environment={env()}
         value={[reference()]}
         onChange={() => undefined}
+        currentReferences={[reference()]}
       />,
     );
 
@@ -32,6 +33,9 @@ describe('EnvironmentConfigResourceEditor (AC-SET-026 selectors)', () => {
     expect(html).toContain('envResourceSharingScopeLabel');
     expect(html).toContain('envResourceSharingDedicated');
     expect(html).toContain('envResourceSharingShared');
+    expect(html).toContain('envResourceBindingNeedsConfiguration');
+    expect(html).toContain('envResourceLegacyUnassigned');
+    expect(html).toContain('envResourceSelectComponent');
   });
 
   it('locks production rows to 环境专用 (forced) and disables the shared options', () => {
@@ -42,6 +46,7 @@ describe('EnvironmentConfigResourceEditor (AC-SET-026 selectors)', () => {
         environment={production}
         value={[reference()]}
         onChange={() => undefined}
+        currentReferences={[reference()]}
       />,
     );
 
@@ -58,6 +63,7 @@ describe('EnvironmentConfigResourceEditor (AC-SET-026 selectors)', () => {
         environment={env()}
         value={[reference({ sharedEnvironmentIds: ['env-staging', 'env-preview'] })]}
         onChange={() => undefined}
+        currentReferences={[reference({ sharedEnvironmentIds: ['env-staging', 'env-preview'] })]}
       />,
     );
 
@@ -72,6 +78,7 @@ describe('EnvironmentConfigResourceEditor (AC-SET-026 selectors)', () => {
         environment={env()}
         value={[reference()]}
         onChange={() => undefined}
+        currentReferences={[reference()]}
       />,
     );
 

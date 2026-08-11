@@ -9,6 +9,7 @@ export interface EnvironmentVersionExecuteInput {
   actorId: string;
   projectId: string;
   environmentId: string;
+  idempotencyKey?: string;
   kind: "upgrade" | "recovery";
   manifestId?: string;
   sourceVersionId?: string;
@@ -43,7 +44,8 @@ export interface EnvironmentVersionExecutionContext {
   productionRun: ProductionRun;
   releaseRunId: string | undefined;
   frozenConfigRevisionId: string | null;
+  actionInputHash: string;
   gateContext: Parameters<EnvironmentVersionProductionGateService["admit"]>[0];
-  frozenInput?: { deploymentInput: DeploymentInput; workload: Workload };
+  frozenInput: { deploymentInput: DeploymentInput; workload: Workload };
   run: Awaited<ReturnType<EnvironmentVersionRepository["reserve"]>>;
 }

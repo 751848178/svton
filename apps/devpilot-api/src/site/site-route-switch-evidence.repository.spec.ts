@@ -13,7 +13,7 @@ describe("SiteRouteSwitchEvidenceRepository", () => {
       expect.objectContaining({
         data: expect.objectContaining({
           deploymentRunId: "deployment-1",
-          status: "unavailable",
+          status: "failed",
           reasonCode: "route_switch_provider_unconfigured",
         }),
       }),
@@ -67,9 +67,11 @@ function evidence(
     releaseRunId: "release-1",
     primaryDomain: "app.example.com",
     domains: ["app.example.com"],
+    entries: [],
     proxyTarget: "http://target.internal:8080",
     targetRef: "server-1/service-1",
     routeHash: "route-hash-1",
+    expectedCurrent: null,
     providerKey: switched ? "test-provider" : "unconfigured",
     status,
     reasonCode: switched

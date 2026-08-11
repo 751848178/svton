@@ -10,7 +10,7 @@ export async function completeVersionedDeployment(
   tx: Prisma.TransactionClient,
   input: {
     deploymentRunId: string;
-    status: "completed" | "failed";
+    status: "completed" | "failed" | "blocked";
     kind: "deploy" | "upgrade" | "recovery";
     logs: string[];
     result?: Record<string, unknown>;
@@ -37,7 +37,7 @@ export async function completeVersionedDeployment(
     if (current.status !== input.status) {
       throw new DeploymentRunTerminalConflictError(current.status);
     }
-    if (input.status === "failed") {
+    if (input.status !== "completed") {
       return { version: null, transitioned: false };
     }
     const version = await tx.environmentVersion.findUniqueOrThrow({
@@ -57,14 +57,17 @@ export async function completeVersionedDeployment(
       artifactManifest: { select: { releaseOrderId: true } },
     },
   });
-  if (input.status === "failed") {
+  if (input.status !== "completed") {
     await onTransition?.(tx);
     if (run.releaseRunId) {
       await tx.releaseRun.updateMany({
         where: { id: run.releaseRunId, status: "running" },
         data: {
           status: "failed",
-          errorCode: "ENVIRONMENT_DEPLOYMENT_FAILED",
+          errorCode:
+            input.status === "blocked"
+              ? "SITE_ROUTE_COMPENSATION_REQUIRED"
+              : "ENVIRONMENT_DEPLOYMENT_FAILED",
           errorMessage: input.error,
           finishedAt,
         },

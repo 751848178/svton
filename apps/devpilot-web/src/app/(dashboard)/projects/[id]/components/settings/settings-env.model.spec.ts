@@ -63,8 +63,8 @@ describe('settings-env.model F448 route entries round-trip', () => {
       tlsRequired: true,
       proxyTarget: 'web:3000',
       entries: [
-        { domain: 'demo.f437.example', path: '/', component: 'web', port: 3000, tlsMode: 'managed_cert' },
-        { domain: 'media.demo.f437.example', path: '/v1', component: 'api', port: 8080, tlsMode: 'existing_cert_asset' },
+        { domain: 'demo.f437.example', path: '/', serviceId: null, component: 'web', port: 3000, tlsMode: 'managed_cert' },
+        { domain: 'media.demo.f437.example', path: '/v1', serviceId: null, component: 'api', port: 8080, tlsMode: 'existing_cert_asset' },
       ],
     };
     const draft = settingsDraftFromRevision(revision(routeSnapshot))!;
@@ -83,7 +83,7 @@ describe('settings-env.model F448 route entries round-trip', () => {
       resourceReferences: [{ id: 'resource-1', kind: 'resource_instance', name: 'DB' }],
       policyReferences: null,
     } as never)!;
-    expect(draft.secretIds).toEqual([]);
+    expect(draft.secrets).toEqual([]);
     expect(draft.resources).toEqual([{
       id: 'resource-1', kind: 'resource_instance', name: 'DB',
       sharedEnvironmentIds: [], risk: 'medium', impact: '',
@@ -98,7 +98,7 @@ describe('settings-env.model F448 route entries round-trip', () => {
       tlsRequired: true,
     }))!;
     expect(draft.route.entries).toEqual([
-      { domain: 'demo.f437.example', path: '/', component: 'web', port: 3000, tlsMode: 'managed_cert' },
+      { domain: 'demo.f437.example', path: '/', serviceId: null, component: 'web', port: 3000, tlsMode: 'managed_cert' },
     ]);
   });
 
@@ -108,7 +108,7 @@ describe('settings-env.model F448 route entries round-trip', () => {
       proxyTarget: 'http://127.0.0.1:23992',
     }))!;
     expect(draft.route.entries).toEqual([
-      { domain: 'demo.f437.example', path: '/', component: '', port: null, tlsMode: 'managed_cert' },
+      { domain: 'demo.f437.example', path: '/', serviceId: null, component: '', port: null, tlsMode: 'managed_cert' },
     ]);
   });
 
@@ -120,7 +120,7 @@ describe('settings-env.model F448 route entries round-trip', () => {
     ];
     const payload = toConfigRevisionDraft(draft);
     expect(payload.routeSnapshot.entries).toEqual([
-      { domain: 'a.example.com', path: '/x', component: 'web', port: 3000, tlsMode: 'managed_cert' },
+      { domain: 'a.example.com', path: '/x', serviceId: null, component: 'web', port: 3000, tlsMode: 'managed_cert' },
     ]);
     expect(EMPTY_SETTINGS_ENVIRONMENT_DRAFT.route.entries).toEqual([]);
   });

@@ -20,7 +20,7 @@ describe("SiteRouteActivationService", () => {
   it("fails closed when the frozen route declares domains but no matching Site exists", async () => {
     const prisma = {
       site: {
-        findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([]),
       },
     };
     const service = new SiteRouteActivationService(prisma as never);
@@ -42,13 +42,11 @@ describe("SiteRouteActivationService", () => {
         routeSwitch: { status: "unavailable", reasonCode: "site_not_found" },
       },
     });
-    expect(prisma.site.findFirst).toHaveBeenCalledWith(
+    expect(prisma.site.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
           teamId: "team-1",
           projectId: "project-1",
-          environmentId: "env-1",
-          primaryDomain: { in: ["demo.f437.example"] },
         },
       }),
     );
@@ -57,11 +55,12 @@ describe("SiteRouteActivationService", () => {
   it("matches a Site that belongs to the project and environment", async () => {
     const prisma = {
       site: {
-        findFirst: jest.fn().mockResolvedValue({
+        findMany: jest.fn().mockResolvedValue([{
           id: "site-1",
+          environmentId: "env-1",
           primaryDomain: "demo.f437.example",
           status: "active",
-        }),
+        }]),
       },
     };
     const service = new SiteRouteActivationService(prisma as never);
@@ -80,4 +79,131 @@ describe("SiteRouteActivationService", () => {
       reasonCode: "site_route_matched",
     });
   });
+
+  it("uses structured entries as the upstream truth and preserves all routes", async () => {
+    const prisma = {
+      site: { findMany: jest.fn().mockResolvedValue([{
+        id: "site-1", environmentId: "env-1",
+        primaryDomain: "app.example.com", aliases: ["www.example.com"],
+        status: "active",
+      }]) },
+    };
+    const service = new SiteRouteActivationService(prisma as never);
+    const result = await service.resolve({
+      teamId: "team-1", projectId: "project-1", environmentId: "env-1",
+      routeSnapshot: {
+        domains: ["ignored-legacy.example.com"],
+        proxyTarget: "legacy:9999",
+        entries: [
+          routeEntry("app.example.com", "/"),
+          routeEntry("www.example.com", "/api"),
+        ],
+      },
+    });
+    expect(result).toMatchObject({
+      domains: ["app.example.com", "www.example.com"],
+      proxyTarget: "web:3000",
+      entries: [
+        expect.objectContaining({ domain: "app.example.com", path: "/" }),
+        expect.objectContaining({ domain: "www.example.com", path: "/api" }),
+      ],
+      status: "matched",
+    });
+  });
+
+  it("fails closed when structured entries require different upstreams", async () => {
+    const prisma = { site: { findMany: jest.fn() } };
+    const service = new SiteRouteActivationService(prisma as never);
+    const result = await service.resolve({
+      teamId: "team-1", projectId: "project-1", environmentId: "env-1",
+      routeSnapshot: {
+        entries: [
+          routeEntry("app.example.com", "/"),
+          { ...routeEntry("api.example.com", "/"), serviceId: "api-1", component: "api", port: 8080 },
+        ],
+      },
+    });
+    expect(result).toMatchObject({
+      status: "unavailable",
+      reasonCode: "multiple_route_upstreams",
+      proxyTarget: null,
+    });
+    expect(prisma.site.findMany).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when a matching Site is not active", async () => {
+    const prisma = { site: { findMany: jest.fn().mockResolvedValue([{
+      id: "site-1", environmentId: "env-1",
+      primaryDomain: "app.example.com", status: "pending",
+    }]) } };
+    const service = new SiteRouteActivationService(prisma as never);
+    await expect(service.resolve({
+      teamId: "team-1", projectId: "project-1", environmentId: "env-1",
+      routeSnapshot: { entries: [routeEntry("app.example.com", "/")] },
+    })).rejects.toMatchObject({
+      detail: { evidence: { routeSwitch: { reasonCode: "site_not_active" } } },
+    });
+  });
+
+  it("fails closed when frozen domains resolve to multiple Sites", async () => {
+    const prisma = { site: { findMany: jest.fn().mockResolvedValue([
+      { id: "site-1", environmentId: "env-1", primaryDomain: "app.example.com", status: "active" },
+      { id: "site-2", environmentId: "env-1", primaryDomain: "www.example.com", status: "active" },
+    ]) } };
+    const service = new SiteRouteActivationService(prisma as never);
+    await expect(service.resolve({
+      teamId: "team-1", projectId: "project-1", environmentId: "env-1",
+      routeSnapshot: { entries: [
+        routeEntry("app.example.com", "/"),
+        routeEntry("www.example.com", "/api"),
+      ] },
+    })).rejects.toMatchObject({
+      detail: { evidence: { routeSwitch: { reasonCode: "multiple_route_sites" } } },
+    });
+  });
+
+  it("fails closed when two active Sites own the same primary domain", async () => {
+    const prisma = { site: { findMany: jest.fn().mockResolvedValue([
+      { id: "site-1", environmentId: "env-1", primaryDomain: "app.example.com", status: "active" },
+      { id: "site-2", environmentId: "env-1", primaryDomain: "app.example.com", status: "active" },
+    ]) } };
+    const service = new SiteRouteActivationService(prisma as never);
+    await expect(service.resolve({
+      teamId: "team-1", projectId: "project-1", environmentId: "env-1",
+      routeSnapshot: { entries: [routeEntry("app.example.com", "/")] },
+    })).rejects.toMatchObject({
+      detail: { evidence: { routeSwitch: { reasonCode: "multiple_route_sites" } } },
+    });
+  });
+
+  it("detects primary/alias ownership conflicts beyond the former 20-row window", async () => {
+    const unrelated = Array.from({ length: 20 }, (_, index) => ({
+      id: `site-${index}`,
+      environmentId: "env-1",
+      primaryDomain: `unrelated-${index}.example.com`,
+      status: "active",
+    }));
+    const prisma = { site: { findMany: jest.fn().mockResolvedValue([
+      ...unrelated,
+      { id: "site-primary", environmentId: "env-1", primaryDomain: "app.example.com", status: "active" },
+      { id: "site-alias", environmentId: "env-1", primaryDomain: "other.example.com", aliases: ["app.example.com"], status: "active" },
+    ]) } };
+    const service = new SiteRouteActivationService(prisma as never);
+    await expect(service.resolve({
+      teamId: "team-1", projectId: "project-1", environmentId: "env-1",
+      routeSnapshot: { entries: [routeEntry("app.example.com", "/")] },
+    })).rejects.toMatchObject({
+      detail: { evidence: { routeSwitch: { reasonCode: "multiple_route_sites" } } },
+    });
+    expect(prisma.site.findMany).toHaveBeenCalledWith(
+      expect.not.objectContaining({ take: expect.anything() }),
+    );
+  });
 });
+
+function routeEntry(domain: string, path: string) {
+  return {
+    domain, path, serviceId: "web-1", component: "web", port: 3000,
+    tlsMode: "managed_cert",
+  };
+}

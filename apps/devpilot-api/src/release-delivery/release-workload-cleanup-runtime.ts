@@ -7,11 +7,14 @@ import {
   buildReleaseWorkloadCleanupScript,
   buildReleaseWorkloadDiagnosticScript,
 } from "./release-workload-script.utils";
+import {
+  type ReleaseComponentEnvironments,
+  releaseEnvironmentSecrets,
+  releaseWorkloadPaths,
+} from "./release-component-environment";
 
-interface CleanupRuntimeInput {
+interface CleanupRuntimeInput extends ReleaseComponentEnvironments {
   releaseRoot: string;
-  runtimePath: string;
-  runtimeEnvironment: Record<string, string>;
   execute: ReleaseWorkloadCommandExecutor;
   snapshot: { services: ReleaseStagingWorkload[] };
 }
@@ -24,7 +27,10 @@ export async function cleanupReleaseWorkloads(
   for (const service of [...services].reverse()) {
     const result = await input
       .execute(
-        buildReleaseWorkloadCleanupScript(service, input),
+        buildReleaseWorkloadCleanupScript(
+          service,
+          releaseWorkloadPaths(input, service),
+        ),
         service.statusTimeoutMs,
       )
       .catch((error) => {
@@ -44,7 +50,7 @@ export async function cleanupReleaseWorkloads(
       );
     }
   }
-  return sanitizeReleaseWorkloadLogs(failures, input.runtimeEnvironment);
+  return sanitizeReleaseWorkloadLogs(failures, releaseEnvironmentSecrets(input));
 }
 
 export async function collectReleaseWorkloadDiagnostics(
@@ -55,7 +61,10 @@ export async function collectReleaseWorkloadDiagnostics(
   for (const service of services) {
     const result = await input
       .execute(
-        buildReleaseWorkloadDiagnosticScript(service, input),
+        buildReleaseWorkloadDiagnosticScript(
+          service,
+          releaseWorkloadPaths(input, service),
+        ),
         service.statusTimeoutMs,
       )
       .catch(() => undefined);
@@ -63,5 +72,5 @@ export async function collectReleaseWorkloadDiagnostics(
       lines.push(`workload ${service.serviceId}: ${result.stdout}`);
     }
   }
-  return sanitizeReleaseWorkloadLogs(lines, input.runtimeEnvironment);
+  return sanitizeReleaseWorkloadLogs(lines, releaseEnvironmentSecrets(input));
 }

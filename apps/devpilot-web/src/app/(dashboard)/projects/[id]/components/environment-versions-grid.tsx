@@ -16,6 +16,7 @@ interface UpgradeTarget {
 }
 
 export function EnvironmentVersionsGrid(props: {
+  projectId: string;
   environments: EnvironmentVersionEnvironment[];
   candidates: EnvironmentVersionCandidates;
   executing: boolean;
@@ -47,6 +48,7 @@ export function EnvironmentVersionsGrid(props: {
           return (
             <EnvironmentVersionCard
               key={environment.id}
+              projectId={props.projectId}
               environment={environment}
               candidates={candidates}
               selectedId={selectedId}

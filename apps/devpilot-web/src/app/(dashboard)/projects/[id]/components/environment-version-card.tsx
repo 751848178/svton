@@ -1,15 +1,19 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
+import Link from 'next/link';
+import { useLocale, useTranslations } from 'next-intl';
 import { Button, StatusTag } from '@/components/ui';
 import type {
   EnvironmentVersionCandidate,
   EnvironmentVersionEnvironment,
 } from '../types/environment-version.types';
 import { EnvironmentVersionSummary } from './environment-version-summary';
+import { environmentVersionTargetReadiness } from './environment-version-target-readiness.model';
+import { settingsEnvironmentTabHref } from '../utils/settings-environment-route';
 
 export function EnvironmentVersionCard(props: {
   environment: EnvironmentVersionEnvironment;
+  projectId: string;
   candidates: EnvironmentVersionCandidate[];
   selectedId: string;
   executing: boolean;
@@ -19,7 +23,13 @@ export function EnvironmentVersionCard(props: {
   onRecovery: (sourceVersionId: string) => unknown;
 }) {
   const t = useTranslations('projects');
+  const locale = useLocale();
   const env = props.environment;
+  const target = environmentVersionTargetReadiness(
+    env.targetReadiness,
+    env.name,
+    locale,
+  );
   const production = env.baselineRole === 'production';
   const current = env.environmentVersions.find(
     (item) => item.id === env.currentEnvironmentVersionId,
@@ -51,11 +61,11 @@ export function EnvironmentVersionCard(props: {
           {t('environmentVersionUnavailableDescription')}
         </p>
       )}
-      <div className="flex flex-wrap items-end gap-2 rounded-md bg-muted/30 p-3">
+      <div className="flex flex-col gap-2 rounded-md bg-muted/30 p-3 sm:flex-row sm:items-end">
         <label className="min-w-56 flex-1 text-sm">
           <span className="mb-1 block font-medium">{t('environmentVersionUpgradeTarget')}</span>
           <select
-            className="w-full rounded-md border bg-background px-3 py-2"
+            className="min-h-11 w-full rounded-md border bg-background px-3 py-2"
             value={props.selectedId}
             onChange={(event) => props.onSelect(event.target.value)}
             disabled={props.candidates.length === 0}
@@ -79,32 +89,44 @@ export function EnvironmentVersionCard(props: {
           </select>
         </label>
         <Button
+          className="min-h-11"
           onClick={props.onUpgrade}
           loading={props.executing}
           disabled={
             !props.selectedId ||
             props.executing ||
             currentManifestSelected ||
-            props.productionBlocked
+            props.productionBlocked ||
+            !target.ready
           }
         >
           {t('environmentVersionUpgradeShort')}
         </Button>
-      </div>
-      <div className="flex flex-wrap items-center justify-between gap-2">
         <Button
+          className="min-h-11"
           variant="outline"
-          disabled={props.executing || !previous}
+          disabled={props.executing || !previous || !target.ready}
           onClick={() => (previous ? props.onRecovery(previous.id) : undefined)}
         >
           {t('environmentVersionRollback')}
         </Button>
-        {props.productionBlocked ? (
-          <p className="text-xs text-amber-800">
-            {t('environmentVersionProductionApprovalRequired')}
-          </p>
-        ) : null}
       </div>
+      {props.productionBlocked ? (
+        <p className="text-xs text-amber-800">
+          {t('environmentVersionProductionApprovalRequired')}
+        </p>
+      ) : null}
+      {!target.ready ? (
+        <p className="text-xs text-amber-800" role="status">
+          {target.reason}{' '}
+          <Link
+            className="inline-flex min-h-11 items-center font-medium underline underline-offset-2"
+            href={settingsEnvironmentTabHref(props.projectId, env.key, 'targets')}
+          >
+            {t('environmentVersionRepairTarget')}
+          </Link>
+        </p>
+      ) : null}
     </article>
   );
 }

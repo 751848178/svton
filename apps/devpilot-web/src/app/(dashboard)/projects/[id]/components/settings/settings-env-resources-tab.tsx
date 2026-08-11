@@ -62,13 +62,14 @@ export function EnvResourcesTab({
         <EnvironmentResourceBindingTable
           project={project}
           environment={environment}
-          resources={resources}
+          resources={revision?.resourceReferences ?? []}
         />
         <EnvironmentConfigResourceEditor
           project={project}
           environment={environment}
           value={resources}
           onChange={onResourcesChange}
+          currentReferences={revision?.resourceReferences ?? []}
         />
         <p className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
           {t('envResourceCalloutOwnership')}

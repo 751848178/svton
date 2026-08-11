@@ -18,7 +18,8 @@ import {
 } from "./release-production.integration-fixture";
 import { SiteRouteActivationService } from "../site/site-route-activation.service";
 import { SiteFinalProbeService } from "../site/site-final-probe.service";
-import { SiteRouteSwitchEvidenceRepository } from "../site/site-route-switch-evidence.repository";
+import { SiteRouteSwitchSagaOrchestrator } from "../site/site-route-switch-saga.orchestrator";
+import { SiteRouteSwitchSagaRepository } from "../site/site-route-switch-saga.repository";
 import { siteRouteSwitchTestDouble } from "../site/site-route-switch.spec-utils";
 import { EnvironmentVersionCompletionRepository } from "./environment-version-completion.repository";
 
@@ -36,11 +37,15 @@ describeIntegration("EnvironmentVersion integration", () => {
     const repository = new EnvironmentVersionRepository(
       fixture.prisma as never,
     );
+    const routeSwitch = siteRouteSwitchTestDouble();
+    const routeSagaRepository = new SiteRouteSwitchSagaRepository(
+      fixture.prisma as never,
+    );
     service = new EnvironmentVersionService(
       repository,
       new EnvironmentVersionCompletionRepository(
         fixture.prisma as never,
-        new SiteRouteSwitchEvidenceRepository(),
+        routeSagaRepository,
       ),
       new EnvironmentVersionReadRepository(fixture.prisma as never),
       new EnvironmentVersionPolicyService(repository),
@@ -48,9 +53,13 @@ describeIntegration("EnvironmentVersion integration", () => {
       productionGateTestDouble(fixture.prisma) as never,
       new EnvironmentVersionGateEvidenceRepository(fixture.prisma as never),
       environmentVersionInputTestDouble() as never,
+      {} as never,
+      productionWorkloadTestDouble() as never,
       productionWorkloadTestDouble() as never,
       new SiteRouteActivationService(fixture.prisma as never),
-      siteRouteSwitchTestDouble(),
+      routeSwitch,
+      new SiteRouteSwitchSagaOrchestrator(routeSagaRepository, routeSwitch),
+      { assertClear: jest.fn() } as never,
       new SiteFinalProbeService(),
     );
   });
@@ -147,10 +156,16 @@ describeIntegration("EnvironmentVersion integration", () => {
 
   it("lists exact per-version payloads reverse-chronologically with the previous-version chain", async () => {
     const f = fixture;
-    const first = await service.execute(upgradeInput(f, f.stagingEnvironmentId));
-    const second = await service.execute(upgradeInput(f, f.stagingEnvironmentId));
+    const first = await service.execute(
+      upgradeInput(f, f.stagingEnvironmentId),
+    );
+    const second = await service.execute(
+      upgradeInput(f, f.stagingEnvironmentId),
+    );
     const { environments } = await service.list(f.teamId, f.projectId);
-    const staging = environments.find((item) => item.id === f.stagingEnvironmentId);
+    const staging = environments.find(
+      (item) => item.id === f.stagingEnvironmentId,
+    );
     expect(staging).toBeDefined();
     expect(staging!.environmentVersions.length).toBeGreaterThanOrEqual(2);
     const [latest, older] = staging!.environmentVersions;
@@ -174,7 +189,9 @@ describeIntegration("EnvironmentVersion integration", () => {
 
   it("derives current from completed runs only and keeps the full history when the pointer is stale", async () => {
     const f = fixture;
-    const first = await service.execute(upgradeInput(f, f.stagingEnvironmentId));
+    const first = await service.execute(
+      upgradeInput(f, f.stagingEnvironmentId),
+    );
     await f.prisma.deploymentRun.update({
       where: { id: first.version!.deploymentRunId },
       data: { status: "failed" },
@@ -184,22 +201,35 @@ describeIntegration("EnvironmentVersion integration", () => {
       data: { currentEnvironmentVersionId: first.version!.id },
     });
     const { environments } = await service.list(f.teamId, f.projectId);
-    const staging = environments.find((item) => item.id === f.stagingEnvironmentId);
+    const staging = environments.find(
+      (item) => item.id === f.stagingEnvironmentId,
+    );
     expect(staging!.currentEnvironmentVersionId).toBeNull();
     expect(
-      staging!.environmentVersions.some((item) => item.id === first.version!.id),
+      staging!.environmentVersions.some(
+        (item) => item.id === first.version!.id,
+      ),
     ).toBe(true);
-    const stale = staging!.environmentVersions.find((item) => item.id === first.version!.id)!;
+    const stale = staging!.environmentVersions.find(
+      (item) => item.id === first.version!.id,
+    )!;
     expect(stale.deploymentRun.status).toBe("failed");
     expect(staging!.environmentVersions[0].id).toBe(first.version!.id);
   });
 
   it("returns the per-environment candidate arrays from list", async () => {
-    const { candidates } = await service.list(fixture.teamId, fixture.projectId);
+    const { candidates } = await service.list(
+      fixture.teamId,
+      fixture.projectId,
+    );
     expect(Array.isArray(candidates.staging)).toBe(true);
     expect(Array.isArray(candidates.production)).toBe(true);
-    expect(candidates.staging.map((item) => item.id)).toContain(fixture.manifestId);
-    expect(candidates.production.map((item) => item.id)).toContain(fixture.manifestId);
+    expect(candidates.staging.map((item) => item.id)).toContain(
+      fixture.manifestId,
+    );
+    expect(candidates.production.map((item) => item.id)).toContain(
+      fixture.manifestId,
+    );
   });
 });
 
@@ -209,7 +239,9 @@ describeIntegration("EnvironmentVersion candidate filtering", () => {
 
   beforeAll(async () => {
     fixture = await createProductionFixture();
-    readRepository = new EnvironmentVersionReadRepository(fixture.prisma as never);
+    readRepository = new EnvironmentVersionReadRepository(
+      fixture.prisma as never,
+    );
   });
 
   afterAll(async () => cleanupProductionFixture(fixture));
@@ -240,7 +272,10 @@ describeIntegration("EnvironmentVersion candidate filtering", () => {
       f.teamId,
       f.projectId,
     );
-    const ids = [...staging.map((item) => item.id), ...production.map((item) => item.id)];
+    const ids = [
+      ...staging.map((item) => item.id),
+      ...production.map((item) => item.id),
+    ];
     expect(ids).toContain(f.manifestId);
     expect(ids).not.toContain(foreign.manifestId);
     expect(ids).not.toContain(failed.manifestId);
@@ -279,12 +314,22 @@ describeIntegration("EnvironmentVersion candidate filtering", () => {
     expect(staging.map((item) => item.id)).toContain(dryRunOnly.manifestId);
     expect(staging.map((item) => item.id)).toContain(wrongDigest.manifestId);
     expect(production.map((item) => item.id)).toContain(f.manifestId);
-    expect(production.map((item) => item.id)).not.toContain(withoutProof.manifestId);
-    expect(production.map((item) => item.id)).not.toContain(dryRunOnly.manifestId);
-    expect(production.map((item) => item.id)).not.toContain(wrongDigest.manifestId);
+    expect(production.map((item) => item.id)).not.toContain(
+      withoutProof.manifestId,
+    );
+    expect(production.map((item) => item.id)).not.toContain(
+      dryRunOnly.manifestId,
+    );
+    expect(production.map((item) => item.id)).not.toContain(
+      wrongDigest.manifestId,
+    );
   });
 
-  async function createManifest(f: ProductionFixture, label: string, projectId?: string) {
+  async function createManifest(
+    f: ProductionFixture,
+    label: string,
+    projectId?: string,
+  ) {
     const order = await f.prisma.releaseOrder.create({
       data: {
         teamId: f.teamId,
@@ -339,8 +384,7 @@ describeIntegration("EnvironmentVersion candidate filtering", () => {
         status: "completed",
         dryRun: overrides.dryRun ?? false,
         finishedAt: new Date(),
-        result:
-          (overrides.result ??
+        result: (overrides.result ??
           ({
             artifactVerified: true,
             manifestId,

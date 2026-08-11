@@ -1,3 +1,5 @@
+import type { ResourceReferenceKind } from "../project-environment/environment-config-revision.types";
+
 export interface ReleaseDeploymentInputSnapshot {
   version: 1;
   configRevision: {
@@ -12,6 +14,7 @@ export interface ReleaseDeploymentInputSnapshot {
     name: string;
     type: string;
     versionHash: string;
+    targetEnvKey: string;
   }>;
   resourceReferences: Array<{
     id: string;
@@ -21,6 +24,8 @@ export interface ReleaseDeploymentInputSnapshot {
     environmentId: string | null;
     sharedEnvironmentIds: string[];
     versionHash: string;
+    componentKey: string;
+    envBindings: Array<{ sourceKey: string; targetEnvKey: string }>;
     environmentKeys: string[];
   }>;
   target: {
@@ -31,6 +36,8 @@ export interface ReleaseDeploymentInputSnapshot {
     versionHash: string;
   };
   runtimeEnvironmentKeys: string[];
+  globalEnvironmentKeys: string[];
+  componentEnvironmentKeys: Record<string, string[]>;
   inputHash: string;
 }
 
@@ -45,17 +52,20 @@ export interface ReleaseDeploymentTargetConnection {
 
 export interface PreparedReleaseDeploymentInput {
   snapshot: ReleaseDeploymentInputSnapshot;
-  runtimeEnvironment: Record<string, string>;
+  globalEnvironment: Record<string, string>;
+  componentEnvironments: Record<string, Record<string, string>>;
   targetConnection?: ReleaseDeploymentTargetConnection;
 }
 
 export interface ReleaseDeploymentResourceState {
   id: string;
-  kind: string;
+  kind: ResourceReferenceKind;
   name: string;
   status: string;
   environmentId: string | null;
   sharedEnvironmentIds: string[];
+  componentKey?: string;
+  envBindings?: Array<{ sourceKey: string; targetEnvKey: string }>;
   updatedAt: Date | null;
   runtime?: {
     delivery: unknown;
@@ -80,6 +90,7 @@ export interface ReleaseDeploymentInputState {
     type: string;
     value: string;
     updatedAt: Date;
+    targetEnvKey?: string;
   }>;
   resources: ReleaseDeploymentResourceState[];
   bindings: Array<{
@@ -93,6 +104,7 @@ export interface ReleaseDeploymentInputState {
       username: string;
       authType: string;
       credentials: string;
+      status: string;
       updatedAt: Date;
     };
   }>;

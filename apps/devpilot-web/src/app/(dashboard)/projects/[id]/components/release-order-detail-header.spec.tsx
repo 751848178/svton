@@ -113,6 +113,29 @@ describe('ReleaseOrderDetailHeader', () => {
     expect(onBuildLatest).not.toHaveBeenCalled();
     await act(async () => root.unmount());
   });
+
+  it('does not invoke Build while the server gate decision is blocked', async () => {
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    const onBuildLatest = vi.fn();
+    await act(async () =>
+      root.render(
+        <ReleaseOrderDetailHeader
+          detail={detail}
+          building={false}
+          buildGate={{ allowed: false, reason: 'required CI unavailable' }}
+          onBack={vi.fn()}
+          onBuildLatest={onBuildLatest}
+        />,
+      ),
+    );
+    const action = Array.from(container.querySelectorAll('button')).at(-1)!;
+    expect(action.disabled).toBe(true);
+    expect(action.title).toBe('required CI unavailable');
+    await act(async () => action.click());
+    expect(onBuildLatest).not.toHaveBeenCalled();
+    await act(async () => root.unmount());
+  });
 });
 
 interface ButtonProps {

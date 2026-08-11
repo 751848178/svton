@@ -62,21 +62,6 @@ export async function admitReleaseBuild(
       ...scope,
       stage: "build",
       ...input,
-      // Provider-capability gates whose providers are not connected return
-      // `unavailable` and are deferred with explicit reasons, mirroring the
-      // production stage (environment-version-production-gate.service.ts
-      // D06/D09/D17/D20/D14/D15, F437). The real evidence gates (C01 repo
-      // resolvable, C05 component scope, C08 lockfile consistency) stay
-      // genuinely checked and still fail closed on any other reason code.
-      // See scripts/parity-switches.md (AC-E2E-005).
-      deferredReasons: {
-        C02: ["merge_state_provider_missing"],
-        C03: ["required_checks_provider_missing"],
-        C06: ["change_diff_provider_missing"],
-        C07: ["secretScan_provider_missing", "security_build_missing"],
-        C09: ["quality_evidence_missing", "build_missing"],
-        C10: ["sast_provider_missing", "security_build_missing"],
-      },
     }),
   };
 }

@@ -3,7 +3,11 @@ import { ReleaseGateBlockedException } from "./release-gate-decision.service";
 
 describe("EnvironmentVersionProductionGateService", () => {
   const gates = { assertAllowed: jest.fn() };
-  const service = new EnvironmentVersionProductionGateService(gates as never);
+  const routeSagaGuard = { assertClear: jest.fn() };
+  const service = new EnvironmentVersionProductionGateService(
+    gates as never,
+    routeSagaGuard as never,
+  );
   const context = {
     teamId: "team-1",
     actorId: "user-1",
@@ -16,99 +20,67 @@ describe("EnvironmentVersionProductionGateService", () => {
     releaseRunId: "release-1",
   };
 
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    routeSagaGuard.assertClear.mockResolvedValue(undefined);
+  });
 
-  it("defers only capability-missing gates before execution", async () => {
-    gates.assertAllowed.mockResolvedValue(decision(true));
-    await service.admit(context);
+  it("enforces Staging with the same fail-closed gate semantics", async () => {
+    gates.assertAllowed.mockResolvedValue(decision("staging", true));
+    await service.admit({ ...context, releaseRunId: undefined }, "staging");
     expect(gates.assertAllowed).toHaveBeenCalledWith(
       expect.objectContaining({
-        stage: "production",
-        target: {
-          buildRunId: "build-1",
-          manifestId: "manifest-1",
-          releaseRunId: "release-1",
+        stage: "staging",
+        requestKey: "pre:staging:manifest-1",
+        target: expect.objectContaining({
           environmentId: "environment-1",
-          configRevisionId: "config-1",
-        },
-        requestKey: "pre:release-1",
-        deferredReasons: {
-          D06: ["traffic_strategy_provider_missing"],
-          D09: ["network_policy_provider_missing"],
-          D17: ["production_deployment_missing"],
-          D20: ["recovery_compatibility_provider_missing"],
-          D14: [
-            "dns_probe_missing",
-            "dns_probe_unavailable",
-            "dns_provider_missing",
-          ],
-          D15: [
-            "tls_probe_missing",
-            "tls_probe_unavailable",
-            "tls_provider_missing",
-          ],
-        },
+          manifestId: "manifest-1",
+        }),
       }),
+    );
+    expect(gates.assertAllowed.mock.calls[0][0]).not.toHaveProperty(
+      "deferredReasons",
     );
   });
 
-  it("defers capability-missing gates but not real-evidence gates at finalize", async () => {
-    gates.assertAllowed.mockResolvedValue(decision(true));
+  it("does not defer unavailable Production gates before or after execution", async () => {
+    gates.assertAllowed.mockResolvedValue(decision("production", true));
+    await service.admit(context);
     await service.finalize({ ...context, deploymentRunId: "deployment-1" });
-    expect(gates.assertAllowed).toHaveBeenCalledWith(
-      expect.objectContaining({
-        requestKey: "final:release-1:deployment-1",
-        target: expect.objectContaining({
-          deploymentRunId: "deployment-1",
-          environmentId: "environment-1",
-          configRevisionId: "config-1",
-        }),
-        actionInput: expect.objectContaining({
-          checkpoint: "post_execution",
-          deploymentRunId: "deployment-1",
-        }),
-        deferredReasons: {
-          D06: ["traffic_strategy_provider_missing"],
-          D09: ["network_policy_provider_missing"],
-          D20: ["recovery_compatibility_provider_missing"],
-          D14: [
-            "dns_probe_missing",
-            "dns_probe_unavailable",
-            "dns_provider_missing",
-          ],
-          D15: [
-            "tls_probe_missing",
-            "tls_probe_unavailable",
-            "tls_provider_missing",
-          ],
-        },
-      }),
+    expect(gates.assertAllowed).toHaveBeenCalledTimes(2);
+    for (const [request] of gates.assertAllowed.mock.calls) {
+      expect(request).not.toHaveProperty("deferredReasons");
+    }
+  });
+
+  it("blocks Production admission while a route saga is unresolved", async () => {
+    routeSagaGuard.assertClear.mockRejectedValueOnce(
+      new Error("compensation_required"),
     );
-    expect(
-      gates.assertAllowed.mock.calls[0][0].deferredReasons,
-    ).not.toHaveProperty("D17");
+
+    await expect(service.admit(context)).rejects.toThrow(
+      "compensation_required",
+    );
+    expect(gates.assertAllowed).not.toHaveBeenCalled();
   });
 
   it("preserves the persisted blocked decision when final enforcement fails", async () => {
-    const denied = decision(false);
+    const denied = decision("production", false);
     const error = new ReleaseGateBlockedException(denied);
     await expect(
-      service.denied(error, {
-        ...context,
-        deploymentRunId: "deployment-1",
-      }),
+      service.denied(error, { ...context, deploymentRunId: "deployment-1" }),
     ).resolves.toBe(denied);
     expect(gates.assertAllowed).not.toHaveBeenCalled();
   });
 });
 
-function decision(allowed: boolean) {
+function decision(stage: "staging" | "production", allowed: boolean) {
   return {
-    id: `decision-${allowed}`,
-    stage: "production" as const,
-    phase: "deploy" as const,
+    id: `decision-${stage}-${allowed}`,
+    stage,
+    phase: stage === "staging" ? ("build" as const) : ("deploy" as const),
     allowed,
-    blockerGateIds: allowed ? [] : ["D17"],
+    blockerGateIds: allowed ? [] : [stage === "staging" ? "B06" : "D17"],
     manualGateIds: [],
     confirmedManualGateIds: [],
     warningGateIds: [],

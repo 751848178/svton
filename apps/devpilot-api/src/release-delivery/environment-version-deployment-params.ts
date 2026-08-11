@@ -4,10 +4,9 @@ import type {
   EnvironmentVersionExecuteInput,
   EnvironmentVersionExecutionContext,
 } from "./environment-version-execution.types";
-import type { ReleaseStagingExecutorPort } from "./release-staging.types";
 
 export function environmentVersionDeploymentParams(args: {
-  executor: ReleaseStagingExecutorPort;
+  providerKey: string;
   input: EnvironmentVersionExecuteInput;
   selection: EnvironmentVersionExecutionContext["selection"];
   manifest: EnvironmentVersionExecutionContext["manifest"];
@@ -18,10 +17,9 @@ export function environmentVersionDeploymentParams(args: {
   admissionDecision: Awaited<
     ReturnType<EnvironmentVersionProductionGateService["admit"]>
   >;
+  actionInputHash: string;
 }): Record<string, unknown> {
-  const targetRef =
-    args.frozenInput?.deploymentInput.snapshot.target.targetRef ??
-    args.executor.providerTargetRef;
+  const targetRef = args.frozenInput.deploymentInput.snapshot.target.targetRef;
   return {
     version: 1,
     environmentVersionKind: args.input.kind,
@@ -29,19 +27,17 @@ export function environmentVersionDeploymentParams(args: {
     manifestId: args.manifest.id,
     manifestDigest: args.manifest.digest,
     releaseRunId: args.releaseRunId,
+    idempotencyKey: args.input.idempotencyKey,
+    actionInputHash: args.actionInputHash,
     configRevisionId: args.frozenConfigRevisionId,
-    deploymentProvider: { key: args.executor.providerKey, targetRef },
-    ...(args.frozenInput
-      ? {
-          deploymentInput: args.frozenInput.deploymentInput.snapshot,
-          workload: args.frozenInput.workload,
-          productionSnapshot: {
-            resourceSnapshot: args.productionRun?.resourceSnapshot,
-            routeSnapshot: args.productionRun?.routeSnapshot,
-            policySnapshot: args.productionRun?.policySnapshot,
-          },
-        }
-      : {}),
+    deploymentProvider: { key: args.providerKey, targetRef },
+    deploymentInput: args.frozenInput.deploymentInput.snapshot,
+    workload: args.frozenInput.workload,
+    productionSnapshot: {
+      resourceSnapshot: args.productionRun?.resourceSnapshot,
+      routeSnapshot: args.productionRun?.routeSnapshot,
+      policySnapshot: args.productionRun?.policySnapshot,
+    },
     gateDecision: gateDecisionReference(args.admissionDecision),
   };
 }

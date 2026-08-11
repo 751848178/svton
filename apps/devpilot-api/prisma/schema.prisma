@@ -563,6 +563,8 @@ model SiteSyncRun {
 // Production 路由切换运行记录（append-only 审计）
 model SiteRouteSwitchRun {
   id              String   @id @default(cuid())
+  operationId     String   @unique
+  providerKey     String
   teamId          String
   siteId          String
   projectId       String?
@@ -573,11 +575,24 @@ model SiteRouteSwitchRun {
   proxyTarget     String?
   domains         Json?
   result          Json?
-  status          String   @default("switched") // switched | unavailable | failed
+  desiredRoute    Json
+  previousRoute   Json?
+  applyReceipt    Json?
+  compensationOperationId String? @unique
+  compensationReceipt Json?
+  lastError       String?  @db.Text
+  attemptCount    Int      @default(0)
+  recoveryAttemptCount Int @default(0)
+  recoveryLeaseId String?
+  recoveryLeaseUntil DateTime?
+  nextRecoveryAt  DateTime?
+  alertedAt       DateTime?
+  status          String   @default("prepared") // prepared | applying | switched | committed | compensating | compensated | compensation_required | failed
   reasonCode      String?
   startedAt       DateTime @default(now())
   finishedAt      DateTime?
   createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   team           Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
   site           Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
@@ -593,6 +608,8 @@ model SiteRouteSwitchRun {
   @@index([deploymentRunId])
   @@index([releaseRunId])
   @@index([status])
+  @@index([status, updatedAt])
+  @@index([status, nextRecoveryAt])
   @@index([createdAt])
 }
 
@@ -1440,6 +1457,9 @@ model DeploymentRun {
   sourceRunId      String?
   artifactManifestId String?
   releaseRunId     String?
+  idempotencyKey   String?
+  inputHash        String?
+  requestHash      String?
   environment      String?
   mode             String   @default("deploy") // deploy | rollback
   source           String   @default("manual") // manual | webhook | api
@@ -1499,6 +1519,7 @@ model DeploymentRun {
   @@index([sourceRunId])
   @@index([artifactManifestId])
   @@index([releaseRunId])
+  @@unique([projectId, idempotencyKey], map: "deployment_run_project_idempotency")
   @@index([environment])
   @@index([mode])
   @@index([source])

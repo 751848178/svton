@@ -99,7 +99,7 @@ describeIntegration(
           where: { siteId: f.siteId, deploymentRunId: executed.run.id },
         });
         expect(switchRun).not.toBeNull();
-        expect(switchRun!.status).toBe("switched");
+        expect(switchRun!.status).toBe("committed");
         expect(switchRun!.targetRef).toBe("filesystem-release-target");
       } finally {
         await closeServer(server);
@@ -155,18 +155,11 @@ describeIntegration(
           where: { id: f.siteId },
           select: { routeSwitch: true },
         });
-        expect(siteAfter.routeSwitch).not.toEqual(siteBefore.routeSwitch);
-        expect(siteAfter.routeSwitch).toMatchObject({
-          deploymentRunId: executed.run.id,
-          siteId: f.siteId,
-          status: "switched",
-          providerKey: "test-route-provider",
+        expect(siteAfter.routeSwitch).toEqual(siteBefore.routeSwitch);
+        const compensated = await prisma.siteRouteSwitchRun.findFirstOrThrow({
+          where: { siteId: f.siteId, deploymentRunId: executed.run.id },
         });
-        await expect(
-          prisma.siteRouteSwitchRun.count({
-            where: { siteId: f.siteId, deploymentRunId: executed.run.id },
-          }),
-        ).resolves.toBe(1);
+        expect(compensated.status).toBe("compensated");
 
         const failedRun = await prisma.releaseRun.findUniqueOrThrow({
           where: { id: releaseRun.id },

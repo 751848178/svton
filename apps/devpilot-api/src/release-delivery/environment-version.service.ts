@@ -1,6 +1,11 @@
 import { Injectable } from "@nestjs/common";
-import { SiteProbePort, SiteRouteActivationPort } from "../site/site-route-activation.types";
+import {
+  SiteProbePort,
+  SiteRouteActivationPort,
+} from "../site/site-route-activation.types";
 import { SiteRouteSwitchPort } from "../site/site-route-switch.port";
+import { SiteRouteSwitchSagaOrchestrator } from "../site/site-route-switch-saga.orchestrator";
+import { ProductionRouteSagaGuard } from "../site/production-route-saga.guard";
 import { EnvironmentVersionCompletionRepository } from "./environment-version-completion.repository";
 import { runEnvironmentDeployment } from "./environment-version-deployment";
 import { executeEnvironmentVersion } from "./environment-version-execution";
@@ -12,8 +17,10 @@ import { EnvironmentVersionReadRepository } from "./environment-version-read.rep
 import { currentEnvironmentVersionId } from "./environment-version-read.utils";
 import { EnvironmentVersionRepository } from "./environment-version.repository";
 import { ReleaseDeploymentInputService } from "./release-deployment-input.service";
+import { ReleaseDeploymentTargetReadinessService } from "./release-deployment-target-readiness.service";
 import { ReleaseProductionWorkloadService } from "./release-production-workload.service";
 import { ReleaseStagingExecutorPort } from "./release-staging.types";
+import { ReleaseStagingWorkloadService } from "./release-staging-workload.service";
 
 @Injectable()
 export class EnvironmentVersionService {
@@ -26,9 +33,13 @@ export class EnvironmentVersionService {
     private readonly productionGates: EnvironmentVersionProductionGateService,
     private readonly gateEvidence: EnvironmentVersionGateEvidenceRepository,
     private readonly inputs: ReleaseDeploymentInputService,
-    private readonly workloads: ReleaseProductionWorkloadService,
+    private readonly targetReadiness: ReleaseDeploymentTargetReadinessService,
+    private readonly stagingWorkloads: ReleaseStagingWorkloadService,
+    private readonly productionWorkloads: ReleaseProductionWorkloadService,
     private readonly routeActivation: SiteRouteActivationPort,
     private readonly routeSwitch: SiteRouteSwitchPort,
+    private readonly routeSaga: SiteRouteSwitchSagaOrchestrator,
+    private readonly routeSagaGuard: ProductionRouteSagaGuard,
     private readonly siteProbe: SiteProbePort,
   ) {}
 
@@ -39,10 +50,20 @@ export class EnvironmentVersionService {
     ]);
     const project = { id: projectId, teamId };
     return {
-      environments: environments.map((environment) => ({
-        ...environment,
-        currentEnvironmentVersionId: currentEnvironmentVersionId(project, environment),
-      })),
+      environments: await Promise.all(
+        environments.map(async (environment) => ({
+          ...environment,
+          currentEnvironmentVersionId: currentEnvironmentVersionId(
+            project,
+            environment,
+          ),
+          targetReadiness: await this.targetReadiness.get(
+            teamId,
+            projectId,
+            environment.id,
+          ),
+        })),
+      ),
       candidates,
     };
   }
@@ -55,7 +76,10 @@ export class EnvironmentVersionService {
         executor: this.executor,
         productionGates: this.productionGates,
         inputs: this.inputs,
-        workloads: this.workloads,
+        stagingWorkloads: this.stagingWorkloads,
+        productionWorkloads: this.productionWorkloads,
+        routeSwitch: this.routeSwitch,
+        routeSagaGuard: this.routeSagaGuard,
         run: (context) =>
           runEnvironmentDeployment(
             {
@@ -64,7 +88,7 @@ export class EnvironmentVersionService {
               completion: this.completion,
               productionGates: this.productionGates,
               routeActivation: this.routeActivation,
-              routeSwitch: this.routeSwitch,
+              routeSaga: this.routeSaga,
               siteProbe: this.siteProbe,
             },
             context,

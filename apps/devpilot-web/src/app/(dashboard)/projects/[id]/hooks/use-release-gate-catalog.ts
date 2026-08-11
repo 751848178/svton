@@ -16,6 +16,8 @@ export function useReleaseGateCatalog(projectId: string, releaseOrderId: string)
   const scope = scopedRequestIdentity(projectId, releaseOrderId);
   const { begin, isCurrent } = useScopedRequestGuard(scope);
   const [state, setState] = useState<CatalogState>(() => loadingState(scope));
+  const [confirmingGateId, setConfirmingGateId] = useState('');
+  const [confirmationError, setConfirmationError] = useState('');
 
   const load = useCallback(async () => {
     const request = begin('catalog');
@@ -40,12 +42,36 @@ export function useReleaseGateCatalog(projectId: string, releaseOrderId: string)
     void load();
   }, [load]);
 
+  const confirmManual = useCallback(
+    async (gateId: string, evaluationId: string, reason: string) => {
+      setConfirmingGateId(gateId);
+      setConfirmationError('');
+      try {
+        await apiRequest(
+          `POST:/projects/${projectId}/delivery/releases/${releaseOrderId}/gates/${gateId}/evaluations/${evaluationId}/confirm`,
+          { reason: reason.trim() },
+        );
+        await load();
+        return true;
+      } catch (cause) {
+        setConfirmationError(errorMessage(cause));
+        return false;
+      } finally {
+        setConfirmingGateId('');
+      }
+    },
+    [load, projectId, releaseOrderId],
+  );
+
   const ownsState = state.scope === scope;
   return {
     catalog: ownsState ? state.catalog : null,
     loading: !ownsState || state.loading,
     error: ownsState ? state.error : '',
     load,
+    confirmManual,
+    confirmingGateId,
+    confirmationError,
   };
 }
 

@@ -5,11 +5,20 @@ export type EnvironmentConfigResourceReference = {
   sharedEnvironmentIds: string[];
   risk: 'low' | 'medium' | 'high';
   impact: string;
+  componentKey?: string;
+  envBindings?: Array<{ sourceKey: string; targetEnvKey: string }>;
+  bindingStatus?: 'configured' | 'needs_configuration';
+};
+
+export type EnvironmentConfigSecretReference = {
+  id: string;
+  targetEnvKey: string;
 };
 
 export type EnvironmentConfigRouteEntry = {
   domain: string;
   path: string;
+  serviceId?: string | null;
   component: string;
   port: number | null;
   tlsMode: 'managed_cert' | 'existing_cert_asset';
@@ -20,7 +29,12 @@ export type EnvironmentConfigRevision = {
   revision: number;
   snapshotHash: string;
   plainVariables: Record<string, string>;
-  secretReferences: Array<{ id: string; name: string; type: string }>;
+  secretReferences: Array<{
+    id: string;
+    name: string;
+    type: string;
+    targetEnvKey?: string;
+  }>;
   resourceReferences: EnvironmentConfigResourceReference[];
   routeSnapshot: {
     domains?: string[];

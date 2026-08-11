@@ -93,17 +93,20 @@ describe("LocalFilesystemDeploymentProviderService", () => {
     expect(JSON.stringify(active)).not.toContain("secret-sentinel-f432");
     const runtimePath = join(
       scope,
-      "deployments/project-1/staging-1/releases/deployment-2/.devpilot/runtime.env",
+      "deployments/project-1/staging-1/releases/deployment-2/.devpilot/env/service-1.env",
     );
     await expect(readFile(runtimePath, "utf8")).resolves.toBe(
-      "API_TOKEN=secret-sentinel-f432\nNODE_ENV=staging\n",
+      "API_TOKEN=secret-sentinel-f432\nDATABASE_URL=service-db\nNODE_ENV=staging\n",
     );
     expect((await stat(runtimePath)).mode & 0o777).toBe(0o600);
     expect(second.logs.join("\n")).not.toContain("secret-sentinel-f432");
-    expect(second.evidence.runtimeEnvironmentKeys).toEqual([
+    expect(second.evidence.globalEnvironmentKeys).toEqual([
       "API_TOKEN",
       "NODE_ENV",
     ]);
+    expect(second.evidence.componentEnvironmentKeys).toEqual({
+      "service-1": ["DATABASE_URL"],
+    });
   });
 
   it("rejects an input frozen for a different target", async () => {
@@ -169,9 +172,10 @@ function input(
       digest: published.digest,
     },
     artifact,
-    runtimeEnvironment: {
+    globalEnvironment: {
       API_TOKEN: "secret-sentinel-f432",
       NODE_ENV: "staging",
     },
+    componentEnvironments: { "service-1": { DATABASE_URL: "service-db" } },
   };
 }

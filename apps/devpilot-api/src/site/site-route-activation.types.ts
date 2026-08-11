@@ -2,11 +2,21 @@
 // Zero-secret: probe evidence never includes credentials or private key material.
 
 export interface FrozenRouteSnapshot {
+  entries?: unknown;
   domains?: unknown;
   dnsProvider?: unknown;
   tlsRequired?: unknown;
   proxyTarget?: unknown;
   [key: string]: unknown;
+}
+
+export interface FrozenRouteEntry {
+  domain: string;
+  path: string;
+  serviceId: string;
+  component: string;
+  port: number;
+  tlsMode: "managed_cert" | "existing_cert_asset";
 }
 
 export interface SiteRouteActivationResolveInput {
@@ -20,12 +30,18 @@ export interface SiteRouteActivationResolveResult {
   siteId: string | null;
   primaryDomain: string | null;
   domains: string[];
+  entries: FrozenRouteEntry[];
   proxyTarget: string | null;
   status: "matched" | "unavailable";
   reasonCode:
     | "site_route_matched"
     | "no_route_domains"
+    | "route_target_unverified"
+    | "multiple_route_upstreams"
     | "site_not_found"
+    | "site_environment_mismatch"
+    | "site_not_active"
+    | "multiple_route_sites"
     | "route_not_frozen";
 }
 

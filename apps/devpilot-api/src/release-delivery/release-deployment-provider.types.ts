@@ -17,7 +17,8 @@ export interface ExactManifestDeploymentInput {
     digest: string;
   };
   artifact: { path: string; sizeBytes: number };
-  runtimeEnvironment?: Record<string, string>;
+  globalEnvironment?: Record<string, string>;
+  componentEnvironments?: Record<string, Record<string, string>>;
   targetConnection?: ReleaseDeploymentTargetConnection;
   workload?: ReleaseStagingWorkloadSnapshot;
 }

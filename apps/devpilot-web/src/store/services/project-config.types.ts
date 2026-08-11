@@ -5,7 +5,7 @@
  */
 
 export type SubProjectType = 'backend' | 'admin' | 'mobile';
-export type ProjectEnvironmentKey = 'dev' | 'test' | 'staging' | 'prod';
+export type ProjectEnvironmentKey = 'staging' | 'production';
 export type DatabaseEngine = 'mysql' | 'postgresql' | 'sqlite';
 export type ResourceConfigMode = 'manual' | 'credential' | 'instance' | 'pool' | 'skipped';
 
@@ -52,7 +52,7 @@ export function createProjectConfigTypes(): { initialConfig: ProjectConfig } {
       subProjects: { backend: true, admin: false, mobile: false },
       features: [],
       resources: {},
-      environments: ['dev', 'test', 'staging', 'prod'],
+      environments: ['staging', 'production'],
       database: { engine: 'mysql' },
       uiLibrary: { admin: false, mobile: false },
       hooks: false,

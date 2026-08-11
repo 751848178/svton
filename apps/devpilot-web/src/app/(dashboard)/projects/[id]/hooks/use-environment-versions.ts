@@ -44,6 +44,7 @@ export function useEnvironmentVersions(projectId: string) {
       environmentId: string,
       input: {
         kind: 'upgrade' | 'recovery';
+        idempotencyKey?: string;
         manifestId?: string;
         sourceVersionId?: string;
         releaseRunId?: string;
@@ -54,7 +55,7 @@ export function useEnvironmentVersions(projectId: string) {
       try {
         const result = await apiRequest<EnvironmentVersionActionResult>(
           `POST:/projects/${projectId}/delivery/environment-versions/${environmentId}/actions`,
-          input,
+          { ...input, idempotencyKey: input.idempotencyKey ?? crypto.randomUUID() },
         );
         await Promise.all([
           load(),

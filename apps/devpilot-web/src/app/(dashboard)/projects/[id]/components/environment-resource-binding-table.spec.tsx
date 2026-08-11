@@ -43,7 +43,7 @@ describe('EnvironmentResourceBindingTable (AC-SET-025/029/032)', () => {
     expect(html).toContain('envResourceTableValidation');
     expect(html).toContain('pg-shared');
     expect(html).toContain('redis-stg');
-    expect(html).toContain('api / worker');
+    expect(html).toContain('legacy:unassigned');
     expect(html).toContain('envResourceValidationValid');
   });
 

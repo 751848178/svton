@@ -83,19 +83,6 @@ export class ReleaseStagingService {
         environmentId: environment.id,
         configRevisionId: environment.currentConfigRevisionId,
       },
-      // Staging deploy on the parity stack (AC-E2E-012): defer ONLY the
-      // provider-missing B-gates (clean-install / tests / vulnerability
-      // scanning) — the controlled-local executor records no such provider
-      // evidence — while the real-evidence gates (B02 build succeeded, B09
-      // immutable digest) stay genuinely checked. Same deferral pattern as the
-      // F454 build admission (release-build-gate-admission.ts) and the F437
-      // production gate (environment-version-production-gate.service.ts);
-      // recorded in scripts/parity-switches.md (AC-E2E-005).
-      deferredReasons: {
-        B01: ["install_evidence_missing"],
-        B03: ["tests_not_configured"],
-        B06: ["vulnerabilities_provider_missing"],
-      },
     });
     const deploymentInput = await this.inputs.prepare({
       teamId: input.teamId,
@@ -160,7 +147,8 @@ export class ReleaseStagingService {
         uri: item.uri,
         digest: manifest.digest,
         deploymentInput: deploymentInput.snapshot,
-        runtimeEnvironment: deploymentInput.runtimeEnvironment,
+        globalEnvironment: deploymentInput.globalEnvironment,
+        componentEnvironments: deploymentInput.componentEnvironments,
         targetConnection: deploymentInput.targetConnection,
         workload,
       });

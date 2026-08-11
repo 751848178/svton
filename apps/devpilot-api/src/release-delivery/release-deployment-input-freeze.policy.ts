@@ -18,7 +18,8 @@ export async function assertReleaseDeploymentInputCurrent(
   const current = buildReleaseDeploymentInputSnapshot(
     state,
     input.providerKey,
-    input.snapshot.runtimeEnvironmentKeys,
+    input.snapshot.globalEnvironmentKeys,
+    input.snapshot.componentEnvironmentKeys,
   ).snapshot;
   if (current.inputHash !== input.snapshot.inputHash) {
     throw new ConflictException(

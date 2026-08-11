@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { previewReleaseBuildGate } from "./release-build-gate-admission";
 import { ReleaseBuildSourceResolverService } from "./release-build-source-resolver.service";
 import { ReleaseGateDecisionService } from "./release-gate-decision.service";
+import { ReleaseDeploymentTargetReadinessService } from "./release-deployment-target-readiness.service";
 import {
   RELEASE_GATE_CAPABILITY_VERSION,
   RELEASE_GATE_CATALOG_VERSION,
@@ -17,6 +18,7 @@ export class ReleaseGateCatalogService {
   constructor(
     private readonly decisionPolicy: ReleaseGateDecisionService,
     private readonly sources: ReleaseBuildSourceResolverService,
+    private readonly targets: ReleaseDeploymentTargetReadinessService,
   ) {}
 
   async get(
@@ -31,10 +33,13 @@ export class ReleaseGateCatalogService {
       releaseOrderId,
       actorId,
     };
-    const { evaluation, decisions } = await this.decisionPolicy.catalog(
-      scope,
-      await previewReleaseBuildGate(this.sources, scope),
-    );
+    const [gateResult, targetReadiness] = await Promise.all([
+      previewReleaseBuildGate(this.sources, scope).then((input) =>
+        this.decisionPolicy.catalog(scope, input),
+      ),
+      this.targets.get(teamId, projectId),
+    ]);
+    const { evaluation, decisions } = gateResult;
     const { order, checks, capabilities } = evaluation;
     const phaseCounts = Object.fromEntries(
       PHASES.map((phase) => [
@@ -54,6 +59,7 @@ export class ReleaseGateCatalogService {
       releaseOrder: { id: order.id, releaseVersion: order.releaseVersion },
       summary: { total: checks.length, phaseCounts, statusCounts },
       decisions,
+      targetReadiness,
       capabilities,
       checks,
     };

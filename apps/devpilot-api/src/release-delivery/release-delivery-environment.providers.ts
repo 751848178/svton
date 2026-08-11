@@ -1,4 +1,5 @@
 import { SiteFinalProbeService } from "../site/site-final-probe.service";
+import { ProductionRouteSagaGuard } from "../site/production-route-saga.guard";
 import { SiteProbeResolverService } from "../site/site-probe-resolver.service";
 import { SiteProbeLocalAcceptancePolicy } from "../site/site-probe-local-acceptance.policy";
 import { SiteRouteActivationService } from "../site/site-route-activation.service";
@@ -7,6 +8,10 @@ import {
   SiteRouteActivationPort,
 } from "../site/site-route-activation.types";
 import { SiteRouteSwitchEvidenceRepository } from "../site/site-route-switch-evidence.repository";
+import { SiteRouteSwitchSagaOrchestrator } from "../site/site-route-switch-saga.orchestrator";
+import { SiteRouteSwitchSagaRecoveryService } from "../site/site-route-switch-saga-recovery.service";
+import { SiteRouteSwitchSagaRecoveryRepository } from "../site/site-route-switch-saga-recovery.repository";
+import { SiteRouteSwitchSagaRepository } from "../site/site-route-switch-saga.repository";
 import { ConfiguredSiteRouteSwitchProvider } from "../site/configured-site-route-switch-provider.service";
 import { HttpSiteRouteSwitchProvider } from "../site/http-site-route-switch-provider.service";
 import {
@@ -33,11 +38,16 @@ export const releaseDeliveryEnvironmentProviders = [
   EnvironmentVersionRecoveryService,
   EnvironmentVersionProductionGateService,
   EnvironmentVersionGateEvidenceRepository,
+  ProductionRouteSagaGuard,
   SiteRouteActivationService,
   SiteFinalProbeService,
   SiteProbeResolverService,
   SiteProbeLocalAcceptancePolicy,
   SiteRouteSwitchEvidenceRepository,
+  SiteRouteSwitchSagaRepository,
+  SiteRouteSwitchSagaRecoveryRepository,
+  SiteRouteSwitchSagaOrchestrator,
+  SiteRouteSwitchSagaRecoveryService,
   HttpSiteRouteSwitchProvider,
   UnconfiguredSiteRouteSwitchProvider,
   ConfiguredSiteRouteSwitchProvider,

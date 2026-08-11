@@ -7,24 +7,30 @@
  */
 'use client';
 
-import React, { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Button } from '@svton/ui';
 import { feedback } from '@/components/ui/feedback/feedback';
 import { useEnvironmentConfigGovernance } from '../../hooks/use-environment-config-governance';
 import { useEnvironmentDeploymentTargets } from '../../hooks/use-environment-deployment-targets';
 import type { useProjectDetail } from '../../hooks/use-project-detail';
 import type { ProjectEnvironment } from '../../types';
-import type { EnvironmentConfigResourceReference } from '../../types/environment-config-revision.types';
+import type {
+  EnvironmentConfigResourceReference,
+  EnvironmentConfigSecretReference,
+} from '../../types/environment-config-revision.types';
 import {
   deliveryHref,
   readSettingsEnvTab,
   settingsHref,
   type SettingsEnvTab,
 } from '../../utils/project-route.utils';
+import { EnvironmentSettingsRevisionBar } from './environment-settings-revision-bar';
 import { EnvironmentSettingsSummary } from './environment-settings-summary';
+import { EnvironmentSettingsTablist } from './environment-settings-tablist';
 import { settingsDraftFromRevision, toConfigRevisionDraft } from './settings-env.model';
+import { resourceDraftIssues } from './settings-resource-binding-preview.model';
+import { findVariableBindingCollisions } from './settings-variable-binding.model';
 import { renderEnvTab, type EnvTabContext } from './settings-env-tab-switch';
 
 type DetailHook = ReturnType<typeof useProjectDetail>;
@@ -41,14 +47,6 @@ type RouteDraft = {
     tlsMode: 'managed_cert' | 'existing_cert_asset';
   }>;
 };
-
-const ENV_TAB_KEYS: Array<{ key: SettingsEnvTab; labelKey: string }> = [
-  { key: 'targets', labelKey: 'envTabTargets' },
-  { key: 'resources', labelKey: 'envTabResources' },
-  { key: 'variables', labelKey: 'envTabVariables' },
-  { key: 'routes', labelKey: 'envTabRoutes' },
-  { key: 'protection', labelKey: 'envTabProtection' },
-];
 
 const EMPTY_ROUTE: RouteDraft = {
   domains: '',
@@ -75,7 +73,7 @@ export function EnvironmentSettingsDetail({
   const summaryInputId = useId();
   const governance = useEnvironmentConfigGovernance(environment, projectId, detail.loadProject);
   const targets = useEnvironmentDeploymentTargets(environment.id);
-  const [secretIds, setSecretIds] = useState<string[]>([]);
+  const [secrets, setSecrets] = useState<EnvironmentConfigSecretReference[]>([]);
   const [policyIds, setPolicyIds] = useState<string[]>([]);
   const [resources, setResources] = useState<EnvironmentConfigResourceReference[]>([]);
   const [route, setRoute] = useState<RouteDraft>(EMPTY_ROUTE);
@@ -84,7 +82,7 @@ export function EnvironmentSettingsDetail({
   useEffect(() => {
     const draft = settingsDraftFromRevision(governance.current);
     if (!draft) return;
-    setSecretIds(draft.secretIds);
+    setSecrets(draft.secrets);
     setPolicyIds(draft.policyIds);
     setResources(draft.resources);
     setRoute(draft.route);
@@ -100,22 +98,9 @@ export function EnvironmentSettingsDetail({
     router.replace(settingsHref(projectId, 'environments', params), { scroll: false });
   };
 
-  const selectTabFromKeyboard = (
-    event: React.KeyboardEvent<HTMLButtonElement>,
-    index: number,
-  ) => {
-    const nextIndex = keyboardTarget(event.key, index, ENV_TAB_KEYS.length);
-    if (nextIndex === null) return;
-    event.preventDefault();
-    const next = ENV_TAB_KEYS[nextIndex];
-    if (!next) return;
-    selectTab(next.key);
-    document.getElementById(`${tablistId}-${next.key}-tab`)?.focus();
-  };
-
   const save = async () => {
     try {
-      await governance.save(toConfigRevisionDraft({ secretIds, policyIds, resources, route, summary }));
+      await governance.save(toConfigRevisionDraft({ secrets, policyIds, resources, route, summary }));
       setSummary('');
       feedback.success(t('configRevisionSaveSuccess'));
     } catch (cause) {
@@ -124,13 +109,17 @@ export function EnvironmentSettingsDetail({
       });
     }
   };
+  const plainKeys = Object.keys(environment.config?.envVars ?? {});
+  const collisions = findVariableBindingCollisions(plainKeys, secrets, resources);
+  const resourceIssues = resourceDraftIssues(resources, governance.current?.resourceReferences ?? []);
+  const draftInvalid = collisions.length > 0 || resourceIssues.length > 0;
 
   const context: EnvTabContext = {
     detail,
     environment,
     targets,
-    secretIds,
-    setSecretIds,
+    secrets,
+    setSecrets,
     policyIds,
     setPolicyIds,
     policies: governance.policies,
@@ -155,54 +144,23 @@ export function EnvironmentSettingsDetail({
         currentTarget={targets.data?.currentTarget ?? null}
       />
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border px-3 py-2">
-        <label
-          htmlFor={summaryInputId}
-          className="sr-only"
-        >
-          {t('configChangeSummary')}
-        </label>
-        <input
-          id={summaryInputId}
-          className="min-w-40 flex-1 rounded-md border bg-background px-2 py-1.5 text-xs"
-          value={summary}
-          onChange={(event) => setSummary(event.target.value)}
-          placeholder={t('configChangeSummary')}
-        />
-        <span className="text-[11px] text-muted-foreground">
-          {t('configRevisionHistoryCount', { count: governance.data?.revisions.length ?? 0 })}
-        </span>
-        <Button size="sm" onClick={save} disabled={governance.saving || governance.loading}>
-          {governance.saving ? t('saving') : t('configCreateRevision')}
-        </Button>
-      </div>
+      <EnvironmentSettingsRevisionBar
+        inputId={summaryInputId}
+        summary={summary}
+        revisionCount={governance.data?.revisions.length ?? 0}
+        saving={governance.saving}
+        loading={governance.loading}
+        invalid={draftInvalid}
+        onSummaryChange={setSummary}
+        onSave={save}
+      />
 
-      <div
-        role="tablist"
-        aria-label={t('envTabNavLabel')}
-        className="flex flex-wrap gap-1 border-b"
-      >
-        {ENV_TAB_KEYS.map(({ key, labelKey }, index) => (
-          <button
-            key={key}
-            id={`${tablistId}-${key}-tab`}
-            type="button"
-            role="tab"
-            tabIndex={envTab === key ? 0 : -1}
-            aria-selected={envTab === key}
-            aria-controls={panelId}
-            onClick={() => selectTab(key)}
-            onKeyDown={(event) => selectTabFromKeyboard(event, index)}
-            className={
-              envTab === key
-                ? 'border-b-2 border-primary px-3 py-1.5 text-xs font-medium text-primary'
-                : 'px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground'
-            }
-          >
-            {t(labelKey)}
-          </button>
-        ))}
-      </div>
+      <EnvironmentSettingsTablist
+        tablistId={tablistId}
+        panelId={panelId}
+        selected={envTab}
+        onSelect={selectTab}
+      />
 
       <div
         id={panelId}
@@ -214,12 +172,4 @@ export function EnvironmentSettingsDetail({
       </div>
     </div>
   );
-}
-
-function keyboardTarget(key: string, index: number, length: number) {
-  if (key === 'Home') return 0;
-  if (key === 'End') return length - 1;
-  if (key === 'ArrowRight' || key === 'ArrowDown') return (index + 1) % length;
-  if (key === 'ArrowLeft' || key === 'ArrowUp') return (index - 1 + length) % length;
-  return null;
 }

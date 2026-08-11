@@ -11,6 +11,7 @@ import type { ProjectEnvironment } from '../../types';
 import type {
   EnvironmentConfigResourceReference,
   EnvironmentConfigRevision,
+  EnvironmentConfigSecretReference,
 } from '../../types/environment-config-revision.types';
 import type { SettingsEnvTab } from '../../utils/project-route.utils';
 import type { SettingsRouteDraft } from './settings-env.model';
@@ -27,8 +28,8 @@ export interface EnvTabContext {
   detail: DetailHook;
   environment: ProjectEnvironment;
   targets: DeploymentTargetsHook;
-  secretIds: string[];
-  setSecretIds: (next: string[]) => void;
+  secrets: EnvironmentConfigSecretReference[];
+  setSecrets: (next: EnvironmentConfigSecretReference[]) => void;
   policyIds: string[];
   setPolicyIds: (next: string[]) => void;
   policies: Array<{ id: string; name: string; effect: string }>;
@@ -63,8 +64,9 @@ export function renderEnvTab(envTab: SettingsEnvTab, ctx: EnvTabContext) {
         <EnvVariablesTab
           environment={ctx.environment}
           detail={ctx.detail}
-          secretIds={ctx.secretIds}
-          onSecretIdsChange={ctx.setSecretIds}
+          secretReferences={ctx.secrets}
+          onSecretReferencesChange={ctx.setSecrets}
+          resources={ctx.resources}
           revision={ctx.revision}
           revisions={ctx.revisions}
           environments={ctx.environments}

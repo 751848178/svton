@@ -51,7 +51,8 @@ export class LocalReleaseStagingExecutorService extends ReleaseStagingExecutorPo
           digest: input.digest,
         },
         artifact,
-        runtimeEnvironment: input.runtimeEnvironment,
+        globalEnvironment: input.globalEnvironment,
+        componentEnvironments: input.componentEnvironments,
         targetConnection: input.targetConnection,
         workload: input.workload,
       });

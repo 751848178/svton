@@ -1,4 +1,5 @@
 import { UnconfiguredSiteRouteSwitchProvider } from "../site/site-route-switch.port";
+import { siteRouteSwitchEvidence } from "../site/site-route-switch-receipt.policy";
 import { siteRouteSwitchTestDouble } from "../site/site-route-switch.spec-utils";
 import { finalizeDeployedEnvironment } from "./environment-version-production-finalization";
 
@@ -17,12 +18,13 @@ describe("Production environment route finalization", () => {
           siteId: "site-1",
           primaryDomain: "app.example.com",
           domains: ["app.example.com"],
+          entries: [],
           proxyTarget: "http://target.internal:8080",
           status: "matched",
           reasonCode: "site_route_matched",
         }),
       },
-      routeSwitch: new UnconfiguredSiteRouteSwitchProvider(),
+      routeSaga: sagaFor(new UnconfiguredSiteRouteSwitchProvider() as never),
       siteProbe,
     };
     const result = await finalizeDeployedEnvironment(
@@ -36,15 +38,9 @@ describe("Production environment route finalization", () => {
     expect(completion.complete).toHaveBeenCalledWith(
       expect.objectContaining({
         status: "failed",
-        routeSwitchAttempt: {
-          evidence: expect.objectContaining({
-            siteId: "site-1",
-            deploymentRunId: "deployment-1",
-            status: "unavailable",
-            reasonCode: "route_switch_provider_unconfigured",
-            switchedAt: null,
-          }),
-        },
+        logs: expect.arrayContaining([
+          expect.stringContaining("SITE_ROUTE_SWITCH_COMPENSATION_UNAVAILABLE"),
+        ]),
       }),
     );
     expect(result).toMatchObject({ status: "failed" });
@@ -77,7 +73,7 @@ describe("Production environment route finalization", () => {
               reasonCode,
             }),
           },
-          routeSwitch: siteRouteSwitchTestDouble(),
+          routeSaga: sagaFor(siteRouteSwitchTestDouble()),
           siteProbe: { probe: jest.fn().mockResolvedValue(probe(null)) },
         } as never,
         context() as never,
@@ -102,12 +98,13 @@ describe("Production environment route finalization", () => {
       finalize: jest.fn(),
       denied: jest.fn().mockResolvedValue(decision("denied")),
     };
+    const routeSaga = sagaFor(siteRouteSwitchTestDouble());
     const result = await finalizeDeployedEnvironment(
       {
         completion,
         productionGates,
         routeActivation: { resolve: jest.fn().mockResolvedValue(activation()) },
-        routeSwitch: siteRouteSwitchTestDouble(),
+        routeSaga,
         siteProbe: { probe: jest.fn().mockResolvedValue(probe("unavailable")) },
       } as never,
       context() as never,
@@ -120,13 +117,17 @@ describe("Production environment route finalization", () => {
       expect.objectContaining({ status: "failed" }),
     );
     expect(productionGates.finalize).not.toHaveBeenCalled();
+    expect(routeSaga.compensate).toHaveBeenCalled();
   });
 
   it("attributes a provider exception to the configured identity", async () => {
     const completion = { complete: jest.fn((input) => Promise.resolve(input)) };
     const provider = {
       identity: { providerKey: "failing-test-provider", receiptVersion: 1 },
+      supportsCompensation: true,
       switchRoute: jest.fn().mockRejectedValue(new Error("provider failed")),
+      observeRoute: jest.fn(),
+      compensateRoute: jest.fn(),
     };
     await finalizeDeployedEnvironment(
       {
@@ -136,7 +137,7 @@ describe("Production environment route finalization", () => {
           denied: jest.fn().mockResolvedValue(decision("denied")),
         },
         routeActivation: { resolve: jest.fn().mockResolvedValue(activation()) },
-        routeSwitch: provider,
+        routeSaga: sagaFor(provider as never),
         siteProbe: { probe: jest.fn() },
       } as never,
       context() as never,
@@ -147,16 +148,9 @@ describe("Production environment route finalization", () => {
     expect(completion.complete).toHaveBeenCalledWith(
       expect.objectContaining({
         status: "failed",
-        routeSwitchAttempt: {
-          evidence: expect.objectContaining({
-            providerKey: provider.identity.providerKey,
-            status: "failed",
-            receipt: expect.objectContaining({
-              version: provider.identity.receiptVersion,
-              providerKey: provider.identity.providerKey,
-            }),
-          }),
-        },
+        logs: expect.arrayContaining([
+          expect.stringContaining("provider failed"),
+        ]),
       }),
     );
   });
@@ -167,6 +161,7 @@ function activation() {
     siteId: "site-1",
     primaryDomain: "app.example.com",
     domains: ["app.example.com"],
+    entries: [],
     proxyTarget: "http://unrelated.internal:8080",
     status: "matched",
     reasonCode: "site_route_matched",
@@ -232,5 +227,26 @@ function decision(stage: string) {
     stage,
     inputHash: `hash-${stage}`,
     decision: "denied",
+  };
+}
+
+function sagaFor(provider: ReturnType<typeof siteRouteSwitchTestDouble>) {
+  return {
+    assertProductionReady: jest.fn(() => {
+      if (!provider.supportsCompensation) {
+        throw new Error("SITE_ROUTE_SWITCH_COMPENSATION_UNAVAILABLE");
+      }
+    }),
+    apply: jest.fn(async (input) => {
+      const receipt = await provider.switchRoute(input);
+      const evidence = siteRouteSwitchEvidence(
+        input,
+        receipt,
+        provider.identity,
+      );
+      if (evidence.status !== "switched") throw new Error(evidence.reasonCode);
+      return { evidence };
+    }),
+    compensate: jest.fn().mockResolvedValue("compensated"),
   };
 }

@@ -35,6 +35,8 @@ export class SiteRouteSwitchEvidenceRepository {
     }
     await tx.siteRouteSwitchRun.create({
       data: {
+        operationId: evidence.operationId,
+        providerKey: evidence.providerKey,
         teamId: evidence.teamId,
         siteId: evidence.siteId,
         projectId: evidence.projectId,
@@ -44,7 +46,10 @@ export class SiteRouteSwitchEvidenceRepository {
         targetRef: evidence.targetRef,
         proxyTarget: evidence.proxyTarget,
         domains: evidence.domains,
-        status: evidence.status,
+        desiredRoute: evidence as unknown as Prisma.InputJsonValue,
+        applyReceipt: evidence.receipt as unknown as Prisma.InputJsonValue,
+        attemptCount: 1,
+        status: evidence.status === "switched" ? "committed" : "failed",
         reasonCode: evidence.reasonCode,
         result: {
           routeSwitch: evidence,

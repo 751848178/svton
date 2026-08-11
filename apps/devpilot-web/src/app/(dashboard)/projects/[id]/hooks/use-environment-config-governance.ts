@@ -7,6 +7,7 @@ import type {
   CreateEnvironmentConfigRevisionResult,
   EnvironmentConfigRevisionList,
   EnvironmentConfigResourceReference,
+  EnvironmentConfigSecretReference,
 } from '../types/environment-config-revision.types';
 
 type Policy = {
@@ -19,7 +20,7 @@ type Policy = {
 };
 
 export type ConfigRevisionDraft = {
-  secretReferenceIds: string[];
+  secretReferences: EnvironmentConfigSecretReference[];
   resourceReferences: EnvironmentConfigResourceReference[];
   routeSnapshot: Record<string, unknown>;
   policyReferenceIds: string[];
@@ -81,12 +82,15 @@ export function useEnvironmentConfigGovernance(
         `POST:/project-environments/${environment.id}/config-revisions`,
         {
           ...draft,
+          secretReferences: draft.secretReferences,
           resourceReferences: draft.resourceReferences.map((reference) => ({
             kind: reference.kind,
             id: reference.id,
             sharedEnvironmentIds: reference.sharedEnvironmentIds,
             risk: reference.risk,
             impact: reference.impact,
+            componentKey: reference.componentKey,
+            envBindings: reference.envBindings,
           })),
           expectedCurrentRevisionId: data?.currentConfigRevisionId || undefined,
         },

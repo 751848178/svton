@@ -34,6 +34,7 @@ function state(overrides: Partial<ReleaseDeploymentInputState> = {}): ReleaseDep
       status: "active",
       environmentId: "env-1",
       sharedEnvironmentIds: ["env-1", "env-2"],
+      componentKey: "service-api",
       updatedAt: new Date("2026-07-01T00:00:00Z"),
       runtime: { delivery: {}, credentials: null, envTemplate: "DATABASE_URL=...\nSCHEMA=picshare_stg\n" },
     }],
@@ -43,7 +44,8 @@ function state(overrides: Partial<ReleaseDeploymentInputState> = {}): ReleaseDep
       updatedAt: new Date("2026-07-01T00:00:00Z"),
       server: {
         id: "server-1", host: "10.0.0.1", port: 22, username: "deploy",
-        authType: "ssh", credentials: "cred-1", updatedAt: new Date("2026-07-01T00:00:00Z"),
+        authType: "key", credentials: "cred-1", status: "online",
+        updatedAt: new Date("2026-07-01T00:00:00Z"),
       },
     }],
     ...overrides,
@@ -65,6 +67,7 @@ describe("release deployment input snapshot (AC-SET-031 frozen)", () => {
       status: "active",
       environmentId: "env-1",
       sharedEnvironmentIds: ["env-1", "env-2"],
+      componentKey: "service-api",
     });
     expect(snapshot.resourceReferences[0].versionHash).toMatch(/^[0-9a-f]{64}$/);
     expect(snapshot.resourceReferences[0].environmentKeys).toEqual(["DATABASE_URL", "SCHEMA"]);

@@ -12,6 +12,7 @@ describe("HTTP site route switch provider", () => {
     const input = routeInput();
     const fetchMock = jest
       .spyOn(global, "fetch")
+      .mockResolvedValueOnce(capabilityResponse())
       .mockResolvedValueOnce(new Response(null, { status: 204 }))
       .mockResolvedValueOnce(
         Response.json({
@@ -37,12 +38,12 @@ describe("HTTP site route switch provider", () => {
       reasonCode: "site_route_switched",
     });
     expect(fetchMock).toHaveBeenNthCalledWith(
-      1,
+      2,
       `http://route-control:8080/v1/routes/${encodeURIComponent(input.operationId)}`,
       expect.objectContaining({ method: "PUT" }),
     );
     expect(fetchMock).toHaveBeenNthCalledWith(
-      2,
+      3,
       `http://route-control:8080/v1/routes/${encodeURIComponent(input.operationId)}`,
       expect.objectContaining({ method: "GET" }),
     );
@@ -52,6 +53,7 @@ describe("HTTP site route switch provider", () => {
     const input = routeInput();
     jest
       .spyOn(global, "fetch")
+      .mockResolvedValueOnce(capabilityResponse())
       .mockResolvedValueOnce(new Response(null, { status: 204 }))
       .mockResolvedValueOnce(
         Response.json({
@@ -76,6 +78,112 @@ describe("HTTP site route switch provider", () => {
       accepted: false,
       reasonCode: "route_switch_deployment_mismatch",
     });
+  });
+
+  it("clears a first Production route only with expected-current CAS", async () => {
+    const input = routeInput();
+    const fetchMock = jest
+      .spyOn(global, "fetch")
+      .mockResolvedValueOnce(capabilityResponse())
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(
+        Response.json({
+          observedAt: "2026-08-10T00:00:00.000Z",
+          observed: null,
+        }),
+      );
+    const provider = new HttpSiteRouteSwitchProvider(
+      config("http-route-control-v1"),
+    );
+
+    const receipt = await provider.compensateRoute({
+      version: 1,
+      operationId: "compensation-1",
+      originalOperationId: input.operationId,
+      expectedCurrent: {
+        siteId: input.siteId,
+        deploymentRunId: input.deploymentRunId,
+        targetRef: input.targetRef,
+        routeHash: input.routeHash,
+      },
+      desiredRoute: null,
+    });
+
+    expect(receipt).toMatchObject({ status: "switched", observed: null });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "http://route-control:8080/v1/routes/compensation-1",
+      expect.objectContaining({
+        method: "PUT",
+        body: expect.stringContaining('"action":"clear"'),
+      }),
+    );
+  });
+
+  it("does not advertise compensation before an exact protocol handshake", async () => {
+    jest.spyOn(global, "fetch").mockResolvedValueOnce(
+      Response.json({
+        protocol: "site-route-control",
+        version: 2,
+        capabilities: {},
+      }),
+    );
+    const provider = new HttpSiteRouteSwitchProvider(
+      config("http-route-control-v1"),
+    );
+
+    expect(provider.supportsCompensation).toBe(false);
+    await expect(provider.verifyProductionCapability()).rejects.toThrow(
+      "route_switch_capability_mismatch",
+    );
+    expect(provider.supportsCompensation).toBe(false);
+  });
+
+  it("fails closed on an expected-current CAS conflict", async () => {
+    jest
+      .spyOn(global, "fetch")
+      .mockResolvedValueOnce(capabilityResponse())
+      .mockResolvedValueOnce(new Response(null, { status: 409 }));
+    const provider = new HttpSiteRouteSwitchProvider(
+      config("http-route-control-v1"),
+    );
+
+    await expect(provider.switchRoute(routeInput())).resolves.toMatchObject({
+      status: "failed",
+      reasonCode: "route_switch_cas_conflict",
+    });
+  });
+
+  it("observes the external current route before preparing an apply CAS", async () => {
+    const current = routeInput();
+    const fetchMock = jest
+      .spyOn(global, "fetch")
+      .mockResolvedValueOnce(capabilityResponse())
+      .mockResolvedValueOnce(
+        Response.json({
+          observedAt: "2026-08-10T00:00:00.000Z",
+          observed: {
+            siteId: current.siteId,
+            deploymentRunId: current.deploymentRunId,
+            targetRef: current.targetRef,
+            routeHash: current.routeHash,
+          },
+          route: current,
+        }),
+      );
+    const provider = new HttpSiteRouteSwitchProvider(
+      config("http-route-control-v1"),
+    );
+
+    await expect(
+      provider.observeCurrentRoute({
+        teamId: current.teamId,
+        projectId: current.projectId,
+        environmentId: current.environmentId,
+        siteId: current.siteId,
+      }),
+    ).resolves.toMatchObject({ status: "observed", route: current });
+    expect(fetchMock.mock.calls[1][0]).toContain("/v1/routes/current?");
   });
 
   it("preserves the unconfigured default and rejects an incomplete enabled profile", () => {
@@ -131,8 +239,23 @@ function routeInput(): SiteRouteSwitchInput {
     releaseRunId: "release",
     primaryDomain: "parity.example.test",
     domains: ["parity.example.test"],
+    entries: [],
     proxyTarget: "http://target-workload",
     targetRef: "filesystem-release-target",
     routeHash: "a".repeat(64),
+    expectedCurrent: null,
   };
+}
+
+function capabilityResponse() {
+  return Response.json({
+    protocol: "site-route-control",
+    version: 1,
+    capabilities: {
+      observeCurrent: true,
+      expectedCurrentCas: true,
+      compensation: true,
+      clear: true,
+    },
+  });
 }

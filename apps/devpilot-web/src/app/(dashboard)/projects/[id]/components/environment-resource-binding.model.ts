@@ -18,7 +18,7 @@ export type ResourceBindingRow = {
   reference: EnvironmentConfigResourceReference;
   /** 资源需求：实例名（缺失时退回引用名）。 */
   requirement: string;
-  /** 来源组件：引用上的影响说明（模型暂无组件关联字段，诚实映射）。 */
+  /** 来源组件：显式组件键；旧修订没有该字段时诚实标记为未分配。 */
   source: string;
   /** 资源实例列：实例名或「—」。 */
   instanceName: string | null;
@@ -121,7 +121,7 @@ export function buildBindingRows(
       key: `${reference.kind}:${reference.id}`,
       reference,
       requirement: instance?.name || reference.name || reference.id,
-      source: reference.impact,
+      source: reference.componentKey ?? 'legacy:unassigned',
       instanceName: instance?.name ?? null,
       lifecycleStatus: lifecycleStatusOf(instance),
       managedHealth: managedHealthOf(managed),

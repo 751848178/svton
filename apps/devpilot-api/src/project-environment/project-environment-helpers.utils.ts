@@ -23,10 +23,10 @@ export function isSafeUpstreamUrl(upstream: string) {
 }
 
 export const ENVIRONMENT_LABELS: Record<string, string> = {
-  dev: '开发', test: '测试', staging: '预发', prod: '生产',
+  dev: '开发', test: '测试', staging: '预发', prod: '生产', production: 'Production',
 };
 
-export const DEFAULT_PROJECT_ENVIRONMENT_KEYS = ['dev', 'test', 'staging', 'prod'];
+export const DEFAULT_PROJECT_ENVIRONMENT_KEYS = ['staging', 'production'];
 
 export function extractString(value: unknown, key: string) {
   return isRecord(value) && typeof value[key] === 'string' ? value[key] : undefined;
@@ -58,7 +58,7 @@ export function labelForKey(key: string) {
 }
 
 export function sortOrderForKey(key: string) {
-  const knownOrder = ['dev', 'test', 'staging', 'prod'].indexOf(key);
+  const knownOrder = ['dev', 'test', 'staging', 'production', 'prod'].indexOf(key);
   return knownOrder >= 0 ? knownOrder * 10 : 100;
 }
 

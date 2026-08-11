@@ -166,10 +166,24 @@ function environment(): EnvironmentVersionEnvironment {
     name: 'Production',
     baselineRole: 'production',
     currentEnvironmentVersionId: 'version-current',
+    targetReadiness: readyTarget('environment-prod', 'production'),
     environmentVersions: [
       version('version-current'),
       version('version-history'),
     ],
+  };
+}
+
+function readyTarget(environmentId: string, environmentKey: string) {
+  return {
+    environmentId,
+    environmentKey,
+    expectedProviderKey: 'ssh-v1',
+    bindingCount: 1,
+    matchState: 'ready' as const,
+    reasonCode: 'TARGET_READY' as const,
+    remediation: null,
+    currentTarget: null,
   };
 }
 

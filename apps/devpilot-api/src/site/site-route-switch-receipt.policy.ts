@@ -23,6 +23,7 @@ export function createSiteRouteSwitchInput(input: {
     siteId: input.activation.siteId,
     primaryDomain: input.activation.primaryDomain,
     domains: input.activation.domains,
+    entries: input.activation.entries,
     proxyTarget: input.activation.proxyTarget,
     targetRef: input.targetRef,
   });
@@ -37,9 +38,11 @@ export function createSiteRouteSwitchInput(input: {
     releaseRunId: input.releaseRunId,
     primaryDomain: input.activation.primaryDomain,
     domains: [...input.activation.domains],
+    entries: input.activation.entries.map((entry) => ({ ...entry })),
     proxyTarget: input.activation.proxyTarget,
     targetRef: input.targetRef,
     routeHash,
+    expectedCurrent: null,
   };
 }
 
@@ -56,7 +59,11 @@ export function siteRouteSwitchEvidence(
   return {
     ...input,
     providerKey: receipt.providerKey,
-    status: validation.accepted ? "switched" : receipt.status === "unavailable" ? "unavailable" : "failed",
+    status: validation.accepted
+      ? "switched"
+      : receipt.status === "unavailable"
+        ? "unavailable"
+        : "failed",
     reasonCode: validation.reasonCode,
     switchedAt: validation.accepted ? receipt.observedAt : null,
     receipt,

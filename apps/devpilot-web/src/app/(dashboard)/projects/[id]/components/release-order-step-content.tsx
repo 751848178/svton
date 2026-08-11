@@ -27,6 +27,10 @@ interface Props {
   onOpenProductionLog: (releaseRunId: string, deploymentRunId: string) => void;
   onCloseProductionLog: () => void;
   recoveryHref: string;
+  buildGate: { allowed: boolean; reason: string };
+  stagingGate: { allowed: boolean; reason: string };
+  gateRepairHref: string;
+  stagingRepairHref: string;
 }
 
 export function ReleaseOrderStepContent(props: Props) {
@@ -40,6 +44,8 @@ export function ReleaseOrderStepContent(props: Props) {
         focusedBuildRunId={props.focusedBuildRunId}
         onOpenLog={props.onOpenBuildLog}
         onCloseLog={props.onCloseBuildLog}
+        buildGate={props.buildGate}
+        repairHref={props.gateRepairHref}
       />
     );
   }
@@ -52,6 +58,8 @@ export function ReleaseOrderStepContent(props: Props) {
         onOpenLog={props.onFocusStaging}
         onCloseLog={props.onCloseStaging}
         onChanged={props.onChanged}
+        stagingGate={props.stagingGate}
+        repairHref={props.stagingRepairHref}
       />
     );
   }

@@ -17,7 +17,8 @@ import {
 } from "./release-production.integration-fixture";
 import { SiteRouteActivationService } from "../site/site-route-activation.service";
 import { SiteFinalProbeService } from "../site/site-final-probe.service";
-import { SiteRouteSwitchEvidenceRepository } from "../site/site-route-switch-evidence.repository";
+import { SiteRouteSwitchSagaOrchestrator } from "../site/site-route-switch-saga.orchestrator";
+import { SiteRouteSwitchSagaRepository } from "../site/site-route-switch-saga.repository";
 import { siteRouteSwitchTestDouble } from "../site/site-route-switch.spec-utils";
 import { EnvironmentVersionCompletionRepository } from "./environment-version-completion.repository";
 
@@ -35,11 +36,15 @@ describeIntegration("EnvironmentVersion execute-after-approval policy", () => {
     const repository = new EnvironmentVersionRepository(
       fixture.prisma as never,
     );
+    const routeSwitch = siteRouteSwitchTestDouble();
+    const routeSagaRepository = new SiteRouteSwitchSagaRepository(
+      fixture.prisma as never,
+    );
     service = new EnvironmentVersionService(
       repository,
       new EnvironmentVersionCompletionRepository(
         fixture.prisma as never,
-        new SiteRouteSwitchEvidenceRepository(),
+        routeSagaRepository,
       ),
       new EnvironmentVersionReadRepository(fixture.prisma as never),
       new EnvironmentVersionPolicyService(repository),
@@ -47,9 +52,13 @@ describeIntegration("EnvironmentVersion execute-after-approval policy", () => {
       productionGateTestDouble(fixture.prisma) as never,
       new EnvironmentVersionGateEvidenceRepository(fixture.prisma as never),
       environmentVersionInputTestDouble() as never,
+      {} as never,
+      productionWorkloadTestDouble() as never,
       productionWorkloadTestDouble() as never,
       new SiteRouteActivationService(fixture.prisma as never),
-      siteRouteSwitchTestDouble(),
+      routeSwitch,
+      new SiteRouteSwitchSagaOrchestrator(routeSagaRepository, routeSwitch),
+      { assertClear: jest.fn() } as never,
       new SiteFinalProbeService(),
     );
   });

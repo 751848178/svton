@@ -1,15 +1,20 @@
-import { ConflictException } from "@nestjs/common";
 import type {
   ReleaseDeploymentInputSnapshot,
   ReleaseDeploymentInputState,
 } from "./release-deployment-input.types";
 import { hashCanonicalReleaseValue } from "./release-canonical-hash.utils";
-import { matchReleaseDeploymentTargetBindings } from "./release-deployment-target-match.utils";
+import { ReleaseDeploymentTargetConflict } from "./release-deployment-target-error";
+import { resolveReleaseDeploymentTargetReadiness } from "./release-deployment-target-readiness.model";
+import {
+  effectiveResourceBindings,
+  environmentKeysFromTemplate,
+} from "../project-environment/environment-variable-binding.utils";
 
 export function buildReleaseDeploymentInputSnapshot(
   state: ReleaseDeploymentInputState,
   providerKey: string,
-  runtimeEnvironmentKeys: string[],
+  globalEnvironmentKeys: string[],
+  componentEnvironmentKeys: Record<string, string[]> = {},
   target = selectReleaseDeploymentTarget(state, providerKey),
 ) {
   const snapshotWithoutHash = {
@@ -32,6 +37,7 @@ export function buildReleaseDeploymentInputSnapshot(
         id: item.id,
         name: item.name,
         type: item.type,
+        targetEnvKey: item.targetEnvKey ?? item.name.toUpperCase().replace(/[^A-Z0-9]/g, "_"),
         versionHash: hash({ value: item.value, updatedAt: item.updatedAt }),
       }))
       .sort(byId),
@@ -43,13 +49,21 @@ export function buildReleaseDeploymentInputSnapshot(
         status: item.status,
         environmentId: item.environmentId,
         sharedEnvironmentIds: item.sharedEnvironmentIds,
+        componentKey: item.componentKey ?? "",
         versionHash: hash({
           environmentId: item.environmentId,
           status: item.status,
           updatedAt: item.updatedAt,
           runtime: item.runtime,
         }),
-        environmentKeys: resourceEnvironmentKeys(item.runtime?.envTemplate),
+        envBindings: effectiveResourceBindings(
+          item,
+          environmentKeysFromTemplate(item.runtime?.envTemplate),
+        ).sort((left, right) => left.sourceKey.localeCompare(right.sourceKey)),
+        environmentKeys: effectiveResourceBindings(
+          item,
+          environmentKeysFromTemplate(item.runtime?.envTemplate),
+        ).map((binding) => binding.targetEnvKey).sort(),
       }))
       .sort(byId),
     target: {
@@ -63,7 +77,16 @@ export function buildReleaseDeploymentInputSnapshot(
         server: target.binding.server,
       }),
     },
-    runtimeEnvironmentKeys: [...runtimeEnvironmentKeys].sort(),
+    runtimeEnvironmentKeys: [...new Set([
+      ...globalEnvironmentKeys,
+      ...Object.values(componentEnvironmentKeys).flat(),
+    ])].sort(),
+    globalEnvironmentKeys: [...globalEnvironmentKeys].sort(),
+    componentEnvironmentKeys: Object.fromEntries(
+      Object.entries(componentEnvironmentKeys)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, values]) => [key, [...values].sort()]),
+    ),
   };
   return {
     snapshot: {
@@ -79,23 +102,14 @@ export function selectReleaseDeploymentTarget(
   state: ReleaseDeploymentInputState,
   providerKey: string,
 ) {
-  const matches = matchReleaseDeploymentTargetBindings(
+  const readiness = resolveReleaseDeploymentTargetReadiness(
     state.bindings,
     providerKey,
   );
-  if (matches.length !== 1) {
-    throw new ConflictException("部署目标绑定缺失、重复或与 Provider 不匹配");
+  if (!readiness.currentTarget) {
+    throw new ReleaseDeploymentTargetConflict(readiness);
   }
-  return matches[0];
-}
-
-function resourceEnvironmentKeys(template: string | null | undefined) {
-  if (!template) return [];
-  return template
-    .split(/\r?\n/)
-    .map((line) => line.slice(0, line.indexOf("=")).trim())
-    .filter((key) => /^[A-Z_][A-Z0-9_]*$/.test(key))
-    .sort();
+  return readiness.currentTarget;
 }
 
 const hash = hashCanonicalReleaseValue;
