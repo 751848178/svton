@@ -8,7 +8,7 @@ import type {
 import type { WorkerSourceManifest } from "./release-build-worker-source-manifest";
 
 export const RELEASE_BUILD_WORKER_CONTRACT =
-  "filesystem-isolated-worker-v1" as const;
+  "external-oci-launcher-v1" as const;
 
 export type ReleaseBuildWorkerIdentity = {
   contract: typeof RELEASE_BUILD_WORKER_CONTRACT;

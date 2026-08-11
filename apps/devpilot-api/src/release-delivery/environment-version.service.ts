@@ -24,6 +24,7 @@ import { ReleaseStagingWorkloadService } from "./release-staging-workload.servic
 import { ProductionPromotionAwaitingRepository } from "./production-promotion-awaiting.repository";
 import { ProductionPromotionService } from "./production-promotion.service";
 import type { ProductionPromotionResumeInput } from "./production-promotion-command.types";
+import { presentLegacyPromotionRecovery } from "./production-promotion-legacy-recovery.presenter";
 
 @Injectable()
 export class EnvironmentVersionService {
@@ -57,7 +58,7 @@ export class EnvironmentVersionService {
     return {
       environments: await Promise.all(
         environments.map(async (environment) => ({
-          ...environment,
+          ...presentEnvironment(environment),
           currentEnvironmentVersionId: currentEnvironmentVersionId(
             project,
             environment,
@@ -112,4 +113,25 @@ export class EnvironmentVersionService {
     }
     return this.promotionAwaiting;
   }
+}
+
+function presentEnvironment<T extends {
+  releaseRuns: Array<{
+    productionPromotionCommands: Array<{
+      id: string; phase: string; legacyReconcileReason: string | null;
+    }>;
+  }>;
+}>(environment: T) {
+  return {
+    ...environment,
+    releaseRuns: environment.releaseRuns.map((run) => {
+      const { productionPromotionCommands, ...value } = run;
+      return {
+        ...value,
+        legacyPromotionRecovery: presentLegacyPromotionRecovery(
+          productionPromotionCommands,
+        ),
+      };
+    }),
+  };
 }

@@ -116,6 +116,7 @@ export const PROJECT_DELIVERY_SUMMARY_SELECT =
             releaseOrderId: true,
             artifactManifestId: true,
             deploymentRunId: true,
+            releaseRunId: true,
             effectiveAt: true,
             releaseOrder: {
               select: {
@@ -144,6 +145,19 @@ export const PROJECT_DELIVERY_SUMMARY_SELECT =
                 source: true,
                 status: true,
                 dryRun: true,
+                result: true,
+              },
+            },
+            releaseRun: {
+              select: {
+                id: true,
+                teamId: true,
+                projectId: true,
+                environmentId: true,
+                releaseOrderId: true,
+                artifactManifestId: true,
+                status: true,
+                verifiedDigest: true,
               },
             },
           },

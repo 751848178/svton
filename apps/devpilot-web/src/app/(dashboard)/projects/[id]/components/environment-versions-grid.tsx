@@ -34,6 +34,10 @@ export function EnvironmentVersionsGrid(props: {
     environmentId: string,
     input: ProductionPromotionResumeInput,
   ) => Promise<unknown>;
+  onReconcilePromotion: (
+    environmentId: string,
+    promotionCommandId: string,
+  ) => Promise<unknown>;
 }) {
   const [selection, setSelection] = useState<Record<string, string>>({});
   const [upgradeTarget, setUpgradeTarget] = useState<UpgradeTarget | null>(null);
@@ -66,6 +70,8 @@ export function EnvironmentVersionsGrid(props: {
               }
               onRecovery={(sourceVersionId) => props.onRecovery(environment, sourceVersionId)}
               onResumePromotion={(input) => props.onResumePromotion(environment.id, input)}
+              onReconcilePromotion={(commandId) =>
+                props.onReconcilePromotion(environment.id, commandId)}
             />
           );
         })}

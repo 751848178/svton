@@ -185,12 +185,10 @@ describe('ReleaseProductionApprovalCard', () => {
     expect(alert?.textContent).not.toContain('admit');
   });
 
-  it('shows a recovery link for a rejected approval routed to Environment Versions', async () => {
+  it('leaves the rejected recovery CTA to the single stage-card action owner', async () => {
     await render(run('rejected'));
-    const recovery = container.querySelector('a');
-    expect(recovery).not.toBeNull();
-    expect(recovery?.getAttribute('href')).toBe('/projects/project-1?view=environment-versions');
-    expect(recovery?.textContent).toContain('releaseProductionRecoveryLink');
+    expect(container.querySelector('a')).toBeNull();
+    expect(container.textContent).not.toContain('releaseProductionRecoveryLink');
   });
 
   it('renders recovery copy and executes a production recovery run', async () => {
@@ -209,7 +207,6 @@ describe('ReleaseProductionApprovalCard', () => {
           projectId="project-1"
           run={approved}
           onChanged={mocks.onChanged}
-          recoveryHref="/projects/project-1?view=environment-versions"
         />,
       ),
     );

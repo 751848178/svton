@@ -1284,6 +1284,8 @@
     "releaseProductionLegacyRecoveryReason": "The legacy promotion command has no provable execution phase, so automatic replay is disabled.",
     "releaseProductionLegacyRecoveryTitle": "Historical Production promotion needs reconciliation",
     "releaseProductionLegacyRecoveryDescription": "Operations must verify the candidate, route switch, and Provider readback first. Continue only after server reconciliation; no route or version pointer changes are attempted now.",
+    "releaseProductionLegacyRecoveryAmbiguousDescription": "Multiple active historical promotion commands were found. Resolve the conflicting audit records before reconciling.",
+    "releaseProductionLegacyRecoveryReconcileAction": "Verify route and reconcile",
     "releaseProductionRunningDisabled": "Production release running",
     "releaseProductionAwaitingExecuteDisabled": "Waiting to execute production release",
     "releaseProductionAwaitingApprovalDisabled": "Waiting for production approval",

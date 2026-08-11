@@ -59,6 +59,7 @@ export function EnvironmentVersionsPanel({ projectId }: { projectId: string }) {
           setRecoveryTarget({ environment, sourceVersionId })
         }
         onResumePromotion={versions.resumePromotion}
+        onReconcilePromotion={versions.reconcilePromotion}
       />
       <p className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
         {t('environmentVersionProductionCallout')}

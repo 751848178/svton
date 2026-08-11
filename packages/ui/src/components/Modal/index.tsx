@@ -25,6 +25,7 @@ export const Modal = React.forwardRef<HTMLDivElement, ModalProps>(function Modal
   const { open, onClose, children, title, footer, width = 480, mask = true, maskClosable = true, centered = true, className, ariaCloseLabel = 'Close', ariaDescriptionId } = props;
   const panelRef = useRef<HTMLDivElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const focusLifecycleRef = useRef(false);
   const titleId = useId();
 
   const { state, ref: transitionRef } = useTransitionState(open, 200);
@@ -41,20 +42,29 @@ export const Modal = React.forwardRef<HTMLDivElement, ModalProps>(function Modal
 
   const overlay = useOverlay(state === 'visible' || state === 'entering', onClose);
 
-  // Focus trap & restore
+  // Capture once per open lifecycle; topmost changes must never restore focus.
+  useEffect(() => {
+    const active = state !== 'closed';
+    if (active && !focusLifecycleRef.current) {
+      previousFocusRef.current = document.activeElement as HTMLElement;
+      focusLifecycleRef.current = true;
+    } else if (!active && focusLifecycleRef.current) {
+      focusLifecycleRef.current = false;
+      previousFocusRef.current?.focus();
+    }
+  }, [state]);
+
+  useEffect(() => () => {
+    if (focusLifecycleRef.current) previousFocusRef.current?.focus();
+  }, []);
+
+  // Only the current topmost panel receives initial focus.
   useEffect(() => {
     if (state !== 'visible' || !overlay.topmost) return;
-
-    previousFocusRef.current = document.activeElement as HTMLElement;
-
     const timer = setTimeout(() => {
       panelRef.current?.focus();
     }, 0);
-
-    return () => {
-      clearTimeout(timer);
-      previousFocusRef.current?.focus();
-    };
+    return () => clearTimeout(timer);
   }, [overlay.topmost, state]);
 
   // Focus trap: keep Tab within the modal
@@ -69,6 +79,12 @@ export const Modal = React.forwardRef<HTMLDivElement, ModalProps>(function Modal
 
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
+
+      if (document.activeElement === panelRef.current) {
+        e.preventDefault();
+        (e.shiftKey ? last : first).focus();
+        return;
+      }
 
       if (e.shiftKey && document.activeElement === first) {
         e.preventDefault();

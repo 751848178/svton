@@ -5,6 +5,16 @@ import type {
 } from './release-copy.types';
 import type { ReleaseDeploymentTargetReadiness } from './release-gate.types';
 
+export interface LegacyPromotionRecovery {
+  status: 'required' | 'ambiguous';
+  commandIds: string[];
+  phase: string | null;
+  reason: string | null;
+  reasonCode:
+    | 'legacy_promotion_reconciliation_required'
+    | 'legacy_promotion_reconciliation_ambiguous';
+}
+
 export interface EnvironmentVersionItem {
   id: string;
   environmentId: string;
@@ -39,6 +49,7 @@ export interface EnvironmentVersionEnvironment {
     mode: string;
     status: string;
     artifactManifestId: string;
+    legacyPromotionRecovery: LegacyPromotionRecovery | null;
     deploymentRuns: Array<{
       id: string;
       status: string;

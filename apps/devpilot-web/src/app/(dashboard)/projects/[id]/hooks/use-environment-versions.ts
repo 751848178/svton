@@ -98,7 +98,29 @@ export function useEnvironmentVersions(projectId: string) {
     }
   }, [projectId, refreshDelivery]);
 
-  return { ...data, loading, executing, error, load, execute, resumePromotion };
+  const reconcilePromotion = useCallback(async (
+    environmentId: string,
+    promotionCommandId: string,
+  ) => {
+    setExecuting(true);
+    setError('');
+    try {
+      const result = await apiRequest<Record<string, unknown>>(
+        `POST:/projects/${projectId}/delivery/environment-versions/${environmentId}/production-promotion/reconcile`,
+        { promotionCommandId, idempotencyKey: crypto.randomUUID() },
+      );
+      await refreshDelivery();
+      return result;
+    } catch (caught) {
+      setError(message(caught));
+      return null;
+    } finally {
+      setExecuting(false);
+    }
+  }, [projectId, refreshDelivery]);
+
+  return { ...data, loading, executing, error, load, execute,
+    resumePromotion, reconcilePromotion };
 }
 
 function message(error: unknown) {

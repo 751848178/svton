@@ -24,6 +24,7 @@ export function EnvironmentVersionCard(props: {
   onUpgrade: () => unknown;
   onRecovery: (sourceVersionId: string) => unknown;
   onResumePromotion: (input: ProductionPromotionResumeInput) => Promise<unknown>;
+  onReconcilePromotion: (promotionCommandId: string) => Promise<unknown>;
 }) {
   const t = useTranslations('projects');
   const locale = useLocale();
@@ -77,6 +78,7 @@ export function EnvironmentVersionCard(props: {
         )}
         executing={props.executing}
         onResume={props.onResumePromotion}
+        onReconcile={props.onReconcilePromotion}
       />
       <div className="grid grid-cols-2 gap-2 rounded-md bg-muted/30 p-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end">
         <label className="col-span-2 min-w-0 text-sm sm:col-span-1">

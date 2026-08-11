@@ -1284,6 +1284,8 @@
     "releaseProductionLegacyRecoveryReason": "旧版提升命令缺少可证明的执行阶段，已禁止自动重放。",
     "releaseProductionLegacyRecoveryTitle": "需要核对历史 Production 提升状态",
     "releaseProductionLegacyRecoveryDescription": "请先由运维核对候选实例、路由切换与 Provider 读回结果；完成服务端 reconciliation 后才能继续，当前不会切换路由或更新版本指针。",
+    "releaseProductionLegacyRecoveryAmbiguousDescription": "检测到多个活跃的历史提升命令，请先处理冲突的审计记录，再执行核对。",
+    "releaseProductionLegacyRecoveryReconcileAction": "核对路由并收敛",
     "releaseProductionRunningDisabled": "生产发布执行中",
     "releaseProductionAwaitingExecuteDisabled": "等待执行生产发布",
     "releaseProductionAwaitingApprovalDisabled": "等待生产审批",

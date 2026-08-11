@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { resolveRegisteredReleaseBuildProfile } from "./release-build-acceptance-profile";
 import { ReleaseBuildRuntimeProfileService } from "./release-build-runtime-profile.service";
 import { expectedReleaseBuildSupplyProof } from "./release-build-supply-proof.policy";
+import { launcherControlsDigest, signLauncherProof } from "./release-build-launcher-proof.policy";
 
 const temporaryRoots: string[] = [];
 
@@ -38,18 +39,21 @@ describe("ReleaseBuildRuntimeProfileService", () => {
     );
   });
 
-  it("accepts v2 with a distinct filesystem worker exchange", () => {
+  it("accepts v2 only with a live exact-image external OCI launcher", () => {
     const proof = supplyProof();
+    const launcher = launcherProof();
     const runtime = profile({
       RELEASE_BUILD_EXECUTION_ENABLED: true,
       RELEASE_BUILD_EXECUTOR_PROFILE: "controlled-local-acceptance-v2",
       RELEASE_BUILD_WORK_ROOT: "/tmp/devpilot-f426/work",
       RELEASE_BUILD_ARTIFACT_ROOT: "/tmp/devpilot-f426/artifacts",
       RELEASE_BUILD_UNTRUSTED_WORKER_PROVIDER:
-        "filesystem-isolated-worker-v1",
+        "external-oci-launcher-v1",
       RELEASE_BUILD_WORKER_INPUT_ROOT: "/tmp/devpilot-f426/input",
       RELEASE_BUILD_WORKER_OUTPUT_ROOT: "/tmp/devpilot-f426/output",
-      RELEASE_BUILD_WORKER_HMAC_SECRET_FILE: "/run/secrets/build-worker",
+      RELEASE_BUILD_WORKER_HMAC_SECRET_FILE: launcher.secretFile,
+      RELEASE_BUILD_LAUNCHER_PROOF_FILE: launcher.proofFile,
+      RELEASE_BUILD_LAUNCHER_JOB_IMAGE: launcher.image,
       RELEASE_BUILD_SUPPLY_PROOF_FILE: proof,
       RELEASE_BUILD_RUN_TIMEOUT_MS: 180_000,
       RELEASE_BUILD_COMMAND_TIMEOUT_MS: 120_000,
@@ -69,7 +73,7 @@ describe("ReleaseBuildRuntimeProfileService", () => {
       workspacePolicy: "dedicated-build-root",
       workerIsolation: {
         contractVersion: "release-build-untrusted-worker-v1",
-        provider: "filesystem-isolated-worker-v1",
+        provider: "external-oci-launcher-v1",
         untrustedRepositories: true,
       },
       environmentKeys: ["CI", "HOME", "LANG", "LC_ALL", "PATH", "TMPDIR"],
@@ -80,6 +84,16 @@ describe("ReleaseBuildRuntimeProfileService", () => {
       ]),
     }));
     expect(JSON.stringify(runtime.descriptor())).not.toContain("/tmp/");
+    const stale = new Date(Date.now() - 31_000).toISOString();
+    writeFileSync(launcher.proofFile, JSON.stringify(signLauncherProof({
+      schemaVersion: 1, provider: "external-oci-launcher-v1",
+      profileId: "controlled-local-acceptance-v2", jobImage: launcher.image,
+      controlsDigest: launcherControlsDigest, launcherInstanceId: "launcher_instance_01",
+      startedAt: stale, heartbeatAt: stale,
+    }, launcher.secret)), { mode: 0o600 });
+    expect(() => runtime.assertAvailable()).toThrow(
+      "缺少可证明隔离的非可信源码 Build Worker Provider",
+    );
   });
 
   it("rejects overlapping work and artifact roots", () => {
@@ -92,6 +106,24 @@ describe("ReleaseBuildRuntimeProfileService", () => {
     expect(() => runtime.assertAvailable()).toThrow();
   });
 });
+
+function launcherProof() {
+  const root = mkdtempSync(join(tmpdir(), "release-build-launcher-proof-"));
+  temporaryRoots.push(root);
+  const secretFile = join(root, "secret");
+  const proofFile = join(root, "proof.json");
+  const secret = "runtime-profile-launcher-secret-32-bytes";
+  const image = `registry.example.test/devpilot/api@sha256:${"a".repeat(64)}`;
+  writeFileSync(secretFile, secret, { mode: 0o600 });
+  const now = new Date().toISOString();
+  writeFileSync(proofFile, JSON.stringify(signLauncherProof({
+    schemaVersion: 1, provider: "external-oci-launcher-v1",
+    profileId: "controlled-local-acceptance-v2", jobImage: image,
+    controlsDigest: launcherControlsDigest, launcherInstanceId: "launcher_instance_01",
+    startedAt: now, heartbeatAt: now,
+  }, secret)), { mode: 0o600 });
+  return { secretFile, proofFile, image, secret };
+}
 
 function supplyProof() {
   const root = mkdtempSync(join(tmpdir(), "release-build-supply-proof-"));

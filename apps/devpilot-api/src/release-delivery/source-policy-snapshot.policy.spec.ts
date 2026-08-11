@@ -33,7 +33,7 @@ describe("source policy canonical snapshot", () => {
       runnerVersion: "runner-v2",
       workerControls: {
         contractVersion: "release-build-untrusted-worker-v1",
-        provider: "filesystem-isolated-worker-v1",
+        provider: "external-oci-launcher-v1",
         sourceArchive: "git-archive-exact-commit-v1",
         sourceManifest: "path-mode-size-sha256-v1",
         networkPolicy: "none",

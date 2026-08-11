@@ -105,7 +105,7 @@ describe("filesystem isolated worker contract", () => {
 
 function identity(): ReleaseBuildWorkerIdentity {
   return {
-    contract: "filesystem-isolated-worker-v1", jobId: "job-12345678",
+    contract: "external-oci-launcher-v1", jobId: "job-12345678",
     projectId: "project-1", releaseOrderId: "order-1", buildRunId: "build-1",
     sourceCommitSha: "a".repeat(40), sourceTreeHash: "b".repeat(40),
     sourceSnapshotDigest: "c".repeat(64), sourceArchiveDigest: "d".repeat(64),

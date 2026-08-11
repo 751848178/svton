@@ -4,10 +4,12 @@ import { join } from "node:path";
 import { runReleaseBuildArgv } from "./release-build-argv-command-runner";
 import { resolveRegisteredReleaseBuildProfile } from "./release-build-acceptance-profile";
 import { runReleaseBuildBrokerProcess } from "./release-build-broker-process";
+import { runExternalOciBroker } from "./release-build-external-oci-runner";
 import { promoteBrokerArtifacts } from "./release-build-broker-artifact-promoter";
 import { releaseBuildFailureDetail } from "./release-build-failure.utils";
 import { expectedReleaseBuildSupplyProof } from "./release-build-supply-proof.policy";
 import { scanSupervisorSource } from "./release-build-supervisor-security";
+import { supervisorGateSummary } from "./release-build-supervisor-result.presenter";
 import { watchSupervisorCancellation } from "./release-build-supervisor-cancellation";
 import {
   sameWorkerIdentity,
@@ -36,6 +38,7 @@ export type FilesystemWorkerConfig = {
   inputRoot: string; outputRoot: string; workRoot: string; secretFile: string;
   commandPath: string; tarExecutable: string; commandTimeoutMs: number;
   cancelGraceMs: number; brokerUid: number; brokerGid: number;
+  externalOci?: { image: string; dockerExecutable: string };
 };
 
 export class ReleaseBuildFilesystemWorker {
@@ -68,12 +71,14 @@ export class ReleaseBuildFilesystemWorker {
         buildRunId: request.identity.buildRunId,
         uid: this.config.brokerUid,
         gid: this.config.brokerGid,
+        externalOci: Boolean(this.config.externalOci),
       });
       const buildRoot = await transferBuildWorkspace({
         source: scanned.prepared.buildRoot, workRoot: broker.workRoot,
         uid: this.config.brokerUid, gid: this.config.brokerGid,
+        immutable: Boolean(this.config.externalOci),
       });
-      const brokerResult = await runReleaseBuildBrokerProcess({
+      const brokerInput: Parameters<typeof runReleaseBuildBrokerProcess>[0] = {
         broker: {
           version: 1, request: unsigned(request), jobRoot: broker.jobRoot,
           workRoot: broker.workRoot, buildRoot, artifactRoot: broker.artifactRoot,
@@ -90,7 +95,12 @@ export class ReleaseBuildFilesystemWorker {
         brokerUid: this.config.brokerUid, brokerGid: this.config.brokerGid,
         timeoutMs: this.config.commandTimeoutMs,
         signal: cancellation.signal,
-      });
+      };
+      const brokerResult = this.config.externalOci
+        ? await runExternalOciBroker({ ...brokerInput,
+          image: this.config.externalOci.image,
+          dockerExecutable: this.config.externalOci.dockerExecutable })
+        : await this.runTrustedTestBroker(brokerInput);
       if (brokerResult.status !== "succeeded" || !brokerResult.result) {
         throw brokerResult.failure ?? new Error("broker failed");
       }
@@ -108,6 +118,7 @@ export class ReleaseBuildFilesystemWorker {
           brokerResult.result.gateSummary,
           scanned.prepared,
           expectedReleaseBuildSupplyProof(profile).supplyChainDigest,
+          Boolean(this.config.externalOci),
         ),
       });
     } catch (error) {
@@ -137,6 +148,15 @@ export class ReleaseBuildFilesystemWorker {
       throw new Error("Release Build worker request attestation is invalid");
     }
     return profile;
+  }
+
+  private runTrustedTestBroker(
+    input: Parameters<typeof runReleaseBuildBrokerProcess>[0],
+  ) {
+    if (process.env.NODE_ENV !== "test") {
+      throw new Error("same-process UID broker is restricted to trusted tests");
+    }
+    return runReleaseBuildBrokerProcess(input);
   }
 
   private async writeResult(directory: string, request: ReleaseBuildWorkerRequest,
@@ -177,16 +197,5 @@ export class ReleaseBuildFilesystemWorker {
 function unsigned(request: ReleaseBuildWorkerRequest) {
   const { signature: _signature, ...value } = request;
   return value;
-}
-function supervisorGateSummary(value: Record<string, unknown>, prepared: any,
-  supplyChainDigest: string) {
-  return { ...value, security: { ...prepared.security,
-    sourceSnapshot: prepared.sourceSnapshot,
-    executionControls: { status: "passed", profile: "controlled-local-acceptance-v2",
-      trustBoundary: "trusted-supervisor-untrusted-uid-broker",
-      untrustedSandbox: true, controls: ["supervisor_pre_script_scan", "uid_3000_broker",
-        "private_job_workspace", "network_none", "supervisor_signed_output"], limitations: [] } },
-    workerAttestation: { version: 1, supplyChainDigest,
-      boundary: "filesystem-supervisor-broker-v1" } };
 }
 async function exists(path: string) { try { await access(path); return true; } catch { return false; } }

@@ -34,6 +34,8 @@ import { ProductionPromotionObservationRepository } from "./production-promotion
 import { ProductionPromotionService } from "./production-promotion.service";
 import { ProductionPromotionRecoveryRepository } from "./production-promotion-recovery.repository";
 import { ProductionPromotionRecoveryService } from "./production-promotion-recovery.service";
+import { ProductionPromotionReconcileRepository } from "./production-promotion-reconcile.repository";
+import { ProductionPromotionReconcileService } from "./production-promotion-reconcile.service";
 
 export const releaseDeliveryEnvironmentProviders = [
   EnvironmentVersionRepository,
@@ -51,6 +53,8 @@ export const releaseDeliveryEnvironmentProviders = [
   ProductionPromotionService,
   ProductionPromotionRecoveryRepository,
   ProductionPromotionRecoveryService,
+  ProductionPromotionReconcileRepository,
+  ProductionPromotionReconcileService,
   ProductionRouteSagaGuard,
   SiteRouteActivationService,
   SiteFinalProbeService,

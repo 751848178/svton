@@ -4,11 +4,14 @@ import { exactCurrentEnvironmentVersion } from "./current-environment-version.ut
 import type { ProjectDeliverySummaryRecord } from "./project-delivery-summary.select";
 import type {
   ProjectDeliveryBaselineRole,
-  ProjectDeliveryBaselineSummary,
   ProjectDeliveryCurrentVersionSummary,
   ProjectDeliverySummaryResponse,
 } from "./project-delivery-summary.types";
 import { projectDeliveryReadiness } from "./project-delivery-readiness.presenter";
+import {
+  isProjectDeliveryBaseline,
+  presentProjectDeliveryBaseline,
+} from "./project-delivery-baseline.policy";
 import {
   projectDeliveryEntrySummary,
   projectDeliveryResourceSummary,
@@ -40,8 +43,8 @@ export function presentProjectDeliverySummary(
     repository: repository(project),
     intake,
     baselines: {
-      staging: staging ? baselineSummary(project, staging) : null,
-      production: production ? baselineSummary(project, production) : null,
+      staging: staging ? presentProjectDeliveryBaseline(project, staging) : null,
+      production: production ? presentProjectDeliveryBaseline(project, production) : null,
     },
     resources,
     entries: { ...entries, unit: "site" },
@@ -81,29 +84,8 @@ function baseline(
 ) {
   return project.environments.find(
     (item) =>
-      exactEnvironment(project, item) &&
-      item.status === "active" &&
-      item.baselineRole === role,
+      isProjectDeliveryBaseline(project, item, role),
   );
-}
-
-function baselineSummary(
-  project: ProjectDeliverySummaryRecord,
-  environment: Environment,
-): ProjectDeliveryBaselineSummary {
-  const revision = environment.currentConfigRevision;
-  const ready =
-    environment.identityLockedAt !== null &&
-    environment.currentConfigRevisionId === revision?.id &&
-    revision.teamId === project.teamId &&
-    revision.projectId === project.id &&
-    revision.environmentId === environment.id;
-  return {
-    id: environment.id,
-    key: environment.key,
-    name: environment.name,
-    ready,
-  };
 }
 
 function currentVersion(
@@ -123,14 +105,4 @@ function currentVersion(
     deploymentRunId: version.deploymentRun.id,
     effectiveAt: version.effectiveAt.toISOString(),
   };
-}
-
-function exactEnvironment(
-  project: ProjectDeliverySummaryRecord,
-  environment: Environment,
-) {
-  return (
-    environment.teamId === project.teamId &&
-    environment.projectId === project.id
-  );
 }

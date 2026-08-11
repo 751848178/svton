@@ -66,6 +66,7 @@ describe('EnvironmentAwaitingPromotion', () => {
         candidate={candidate()}
         executing={false}
         onResume={onResume}
+        onReconcile={vi.fn()}
       />,
     ));
   }
@@ -82,6 +83,7 @@ function environment(): EnvironmentVersionEnvironment {
     },
     environmentVersions: [], releaseRuns: [{
       id: 'release-1', mode: 'production', status: 'awaiting_validation', artifactManifestId: 'manifest-1',
+      legacyPromotionRecovery: null,
       deploymentRuns: [{
         id: 'deployment-1', status: 'awaiting_validation', createdAt: '2026-08-11T00:00:00Z',
         result: { productionCandidate: {

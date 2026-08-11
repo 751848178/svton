@@ -45,6 +45,27 @@ describe('Modal topmost focus ownership', () => {
     expect(document.body.style.overflow).toBe('hidden');
   });
 
+  it('does not restore outside focus when another modal becomes topmost', async () => {
+    const outside = document.createElement('button');
+    document.body.appendChild(outside);
+    outside.focus();
+    await act(async () => root.render(
+      <Modal open onClose={vi.fn()} title="First"><button>First action</button></Modal>,
+    ));
+    await settleFocus();
+    const firstPanel = document.querySelector<HTMLElement>('[role="dialog"] [tabindex="-1"]')!;
+    expect(document.activeElement).toBe(firstPanel);
+    await act(async () => root.render(<>
+      <Modal open onClose={vi.fn()} title="First"><button>First action</button></Modal>
+      <Modal open onClose={vi.fn()} title="Second"><button>Second action</button></Modal>
+    </>));
+    await settleFocus();
+    const panels = [...document.querySelectorAll<HTMLElement>('[role="dialog"] [tabindex="-1"]')];
+    expect(document.activeElement).toBe(panels[1]);
+    expect(document.activeElement).not.toBe(outside);
+    outside.remove();
+  });
+
   it('contains focus and skips disabled or hidden controls in the top modal', async () => {
     await act(async () => root.render(<Modal open onClose={vi.fn()} title="Focus">
       <button>First enabled</button>
@@ -59,6 +80,8 @@ describe('Modal topmost focus ownership', () => {
     const first = buttons.find((button) => button.getAttribute('aria-label') === 'Close')!;
     const last = buttons.find((button) => button.textContent === 'Last enabled')!;
     expect(document.activeElement).toBe(panel);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true }));
+    expect(document.activeElement).toBe(last);
     last.focus();
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab' }));
     expect(document.activeElement).toBe(first);

@@ -1,21 +1,6 @@
 # Controlled-local Build executor for the disposable V13 acceptance stack.
 # This overlay is inert unless the caller also selects --profile v13-acceptance.
 services:
-  release-build-worker-init:
-    profiles: ["v13-acceptance"]
-    build:
-      context: .
-      dockerfile: apps/devpilot-api/Dockerfile
-      target: api-acceptance
-    command: ["/usr/bin/install", "-d", "-o", "2000", "-g", "2000", "-m", "0750", "/exchange/input", "/exchange/output"]
-    network_mode: "none"
-    cap_drop: ["ALL"]
-    cap_add: ["CHOWN", "DAC_OVERRIDE"]
-    security_opt: ["no-new-privileges:true"]
-    volumes:
-      - devpilot-v13-worker-input:/exchange/input
-      - devpilot-v13-worker-output:/exchange/output
-
   api:
     profiles: ["v13-acceptance"]
     container_name: devpilot-v13-f426-api
@@ -24,9 +9,6 @@ services:
       context: .
       dockerfile: apps/devpilot-api/Dockerfile
       target: api-acceptance
-    depends_on:
-      release-build-worker-init:
-        condition: service_completed_successfully
     read_only: true
     cap_drop: ["ALL"]
     security_opt: ["no-new-privileges:true"]
@@ -39,10 +21,12 @@ services:
       RELEASE_BUILD_WORK_ROOT: /var/lib/devpilot/release-build/work
       RELEASE_BUILD_ARTIFACT_ROOT: /exchange/output/artifacts
       RELEASE_BUILD_EVIDENCE_ROOT: /exchange/input/api-evidence
-      RELEASE_BUILD_UNTRUSTED_WORKER_PROVIDER: filesystem-isolated-worker-v1
+      RELEASE_BUILD_UNTRUSTED_WORKER_PROVIDER: external-oci-launcher-v1
       RELEASE_BUILD_WORKER_INPUT_ROOT: /exchange/input
       RELEASE_BUILD_WORKER_OUTPUT_ROOT: /exchange/output
       RELEASE_BUILD_WORKER_HMAC_SECRET_FILE: /run/secrets/release-build-worker-hmac
+      RELEASE_BUILD_LAUNCHER_PROOF_FILE: /run/launcher/release-build-proof.json
+      RELEASE_BUILD_LAUNCHER_JOB_IMAGE: ${RELEASE_BUILD_LAUNCHER_JOB_IMAGE:?set an immutable repo@sha256 job image}
       RELEASE_BUILD_SUPPLY_PROOF_FILE: /opt/devpilot/security/release-build-supply-proof.json
       RELEASE_BUILD_WORKER_SHARED_GID: "2000"
       RELEASE_BUILD_RUN_TIMEOUT_MS: "180000"
@@ -56,55 +40,21 @@ services:
       RELEASE_STAGING_DEPLOYMENT_TIMEOUT_MS: "120000"
     volumes:
       - devpilot-v13-release-build:/var/lib/devpilot/release-build
-      - devpilot-v13-worker-input:/exchange/input:rw
-      - devpilot-v13-worker-output:/exchange/output:ro
+      - type: bind
+        source: ${RELEASE_BUILD_WORKER_INPUT_ROOT_HOST:?set host launcher input root}
+        target: /exchange/input
+      - type: bind
+        source: ${RELEASE_BUILD_WORKER_OUTPUT_ROOT_HOST:?set host launcher output root}
+        target: /exchange/output
+        read_only: true
+      - type: bind
+        source: ${RELEASE_BUILD_LAUNCHER_PROOF_ROOT_HOST:?set host launcher proof root}
+        target: /run/launcher
+        read_only: true
     secrets:
       - source: release-build-worker-hmac
         target: release-build-worker-hmac
         mode: 0440
-
-  release-build-worker:
-    profiles: ["v13-acceptance"]
-    build:
-      context: .
-      dockerfile: apps/devpilot-api/Dockerfile
-      target: api-acceptance
-    command: ["node", "dist/release-delivery/release-build-filesystem-worker.main.js"]
-    user: "0:2000"
-    init: true
-    read_only: true
-    network_mode: "none"
-    cap_drop: ["ALL"]
-    cap_add: ["SETUID", "SETGID", "CHOWN", "DAC_OVERRIDE"]
-    security_opt: ["no-new-privileges:true"]
-    pids_limit: 128
-    mem_limit: 2g
-    cpus: 2
-    depends_on:
-      release-build-worker-init:
-        condition: service_completed_successfully
-    environment:
-      RELEASE_BUILD_WORKER_INPUT_ROOT: /exchange/input
-      RELEASE_BUILD_WORKER_OUTPUT_ROOT: /exchange/output
-      RELEASE_BUILD_WORKER_HMAC_SECRET_FILE: /run/secrets/release-build-worker-hmac
-      RELEASE_BUILD_WORK_ROOT: /work
-      RELEASE_BUILD_COMMAND_PATH: /pnpm:/usr/local/bin:/usr/bin:/bin
-      RELEASE_BUILD_COMMAND_TIMEOUT_MS: "120000"
-      RELEASE_BUILD_CANCEL_GRACE_MS: "5000"
-      RELEASE_BUILD_BROKER_UID: "3000"
-      RELEASE_BUILD_BROKER_GID: "3000"
-    tmpfs:
-      - /work:rw,nosuid,nodev,size=1g,uid=0,gid=0,mode=0711
-      - /tmp:rw,nosuid,nodev,size=64m,uid=0,gid=0,mode=0711
-    volumes:
-      - devpilot-v13-worker-input:/exchange/input:ro
-      - devpilot-v13-worker-output:/exchange/output:rw
-    secrets:
-      - source: release-build-worker-hmac
-        target: release-build-worker-hmac
-        uid: "0"
-        gid: "0"
-        mode: 0400
 
   web:
     profiles: ["v13-acceptance"]
@@ -113,8 +63,6 @@ services:
 
 volumes:
   devpilot-v13-release-build: {}
-  devpilot-v13-worker-input: {}
-  devpilot-v13-worker-output: {}
 
 secrets:
   release-build-worker-hmac:

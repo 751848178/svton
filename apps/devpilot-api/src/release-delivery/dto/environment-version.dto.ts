@@ -55,3 +55,15 @@ export class ResumeProductionPromotionDto {
   @Matches(/^[a-f0-9]{64}$/)
   candidateHash: string;
 }
+
+export class ReconcileProductionPromotionDto {
+  @IsString()
+  @MinLength(8)
+  @MaxLength(100)
+  idempotencyKey: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  promotionCommandId: string;
+}

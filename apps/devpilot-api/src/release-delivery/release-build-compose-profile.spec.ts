@@ -46,8 +46,10 @@ describe("F426 V13 compose profile", () => {
       "RELEASE_BUILD_WORK_ROOT: /var/lib/devpilot/release-build/work",
       "RELEASE_BUILD_ARTIFACT_ROOT: /exchange/output/artifacts",
       "RELEASE_BUILD_EVIDENCE_ROOT: /exchange/input/api-evidence",
-      "RELEASE_BUILD_UNTRUSTED_WORKER_PROVIDER: filesystem-isolated-worker-v1",
+      "RELEASE_BUILD_UNTRUSTED_WORKER_PROVIDER: external-oci-launcher-v1",
       "RELEASE_BUILD_WORKER_HMAC_SECRET_FILE: /run/secrets/release-build-worker-hmac",
+      "RELEASE_BUILD_LAUNCHER_PROOF_FILE: /run/launcher/release-build-proof.json",
+      "RELEASE_BUILD_LAUNCHER_JOB_IMAGE: ${RELEASE_BUILD_LAUNCHER_JOB_IMAGE:?set an immutable repo@sha256 job image}",
       "RELEASE_BUILD_SUPPLY_PROOF_FILE: /opt/devpilot/security/release-build-supply-proof.json",
       'RELEASE_BUILD_RUN_TIMEOUT_MS: "180000"',
       'RELEASE_BUILD_COMMAND_TIMEOUT_MS: "120000"',
@@ -57,26 +59,21 @@ describe("F426 V13 compose profile", () => {
       "RELEASE_DEPLOYMENT_PROVIDER_PROFILE: local-filesystem-v1",
       "RELEASE_STAGING_DEPLOYMENT_ROOT: /var/lib/devpilot/release-build/deployments",
       'RELEASE_STAGING_DEPLOYMENT_TIMEOUT_MS: "120000"',
-      "devpilot-v13-worker-input:/exchange/input:rw",
-      "devpilot-v13-worker-output:/exchange/output:ro",
-      "release-build-worker:",
-      'user: "0:2000"',
-      'RELEASE_BUILD_BROKER_UID: "3000"',
-      'RELEASE_BUILD_BROKER_GID: "3000"',
-      'network_mode: "none"',
+      "${RELEASE_BUILD_WORKER_INPUT_ROOT_HOST:?set host launcher input root}",
+      "${RELEASE_BUILD_WORKER_OUTPUT_ROOT_HOST:?set host launcher output root}",
+      "${RELEASE_BUILD_LAUNCHER_PROOF_ROOT_HOST:?set host launcher proof root}",
       "read_only: true",
       'cap_drop: ["ALL"]',
-      'cap_add: ["SETUID", "SETGID", "CHOWN", "DAC_OVERRIDE"]',
       'security_opt: ["no-new-privileges:true"]',
-      "pids_limit: 128",
-      "/tmp:rw,nosuid,nodev,size=64m",
-      "devpilot-v13-worker-input:/exchange/input:ro",
-      "devpilot-v13-worker-output:/exchange/output:rw",
+      "pids_limit: 256",
+      "/tmp:rw,nosuid,size=64m",
       "file: ${RELEASE_BUILD_WORKER_HMAC_SECRET_FILE:?set a 32-byte secret file}",
       "dockerfile: apps/devpilot-api/Dockerfile",
     ]) {
       expect(source).toContain(expected);
     }
+    expect(source).not.toContain("/var/run/docker.sock");
+    expect(source).not.toContain("release-build-worker:");
   });
 
   it("keeps the F431 password SSH fixture isolated from source and build tools", async () => {

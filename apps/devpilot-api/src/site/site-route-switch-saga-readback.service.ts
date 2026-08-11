@@ -12,6 +12,12 @@ export type SiteRouteSagaReadback =
   | "terminal"
   | "unknown";
 
+export type ExactSiteRouteSagaReadback = {
+  state: SiteRouteSagaReadback | "not_switched";
+  providerKey: string | null;
+  operationId: string;
+};
+
 @Injectable()
 export class SiteRouteSwitchSagaReadbackService {
   constructor(
@@ -20,27 +26,48 @@ export class SiteRouteSwitchSagaReadbackService {
   ) {}
 
   async inspect(operationId: string): Promise<SiteRouteSagaReadback> {
+    const exact = await this.inspectExact(operationId);
+    return exact.state === "not_switched" ? "terminal" : exact.state;
+  }
+
+  async inspectExact(operationId: string): Promise<ExactSiteRouteSagaReadback> {
     const saga = await this.repository.get(operationId);
-    if (!saga) return "unknown";
-    if (saga.status === "prepared") return "prepared";
+    if (!saga) return result(operationId, null, "unknown");
     if (["compensating", "compensation_required"].includes(saga.status)) {
-      return "recovering";
+      return result(operationId, saga.providerKey, "recovering");
     }
-    if (["compensated", "failed"].includes(saga.status)) return "terminal";
-    if (!["applying", "switched", "committed"].includes(saga.status)) {
-      return "unknown";
+    if (!["prepared", "applying", "switched", "committed", "compensated", "failed"]
+      .includes(saga.status)) {
+      return result(operationId, saga.providerKey, "unknown");
     }
-    if (saga.providerKey !== this.provider.identity.providerKey) return "unknown";
+    if (saga.providerKey !== this.provider.identity.providerKey) {
+      return result(operationId, saga.providerKey, "unknown");
+    }
     await this.provider.verifyProductionCapability();
     const desired = routeInput(saga.desiredRoute);
     const observed = await this.provider.observeRoute(operationId);
-    if (!routeWasApplied(desired, observed, this.provider.identity)) return "unknown";
-    if (saga.status === "applying") {
-      if (!(await this.repository.markSwitched(operationId, observed))) return "unknown";
-      return "switched";
+    const applied = routeWasApplied(desired, observed, this.provider.identity);
+    if (["prepared", "compensated", "failed"].includes(saga.status)) {
+      return result(operationId, saga.providerKey, applied ? "unknown" : "not_switched");
     }
-    return saga.status === "committed" ? "committed" : "switched";
+    if (!applied) return result(operationId, saga.providerKey, "unknown");
+    if (saga.status === "applying") {
+      if (!(await this.repository.markSwitched(operationId, observed))) {
+        return result(operationId, saga.providerKey, "unknown");
+      }
+      return result(operationId, saga.providerKey, "switched");
+    }
+    return result(operationId, saga.providerKey,
+      saga.status === "committed" ? "committed" : "switched");
   }
+}
+
+function result(
+  operationId: string,
+  providerKey: string | null,
+  state: ExactSiteRouteSagaReadback["state"],
+): ExactSiteRouteSagaReadback {
+  return { operationId, providerKey, state };
 }
 
 function routeInput(value: unknown): SiteRouteSwitchInput {

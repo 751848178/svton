@@ -11,6 +11,7 @@ import {
   ownsEvidenceManifest,
   ownsProductionDeployment,
 } from "./release-order-evidence-ownership";
+import { presentLegacyPromotionRecovery } from "./production-promotion-legacy-recovery.presenter";
 
 export function presentReleaseOrderEvidence(input: ReleaseOrderEvidenceRecord) {
   const buildRuns = input.buildRuns.map((run) => {
@@ -41,7 +42,9 @@ export function presentReleaseOrderEvidence(input: ReleaseOrderEvidenceRecord) {
       environment: presentEnvironment(run.environment),
       manifest: presentManifest(run.artifactManifest),
       operationApproval: presentApproval(run.operationApproval),
-      legacyPromotionRecovery: run.productionPromotionCommands?.[0] ?? null,
+      legacyPromotionRecovery: presentLegacyPromotionRecovery(
+        run.productionPromotionCommands ?? [],
+      ),
       stagingProof: {
         deploymentRunId: run.stagingProof.id,
         environmentId: run.stagingProof.environmentId,

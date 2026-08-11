@@ -39,7 +39,7 @@ export interface ReleaseBuildRuntimeDescriptor {
   environmentKeys: readonly string[];
   workerIsolation: {
     contractVersion: "release-build-untrusted-worker-v1";
-    provider: "missing" | "test-fixture-only" | "filesystem-isolated-worker-v1";
+    provider: "missing" | "test-fixture-only" | "external-oci-launcher-v1";
     untrustedRepositories: boolean;
   };
 }

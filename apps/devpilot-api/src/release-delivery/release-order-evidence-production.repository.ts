@@ -82,12 +82,10 @@ export async function loadProductionEvidence(
         },
       },
       productionPromotionCommands: {
-        where: { legacyReconcileRequired: true },
+        where: { legacyReconcileRequired: true, status: "running" },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        take: 1,
         select: {
-          id: true, phase: true, legacyReconcileRequired: true,
-          legacyReconcileReason: true, createdAt: true,
+          id: true, phase: true, legacyReconcileReason: true,
         },
       },
       deploymentRuns: {

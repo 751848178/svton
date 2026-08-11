@@ -237,3 +237,32 @@ flowchart TD
 - Unknown legacy promotion attempts are quarantined by the additive `legacy_reconcile_required` phase and excluded from recovery/reservation. The UI exposes one fail-closed recovery task and never offers generic resume. The parity fixture now signs source commits with the seeded, login-capable source reviewer identity.
 - Private repository credentials appear immediately when private visibility is selected. Staging and Production baseline cards explain their distinct roles. The shared Modal owns a global overlay stack so only the top dialog handles Escape, mask clicks and focus containment; body scroll remains locked until the final overlay closes.
 - Release-delivery Jest, full Web Vitest, API/Web/UI type checks, API/Web/UI builds, Prisma validation/generation, i18n parity and fixture marker checks pass in source validation. No Docker, database migration application or shared runtime mutation occurred; those remain runtime acceptance boundaries.
+
+## Final Review Reconciliation (2026-08-11)
+
+- Environment-version and release-order projections now expose every active
+  legacy promotion command. One exact command offers the audited reconciliation
+  task; multiple commands fail closed as
+  `legacy_promotion_reconciliation_ambiguous` with no executable CTA.
+- Reconciliation persists an additive command audit, observes the exact frozen
+  candidate/route/provider tuple and only converges a committed provider state
+  inside the final locked transaction. A proven not-switched route terminates
+  the quarantined command and permits a new attempt; unknown readback stays
+  blocked without changing the current version.
+- Staging and Production current versions share the strict baseline policy and
+  require canonical manifest/deployment/provider digest proof. Missing,
+  malformed or mismatched proof returns `current_version_digest_unverified`;
+  directory and detail never infer readiness from row counts.
+- `controlled-local-acceptance-v2` no longer treats a same-container UID child
+  as an untrusted sandbox. It requires `external-oci-launcher-v1`, an exact
+  `repo@sha256` job image and a fresh HMAC heartbeat bound to the registered
+  isolation controls. Each repository job runs in an outer OCI container with
+  network disabled, read-only root, all capabilities dropped, UID/GID 3000 and
+  private bounded mounts. The trusted host launcher kills and removes the whole
+  container before artifact promotion and final signing.
+- The API and Compose profile never receive a Docker socket. Host exchange,
+  systemd and launcher contracts are documented in
+  `release-build-external-oci-launcher.md`. The real Docker integration test is
+  defined for Linux/root plus an explicitly supplied immutable image, but was
+  intentionally not executed in this no-Docker review; runtime signoff remains
+  fail closed until that acceptance run is retained.

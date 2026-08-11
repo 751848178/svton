@@ -9,16 +9,17 @@ import {
 } from "./project-directory-status.utils";
 import type { ProjectDirectoryItem } from "./project-directory.types";
 import { projectDeliveryReadiness } from "../release-delivery/project-delivery-readiness.presenter";
+import { isProjectDeliveryBaseline } from "../release-delivery/project-delivery-baseline.policy";
 
 export function toProjectDirectoryItem(
   project: ProjectDirectoryRecord,
   providerKey: string,
 ): ProjectDirectoryItem {
   const staging = project.environments.find(
-    (environment) => environment.baselineRole === "staging",
+    (environment) => isProjectDeliveryBaseline(project, environment, "staging"),
   );
   const production = project.environments.find(
-    (environment) => environment.baselineRole === "production",
+    (environment) => isProjectDeliveryBaseline(project, environment, "production"),
   );
   const repositoryReady = isStoredConnectionAligned(
     project.repositoryIdentity,
@@ -31,8 +32,8 @@ export function toProjectDirectoryItem(
           canonicalUrl: project.repositoryIdentity.canonicalUrl,
         }
       : null;
-  const stagingSummary = staging ? baselineSummary(staging) : null;
-  const productionBaseline = production ? baselineSummary(production) : null;
+  const stagingSummary = staging ? baselineSummary(project, staging) : null;
+  const productionBaseline = production ? baselineSummary(project, production) : null;
   const liveProduction = productionSummary(project, production);
   const intake = repositoryIntakeSummary(project);
   const readiness = projectDeliveryReadiness(

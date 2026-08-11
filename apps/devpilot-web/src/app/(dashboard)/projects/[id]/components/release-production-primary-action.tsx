@@ -2,11 +2,13 @@
 
 import { useTranslations } from 'next-intl';
 import { Button, LinkButton } from '@/components/ui';
+import type { LegacyPromotionRecovery } from '../types/environment-version.types';
 
 interface Props {
   frozen: boolean;
   needsRecovery: boolean;
-  legacyRecovery: boolean;
+  legacyRecovery: LegacyPromotionRecovery | null;
+  reconciling: boolean;
   active: boolean;
   runStatus?: string;
   approvalStatus?: string;
@@ -17,18 +19,28 @@ interface Props {
   confirming: boolean;
   onRequest: () => void;
   onResume: () => void;
+  onReconcile: (promotionCommandId: string) => void;
 }
 
 export function ReleaseProductionPrimaryAction(props: Props) {
   const t = useTranslations('projects');
   if (props.legacyRecovery) {
+    const commandId = props.legacyRecovery.status === 'required' &&
+      props.legacyRecovery.commandIds.length === 1
+      ? props.legacyRecovery.commandIds[0] : null;
     return (
       <div className="max-w-xs text-right">
-        <Button className="min-h-11" disabled>
-          {t('releaseProductionLegacyRecoveryAction')}
+        <Button className="min-h-11" loading={props.reconciling}
+          disabled={!commandId || props.reconciling}
+          onClick={() => commandId && props.onReconcile(commandId)}>
+          {t(commandId
+            ? 'releaseProductionLegacyRecoveryReconcileAction'
+            : 'releaseProductionLegacyRecoveryAction')}
         </Button>
         <p className="mt-1 text-xs text-amber-800" role="status">
-          {t('releaseProductionLegacyRecoveryReason')}
+          {t(props.legacyRecovery.status === 'ambiguous'
+            ? 'releaseProductionLegacyRecoveryAmbiguousDescription'
+            : 'releaseProductionLegacyRecoveryReason')}
         </p>
       </div>
     );

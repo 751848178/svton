@@ -11,7 +11,10 @@ import {
   type EnvironmentSettingsTab,
 } from "./project-delivery-environment-readiness.policy";
 import { resolveProjectDeliveryServiceParity } from "./project-delivery-service-parity.policy";
-import { exactCurrentEnvironmentVersion } from "./current-environment-version.utils";
+import {
+  currentEnvironmentVersionFailureReason,
+  exactCurrentEnvironmentVersion,
+} from "./current-environment-version.utils";
 
 export function projectDeliveryReadiness(
   project: ProjectDeliverySummaryRecord,
@@ -117,11 +120,14 @@ function environmentRoute(
 function release(project: ProjectDeliverySummaryRecord, baselines: Baseline[]) {
   const ready = baselines.every(({ environment }) =>
     Boolean(environment && exactCurrentEnvironmentVersion(project, environment)));
+  const digestUnverified = baselines.some(({ environment }) =>
+    environment && currentEnvironmentVersionFailureReason(environment) ===
+      "current_version_digest_unverified");
   return checkpoint(
     "release",
     "project",
     ready,
-    "release_action_required",
+    digestUnverified ? "current_version_digest_unverified" : "release_action_required",
     action(project.id, "open_release", ""),
   );
 }

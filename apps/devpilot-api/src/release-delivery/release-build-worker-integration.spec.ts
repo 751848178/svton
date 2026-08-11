@@ -68,7 +68,9 @@ describe("filesystem isolated build worker exchange", () => {
       RELEASE_BUILD_EXECUTOR_PROFILE: "controlled-local-acceptance-v2",
       RELEASE_BUILD_WORK_ROOT: join(scope, "api-work"),
       RELEASE_BUILD_ARTIFACT_ROOT: join(outputRoot, "artifacts"),
-      RELEASE_BUILD_UNTRUSTED_WORKER_PROVIDER: "filesystem-isolated-worker-v1",
+      NODE_ENV: "test",
+      RELEASE_BUILD_TRUSTED_TEST_FIXTURE: true,
+      RELEASE_BUILD_UNTRUSTED_WORKER_PROVIDER: "external-oci-launcher-v1",
       RELEASE_BUILD_WORKER_INPUT_ROOT: inputRoot,
       RELEASE_BUILD_WORKER_OUTPUT_ROOT: outputRoot,
       RELEASE_BUILD_WORKER_HMAC_SECRET_FILE: secretFile,
@@ -95,6 +97,9 @@ describe("filesystem isolated build worker exchange", () => {
         buildEnvironment: {},
       }],
     });
+    const failure = expect(execution).rejects.toMatchObject({
+      detail: { code: "BUILD_PRE_SCRIPT_SECURITY_BLOCKED" },
+    });
     const jobId = await waitForJob(inputRoot);
     const worker = new ReleaseBuildFilesystemWorker({
       inputRoot, outputRoot, secretFile,
@@ -107,9 +112,7 @@ describe("filesystem isolated build worker exchange", () => {
       brokerGid: process.getgid?.() ?? 0,
     });
     await worker.runJob(jobId);
-    await expect(execution).rejects.toMatchObject({
-      detail: { code: "BUILD_PRE_SCRIPT_SECURITY_BLOCKED" },
-    });
+    await failure;
     const result = await readImmutableWorkerJson<ReleaseBuildWorkerResult>(
       join(outputRoot, jobId, "result.json"),
     );

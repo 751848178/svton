@@ -128,6 +128,7 @@ function environment(projectId: string, role: "staging" | "production") {
       releaseOrderId: orderId,
       artifactManifestId: manifestId,
       deploymentRunId: deploymentId,
+      releaseRunId: role === "production" ? `release-${role}` : null,
       effectiveAt: new Date(
         `2026-08-04T0${role === "staging" ? 1 : 2}:00:00.000Z`,
       ),
@@ -153,7 +154,22 @@ function environment(projectId: string, role: "staging" | "production") {
         source: "release_order",
         status: "completed",
         dryRun: false,
+        result: {
+          artifactVerified: true,
+          manifestId,
+          manifestDigest: `sha256:${(role === "staging" ? "a" : "b").repeat(64)}`,
+        },
       },
+      releaseRun: role === "production" ? {
+        id: `release-${role}`,
+        teamId: "team-1",
+        projectId,
+        environmentId: id,
+        releaseOrderId: orderId,
+        artifactManifestId: manifestId,
+        status: "succeeded",
+        verifiedDigest: `sha256:${"b".repeat(64)}`,
+      } : null,
     },
   };
 }

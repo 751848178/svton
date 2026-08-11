@@ -85,7 +85,7 @@ export class FilesystemIsolatedReleaseBuildExecutorService
     }
     const profileSnapshot = buildSourcePolicySnapshot(profile);
     const identity: ReleaseBuildWorkerIdentity = {
-      contract: "filesystem-isolated-worker-v1",
+      contract: "external-oci-launcher-v1",
       jobId,
       projectId: input.projectId,
       releaseOrderId: input.releaseOrderId,

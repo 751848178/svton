@@ -3,6 +3,7 @@ import type {
   ReleaseEnvironmentRole,
   ReleaseExecutionStatus,
 } from './release-copy.types';
+import type { LegacyPromotionRecovery } from './environment-version.types';
 
 export interface ReleaseEvidenceManifest {
   id: string;
@@ -145,13 +146,7 @@ export interface ReleaseEvidenceProductionRun {
     consumedAt: string | null;
     expiresAt: string | null;
   };
-  legacyPromotionRecovery: {
-    id: string;
-    phase: string;
-    legacyReconcileRequired: boolean;
-    legacyReconcileReason: string | null;
-    createdAt: string;
-  } | null;
+  legacyPromotionRecovery: LegacyPromotionRecovery | null;
   stagingProof: {
     deploymentRunId: string;
     environmentId: string;

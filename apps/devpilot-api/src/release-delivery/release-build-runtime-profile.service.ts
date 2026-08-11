@@ -144,7 +144,7 @@ export class ReleaseBuildRuntimeProfileService {
       environmentKeys: CHILD_ENVIRONMENT_KEYS,
       workerIsolation: workerIsolation(
         this.trustedTestFixture,
-        this.worker.filesystem,
+        this.worker.external,
       ),
     };
   }
@@ -164,13 +164,13 @@ function unavailableMessage(reason: string) {
   return "受控构建执行器未启用或运行目录配置无效";
 }
 
-function workerIsolation(testFixture: boolean, filesystem = false) {
+function workerIsolation(testFixture: boolean, external = false) {
   return {
     contractVersion: "release-build-untrusted-worker-v1" as const,
-    provider: filesystem
-      ? "filesystem-isolated-worker-v1" as const
+    provider: external
+      ? "external-oci-launcher-v1" as const
       : testFixture ? "test-fixture-only" as const : "missing" as const,
-    untrustedRepositories: filesystem,
+    untrustedRepositories: external,
   };
 }
 

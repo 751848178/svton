@@ -6,21 +6,15 @@ import type {
   ProjectDirectoryStatus,
 } from "./project-directory.types";
 import type { ProjectDeliveryCheckpoint } from "../release-delivery/project-delivery-summary.types";
+import { presentProjectDeliveryBaseline } from "../release-delivery/project-delivery-baseline.policy";
 
 type DirectoryEnvironment = ProjectDirectoryRecord["environments"][number];
 
 export function baselineSummary(
+  project: ProjectDirectoryRecord,
   environment: DirectoryEnvironment,
 ): ProjectDirectoryEnvironmentSummary {
-  return {
-    id: environment.id,
-    key: environment.key,
-    name: environment.name,
-    ready:
-      environment.status === "active" &&
-      environment.identityLockedAt !== null &&
-      environment.currentConfigRevisionId !== null,
-  };
+  return presentProjectDeliveryBaseline(project, environment);
 }
 
 export function productionSummary(

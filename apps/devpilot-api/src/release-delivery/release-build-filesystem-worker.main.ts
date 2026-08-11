@@ -1,8 +1,14 @@
-import { readdir } from "node:fs/promises";
+import { access, readdir } from "node:fs/promises";
+import { constants } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { ReleaseBuildFilesystemWorker } from "./release-build-filesystem-worker";
 import { assertWorkerJobId } from "./release-build-worker-exchange";
 import { readReleaseBuildWorkerSecret } from "./release-build-worker-secret";
+import { exactOciImage, launcherControlsDigest, signLauncherProof,
+  writeLauncherProof } from "./release-build-launcher-proof.policy";
+import { resolveRegisteredReleaseBuildProfile } from "./release-build-acceptance-profile";
+import { verifyReleaseBuildSupplyProof } from "./release-build-supply-proof.policy";
 
 async function main() {
   const config = {
@@ -17,11 +23,31 @@ async function main() {
     cancelGraceMs: positive("RELEASE_BUILD_CANCEL_GRACE_MS", 5_000),
     brokerUid: positive("RELEASE_BUILD_BROKER_UID", 3_000),
     brokerGid: positive("RELEASE_BUILD_BROKER_GID", 3_000),
+    externalOci: {
+      image: requiredImage("RELEASE_BUILD_LAUNCHER_JOB_IMAGE"),
+      dockerExecutable: requiredPath("RELEASE_BUILD_LAUNCHER_DOCKER_EXECUTABLE"),
+    },
+    proofFile: requiredPath("RELEASE_BUILD_LAUNCHER_PROOF_FILE"),
+    supplyProofFile: requiredPath("RELEASE_BUILD_SUPPLY_PROOF_FILE"),
   };
   if (process.getuid?.() !== 0 || config.brokerUid === 0 || config.brokerGid === 0) {
     throw new Error("release-build supervisor requires root and a non-root broker uid/gid");
   }
-  await readReleaseBuildWorkerSecret(config.secretFile);
+  const secret = await readReleaseBuildWorkerSecret(config.secretFile);
+  await assertToolchain(config.supplyProofFile);
+  const instance = randomUUID().replaceAll("-", "");
+  const startedAt = new Date().toISOString();
+  const heartbeat = () => writeLauncherProof(config.proofFile, signLauncherProof({
+    schemaVersion: 1, provider: "external-oci-launcher-v1",
+    profileId: "controlled-local-acceptance-v2",
+    jobImage: config.externalOci.image, controlsDigest: launcherControlsDigest,
+    launcherInstanceId: instance, startedAt, heartbeatAt: new Date().toISOString(),
+  }, secret));
+  await heartbeat();
+  const heartbeatTimer = setInterval(() => void heartbeat().catch((error) => {
+    process.stderr.write(`release-build launcher heartbeat: ${safe(error)}\n`);
+  }), 5_000);
+  heartbeatTimer.unref();
   const worker = new ReleaseBuildFilesystemWorker(config);
   let stopping = false;
   process.once("SIGTERM", () => { stopping = true; });
@@ -37,6 +63,7 @@ async function main() {
     }
     await delay(250);
   }
+  clearInterval(heartbeatTimer);
 }
 
 async function jobs(root: string) {
@@ -57,9 +84,24 @@ function positive(key: string, fallback: number) {
   const value = Number(process.env[key]);
   return Number.isFinite(value) && value > 0 ? value : fallback;
 }
+function requiredImage(key: string) {
+  const value = process.env[key];
+  if (!exactOciImage(value)) throw new Error(`${key} must be an immutable OCI digest`);
+  return value;
+}
 function safe(error: unknown) {
   return error instanceof Error ? error.message.slice(0, 500) : "unknown failure";
 }
 function delay(ms: number) { return new Promise((resolvePromise) => setTimeout(resolvePromise, ms)); }
+
+async function assertToolchain(supplyProofFile: string) {
+  const profile = resolveRegisteredReleaseBuildProfile("controlled-local-acceptance-v2");
+  if (!profile || !verifyReleaseBuildSupplyProof(supplyProofFile, profile))
+    throw new Error("release-build launcher supply proof is invalid");
+  const executables = [...profile.scanners.map((value) => value.executable),
+    ...Object.values(profile.packageManagers).map((value) => value!.executable),
+    "/bin/tar"];
+  await Promise.all(executables.map((value) => access(value, constants.X_OK)));
+}
 
 void main();

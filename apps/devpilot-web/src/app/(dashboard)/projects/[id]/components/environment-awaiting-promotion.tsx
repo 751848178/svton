@@ -10,6 +10,7 @@ import type {
 } from '../types/environment-version.types';
 import { releaseOrderHref } from '../utils/project-route.utils';
 import { frozenProductionCandidate } from '../utils/production-promotion-candidate.model';
+import { ReleaseProductionLegacyRecoveryAlert } from './release-production-legacy-recovery-alert';
 
 export function EnvironmentAwaitingPromotion(props: {
   projectId: string;
@@ -17,11 +18,19 @@ export function EnvironmentAwaitingPromotion(props: {
   candidate?: EnvironmentVersionCandidate;
   executing: boolean;
   onResume: (input: ProductionPromotionResumeInput) => Promise<unknown>;
+  onReconcile: (promotionCommandId: string) => Promise<unknown>;
 }) {
   const t = useTranslations('projects');
   const searchParams = useSearchParams();
   const release = props.environment.releaseRuns?.find(
-    (item) => item.status === 'awaiting_validation',
+    (item) => item.status === 'awaiting_validation' || item.legacyPromotionRecovery,
+  );
+  if (release?.legacyPromotionRecovery) return (
+    <ReleaseProductionLegacyRecoveryAlert
+      recovery={release.legacyPromotionRecovery}
+      executing={props.executing}
+      onReconcile={props.onReconcile}
+    />
   );
   const deployment = release?.deploymentRuns.find(
     (item) => item.status === 'awaiting_validation',

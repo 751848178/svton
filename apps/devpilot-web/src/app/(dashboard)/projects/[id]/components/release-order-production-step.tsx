@@ -6,6 +6,7 @@ import { useReleaseBuilds } from '../hooks/use-release-builds';
 import type { ReleaseOrderEvidenceHook } from '../hooks/use-release-order-evidence';
 import { useProductionReleases } from '../hooks/use-production-releases';
 import { useProductionPromotionResume } from '../hooks/use-production-promotion-resume';
+import { useProductionPromotionReconcile } from '../hooks/use-production-promotion-reconcile';
 import { useReleaseProductionFocusNormalizer } from '../hooks/use-release-production-focus-normalizer';
 import { useReleaseStagingDeployments } from '../hooks/use-release-staging-deployments';
 import { releaseProductionErrorLabelKey } from '../utils/release-copy.model';
@@ -13,6 +14,7 @@ import { ReleaseProductionApprovalCard } from './release-production-approval-car
 import { ReleaseProductionConfirmDialog } from './release-production-confirm-dialog';
 import { ReleaseProductionEvidenceSection } from './release-production-evidence-section';
 import { ReleaseProductionLegacyRecoveryAlert } from './release-production-legacy-recovery-alert';
+import { ReleaseProductionOperationErrors } from './release-production-operation-errors';
 import { ReleaseProductionPrimaryAction } from './release-production-primary-action';
 import { releaseProductionCurrentRun } from './release-production-current-run.model';
 import { ReleaseProductionPromotionProgress } from './release-production-promotion-progress';
@@ -20,7 +22,6 @@ import {
   productionStageCopy,
   ReleaseProductionStageCard,
 } from './release-production-stage-card';
-
 interface Props {
   projectId: string;
   releaseOrderId: string;
@@ -88,7 +89,11 @@ export function ReleaseOrderProductionStep(props: Props) {
     current.awaitingResume?.environmentId || '',
     props.onChanged,
   );
-
+  const reconciliation = useProductionPromotionReconcile(
+    props.projectId,
+    approvalRun?.environmentId || '',
+    props.onChanged,
+  );
   const focusedRun = releaseRuns.find((run) =>
       run.deploymentRuns.some((deployment) => deployment.id === props.focusedDeploymentRunId),
     ) || null;
@@ -110,7 +115,8 @@ export function ReleaseOrderProductionStep(props: Props) {
     <ReleaseProductionPrimaryAction
       frozen={props.productionArtifactFrozen}
       needsRecovery={current.needsRecovery}
-      legacyRecovery={Boolean(current.legacyRecovery)}
+      legacyRecovery={current.legacyRecovery}
+      reconciling={reconciliation.reconciling}
       active={current.active}
       runStatus={approvalRun?.status}
       approvalStatus={approvalRun?.operationApproval.status}
@@ -123,6 +129,7 @@ export function ReleaseOrderProductionStep(props: Props) {
       onResume={() => {
         if (current.awaitingResume) void promotion.resume(current.awaitingResume.input);
       }}
+      onReconcile={(commandId) => { void reconciliation.reconcile(commandId); }}
     />
   );
 
@@ -156,27 +163,20 @@ export function ReleaseOrderProductionStep(props: Props) {
       />
       <ReleaseProductionPromotionProgress run={approvalRun} />
       {current.legacyRecovery ? (
-        <ReleaseProductionLegacyRecoveryAlert />
+        <ReleaseProductionLegacyRecoveryAlert recovery={current.legacyRecovery} />
       ) : null}
       {approvalRun ? (
         <ReleaseProductionApprovalCard
           projectId={props.projectId}
           run={approvalRun}
           onChanged={props.onChanged}
-          recoveryHref={props.recoveryHref}
         />
       ) : null}
-      {production.error && productionErrorKey ? (
-        <p
-          className="text-sm text-destructive"
-          role="alert"
-        >
-          {t(productionErrorKey)}
-        </p>
-      ) : null}
-      {promotion.error ? (
-        <p className="text-sm text-destructive" role="alert">{promotion.error}</p>
-      ) : null}
+      <ReleaseProductionOperationErrors
+        productionError={production.error && productionErrorKey ? t(productionErrorKey) : ''}
+        promotionError={promotion.error}
+        reconciliationError={reconciliation.error}
+      />
       <ReleaseProductionEvidenceSection
         projectId={props.projectId}
         evidence={props.evidence}

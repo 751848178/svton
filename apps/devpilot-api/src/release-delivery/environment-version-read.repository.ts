@@ -25,6 +25,7 @@ const exactCurrentVersionInclude = {
     releaseOrderId: true,
     artifactManifestId: true,
     deploymentRunId: true,
+    releaseRunId: true,
     effectiveAt: true,
     releaseOrder: {
       select: {
@@ -53,6 +54,14 @@ const exactCurrentVersionInclude = {
         source: true,
         status: true,
         dryRun: true,
+        result: true,
+      },
+    },
+    releaseRun: {
+      select: {
+        id: true, teamId: true, projectId: true, environmentId: true,
+        releaseOrderId: true, artifactManifestId: true,
+        status: true, verifiedDigest: true,
       },
     },
   },
@@ -95,6 +104,11 @@ export class EnvironmentVersionReadRepository {
             mode: true,
             status: true,
             artifactManifestId: true,
+            productionPromotionCommands: {
+              where: { legacyReconcileRequired: true, status: "running" },
+              orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+              select: { id: true, phase: true, legacyReconcileReason: true },
+            },
             deploymentRuns: {
               where: { status: { in: ["running", "awaiting_validation"] } },
               orderBy: [{ createdAt: "desc" }, { id: "desc" }],
