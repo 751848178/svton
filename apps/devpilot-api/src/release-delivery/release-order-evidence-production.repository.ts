@@ -81,6 +81,15 @@ export async function loadProductionEvidence(
           expiresAt: true,
         },
       },
+      productionPromotionCommands: {
+        where: { legacyReconcileRequired: true },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: 1,
+        select: {
+          id: true, phase: true, legacyReconcileRequired: true,
+          legacyReconcileReason: true, createdAt: true,
+        },
+      },
       deploymentRuns: {
         where: {
           teamId: scope.teamId,

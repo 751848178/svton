@@ -1,5 +1,16 @@
 import { ConfigService } from "@nestjs/config";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { resolveRegisteredReleaseBuildProfile } from "./release-build-acceptance-profile";
 import { ReleaseBuildRuntimeProfileService } from "./release-build-runtime-profile.service";
+import { expectedReleaseBuildSupplyProof } from "./release-build-supply-proof.policy";
+
+const temporaryRoots: string[] = [];
+
+afterEach(() => {
+  for (const root of temporaryRoots.splice(0)) rmSync(root, { recursive: true, force: true });
+});
 
 describe("ReleaseBuildRuntimeProfileService", () => {
   it("requires both the kill switch and the exact controlled profile", () => {
@@ -28,6 +39,7 @@ describe("ReleaseBuildRuntimeProfileService", () => {
   });
 
   it("accepts v2 with a distinct filesystem worker exchange", () => {
+    const proof = supplyProof();
     const runtime = profile({
       RELEASE_BUILD_EXECUTION_ENABLED: true,
       RELEASE_BUILD_EXECUTOR_PROFILE: "controlled-local-acceptance-v2",
@@ -38,6 +50,7 @@ describe("ReleaseBuildRuntimeProfileService", () => {
       RELEASE_BUILD_WORKER_INPUT_ROOT: "/tmp/devpilot-f426/input",
       RELEASE_BUILD_WORKER_OUTPUT_ROOT: "/tmp/devpilot-f426/output",
       RELEASE_BUILD_WORKER_HMAC_SECRET_FILE: "/run/secrets/build-worker",
+      RELEASE_BUILD_SUPPLY_PROOF_FILE: proof,
       RELEASE_BUILD_RUN_TIMEOUT_MS: 180_000,
       RELEASE_BUILD_COMMAND_TIMEOUT_MS: 120_000,
       RELEASE_BUILD_CANCEL_GRACE_MS: 5_000,
@@ -79,6 +92,16 @@ describe("ReleaseBuildRuntimeProfileService", () => {
     expect(() => runtime.assertAvailable()).toThrow();
   });
 });
+
+function supplyProof() {
+  const root = mkdtempSync(join(tmpdir(), "release-build-supply-proof-"));
+  temporaryRoots.push(root);
+  const file = join(root, "proof.json");
+  const profile = resolveRegisteredReleaseBuildProfile("controlled-local-acceptance-v2");
+  if (!profile) throw new Error("registered acceptance profile missing");
+  writeFileSync(file, JSON.stringify(expectedReleaseBuildSupplyProof(profile)), { mode: 0o600 });
+  return file;
+}
 
 function profile(overrides: Record<string, unknown>) {
   const values = {

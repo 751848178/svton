@@ -392,6 +392,40 @@ describe('ReleaseOrderProductionStep confirmation dialog', () => {
     });
   });
 
+  it('fails closed with one recovery task for a quarantined legacy promotion', async () => {
+    const legacy = productionRun('release-legacy');
+    legacy.status = 'awaiting_validation';
+    legacy.legacyPromotionRecovery = {
+      phase: 'legacy_reconcile_required',
+      reason: 'legacy_phase_unknown',
+    };
+    const evidence = {
+      evidence: {
+        buildRuns: { items: [], total: 0, hasMore: false },
+        stagingDeploymentRuns: { items: [], total: 0, hasMore: false },
+        productionReleaseRuns: { items: [legacy], total: 1, hasMore: false },
+      },
+      loading: false,
+      error: '',
+      load: vi.fn(),
+    } as unknown as ReleaseOrderEvidenceHook;
+    await act(async () => root.render(<ReleaseOrderProductionStep
+      {...props(evidence)}
+      focusedReleaseRunId="release-legacy"
+      focusedDeploymentRunId={undefined}
+      onFocus={vi.fn()}
+    />));
+
+    expect(container.textContent).toContain('releaseProductionLegacyRecoveryTitle');
+    expect(container.textContent).toContain('releaseProductionLegacyRecoveryDescription');
+    const recovery = Array.from(container.querySelectorAll('button')).find(
+      (item) => item.textContent === 'releaseProductionLegacyRecoveryAction',
+    );
+    expect(recovery?.disabled).toBe(true);
+    expect(container.textContent).not.toContain('environmentVersionContinueProduction');
+    expect(mocks.resume).not.toHaveBeenCalled();
+  });
+
   it('does not offer a new production approval after the release artifact is frozen', async () => {
     await act(async () =>
       root.render(
@@ -597,6 +631,7 @@ function productionRun(id: string) {
     },
     stagingProof: null,
     deploymentRuns: [],
+    legacyPromotionRecovery: null as null | { phase: string; reason: string | null },
   };
 }
 

@@ -54,7 +54,15 @@ import { seedParityVersionHistory } from "./lib/parity-seed-version-history.mjs"
 import { detachParitySeedProject } from "./lib/parity-seed-bootstrap.mjs";
 import { buildRuntimeImagesSequentially } from "./lib/parity-runtime-image-build.mjs";
 import { cleanupC5WebBuildOutput } from "./lib/parity-isolated-c5-web-build-output.mjs";
-import { seedParityReleaseActors } from "./lib/parity-seed-release-actors.mjs";
+import {
+  PARITY_RELEASE_ACTORS,
+  seedParityReleaseActors,
+} from "./lib/parity-seed-release-actors.mjs";
+import {
+  isCurrentParityFixtureMarker,
+  parityFixtureGitEnvironment,
+  parityFixtureMarker,
+} from "./lib/parity-fixture-author-marker.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const composeFile = resolve(root, "docker-compose.devpilot-parity.yml");
@@ -258,23 +266,24 @@ async function ensureFixtureRepo() {
   const markerPath = join(fixtureGitRoot, ".parity-pinned-commit.json");
   try {
     const existing = JSON.parse(await readFile(markerPath, "utf8"));
-    console.log(
-      `[parity-seed] fixture repo already materialized at ${fixtureGitRoot} (pinned ${existing.pinnedCommit})`,
-    );
-    return existing.pinnedCommit;
+    if (isCurrentParityFixtureMarker(
+      existing,
+      PARITY_RELEASE_ACTORS.confirmer.email,
+    )) {
+      console.log(
+        `[parity-seed] fixture repo already materialized at ${fixtureGitRoot} (pinned ${existing.pinnedCommit})`,
+      );
+      return existing.pinnedCommit;
+    }
   } catch {
     // fall through to materialization
   }
   const stamp = "2026-08-08T00:00:00Z";
-  const env = {
-    ...process.env,
-    GIT_AUTHOR_NAME: "Parity Fixture",
-    GIT_AUTHOR_EMAIL: "parity@fixture.local",
-    GIT_AUTHOR_DATE: stamp,
-    GIT_COMMITTER_NAME: "Parity Fixture",
-    GIT_COMMITTER_EMAIL: "parity@fixture.local",
-    GIT_COMMITTER_DATE: stamp,
-  };
+  const env = parityFixtureGitEnvironment(
+    PARITY_RELEASE_ACTORS.confirmer,
+    stamp,
+    process.env,
+  );
   const stage = await mkdtemp(join(tmpdir(), "parity-fixture-stage-"));
   try {
     await cp(fixtureSource, stage, { recursive: true });
@@ -287,11 +296,12 @@ async function ensureFixtureRepo() {
     await mkdir(dirname(fixtureGitRoot), { recursive: true });
     await rm(fixtureGitRoot, { recursive: true, force: true });
     await cp(stage, fixtureGitRoot, { recursive: true });
-    const manifest = {
+    const manifest = parityFixtureMarker({
       pinnedCommit: sha,
+      commitAuthorEmail: PARITY_RELEASE_ACTORS.confirmer.email,
       source: fixtureSource,
       materializedAt: new Date().toISOString(),
-    };
+    });
     await writeFile(markerPath, JSON.stringify(manifest, null, 2));
     console.log(
       `[parity-seed] fixture repo materialized at ${fixtureGitRoot} (pinned ${sha})`,

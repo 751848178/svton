@@ -4,6 +4,8 @@ services:
   release-build-worker-init:
     profiles: ["v13-acceptance"]
     build:
+      context: .
+      dockerfile: apps/devpilot-api/Dockerfile
       target: api-acceptance
     command: ["/usr/bin/install", "-d", "-o", "2000", "-g", "2000", "-m", "0750", "/exchange/input", "/exchange/output"]
     network_mode: "none"
@@ -19,6 +21,8 @@ services:
     container_name: devpilot-v13-f426-api
     restart: "no"
     build:
+      context: .
+      dockerfile: apps/devpilot-api/Dockerfile
       target: api-acceptance
     depends_on:
       release-build-worker-init:
@@ -39,6 +43,7 @@ services:
       RELEASE_BUILD_WORKER_INPUT_ROOT: /exchange/input
       RELEASE_BUILD_WORKER_OUTPUT_ROOT: /exchange/output
       RELEASE_BUILD_WORKER_HMAC_SECRET_FILE: /run/secrets/release-build-worker-hmac
+      RELEASE_BUILD_SUPPLY_PROOF_FILE: /opt/devpilot/security/release-build-supply-proof.json
       RELEASE_BUILD_WORKER_SHARED_GID: "2000"
       RELEASE_BUILD_RUN_TIMEOUT_MS: "180000"
       RELEASE_BUILD_COMMAND_TIMEOUT_MS: "120000"
@@ -61,12 +66,16 @@ services:
   release-build-worker:
     profiles: ["v13-acceptance"]
     build:
+      context: .
+      dockerfile: apps/devpilot-api/Dockerfile
       target: api-acceptance
     command: ["node", "dist/release-delivery/release-build-filesystem-worker.main.js"]
-    user: "2000:2000"
+    user: "0:2000"
+    init: true
     read_only: true
     network_mode: "none"
     cap_drop: ["ALL"]
+    cap_add: ["SETUID", "SETGID", "CHOWN", "DAC_OVERRIDE"]
     security_opt: ["no-new-privileges:true"]
     pids_limit: 128
     mem_limit: 2g
@@ -82,18 +91,20 @@ services:
       RELEASE_BUILD_COMMAND_PATH: /pnpm:/usr/local/bin:/usr/bin:/bin
       RELEASE_BUILD_COMMAND_TIMEOUT_MS: "120000"
       RELEASE_BUILD_CANCEL_GRACE_MS: "5000"
+      RELEASE_BUILD_BROKER_UID: "3000"
+      RELEASE_BUILD_BROKER_GID: "3000"
     tmpfs:
-      - /work:rw,nosuid,nodev,size=1g,uid=2000,gid=2000,mode=0700
-      - /tmp:rw,nosuid,nodev,size=64m,uid=2000,gid=2000,mode=0700
+      - /work:rw,nosuid,nodev,size=1g,uid=0,gid=0,mode=0711
+      - /tmp:rw,nosuid,nodev,size=64m,uid=0,gid=0,mode=0711
     volumes:
       - devpilot-v13-worker-input:/exchange/input:ro
       - devpilot-v13-worker-output:/exchange/output:rw
     secrets:
       - source: release-build-worker-hmac
         target: release-build-worker-hmac
-        uid: "2000"
-        gid: "2000"
-        mode: 0440
+        uid: "0"
+        gid: "0"
+        mode: 0400
 
   web:
     profiles: ["v13-acceptance"]

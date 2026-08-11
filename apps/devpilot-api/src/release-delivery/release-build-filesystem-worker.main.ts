@@ -15,7 +15,12 @@ async function main() {
     tarExecutable: process.env.RELEASE_BUILD_WORKER_TAR_EXECUTABLE || "/bin/tar",
     commandTimeoutMs: positive("RELEASE_BUILD_COMMAND_TIMEOUT_MS", 120_000),
     cancelGraceMs: positive("RELEASE_BUILD_CANCEL_GRACE_MS", 5_000),
+    brokerUid: positive("RELEASE_BUILD_BROKER_UID", 3_000),
+    brokerGid: positive("RELEASE_BUILD_BROKER_GID", 3_000),
   };
+  if (process.getuid?.() !== 0 || config.brokerUid === 0 || config.brokerGid === 0) {
+    throw new Error("release-build supervisor requires root and a non-root broker uid/gid");
+  }
   await readReleaseBuildWorkerSecret(config.secretFile);
   const worker = new ReleaseBuildFilesystemWorker(config);
   let stopping = false;

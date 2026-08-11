@@ -270,6 +270,7 @@ function run(
       expiresAt: null,
       ...overrides,
     },
+    legacyPromotionRecovery: null,
     stagingProof: null,
     deploymentRuns: [],
   };

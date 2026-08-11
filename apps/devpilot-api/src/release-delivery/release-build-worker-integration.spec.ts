@@ -14,6 +14,8 @@ import { promisify } from "node:util";
 import { FilesystemIsolatedReleaseBuildExecutorService } from "./filesystem-isolated-release-build-executor.service";
 import { ReleaseBuildFilesystemWorker } from "./release-build-filesystem-worker";
 import { ReleaseBuildRuntimeProfileService } from "./release-build-runtime-profile.service";
+import { resolveRegisteredReleaseBuildProfile } from "./release-build-acceptance-profile";
+import { expectedReleaseBuildSupplyProof } from "./release-build-supply-proof.policy";
 import { ReleaseBuildSourceSnapshotService } from "./release-build-source-snapshot.service";
 import { readImmutableWorkerJson } from "./release-build-worker-exchange";
 import {
@@ -37,11 +39,17 @@ describe("filesystem isolated build worker exchange", () => {
     const inputRoot = join(scope, "input");
     const outputRoot = join(scope, "output");
     const secretFile = join(scope, "worker.secret");
+    const supplyProofFile = join(scope, "supply-proof.json");
+    const profile = resolveRegisteredReleaseBuildProfile(
+      "controlled-local-acceptance-v2",
+    )!;
     await Promise.all([
       mkdir(repository),
       mkdir(inputRoot),
       mkdir(outputRoot),
       writeFile(secretFile, secret, { mode: 0o600 }),
+      writeFile(supplyProofFile,
+        JSON.stringify(expectedReleaseBuildSupplyProof(profile)), { mode: 0o400 }),
     ]);
     await writeFile(join(repository, "credential.txt"), [
       "-----BEGIN RSA PRIVATE KEY-----",
@@ -64,6 +72,7 @@ describe("filesystem isolated build worker exchange", () => {
       RELEASE_BUILD_WORKER_INPUT_ROOT: inputRoot,
       RELEASE_BUILD_WORKER_OUTPUT_ROOT: outputRoot,
       RELEASE_BUILD_WORKER_HMAC_SECRET_FILE: secretFile,
+      RELEASE_BUILD_SUPPLY_PROOF_FILE: supplyProofFile,
       RELEASE_BUILD_WORKER_SHARED_GID: process.getgid?.() ?? 1,
       RELEASE_BUILD_WORKER_POLL_INTERVAL_MS: 10,
       RELEASE_BUILD_RUN_TIMEOUT_MS: 10_000,
@@ -94,6 +103,8 @@ describe("filesystem isolated build worker exchange", () => {
       tarExecutable: "/usr/bin/tar",
       commandTimeoutMs: 5_000,
       cancelGraceMs: 50,
+      brokerUid: process.getuid?.() ?? 0,
+      brokerGid: process.getgid?.() ?? 0,
     });
     await worker.runJob(jobId);
     await expect(execution).rejects.toMatchObject({

@@ -6,6 +6,7 @@ import { Button, LinkButton } from '@/components/ui';
 interface Props {
   frozen: boolean;
   needsRecovery: boolean;
+  legacyRecovery: boolean;
   active: boolean;
   runStatus?: string;
   approvalStatus?: string;
@@ -20,6 +21,18 @@ interface Props {
 
 export function ReleaseProductionPrimaryAction(props: Props) {
   const t = useTranslations('projects');
+  if (props.legacyRecovery) {
+    return (
+      <div className="max-w-xs text-right">
+        <Button className="min-h-11" disabled>
+          {t('releaseProductionLegacyRecoveryAction')}
+        </Button>
+        <p className="mt-1 text-xs text-amber-800" role="status">
+          {t('releaseProductionLegacyRecoveryReason')}
+        </p>
+      </div>
+    );
+  }
   if (props.needsRecovery) {
     return (
       <LinkButton

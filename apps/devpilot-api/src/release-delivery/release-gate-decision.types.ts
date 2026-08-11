@@ -41,6 +41,7 @@ export type PersistedReleaseGateEvaluation = ReleaseGateEvaluation & {
 export type PersistedGateManualApproval = {
   id: string;
   evaluationInputHash: string;
+  approvalSubjectHash: string | null;
   actionInputHash: string;
   requesterActorId: string;
   reviewerActorId: string;
@@ -87,12 +88,13 @@ export type ReleaseGateDecisionReference = {
 };
 
 export type ReleaseGateDecisionSnapshot = {
-  version: 3;
+  version: 4;
   stage: ReleaseGateDecisionStage;
   checkpoint: ReleaseGateCheckpoint;
   phase: ReleaseGatePhase;
   requiredGateIds: string[];
   actionInput: Record<string, string | null>;
+  approvalSubjectHash: string;
   actionInputHash: string;
   requesterActorId: string;
   evaluations: Array<{
@@ -116,6 +118,7 @@ export type ReleaseGateDecisionDraft = {
   stage: ReleaseGateDecisionStage;
   checkpoint: ReleaseGateCheckpoint;
   phase: ReleaseGatePhase;
+  approvalSubjectHash: string;
   actionInputHash: string;
   requesterActorId: string;
   allowed: boolean;

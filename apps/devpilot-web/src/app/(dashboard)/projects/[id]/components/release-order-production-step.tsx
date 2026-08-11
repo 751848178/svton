@@ -12,6 +12,7 @@ import { releaseProductionErrorLabelKey } from '../utils/release-copy.model';
 import { ReleaseProductionApprovalCard } from './release-production-approval-card';
 import { ReleaseProductionConfirmDialog } from './release-production-confirm-dialog';
 import { ReleaseProductionEvidenceSection } from './release-production-evidence-section';
+import { ReleaseProductionLegacyRecoveryAlert } from './release-production-legacy-recovery-alert';
 import { ReleaseProductionPrimaryAction } from './release-production-primary-action';
 import { releaseProductionCurrentRun } from './release-production-current-run.model';
 import { ReleaseProductionPromotionProgress } from './release-production-promotion-progress';
@@ -34,7 +35,6 @@ interface Props {
   onOpenLog: (releaseRunId: string, deploymentRunId: string) => void;
   onCloseLog: () => void;
 }
-
 export function ReleaseOrderProductionStep(props: Props) {
   const t = useTranslations('projects');
   const builds = useReleaseBuilds(props.projectId, props.releaseOrderId, props.onChanged);
@@ -89,8 +89,7 @@ export function ReleaseOrderProductionStep(props: Props) {
     props.onChanged,
   );
 
-  const focusedRun =
-    releaseRuns.find((run) =>
+  const focusedRun = releaseRuns.find((run) =>
       run.deploymentRuns.some((deployment) => deployment.id === props.focusedDeploymentRunId),
     ) || null;
   const focusedDeployment =
@@ -111,6 +110,7 @@ export function ReleaseOrderProductionStep(props: Props) {
     <ReleaseProductionPrimaryAction
       frozen={props.productionArtifactFrozen}
       needsRecovery={current.needsRecovery}
+      legacyRecovery={Boolean(current.legacyRecovery)}
       active={current.active}
       runStatus={approvalRun?.status}
       approvalStatus={approvalRun?.operationApproval.status}
@@ -155,6 +155,9 @@ export function ReleaseOrderProductionStep(props: Props) {
         />}
       />
       <ReleaseProductionPromotionProgress run={approvalRun} />
+      {current.legacyRecovery ? (
+        <ReleaseProductionLegacyRecoveryAlert />
+      ) : null}
       {approvalRun ? (
         <ReleaseProductionApprovalCard
           projectId={props.projectId}

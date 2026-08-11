@@ -25,6 +25,13 @@ export type RegisteredReleaseBuildProfile = {
     toolVersion: string;
   }>>>;
   scanners: readonly ReleaseBuildScannerProfile[];
+  supplyChain: ReleaseBuildSupplyChain;
+};
+
+export type ReleaseBuildSupplyChain = {
+  schemaVersion: 1;
+  baseImageDigests: readonly string[];
+  artifactDigests: Readonly<Record<string, string>>;
 };
 
 const HIGH_RISK_PATHS = [
@@ -66,6 +73,24 @@ const PROFILE: RegisteredReleaseBuildProfile = {
       dataUpdatedAt: "2026-08-11T01:05:09.651160722Z",
     }),
   ],
+  supplyChain: {
+    schemaVersion: 1,
+    baseImageDigests: [
+      "sha256:8f693eaa7e0a8e71560c9a82b55fd54c2ae920a2ba5d2cde28bac7d1c01c9ba5",
+      "sha256:4766d8b510c428e595d74b9cc5bbb2fae8e26316fffb4adc89908d79aacd58a2",
+      "sha256:abd67ffcfa541b485a3dff59865ab629aa048a6c613e639d36e7456b0b229241",
+    ],
+    artifactDigests: {
+      semgrepRequirements: "sha256:278aedc50045986f04e0eb268e5e42883bed7bdf6bff64d08cc2ef455f0b334c",
+      semgrepRules: "sha256:b7e483abf001c405a3e908251ff66cb198a26702aff5fe4c5f0c4b2fffec4919",
+      trivyDatabase: "sha256:e5c54b277db94d2973c2d4fdf68c94be8729a3d5fc2e48e7da04b6dacdf0bb71",
+      trivyDatabaseLayer: "sha256:4cdc607a113f80be2873b1dd3ebf08bc6f3d171e491dbee48dd2debe837aa848",
+      gitleaksAmd64: "sha256:551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb",
+      gitleaksArm64: "sha256:e4a487ee7ccd7d3a7f7ec08657610aa3606637dab924210b3aee62570fb4b080",
+      trivyAmd64: "sha256:2edd39da482bb4e9831962487b68f68e3928ec3137794757f54d00383d79547b",
+      trivyArm64: "sha256:13833d97e8a1a5367471c372a173180157f593bece570e20d5d925fef552f5dd",
+    },
+  },
 };
 
 export function resolveRegisteredReleaseBuildProfile(id: string) {

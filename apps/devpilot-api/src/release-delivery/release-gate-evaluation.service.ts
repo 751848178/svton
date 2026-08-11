@@ -77,6 +77,7 @@ export class ReleaseGateEvaluationService {
           checkpoint: checkpoint ?? null,
           deploymentRunId: target?.deploymentRunId ?? null,
           candidateHash: target?.candidateHash ?? null,
+          approvalSubjectHash: actionIdentity?.approvalSubjectHash ?? "",
           actionInputHash: actionIdentity?.actionInputHash ?? "",
           requesterActorId: actionIdentity?.requesterActorId ?? scope.actorId,
         },

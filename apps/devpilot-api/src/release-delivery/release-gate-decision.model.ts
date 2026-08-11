@@ -73,6 +73,7 @@ export function buildReleaseGateDecision(input: {
     stage: policy.stage,
     checkpoint: input.checkpoint,
     phase: policy.phase,
+    approvalSubjectHash: input.actionIdentity.approvalSubjectHash,
     actionInputHash: input.actionIdentity.actionInputHash,
     requesterActorId: input.actionIdentity.requesterActorId,
     allowed:
@@ -89,12 +90,13 @@ export function buildReleaseGateDecision(input: {
       .map((check) => check.id),
     integrityErrors,
     snapshot: {
-      version: 3,
+      version: 4,
       stage: policy.stage,
       checkpoint: input.checkpoint,
       phase: policy.phase,
       requiredGateIds: [...policy.requiredGateIds],
       actionInput: input.actionInput ?? {},
+      approvalSubjectHash: input.actionIdentity.approvalSubjectHash,
       actionInputHash: input.actionIdentity.actionInputHash,
       requesterActorId: input.actionIdentity.requesterActorId,
       evaluations: requiredChecks.map(snapshotEvaluation),

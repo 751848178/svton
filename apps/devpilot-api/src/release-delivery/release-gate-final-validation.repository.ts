@@ -41,6 +41,7 @@ export async function assertGateDecisionCurrent(
     actionInput: snapshot.actionInput,
   });
   if (snapshot.requesterActorId !== input.actorId ||
+    snapshot.approvalSubjectHash !== expectedAction.approvalSubjectHash ||
     snapshot.actionInputHash !== expectedAction.actionInputHash ||
     input.reference.actionInputHash !== expectedAction.actionInputHash) {
     throw conflict(`${input.checkpoint} 动作身份已漂移`);
@@ -49,7 +50,14 @@ export async function assertGateDecisionCurrent(
   assertRequiredSet(snapshot, input.checkpoint);
   const rows = await tx.gateEvaluation.findMany({
     where: { id: { in: snapshot.evaluations.map((item) => item.evaluationId) } },
-    include: { manualApprovals: true },
+  });
+  const approvals = await tx.gateManualApproval.findMany({
+    where: {
+      releaseOrderId: input.releaseOrderId,
+      approvalSubjectHash: snapshot.approvalSubjectHash,
+      requesterActorId: snapshot.requesterActorId,
+    },
+    include: { gateEvaluation: { select: { gateId: true } } },
   });
   const byId = new Map(rows.map((row) => [row.id, row]));
   const project = snapshot.evaluations.some((item) => item.gateId === "C03")
@@ -66,7 +74,8 @@ export async function assertGateDecisionCurrent(
     }
     if (row.status === "needs_human") {
       await assertManualCount(tx, row, snapshot,
-        project?.currentSourcePolicyRevisionId ?? null);
+        project?.currentSourcePolicyRevisionId ?? null,
+        approvals.filter((item) => item.gateEvaluation.gateId === row.gateId));
     } else if (row.status !== "passed" && row.status !== "warning") {
       throw conflict(`${row.gateId} 门禁不再允许当前动作`);
     }
@@ -87,11 +96,13 @@ async function assertManualCount(
   row: GateRow,
   snapshot: DecisionSnapshot,
   currentPolicyId: string | null,
+  approvals: ManualApproval[],
 ) {
   const summary = record(row.summary);
   const action = record(summary.decisionIdentity);
   const evidence = record(summary.evidenceIdentity);
-  if (action.actionInputHash !== snapshot.actionInputHash ||
+  if (action.approvalSubjectHash !== snapshot.approvalSubjectHash ||
+    action.actionInputHash !== snapshot.actionInputHash ||
     action.requesterActorId !== snapshot.requesterActorId) {
     throw conflict(`${row.gateId} 人工确认动作身份已漂移`);
   }
@@ -110,9 +121,8 @@ async function assertManualCount(
       throw conflict("C03 full SourcePolicy v2 reviewer 阈值已漂移");
     }
   }
-  const valid = row.manualApprovals.filter((approval) =>
-    approval.evaluationInputHash === row.inputHash &&
-    approval.actionInputHash === snapshot.actionInputHash &&
+  const valid = approvals.filter((approval) =>
+    approval.approvalSubjectHash === snapshot.approvalSubjectHash &&
     approval.requesterActorId === snapshot.requesterActorId &&
     approval.reviewerActorId !== snapshot.requesterActorId &&
     (!approval.expiresAt || approval.expiresAt.getTime() >= Date.now()) &&
@@ -129,22 +139,23 @@ async function assertManualCount(
 type GateRow = {
   id: string; gateId: string; inputHash: string; definitionVersion: string;
   providerKey: string | null; expiresAt: Date | null; status: string; summary: unknown;
-  manualApprovals: Array<{
-    evaluationInputHash: string; actionInputHash: string;
-    requesterActorId: string; reviewerActorId: string;
-    sourcePolicyRevisionId: string | null; sourcePolicySnapshotHash: string | null;
-    sourceCommitSha: string | null; expiresAt: Date | null;
-  }>;
+};
+type ManualApproval = {
+  approvalSubjectHash: string | null; requesterActorId: string;
+  reviewerActorId: string; sourcePolicyRevisionId: string | null;
+  sourcePolicySnapshotHash: string | null; sourceCommitSha: string | null;
+  expiresAt: Date | null; gateEvaluation: { gateId: string };
 };
 type DecisionSnapshot = {
-  version: 3; checkpoint: ReleaseGateCheckpoint; requesterActorId: string;
-  actionInputHash: string; requiredGateIds: string[];
+  version: 4; checkpoint: ReleaseGateCheckpoint; requesterActorId: string;
+  approvalSubjectHash: string; actionInputHash: string; requiredGateIds: string[];
   actionInput: Record<string, string | null>;
   evaluations: Array<{ gateId: string; evaluationId: string; evaluationInputHash: string }>;
 };
 function decisionSnapshot(value: unknown): DecisionSnapshot | null {
   const row = record(value);
-  return row.version === 3 && typeof row.checkpoint === "string" &&
+  return row.version === 4 && typeof row.checkpoint === "string" &&
+    typeof row.approvalSubjectHash === "string" &&
     typeof row.requesterActorId === "string" && typeof row.actionInputHash === "string" &&
     Array.isArray(row.requiredGateIds) && Array.isArray(row.evaluations)
     ? row as DecisionSnapshot : null;

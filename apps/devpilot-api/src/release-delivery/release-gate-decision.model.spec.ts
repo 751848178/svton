@@ -5,6 +5,7 @@ import type { PersistedReleaseGateEvaluation } from "./release-gate-decision.typ
 describe("release gate checkpoint decision model", () => {
   const now = new Date("2026-08-05T08:00:00.000Z");
   const actionIdentity = {
+    approvalSubjectHash: "subject-hash",
     actionInputHash: "action-hash",
     requesterActorId: "requester-1",
   };
@@ -26,7 +27,7 @@ describe("release gate checkpoint decision model", () => {
       now,
     });
     expect(decision).toMatchObject({ checkpoint, stage, phase, allowed: true });
-    expect(decision.snapshot).toMatchObject({ version: 3, checkpoint });
+    expect(decision.snapshot).toMatchObject({ version: 4, checkpoint });
     expect(decision.snapshot.requiredGateIds).toHaveLength(count);
     expect(decision.snapshot.evaluations).toHaveLength(count);
   });
@@ -148,6 +149,7 @@ function approval(evaluationInputHash: string) {
   return {
     id: "approval-1",
     evaluationInputHash,
+    approvalSubjectHash: "subject-hash",
     actionInputHash: "action-hash",
     requesterActorId: "requester-1",
     reviewerActorId: "reviewer-1",

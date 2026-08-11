@@ -102,3 +102,5 @@ RUN gitleaks version | grep -F "8.30.1" \
  && semgrep --version | grep -F "1.172.0" \
  && trivy --version | grep -F "Version: 0.73.0" \
  && grep -F '2026-08-11T01:05:09.651160722Z' /opt/devpilot/security/trivy-cache/db/metadata.json
+RUN node -e "const fs=require('node:fs'); const p=require('./dist/release-delivery/release-build-acceptance-profile'); const s=require('./dist/release-delivery/release-build-supply-proof.policy'); const profile=p.resolveRegisteredReleaseBuildProfile('controlled-local-acceptance-v2'); fs.writeFileSync('/opt/devpilot/security/release-build-supply-proof.json', JSON.stringify(s.expectedReleaseBuildSupplyProof(profile)), {mode:0o444});" \
+ && chmod 0444 /opt/devpilot/security/release-build-supply-proof.json

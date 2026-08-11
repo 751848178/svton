@@ -69,5 +69,10 @@ function profile(): RegisteredReleaseBuildProfile {
       toolVersion: "1.2.3",
       rulesDigest: "rules-sha",
     }],
+    supplyChain: {
+      schemaVersion: 1,
+      baseImageDigests: ["sha256:base"],
+      artifactDigests: { scanner: "sha256:scanner" },
+    },
   };
 }

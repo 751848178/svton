@@ -2,7 +2,10 @@ import { ConflictException, Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import type { SiteProbeResult } from "../site/site-route-activation.types";
-import { hashCanonicalReleaseValue } from "./release-canonical-hash.utils";
+import {
+  parsePromotionObservation,
+  promotionProbeHash,
+} from "./production-promotion-observation.policy";
 
 @Injectable()
 export class ProductionPromotionObservationRepository {
@@ -61,7 +64,7 @@ export class ProductionPromotionObservationRepository {
         promotionObservation: true,
       },
     });
-    const probe = siteProbe(row?.promotionObservation);
+    const probe = parsePromotionObservation(row?.promotionObservation);
     if (!row?.promotionObservedAt || !row.promotionProbeHash || !probe ||
       promotionProbeHash(probe) !== row.promotionProbeHash) {
       throw new ConflictException("Production observation 未绑定精确候选或已漂移");
@@ -72,15 +75,4 @@ export class ProductionPromotionObservationRepository {
       observedAt: row.promotionObservedAt,
     };
   }
-}
-
-export function promotionProbeHash(probe: SiteProbeResult) {
-  return hashCanonicalReleaseValue({ version: 1, probe });
-}
-
-function siteProbe(value: unknown): SiteProbeResult | null {
-  const row = value && typeof value === "object" && !Array.isArray(value)
-    ? value as Record<string, unknown> : null;
-  return row && row.version === 1 && typeof row.probedAt === "string"
-    ? row as unknown as SiteProbeResult : null;
 }

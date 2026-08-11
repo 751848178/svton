@@ -111,6 +111,10 @@ export type ReleaseGatePromoteEvidence = {
     status: string;
     result: unknown;
     applyReceipt: unknown;
+    promotionCandidateHash: string | null;
+    promotionObservedAt: Date | null;
+    promotionProbeHash: string | null;
+    promotionObservation: unknown;
     updatedAt: Date;
   }>;
 };

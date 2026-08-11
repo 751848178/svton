@@ -10,7 +10,10 @@ import {
 } from "./production-promotion-command-boundary";
 import type { ProductionPromotionLease } from "./production-promotion-lease.policy";
 import { productionPromotionLeaseTokenHash } from "./production-promotion-lease.policy";
-import { promotionProbeHash } from "./production-promotion-observation.repository";
+import {
+  parsePromotionObservation,
+  promotionProbeHash,
+} from "./production-promotion-observation.policy";
 
 export async function assertProductionPromotionCurrent(
   tx: Prisma.TransactionClient,
@@ -83,8 +86,9 @@ export async function assertProductionPromotionCurrent(
     },
     select: { promotionProbeHash: true, promotionObservation: true },
   });
-  if (!observation?.promotionProbeHash || !observation.promotionObservation ||
-    promotionProbeHash(observation.promotionObservation as never) !==
+  const probe = parsePromotionObservation(observation?.promotionObservation);
+  if (!observation?.promotionProbeHash || !probe ||
+    promotionProbeHash(probe) !==
       observation.promotionProbeHash) {
     throw new ConflictException("Production P09 observation 已漂移或未提交");
   }

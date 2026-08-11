@@ -5,6 +5,11 @@ import {
   type ReleaseGateProviderResult,
   unavailable,
 } from "./release-gate-provider.types";
+import {
+  isStablePromotionObservation,
+  parsePromotionObservation,
+  promotionProbeHash,
+} from "./production-promotion-observation.policy";
 
 const OBSERVATION_TTL_MS = 5 * 60 * 1000;
 
@@ -104,23 +109,21 @@ function postRouteObservation(context: ReleaseGateEvidenceContext, now: Date) {
   }
   const route = context.promote?.routeSwitchRuns.find((item) =>
     item.releaseRunId === target.releaseRunId && item.deploymentRunId === target.deploymentRunId);
-  const result = record(route?.result);
-  const probe = record(result.siteProbe);
-  const http = record(probe.http);
-  if (!route || route.status !== "switched" ||
-    result.candidateHash !== target.candidateHash || !Object.keys(probe).length) {
+  const probe = parsePromotionObservation(route?.promotionObservation);
+  if (!route || !["switched", "committed"].includes(route.status) ||
+    route.promotionCandidateHash !== target.candidateHash ||
+    !route.promotionObservedAt || !route.promotionProbeHash || !probe ||
+    promotionProbeHash(probe) !== route.promotionProbeHash) {
     return unavailable("post_route_observation_missing", "没有绑定精确候选的全量后 route 与探测证据", "No post-route observation is bound to the exact candidate");
   }
-  const stable = http.status === "passed" && number(http.statusCode) >= 200 &&
-    number(http.statusCode) < 300 && record(probe.dns).status === "resolved" &&
-    (String(http.finalUrl ?? "").startsWith("http://") || record(probe.tls).status === "valid");
+  const stable = isStablePromotionObservation(probe);
   return evaluated({
     status: stable ? "checked" : "blocked",
     reasonCode: stable ? "post_route_candidate_stable" : "post_route_candidate_unstable",
     zh: stable ? "精确 Production 候选的全量后观测通过" : "精确 Production 候选的全量后观测失败",
     en: stable ? "Post-route observation passed for the exact Production candidate" : "Post-route observation failed for the exact Production candidate",
     evidenceRef: `site-route-switch:${route.id};candidate:${target.candidateHash}`,
-    checkedAt: route.updatedAt,
+    checkedAt: route.promotionObservedAt,
     ttlMs: OBSERVATION_TTL_MS,
     now,
   });

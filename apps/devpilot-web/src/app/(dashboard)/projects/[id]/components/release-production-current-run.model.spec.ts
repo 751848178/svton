@@ -38,6 +38,19 @@ describe('releaseProductionCurrentRun', () => {
 
     expect(releaseProductionCurrentRun([fixture], undefined, 'order-1').awaitingResume).toBeNull();
   });
+
+  it('never resumes a legacy command until server reconciliation completes', () => {
+    const fixture = run();
+    fixture.legacyPromotionRecovery = {
+      id: 'legacy-command', phase: 'legacy_reconcile_required',
+      legacyReconcileRequired: true,
+      legacyReconcileReason: 'pre_lease_phase_unverifiable',
+      createdAt: '2026-08-11T00:00:00Z',
+    };
+    const state = releaseProductionCurrentRun([fixture], undefined, 'order-1');
+    expect(state.awaitingResume).toBeNull();
+    expect(state.legacyRecovery).toEqual(fixture.legacyPromotionRecovery);
+  });
 });
 
 function run(): ReleaseEvidenceProductionRun {
@@ -49,6 +62,7 @@ function run(): ReleaseEvidenceProductionRun {
     environment: { id: 'production-1', name: 'Production', baselineRole: 'production' },
     manifest: {} as ReleaseEvidenceProductionRun['manifest'],
     operationApproval: { status: 'approved' } as ReleaseEvidenceProductionRun['operationApproval'],
+    legacyPromotionRecovery: null,
     stagingProof: null,
     deploymentRuns: [{
       id: 'deployment-1', environmentId: 'production-1', status: 'awaiting_validation',

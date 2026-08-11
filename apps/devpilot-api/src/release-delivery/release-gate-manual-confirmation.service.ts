@@ -41,6 +41,7 @@ export class ReleaseGateManualConfirmationService {
     const identity = record(record(row.summary).decisionIdentity);
     const preBuild = definition.phase === "commit" &&
       identity.checkpoint === "build_pre_execution" &&
+      typeof identity.approvalSubjectHash === "string" &&
       typeof identity.actionInputHash === "string" &&
       typeof identity.requesterActorId === "string";
     if (!row.buildRunId && !preBuild) {

@@ -18,8 +18,7 @@ export function hasRequiredManualApprovals(input: {
   const reviewers = new Set<string>();
   for (const approval of input.check.manualApprovals) {
     if (
-      approval.evaluationInputHash !== input.check.evaluationInputHash ||
-      approval.actionInputHash !== input.actionIdentity.actionInputHash ||
+      approval.approvalSubjectHash !== input.actionIdentity.approvalSubjectHash ||
       approval.requesterActorId !== input.actionIdentity.requesterActorId ||
       approval.reviewerActorId === input.actionIdentity.requesterActorId ||
       (approval.expiresAt &&

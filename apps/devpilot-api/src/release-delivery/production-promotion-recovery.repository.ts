@@ -9,6 +9,7 @@ export class ProductionPromotionRecoveryRepository {
     return this.prisma.productionPromotionCommand.findMany({
       where: {
         status: "running",
+        legacyReconcileRequired: false,
         OR: [{ leaseExpiresAt: null }, { leaseExpiresAt: { lte: now } }],
         deploymentRun: { status: { in: ["awaiting_validation", "completed"] } },
         releaseRun: { status: { in: ["awaiting_validation", "succeeded"] } },
@@ -31,6 +32,7 @@ export class ProductionPromotionRecoveryRepository {
       const command = await tx.productionPromotionCommand.findFirst({
         where: {
           id: commandId, status: "running",
+          legacyReconcileRequired: false,
           OR: [{ leaseExpiresAt: null }, { leaseExpiresAt: { lte: now } }],
           deploymentRun: { status: "completed", environmentVersion: { isNot: null } },
           releaseRun: { status: "succeeded" },

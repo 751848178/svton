@@ -75,5 +75,6 @@ function profile(): RegisteredReleaseBuildProfile {
       id: "secretScan", executable: "/opt/scanner", argvTemplate: ["scan"],
       toolVersion: "1.0.0", rulesDigest: "rules-1",
     }],
+    supplyChain: { schemaVersion: 1, baseImageDigests: [], artifactDigests: {} },
   };
 }

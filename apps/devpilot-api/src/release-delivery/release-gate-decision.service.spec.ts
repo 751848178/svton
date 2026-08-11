@@ -59,6 +59,7 @@ describe("ReleaseGateDecisionService", () => {
     });
     const identity = evaluator.evaluate.mock.calls[0][3];
     expect(identity).toEqual({
+      approvalSubjectHash: expect.stringMatching(/^[a-f0-9]{64}$/),
       actionInputHash: expect.stringMatching(/^[a-f0-9]{64}$/),
       requesterActorId: scope.actorId,
     });
@@ -66,7 +67,8 @@ describe("ReleaseGateDecisionService", () => {
       actionInputHash: identity.actionInputHash,
       requesterActorId: scope.actorId,
       snapshot: {
-        version: 3,
+        version: 4,
+        approvalSubjectHash: identity.approvalSubjectHash,
         actionInputHash: identity.actionInputHash,
         requesterActorId: scope.actorId,
       },
@@ -90,6 +92,7 @@ function decision(allowed: boolean) {
     stage: "build" as const,
     checkpoint: "build_pre_execution" as const,
     phase: "commit" as const,
+    approvalSubjectHash: "subject-hash",
     actionInputHash: "action-hash",
     requesterActorId: "user-1",
     allowed,

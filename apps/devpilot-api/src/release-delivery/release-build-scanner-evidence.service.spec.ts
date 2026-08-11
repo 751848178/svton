@@ -113,6 +113,7 @@ function profile(executable: string): RegisteredReleaseBuildProfile {
       yarn: { executable: "/missing/yarn", toolVersion: "fixture" },
     },
     scanners: [scanner("secretScan"), scanner("sast"), scanner("vulnerabilities")],
+    supplyChain: { schemaVersion: 1, baseImageDigests: [], artifactDigests: {} },
   };
 }
 

@@ -37,6 +37,9 @@ export function ConnectRepositoryStep({ intake }: { intake: ProjectIntakeHook })
           ]}
         />
       </Field>
+      {form.visibility === 'private' ? (
+        <PrivateCredentialFields intake={intake} />
+      ) : null}
       <details className="rounded-lg border bg-muted/20">
         <summary className="flex min-h-11 cursor-pointer items-center px-4 text-sm font-medium">
           {t('intakeOptionalDetails')}
@@ -64,11 +67,6 @@ export function ConnectRepositoryStep({ intake }: { intake: ProjectIntakeHook })
               placeholder={t('intakeDescriptionPlaceholder')}
             />
           </Field>
-          {form.visibility === 'private' ? (
-            <div className="sm:col-span-2">
-              <PrivateCredentialFields intake={intake} />
-            </div>
-          ) : null}
         </div>
       </details>
     </div>

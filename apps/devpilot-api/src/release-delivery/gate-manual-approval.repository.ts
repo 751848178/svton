@@ -20,9 +20,10 @@ export async function persistGateManualApproval(
   input: { actorId: string; reason: string },
 ) {
   const action = record(record(row.summary).decisionIdentity);
+  const approvalSubjectHash = string(action.approvalSubjectHash);
   const actionInputHash = string(action.actionInputHash);
   const requesterActorId = string(action.requesterActorId);
-  if (!actionInputHash || !requesterActorId) {
+  if (!approvalSubjectHash || !actionInputHash || !requesterActorId) {
     throw new UnprocessableEntityException(
       "人工门禁缺少服务端冻结的动作哈希或请求人身份",
     );
@@ -33,21 +34,15 @@ export async function persistGateManualApproval(
   const source = row.gateId === "C03"
     ? await assertIndependentCodeApproval(prisma, row, input.actorId)
     : null;
-  return prisma.gateManualApproval.upsert({
-    where: {
-      gateEvaluationId_evaluationInputHash_actionInputHash_reviewerActorId: {
-        gateEvaluationId: row.id,
-        evaluationInputHash: row.inputHash,
-        actionInputHash,
-        reviewerActorId: input.actorId,
-      },
-    },
-    create: {
+  try {
+    return await prisma.gateManualApproval.create({
+      data: {
       teamId: row.teamId,
       projectId: row.projectId,
       releaseOrderId: row.releaseOrderId,
       gateEvaluationId: row.id,
       evaluationInputHash: row.inputHash,
+      approvalSubjectHash,
       actionInputHash,
       requesterActorId,
       reviewerActorId: input.actorId,
@@ -57,9 +52,24 @@ export async function persistGateManualApproval(
       reason: input.reason,
       confirmedAt: new Date(),
       expiresAt: row.expiresAt,
-    },
-    update: {},
-  });
+      },
+    });
+  } catch (error) {
+    if (!isUniqueConflict(error)) throw error;
+    return prisma.gateManualApproval.findFirstOrThrow({
+      where: {
+        gateEvaluationId: row.id,
+        evaluationInputHash: row.inputHash,
+        approvalSubjectHash,
+        reviewerActorId: input.actorId,
+      },
+    });
+  }
+}
+
+function isUniqueConflict(error: unknown) {
+  return Boolean(error && typeof error === "object" &&
+    "code" in error && error.code === "P2002");
 }
 
 function string(value: unknown) {

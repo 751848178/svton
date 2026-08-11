@@ -7,6 +7,7 @@ import {
   type RegisteredReleaseBuildProfile,
 } from "./release-build-acceptance-profile";
 import { resolveReleaseBuildWorkerRuntime } from "./release-build-worker-runtime-config";
+import { verifyReleaseBuildSupplyProof } from "./release-build-supply-proof.policy";
 
 const CHILD_ENVIRONMENT_KEYS = [
   "CI",
@@ -33,6 +34,7 @@ export class ReleaseBuildRuntimeProfileService {
   readonly registeredProfile: RegisteredReleaseBuildProfile | null;
   private readonly trustedTestFixture: boolean;
   private readonly worker: ReturnType<typeof resolveReleaseBuildWorkerRuntime>;
+  private readonly supplyProofVerified: boolean;
 
   constructor(config: ConfigService) {
     this.profile =
@@ -42,6 +44,11 @@ export class ReleaseBuildRuntimeProfileService {
       config.get("NODE_ENV") === "test" &&
       boolean(config.get("RELEASE_BUILD_TRUSTED_TEST_FIXTURE"));
     this.worker = resolveReleaseBuildWorkerRuntime(config, this.trustedTestFixture);
+    this.supplyProofVerified = this.trustedTestFixture ||
+      verifyReleaseBuildSupplyProof(
+        config.get<string>("RELEASE_BUILD_SUPPLY_PROOF_FILE"),
+        this.registeredProfile,
+      );
     this.executionEnabled = boolean(
       config.get("RELEASE_BUILD_EXECUTION_ENABLED"),
     );
@@ -71,6 +78,7 @@ export class ReleaseBuildRuntimeProfileService {
       Boolean(this.configuredWorkRoot) &&
       Boolean(this.configuredArtifactRoot) &&
       this.worker.ready &&
+      this.supplyProofVerified &&
       isAbsolute(this.configuredWorkRoot || "") &&
       isAbsolute(this.configuredArtifactRoot || "") &&
       !overlaps(this.workRoot, this.artifactRoot) &&
@@ -87,6 +95,9 @@ export class ReleaseBuildRuntimeProfileService {
     if (this.registeredProfile && !this.worker.ready) {
       return "untrusted_worker_provider_missing";
     }
+    if (this.registeredProfile && !this.supplyProofVerified) {
+      return "build_worker_supply_digest_unverified";
+    }
     return "build_executor_disabled_or_invalid";
   }
 
@@ -94,9 +105,7 @@ export class ReleaseBuildRuntimeProfileService {
     if (!this.available) {
       throw new UnprocessableEntityException({
         code: this.unavailableReason.toUpperCase(),
-        message: this.unavailableReason === "untrusted_worker_provider_missing"
-          ? "缺少可证明隔离的非可信源码 Build Worker Provider"
-          : "受控构建执行器未启用或运行目录配置无效",
+        message: unavailableMessage(this.unavailableReason),
         action: "安装实现 release-build-untrusted-worker-v1 的独立 Worker Provider。",
       });
     }
@@ -145,6 +154,14 @@ export class ReleaseBuildRuntimeProfileService {
   get workerSecretFile() { return this.worker.secretFile; }
   get workerPollIntervalMs() { return this.worker.pollIntervalMs; }
   get workerSharedGid() { return this.worker.sharedGid; }
+}
+
+function unavailableMessage(reason: string) {
+  if (reason === "untrusted_worker_provider_missing")
+    return "缺少可证明隔离的非可信源码 Build Worker Provider";
+  if (reason === "build_worker_supply_digest_unverified")
+    return "Build Worker 供应链摘要证明缺失或与服务端注册档案不一致";
+  return "受控构建执行器未启用或运行目录配置无效";
 }
 
 function workerIsolation(testFixture: boolean, filesystem = false) {

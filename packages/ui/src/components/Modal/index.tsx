@@ -39,11 +39,11 @@ export const Modal = React.forwardRef<HTMLDivElement, ModalProps>(function Modal
     }
   }, [ref, transitionRef]);
 
-  useOverlay(state === 'visible' || state === 'entering', onClose);
+  const overlay = useOverlay(state === 'visible' || state === 'entering', onClose);
 
   // Focus trap & restore
   useEffect(() => {
-    if (state !== 'visible') return;
+    if (state !== 'visible' || !overlay.topmost) return;
 
     previousFocusRef.current = document.activeElement as HTMLElement;
 
@@ -55,18 +55,16 @@ export const Modal = React.forwardRef<HTMLDivElement, ModalProps>(function Modal
       clearTimeout(timer);
       previousFocusRef.current?.focus();
     };
-  }, [state]);
+  }, [overlay.topmost, state]);
 
   // Focus trap: keep Tab within the modal
   useEffect(() => {
-    if (state !== 'visible') return;
+    if (state !== 'visible' || !overlay.topmost) return;
 
     const handleTab = (e: KeyboardEvent) => {
       if (e.key !== 'Tab' || !panelRef.current) return;
 
-      const focusable = panelRef.current.querySelectorAll<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-      );
+      const focusable = tabbableElements(panelRef.current);
       if (focusable.length === 0) return;
 
       const first = focusable[0];
@@ -81,9 +79,20 @@ export const Modal = React.forwardRef<HTMLDivElement, ModalProps>(function Modal
       }
     };
 
-    document.addEventListener('keydown', handleTab);
-    return () => document.removeEventListener('keydown', handleTab);
-  }, [state]);
+    const containFocus = (event: FocusEvent) => {
+      if (panelRef.current && event.target instanceof Node &&
+        !panelRef.current.contains(event.target)) {
+        (tabbableElements(panelRef.current)[0] ?? panelRef.current).focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleTab, true);
+    document.addEventListener('focusin', containFocus, true);
+    return () => {
+      document.removeEventListener('keydown', handleTab, true);
+      document.removeEventListener('focusin', containFocus, true);
+    };
+  }, [overlay.topmost, state]);
 
   if (state === 'closed') return null;
 
@@ -94,20 +103,24 @@ export const Modal = React.forwardRef<HTMLDivElement, ModalProps>(function Modal
     <Portal>
       {mask && (
         <div
-          onClick={maskClosable ? onClose : undefined}
-          className={cn('fixed inset-0 bg-black/45 z-[1000] dark:bg-black/65', maskAnim)}
+          onClick={overlay.topmost && maskClosable ? onClose : undefined}
+          className={cn('fixed inset-0 bg-black/45 dark:bg-black/65', maskAnim)}
+          style={{ zIndex: overlay.zIndex }}
           aria-hidden="true"
         />
       )}
       <div
         className={cn(
-          'fixed inset-0 flex justify-center z-[1001] pointer-events-none',
+          'fixed inset-0 flex justify-center pointer-events-none',
           centered ? 'items-center' : 'items-start pt-[100px]'
         )}
         role="dialog"
         aria-modal="true"
         aria-labelledby={title ? titleId : undefined}
         aria-describedby={ariaDescriptionId}
+        aria-hidden={overlay.topmost ? undefined : true}
+        data-overlay-topmost={overlay.topmost ? 'true' : 'false'}
+        style={{ zIndex: overlay.zIndex + 1 }}
       >
         <div
           ref={setPanelRef}
@@ -134,3 +147,14 @@ export const Modal = React.forwardRef<HTMLDivElement, ModalProps>(function Modal
     </Portal>
   );
 });
+
+function tabbableElements(root: HTMLElement) {
+  return Array.from(root.querySelectorAll<HTMLElement>(
+    'button, [href], input, select, textarea, [tabindex]',
+  )).filter((element) => {
+    if (element.tabIndex < 0 || element.hasAttribute('disabled') ||
+      element.getAttribute('aria-hidden') === 'true' || element.closest('[inert]')) return false;
+    const style = window.getComputedStyle(element);
+    return style.display !== 'none' && style.visibility !== 'hidden';
+  });
+}

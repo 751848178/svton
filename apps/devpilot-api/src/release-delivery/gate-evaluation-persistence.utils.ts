@@ -31,6 +31,7 @@ export type GateEvaluationScope = {
     checkpoint: string | null;
     deploymentRunId: string | null;
     candidateHash: string | null;
+    approvalSubjectHash: string;
     actionInputHash: string;
     requesterActorId: string;
   };

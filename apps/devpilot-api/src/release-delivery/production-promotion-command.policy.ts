@@ -22,6 +22,17 @@ export function assertPromotionCommandReplay(
   }
 }
 
+export function assertPromotionCommandReconciled(
+  command: Pick<ProductionPromotionCommand, "legacyReconcileRequired">,
+) {
+  if (command.legacyReconcileRequired) {
+    throw new ConflictException({
+      code: "LEGACY_PROMOTION_RECONCILE_REQUIRED",
+      message: "历史 Production promotion 阶段无法证明，必须先核对 route/provider 状态",
+    });
+  }
+}
+
 export function exactFrozenCandidate(
   result: unknown,
   input: ProductionPromotionResumeInput,

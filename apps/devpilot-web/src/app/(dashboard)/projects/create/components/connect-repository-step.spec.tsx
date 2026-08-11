@@ -30,13 +30,13 @@ describe('ConnectRepositoryStep repository-first layout', () => {
     expect(html).toContain('intakeOptionalDetails');
   });
 
-  it('uses a 44px disclosure target and nests private credentials for the 390px flow', () => {
+  it('shows private credentials immediately before optional details in the 390px flow', () => {
     const html = renderToStaticMarkup(
       <ConnectRepositoryStep intake={fixture('private', 'inline')} />,
     );
     expect(html).toContain('min-h-11');
     expect(html).toContain('intakePrivateCredentialHint');
-    expect(html.indexOf('intakePrivateCredentialHint')).toBeGreaterThan(html.indexOf('<details'));
+    expect(html.indexOf('intakePrivateCredentialHint')).toBeLessThan(html.indexOf('<details'));
     expect(html).toContain('private-repository-credential-hint');
     expect(html).toContain('autoComplete="off"');
   });

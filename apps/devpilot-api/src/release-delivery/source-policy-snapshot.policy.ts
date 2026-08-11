@@ -31,6 +31,14 @@ export function buildSourcePolicySnapshot(
     packageManagers: Object.entries(profile.packageManagers)
       .map(([id, manager]) => ({ id, ...manager }))
       .sort((left, right) => left.id.localeCompare(right.id)),
+    supplyChain: {
+      schemaVersion: profile.supplyChain.schemaVersion,
+      baseImageDigests: [...new Set(profile.supplyChain.baseImageDigests)].sort(),
+      artifactDigests: Object.fromEntries(
+        Object.entries(profile.supplyChain.artifactDigests)
+          .sort(([left], [right]) => left.localeCompare(right)),
+      ),
+    },
     scanners: profile.scanners
       .map((scanner) => ({
         id: scanner.id,

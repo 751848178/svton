@@ -1,22 +1,18 @@
 import { ConfigService } from "@nestjs/config";
 import { access, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { LocalReleaseBuildExecutorService } from "./local-release-build-executor.service";
-import { LocalReleaseEvidenceArtifactService } from "./local-release-evidence-artifact.service";
-import { ReleaseBuildArtifactService } from "./release-build-artifact.service";
-import { ReleaseBuildPackageEvidenceService } from "./release-build-package-evidence.service";
-import { ReleaseBuildPreScriptSecurityService } from "./release-build-pre-script-security.service";
-import { ReleaseBuildRuntimeProfileService } from "./release-build-runtime-profile.service";
-import { ReleaseBuildScannerEvidenceService } from "./release-build-scanner-evidence.service";
 import { runReleaseBuildArgv } from "./release-build-argv-command-runner";
-import { releaseBuildFailureDetail } from "./release-build-failure.utils";
 import { resolveRegisteredReleaseBuildProfile } from "./release-build-acceptance-profile";
+import { runReleaseBuildBrokerProcess } from "./release-build-broker-process";
+import { promoteBrokerArtifacts } from "./release-build-broker-artifact-promoter";
+import { releaseBuildFailureDetail } from "./release-build-failure.utils";
+import { expectedReleaseBuildSupplyProof } from "./release-build-supply-proof.policy";
+import { scanSupervisorSource } from "./release-build-supervisor-security";
+import { watchSupervisorCancellation } from "./release-build-supervisor-cancellation";
 import {
   sameWorkerIdentity,
   signWorkerResult,
-  verifyWorkerCancellation,
   verifyWorkerRequest,
-  type ReleaseBuildWorkerCancellation,
   type ReleaseBuildWorkerRequest,
 } from "./release-build-worker-envelope.policy";
 import {
@@ -24,7 +20,10 @@ import {
   workerJobDirectory,
   writeImmutableWorkerJson,
 } from "./release-build-worker-exchange";
-import { ReleaseBuildWorkerExtractedSnapshotService } from "./release-build-worker-extracted-snapshot.service";
+import {
+  createBrokerJobLayout,
+  transferBuildWorkspace,
+} from "./release-build-worker-job-layout";
 import { readReleaseBuildWorkerSecret } from "./release-build-worker-secret";
 import { hashWorkerFile } from "./release-build-worker-source-archive";
 import { verifyExtractedWorkerSource } from "./release-build-worker-source-manifest";
@@ -34,14 +33,9 @@ import {
 } from "./source-policy-snapshot.policy";
 
 export type FilesystemWorkerConfig = {
-  inputRoot: string;
-  outputRoot: string;
-  workRoot: string;
-  secretFile: string;
-  commandPath: string;
-  tarExecutable: string;
-  commandTimeoutMs: number;
-  cancelGraceMs: number;
+  inputRoot: string; outputRoot: string; workRoot: string; secretFile: string;
+  commandPath: string; tarExecutable: string; commandTimeoutMs: number;
+  cancelGraceMs: number; brokerUid: number; brokerGid: number;
 };
 
 export class ReleaseBuildFilesystemWorker {
@@ -52,142 +46,147 @@ export class ReleaseBuildFilesystemWorker {
     const request = await readImmutableWorkerJson<ReleaseBuildWorkerRequest>(
       join(inputDirectory, "request.json"),
     );
-    const secret = await readReleaseBuildWorkerSecret(this.config.secretFile);
-    this.assertRequest(request, secret, jobId);
+    const profile = await this.assertRequest(request, jobId);
     const outputDirectory = await workerJobDirectory(this.config.outputRoot, jobId, true);
     if (await exists(join(outputDirectory, "result.json"))) return;
-    const jobRoot = await this.createJobRoot(jobId);
-    const controller = new AbortController();
-    const cancelTimer = setInterval(
-      () => void this.applyCancellation(inputDirectory, request, secret, controller),
-      200,
-    );
+    const trustedRoot = await this.createTrustedRoot(jobId);
+    const cancellation = watchSupervisorCancellation({
+      inputDirectory, secretFile: this.config.secretFile, request,
+    });
+    let broker: Awaited<ReturnType<typeof createBrokerJobLayout>> | undefined;
     try {
-      const sourceRoot = await this.extractAndVerify(inputDirectory, jobRoot, request);
-      const executor = this.executor(request, sourceRoot, jobRoot);
-      const result = await executor.execute({
+      const sourceRoot = await this.extractAndVerify(inputDirectory, trustedRoot, request);
+      const scanned = await scanSupervisorSource({
+        request, profile, sourceRoot, trustedRoot,
+        commandPath: this.config.commandPath,
+        commandTimeoutMs: this.config.commandTimeoutMs,
+        cancelGraceMs: this.config.cancelGraceMs,
+        signal: cancellation.signal,
+      });
+      broker = await createBrokerJobLayout({
+        root: join(this.config.workRoot, "broker-jobs"),
         buildRunId: request.identity.buildRunId,
+        uid: this.config.brokerUid,
+        gid: this.config.brokerGid,
+      });
+      const buildRoot = await transferBuildWorkspace({
+        source: scanned.prepared.buildRoot, workRoot: broker.workRoot,
+        uid: this.config.brokerUid, gid: this.config.brokerGid,
+      });
+      const brokerResult = await runReleaseBuildBrokerProcess({
+        broker: {
+          version: 1, request: unsigned(request), jobRoot: broker.jobRoot,
+          workRoot: broker.workRoot, buildRoot, artifactRoot: broker.artifactRoot,
+          supplyProofFile: join(broker.jobRoot, "control", "supply-proof.json"),
+          commandPath: this.config.commandPath,
+          commandTimeoutMs: this.config.commandTimeoutMs,
+          cancelGraceMs: this.config.cancelGraceMs,
+          prepared: {
+            security: scanned.prepared.security,
+            sourceSnapshot: scanned.prepared.sourceSnapshot,
+          },
+        },
+        supplyProof: expectedReleaseBuildSupplyProof(profile),
+        brokerUid: this.config.brokerUid, brokerGid: this.config.brokerGid,
+        timeoutMs: this.config.commandTimeoutMs,
+        signal: cancellation.signal,
+      });
+      if (brokerResult.status !== "succeeded" || !brokerResult.result) {
+        throw brokerResult.failure ?? new Error("broker failed");
+      }
+      await promoteBrokerArtifacts({
+        rawRoot: broker.artifactRoot, trustedRoot: scanned.artifactRoot,
+        finalRoot: join(this.config.outputRoot, "artifacts"),
         projectId: request.identity.projectId,
         releaseOrderId: request.identity.releaseOrderId,
-        sourceCommitSha: request.identity.sourceCommitSha,
-        checkoutRoot: sourceRoot,
-        components: request.components,
-      }, controller.signal);
-      await writeImmutableWorkerJson(outputDirectory, "result.json", signWorkerResult({
-        version: 1, identity: request.identity, status: "succeeded", result,
-      }, secret));
+        buildRunId: request.identity.buildRunId,
+        result: brokerResult.result,
+      });
+      await this.writeResult(outputDirectory, request, "succeeded", {
+        ...brokerResult.result,
+        gateSummary: supervisorGateSummary(
+          brokerResult.result.gateSummary,
+          scanned.prepared,
+          expectedReleaseBuildSupplyProof(profile).supplyChainDigest,
+        ),
+      });
     } catch (error) {
-      const failure = releaseBuildFailureDetail(error, controller.signal);
-      await writeImmutableWorkerJson(outputDirectory, "result.json", signWorkerResult({
-        version: 1,
-        identity: request.identity,
-        status: failure.status === "canceled" ? "canceled" : "failed",
-        error: { code: failure.code, message: failure.message },
-        failure,
-      }, secret));
+      const failure = releaseBuildFailureDetail(error, new AbortController().signal);
+      await this.writeResult(
+        outputDirectory, request,
+        failure.status === "canceled" ? "canceled" : "failed",
+        undefined, failure,
+      );
     } finally {
-      clearInterval(cancelTimer);
-      await rm(jobRoot, { recursive: true, force: true });
+      await broker?.cleanup();
+      cancellation.stop();
+      await rm(trustedRoot, { recursive: true, force: true });
     }
   }
 
-  private assertRequest(
-    request: ReleaseBuildWorkerRequest,
-    secret: string,
-    jobId: string,
-  ) {
+  private async assertRequest(request: ReleaseBuildWorkerRequest, jobId: string) {
+    const secret = await readReleaseBuildWorkerSecret(this.config.secretFile);
     const profile = resolveRegisteredReleaseBuildProfile(request.identity.profileId);
-    if (
-      request.version !== 1 || request.identity.jobId !== jobId ||
+    if (request.version !== 1 || request.identity.jobId !== jobId ||
       !verifyWorkerRequest(request, secret) || !profile ||
       profile.profileVersion !== request.identity.profileVersion ||
       sourcePolicySnapshotHash(buildSourcePolicySnapshot(profile)) !==
         request.identity.profileSnapshotHash ||
       request.sourceManifest.digest !== request.identity.sourceManifestDigest ||
-      new Date(request.identity.deadline).getTime() <= Date.now()
-    ) throw new Error("Release Build worker request attestation is invalid");
+      new Date(request.identity.deadline).getTime() <= Date.now()) {
+      throw new Error("Release Build worker request attestation is invalid");
+    }
+    return profile;
   }
 
-  private async createJobRoot(jobId: string) {
-    await mkdir(this.config.workRoot, { recursive: true, mode: 0o700 });
-    return mkdtemp(join(this.config.workRoot, `${jobId}-`));
+  private async writeResult(directory: string, request: ReleaseBuildWorkerRequest,
+    status: "succeeded" | "failed" | "canceled", result?: unknown, failure?: unknown) {
+    const secret = await readReleaseBuildWorkerSecret(this.config.secretFile);
+    await writeImmutableWorkerJson(directory, "result.json", signWorkerResult({
+      version: 1, identity: request.identity, status,
+      ...(result ? { result: result as never } : {}),
+      ...(failure ? { failure: failure as never } : {}),
+    }, secret));
   }
 
-  private async extractAndVerify(
-    inputDirectory: string,
-    jobRoot: string,
-    request: ReleaseBuildWorkerRequest,
-  ) {
-    const archive = join(inputDirectory, "source.tar");
-    if (await hashWorkerFile(archive) !== request.identity.sourceArchiveDigest) {
+  private async createTrustedRoot(jobId: string) {
+    const root = join(this.config.workRoot, "supervisor");
+    await mkdir(root, { recursive: true, mode: 0o700 });
+    return mkdtemp(join(root, `${jobId}-`));
+  }
+
+  private async extractAndVerify(directory: string, root: string,
+    request: ReleaseBuildWorkerRequest) {
+    const archive = join(directory, "source.tar");
+    if (await hashWorkerFile(archive) !== request.identity.sourceArchiveDigest)
       throw new Error("Release Build source archive digest mismatch");
-    }
-    const sourceRoot = join(jobRoot, "source");
-    await mkdir(sourceRoot, { mode: 0o700 });
-    const extracted = await runReleaseBuildArgv({
-      executable: this.config.tarExecutable,
-      args: ["-xf", archive, "-C", sourceRoot, "--no-same-owner", "--no-same-permissions"],
-      cwd: jobRoot,
-      env: { PATH: this.config.commandPath, HOME: jobRoot, TMPDIR: jobRoot },
+    const source = join(root, "source");
+    await mkdir(source, { mode: 0o700 });
+    const outcome = await runReleaseBuildArgv({ executable: this.config.tarExecutable,
+      args: ["-xf", archive, "-C", source, "--no-same-owner", "--no-same-permissions"],
+      cwd: root, env: { PATH: this.config.commandPath, HOME: root, TMPDIR: root },
       timeoutMs: this.config.commandTimeoutMs,
-      cancelGraceMs: this.config.cancelGraceMs,
-      maxOutputBytes: 1024 * 1024,
-    });
-    if (extracted.kind !== "completed" || extracted.exitCode !== 0) {
+      cancelGraceMs: this.config.cancelGraceMs });
+    if (outcome.kind !== "completed" || outcome.exitCode !== 0)
       throw new Error("Release Build source archive extraction failed");
-    }
-    await verifyExtractedWorkerSource(sourceRoot, request.sourceManifest);
-    return sourceRoot;
-  }
-
-  private executor(
-    request: ReleaseBuildWorkerRequest,
-    sourceRoot: string,
-    jobRoot: string,
-  ) {
-    void sourceRoot;
-    const artifactRoot = join(this.config.outputRoot, "artifacts");
-    const config = new ConfigService({
-      NODE_ENV: "production", RELEASE_BUILD_EXECUTION_ENABLED: true,
-      RELEASE_BUILD_EXECUTOR_PROFILE: request.identity.profileId,
-      RELEASE_BUILD_WORKER_PROCESS: true, RELEASE_BUILD_WORK_ROOT: this.config.workRoot,
-      RELEASE_BUILD_ARTIFACT_ROOT: artifactRoot,
-      RELEASE_BUILD_COMMAND_PATH: this.config.commandPath,
-      RELEASE_BUILD_COMMAND_TIMEOUT_MS: this.config.commandTimeoutMs,
-      RELEASE_BUILD_CANCEL_GRACE_MS: this.config.cancelGraceMs,
-    });
-    const runtime = new ReleaseBuildRuntimeProfileService(config);
-    const evidence = new LocalReleaseEvidenceArtifactService(config);
-    const scanners = new ReleaseBuildScannerEvidenceService(evidence);
-    const snapshot = new ReleaseBuildWorkerExtractedSnapshotService(
-      request.identity,
-      request.sourceManifest,
-    );
-    const preScript = new ReleaseBuildPreScriptSecurityService(snapshot as never, scanners);
-    return new LocalReleaseBuildExecutorService(
-      runtime,
-      new ReleaseBuildArtifactService(config),
-      new ReleaseBuildPackageEvidenceService(evidence),
-      preScript,
-    );
-  }
-
-  private async applyCancellation(
-    directory: string,
-    request: ReleaseBuildWorkerRequest,
-    secret: string,
-    controller: AbortController,
-  ) {
-    try {
-      const cancel = await readImmutableWorkerJson<ReleaseBuildWorkerCancellation>(
-        join(directory, "cancel.json"),
-      );
-      if (verifyWorkerCancellation(cancel, secret) &&
-        sameWorkerIdentity(cancel.identity, request.identity)) controller.abort(cancel.reason);
-    } catch { /* cancellation is optional until its authenticated CAS appears */ }
+    await verifyExtractedWorkerSource(source, request.sourceManifest);
+    return source;
   }
 }
 
-async function exists(path: string) {
-  try { await access(path); return true; } catch { return false; }
+function unsigned(request: ReleaseBuildWorkerRequest) {
+  const { signature: _signature, ...value } = request;
+  return value;
 }
+function supervisorGateSummary(value: Record<string, unknown>, prepared: any,
+  supplyChainDigest: string) {
+  return { ...value, security: { ...prepared.security,
+    sourceSnapshot: prepared.sourceSnapshot,
+    executionControls: { status: "passed", profile: "controlled-local-acceptance-v2",
+      trustBoundary: "trusted-supervisor-untrusted-uid-broker",
+      untrustedSandbox: true, controls: ["supervisor_pre_script_scan", "uid_3000_broker",
+        "private_job_workspace", "network_none", "supervisor_signed_output"], limitations: [] } },
+    workerAttestation: { version: 1, supplyChainDigest,
+      boundary: "filesystem-supervisor-broker-v1" } };
+}
+async function exists(path: string) { try { await access(path); return true; } catch { return false; } }

@@ -23,6 +23,7 @@ describe("GateEvaluationRepository C03 independent approval", () => {
       },
       decisionIdentity: {
         checkpoint: "build_pre_execution",
+        approvalSubjectHash: "subject-hash",
         actionInputHash: "action-hash",
         requesterActorId: "requester-1",
       },
@@ -35,7 +36,7 @@ describe("GateEvaluationRepository C03 independent approval", () => {
       const prisma = prismaDouble();
       const repository = new GateEvaluationRepository(prisma as never);
       await expect(repository.confirmManual(input(actorId))).rejects.toThrow();
-      expect(prisma.gateManualApproval.upsert).not.toHaveBeenCalled();
+      expect(prisma.gateManualApproval.create).not.toHaveBeenCalled();
     },
   );
 
@@ -46,10 +47,11 @@ describe("GateEvaluationRepository C03 independent approval", () => {
       ...row,
       manualApprovals: [{ id: "approval-1" }],
     });
-    expect(prisma.gateManualApproval.upsert).toHaveBeenCalledWith(
+    expect(prisma.gateManualApproval.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        create: expect.objectContaining({
+        data: expect.objectContaining({
           evaluationInputHash: row.inputHash,
+          approvalSubjectHash: "subject-hash",
           actionInputHash: "action-hash",
           requesterActorId: "requester-1",
           reviewerActorId: "reviewer-1",
@@ -68,7 +70,7 @@ describe("GateEvaluationRepository C03 independent approval", () => {
         }),
       },
       gateManualApproval: {
-        upsert: jest.fn().mockResolvedValue({ id: "approval-1" }),
+        create: jest.fn().mockResolvedValue({ id: "approval-1" }),
       },
       project: {
         findUnique: jest.fn().mockResolvedValue({

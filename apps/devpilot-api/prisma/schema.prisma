@@ -3167,6 +3167,8 @@ model ProductionPromotionCommand {
   postDecisionActionHash String?
   routeSwitchOperationId String?
   observationRecordedAt DateTime?
+  legacyReconcileRequired Boolean @default(false)
+  legacyReconcileReason String?
   result          Json?
   errorCode       String?
   errorMessage    String?  @db.Text
@@ -3192,6 +3194,7 @@ model ProductionPromotionCommand {
   @@index([status, leaseExpiresAt])
   @@index([leaseOwner])
   @@index([routeSwitchOperationId])
+  @@index([legacyReconcileRequired, status])
   @@index([createdAt])
 }
 
@@ -3280,6 +3283,7 @@ model GateManualApproval {
   releaseOrderId           String
   gateEvaluationId         String
   evaluationInputHash      String
+  approvalSubjectHash      String?
   actionInputHash          String
   requesterActorId         String
   reviewerActorId          String
@@ -3300,11 +3304,14 @@ model GateManualApproval {
   reviewer             User                  @relation("GateManualApprovalReviewer", fields: [reviewerActorId], references: [id], onDelete: Restrict)
 
   @@unique([gateEvaluationId, evaluationInputHash, actionInputHash, reviewerActorId])
+  @@unique([gateEvaluationId, evaluationInputHash, approvalSubjectHash, reviewerActorId])
   @@index([teamId])
   @@index([projectId])
   @@index([releaseOrderId])
   @@index([sourcePolicyRevisionId])
   @@index([actionInputHash])
+  @@index([approvalSubjectHash])
+  @@index([releaseOrderId, approvalSubjectHash, requesterActorId])
   @@index([expiresAt])
   @@index([createdAt])
 }

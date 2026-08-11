@@ -26,7 +26,9 @@ export function releaseProductionCurrentRun(
       approvalRun &&
         (approvalRun.status === 'failed' || approvalRun.operationApproval.status === 'rejected'),
     ),
-    awaitingResume: awaitingResume(approvalRun, releaseOrderId),
+    legacyRecovery: approvalRun?.legacyPromotionRecovery ?? null,
+    awaitingResume: approvalRun?.legacyPromotionRecovery
+      ? null : awaitingResume(approvalRun, releaseOrderId),
   };
 }
 

@@ -46,6 +46,7 @@ export class GateEvaluationRepository {
           select: {
             id: true,
             evaluationInputHash: true,
+            approvalSubjectHash: true,
             actionInputHash: true,
             requesterActorId: true,
             reviewerActorId: true,
@@ -59,6 +60,17 @@ export class GateEvaluationRepository {
         createdAt: true,
       },
     });
+    const subjectApprovals = scope.decisionIdentity?.approvalSubjectHash
+      ? await this.prisma.gateManualApproval.findMany({
+          where: {
+            releaseOrderId: scope.releaseOrderId,
+            approvalSubjectHash: scope.decisionIdentity.approvalSubjectHash,
+            requesterActorId: scope.decisionIdentity.requesterActorId,
+          },
+          orderBy: [{ confirmedAt: "asc" }, { id: "asc" }],
+          include: { gateEvaluation: { select: { gateId: true } } },
+        })
+      : [];
     const byIdentity = new Map(
       stored.map((row) => [`${row.gateId}:${row.inputHash}`, row]),
     );
@@ -77,11 +89,13 @@ export class GateEvaluationRepository {
         persistedAt: row.createdAt.toISOString(),
         waiver: row.waiver,
         waiverExpiresAt: row.waiverExpiresAt?.toISOString() ?? null,
-        manualApprovals: row.manualApprovals.map((approval) => ({
+        manualApprovals: subjectApprovals
+          .filter((approval) => approval.gateEvaluation.gateId === check.id)
+          .map(({ gateEvaluation: _gateEvaluation, ...approval }) => ({
           ...approval,
           confirmedAt: approval.confirmedAt.toISOString(),
           expiresAt: approval.expiresAt?.toISOString() ?? null,
-        })),
+          })),
       };
     });
   }

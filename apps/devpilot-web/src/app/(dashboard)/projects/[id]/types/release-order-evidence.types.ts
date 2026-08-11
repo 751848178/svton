@@ -145,6 +145,13 @@ export interface ReleaseEvidenceProductionRun {
     consumedAt: string | null;
     expiresAt: string | null;
   };
+  legacyPromotionRecovery: {
+    id: string;
+    phase: string;
+    legacyReconcileRequired: boolean;
+    legacyReconcileReason: string | null;
+    createdAt: string;
+  } | null;
   stagingProof: {
     deploymentRunId: string;
     environmentId: string;

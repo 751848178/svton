@@ -50,6 +50,7 @@ describe("ReleaseGateManualConfirmationService", () => {
       id: "evaluation-1", gateId: "C03", buildRunId: null,
       releaseRunId: null, summary: { decisionIdentity: {
         checkpoint: "build_pre_execution",
+        approvalSubjectHash: "subject-hash",
         actionInputHash: "action-hash",
         requesterActorId: "requester-1",
       } },

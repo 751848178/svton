@@ -181,6 +181,7 @@ describeIntegration("ReleaseGateDecision integration", () => {
         summary: {
           decisionIdentity: {
             checkpoint: "build_pre_execution",
+            approvalSubjectHash: "subject-hash",
             actionInputHash: "action-hash",
             requesterActorId: userId,
           },
@@ -217,6 +218,7 @@ function draft(
     stage: "build",
     checkpoint: "build_pre_execution",
     phase: "commit",
+    approvalSubjectHash: "subject-hash",
     actionInputHash: "action-hash",
     requesterActorId: "user-1",
     allowed: true,
@@ -228,12 +230,13 @@ function draft(
     evidenceOnlyGateIds: [],
     integrityErrors: [],
     snapshot: {
-      version: 3,
+      version: 4,
       stage: "build",
       checkpoint: "build_pre_execution",
       phase: "commit",
       requiredGateIds: [],
       actionInput,
+      approvalSubjectHash: "subject-hash",
       actionInputHash: "action-hash",
       requesterActorId: "user-1",
       evaluations: [],

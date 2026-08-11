@@ -13,7 +13,7 @@ describe("build reserve final gate validation", () => {
 
   it("rejects insufficient reviewer count before BuildRun creation", async () => {
     const fixture = setup();
-    fixture.rows[2].manualApprovals.pop();
+    fixture.approvals.pop();
     await expect(assertBuildGateDecisionCurrent(
       fixture.tx as never,
       fixture.input as never,
@@ -54,9 +54,10 @@ function setup() {
   const rows = gateIds.map((gateId) => gateRow(gateId, action));
   const decision = {
     inputSnapshot: {
-      version: 3,
+      version: 4,
       checkpoint: "build_pre_execution",
       requesterActorId: "requester-1",
+      approvalSubjectHash: action.approvalSubjectHash,
       actionInputHash: action.actionInputHash,
       requiredGateIds: gateIds,
       actionInput,
@@ -67,10 +68,15 @@ function setup() {
       })),
     },
   };
+  const approvals = rows.flatMap((row) => row.manualApprovals.map((item) => ({
+    ...item,
+    gateEvaluation: { gateId: row.gateId },
+  })));
   const tx = {
     $queryRaw: jest.fn().mockResolvedValue([{ id: "decision-1" }]),
     releaseGateDecision: { findFirst: jest.fn().mockResolvedValue(decision) },
     gateEvaluation: { findMany: jest.fn().mockResolvedValue(rows) },
+    gateManualApproval: { findMany: jest.fn().mockImplementation(() => approvals) },
     project: { findUniqueOrThrow: jest.fn().mockResolvedValue({
       currentSourcePolicyRevisionId: "policy-1",
     }) },
@@ -81,6 +87,7 @@ function setup() {
   return {
     tx,
     rows,
+    approvals,
     input: {
       teamId: "team-1", projectId: "project-1",
       releaseOrderId: "order-1", actorId: "requester-1",
@@ -102,7 +109,9 @@ function setup() {
 
 function gateRow(
   gateId: string,
-  action: { actionInputHash: string; requesterActorId: string },
+  action: {
+    approvalSubjectHash: string; actionInputHash: string; requesterActorId: string;
+  },
 ) {
   const manual = gateId === "C03";
   return {
@@ -126,7 +135,9 @@ function gateRow(
 
 function approval(
   reviewerActorId: string,
-  action: { actionInputHash: string; requesterActorId: string },
+  action: {
+    approvalSubjectHash: string; actionInputHash: string; requesterActorId: string;
+  },
 ) {
   return {
     evaluationInputHash: "hash-C03", ...action, reviewerActorId,

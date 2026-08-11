@@ -3,7 +3,7 @@ import { releaseGateCheckpointPolicy } from "./release-gate-checkpoint.policy";
 import { GATE_DEFINITION_VERSION } from "./gate-evaluation-persistence.utils";
 import { freezeProductionPromotionCandidate } from "./production-promotion-candidate.policy";
 import { assertProductionPromotionCurrent } from "./production-promotion-final-validation.repository";
-import { promotionProbeHash } from "./production-promotion-observation.repository";
+import { promotionProbeHash } from "./production-promotion-observation.policy";
 
 describe("Production promotion final transaction validation", () => {
   it("accepts exact lease, approval, gates, manual counts and P09 observation", async () => {
@@ -33,6 +33,7 @@ describe("Production promotion final transaction validation", () => {
     const preRow = manual.rows.find((row) => row.gateId === "P03" && row.id.startsWith("pre"))!;
     preRow.status = "needs_human";
     preRow.summary = { decisionIdentity: {
+      approvalSubjectHash: manual.snapshots["decision-pre"].inputSnapshot.approvalSubjectHash,
       actionInputHash: manual.input.preDecision.actionInputHash,
       requesterActorId: "actor-2",
     } };
@@ -115,13 +116,14 @@ function setup() {
       Promise.resolve(snapshots[where.id as keyof typeof snapshots])) },
     gateEvaluation: { findMany: jest.fn(({ where }) => Promise.resolve(
       rows.filter((row) => where.id.in.includes(row.id)))) },
+    gateManualApproval: { findMany: jest.fn().mockResolvedValue([]) },
     siteRouteSwitchRun: { findFirst: jest.fn().mockResolvedValue({
       promotionProbeHash: promotionProbeHash(probe()),
       promotionObservation: probe(),
     }) },
   };
   return {
-    tx, rows,
+    tx, rows, snapshots,
     input: {
       commandId: "command-1", actorId: "actor-2", candidate,
       lease: { owner: "owner-1", token: "token-1", tokenHash: "unused",
@@ -132,10 +134,14 @@ function setup() {
 }
 
 function decisionSnapshot(checkpoint: "production_promote_pre_route" | "production_post_route",
-  actionInput: Record<string, string>, identity: { actionInputHash: string }) {
+  actionInput: Record<string, string>, identity: {
+    approvalSubjectHash: string; actionInputHash: string;
+  }) {
   const gateIds = [...releaseGateCheckpointPolicy(checkpoint).requiredGateIds];
-  return { inputSnapshot: { version: 3, checkpoint,
-    requesterActorId: "actor-2", actionInputHash: identity.actionInputHash,
+  return { inputSnapshot: { version: 4, checkpoint,
+    requesterActorId: "actor-2",
+    approvalSubjectHash: identity.approvalSubjectHash,
+    actionInputHash: identity.actionInputHash,
     actionInput, requiredGateIds: gateIds,
     evaluations: gateIds.map((gateId) => ({ gateId,
       evaluationId: `${checkpoint === "production_post_route" ? "post" : "pre"}-${gateId}`,

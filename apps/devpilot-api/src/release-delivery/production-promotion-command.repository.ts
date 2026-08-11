@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import {
   assertPromotionCommandReplay,
+  assertPromotionCommandReconciled,
   exactFrozenCandidate,
   promotionCommandInputHash,
 } from "./production-promotion-command.policy";
@@ -43,6 +44,7 @@ export class ProductionPromotionCommandRepository {
         } },
       });
       if (existing) {
+        assertPromotionCommandReconciled(existing);
         assertPromotionCommandReplay(existing, inputHash);
         if (existing.status !== "running" ||
           promotionLeaseIsActive(existing.leaseExpiresAt)) {

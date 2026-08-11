@@ -100,6 +100,7 @@ function profile(pnpm: string): RegisteredReleaseBuildProfile {
       yarn: { executable: pnpm, toolVersion: "fixture" },
     },
     scanners: [],
+    supplyChain: { schemaVersion: 1, baseImageDigests: [], artifactDigests: {} },
   };
 }
 

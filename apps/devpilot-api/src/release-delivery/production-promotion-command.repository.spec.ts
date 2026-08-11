@@ -28,6 +28,16 @@ describe("ProductionPromotionCommandRepository lease CAS", () => {
     });
   });
 
+  it("never replays a pre-lease command with an unverifiable phase", async () => {
+    const fixture = setup(new Date("2020-01-01T00:00:00.000Z"));
+    fixture.existing.legacyReconcileRequired = true;
+    await expect(fixture.repository.reserve(fixture.input)).rejects.toMatchObject({
+      status: 409,
+      response: { code: "LEGACY_PROMOTION_RECONCILE_REQUIRED" },
+    });
+    expect(fixture.tx.productionPromotionCommand.update).not.toHaveBeenCalled();
+  });
+
   it("fails closed when heartbeat no longer owns the lease token", async () => {
     const prisma = {
       productionPromotionCommand: {
@@ -67,6 +77,7 @@ function setup(leaseExpiresAt: Date) {
     preDecisionId: null, preDecisionInputHash: null, preDecisionActionHash: null,
     postDecisionId: null, postDecisionInputHash: null, postDecisionActionHash: null,
     routeSwitchOperationId: null, observationRecordedAt: null,
+    legacyReconcileRequired: false, legacyReconcileReason: null,
     result: null, errorCode: null, errorMessage: null,
   };
   const deployment = {
@@ -95,7 +106,7 @@ function setup(leaseExpiresAt: Date) {
     $transaction: jest.fn((callback) => callback(tx)),
   } as unknown as PrismaService;
   return {
-    input, tx,
+    input, tx, existing,
     repository: new ProductionPromotionCommandRepository(prisma),
   };
 }

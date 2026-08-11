@@ -170,7 +170,8 @@ export class ReleaseGatePromoteEvidenceRepository {
         select: {
           id: true, operationId: true, releaseRunId: true, deploymentRunId: true,
           targetRef: true, status: true, result: true, applyReceipt: true,
-          updatedAt: true,
+          promotionCandidateHash: true, promotionObservedAt: true,
+          promotionProbeHash: true, promotionObservation: true, updatedAt: true,
         },
       }),
     ]);

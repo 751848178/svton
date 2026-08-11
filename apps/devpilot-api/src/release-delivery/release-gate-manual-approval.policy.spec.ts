@@ -4,6 +4,7 @@ import { hasRequiredManualApprovals } from "./release-gate-manual-approval.polic
 describe("release gate additive manual approvals", () => {
   const now = new Date("2026-08-11T08:00:00.000Z");
   const actionIdentity = {
+    approvalSubjectHash: "subject-1",
     actionInputHash: "action-1",
     requesterActorId: "requester-1",
   };
@@ -17,7 +18,7 @@ describe("release gate additive manual approvals", () => {
   });
 
   it.each([
-    ["stale action", { actionInputHash: "stale" }],
+    ["stale subject", { approvalSubjectHash: "stale" }],
     ["wrong requester", { requesterActorId: "other" }],
     ["stale policy", { sourcePolicySnapshotHash: "stale" }],
     ["expired", { expiresAt: "2026-08-10T08:00:00.000Z" }],
@@ -54,7 +55,8 @@ function c03(): PersistedReleaseGateEvaluation {
 
 function approval(reviewerActorId: string) {
   return {
-    id: `approval-${reviewerActorId}`, evaluationInputHash: "evaluation-hash",
+    id: `approval-${reviewerActorId}`, evaluationInputHash: "older-evaluation-hash",
+    approvalSubjectHash: "subject-1",
     actionInputHash: "action-1", requesterActorId: "requester-1",
     reviewerActorId, sourcePolicyRevisionId: "policy-1",
     sourcePolicySnapshotHash: "policy-hash", sourceCommitSha: "a".repeat(40),
