@@ -16,8 +16,27 @@ describe("release component key migration", () => {
   });
 
   it("uses a deterministic normalized application service identity", () => {
-    expect(sql).toContain("service.`applicationId`, CHAR(31), LOWER(TRIM(service.`name`))");
+    expect(sql).toContain("grouped.`applicationId`, CHAR(31), grouped.`normalizedName`");
     expect(sql).toContain("CONCAT(\n    'legacy-',\n    SHA2(");
+  });
+
+  it("derives the hash only from grouped aliases under ONLY_FULL_GROUP_BY", () => {
+    const insert = sql.slice(sql.indexOf("INSERT INTO"), sql.indexOf("UPDATE `ApplicationService`"));
+    const outerProjection = insert.slice(insert.indexOf("SELECT"), insert.indexOf("FROM ("));
+    expect(outerProjection).not.toContain("service.");
+    expect(outerProjection).toContain("grouped.`normalizedName`");
+    expect(insert).toContain("LOWER(TRIM(service.`name`)) AS `normalizedName`");
+    expect(insert).toContain(
+      "GROUP BY service.`projectId`, service.`applicationId`, LOWER(TRIM(service.`name`))",
+    );
+  });
+
+  it("keeps the exact two-role fixture semantics inside the grouped subquery", () => {
+    const grouped = sql.slice(sql.indexOf("FROM ("), sql.indexOf(") AS grouped"));
+    expect(grouped).toContain("environment.`status` = 'active'");
+    expect(grouped).toContain("environment.`baselineRole` IN ('staging', 'production')");
+    expect(grouped).toContain("HAVING COUNT(*) = 2");
+    expect(grouped).toContain("COUNT(DISTINCT environment.`baselineRole`) = 2");
   });
 
   it("does not rewrite immutable release history", () => {

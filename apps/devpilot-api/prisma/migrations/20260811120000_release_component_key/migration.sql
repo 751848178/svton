@@ -12,23 +12,29 @@ CREATE TEMPORARY TABLE `ReleaseComponentKeyBackfill` (
 INSERT INTO `ReleaseComponentKeyBackfill`
   (`projectId`, `applicationId`, `normalizedName`, `releaseComponentKey`)
 SELECT
-  service.`projectId`,
-  service.`applicationId`,
-  LOWER(TRIM(service.`name`)),
+  grouped.`projectId`,
+  grouped.`applicationId`,
+  grouped.`normalizedName`,
   CONCAT(
     'legacy-',
-    SHA2(CONCAT(service.`applicationId`, CHAR(31), LOWER(TRIM(service.`name`))), 256)
+    SHA2(CONCAT(grouped.`applicationId`, CHAR(31), grouped.`normalizedName`), 256)
   )
-FROM `ApplicationService` AS service
-INNER JOIN `ProjectEnvironment` AS environment
-  ON environment.`id` = service.`environmentId`
-  AND environment.`projectId` = service.`projectId`
-  AND environment.`status` = 'active'
-  AND environment.`baselineRole` IN ('staging', 'production')
-WHERE service.`status` = 'active'
-GROUP BY service.`projectId`, service.`applicationId`, LOWER(TRIM(service.`name`))
-HAVING COUNT(*) = 2
-  AND COUNT(DISTINCT environment.`baselineRole`) = 2;
+FROM (
+  SELECT
+    service.`projectId` AS `projectId`,
+    service.`applicationId` AS `applicationId`,
+    LOWER(TRIM(service.`name`)) AS `normalizedName`
+  FROM `ApplicationService` AS service
+  INNER JOIN `ProjectEnvironment` AS environment
+    ON environment.`id` = service.`environmentId`
+    AND environment.`projectId` = service.`projectId`
+    AND environment.`status` = 'active'
+    AND environment.`baselineRole` IN ('staging', 'production')
+  WHERE service.`status` = 'active'
+  GROUP BY service.`projectId`, service.`applicationId`, LOWER(TRIM(service.`name`))
+  HAVING COUNT(*) = 2
+    AND COUNT(DISTINCT environment.`baselineRole`) = 2
+) AS grouped;
 
 UPDATE `ApplicationService` AS service
 INNER JOIN `ProjectEnvironment` AS environment
