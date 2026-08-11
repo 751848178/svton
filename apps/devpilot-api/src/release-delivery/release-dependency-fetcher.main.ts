@@ -15,6 +15,9 @@ type FetchInput = {
   platformOs: "linux"; platformArch: "amd64" | "arm64";
   platformAbi: string; platformLibc: string;
   registryPolicyDigest: string;
+  dependencyNetworkMode:
+    "docker-desktop-engine-proxy-v1" | "direct-public-dns-v1";
+  engineEvidenceDigest: string;
 };
 
 async function main() {
@@ -28,6 +31,7 @@ async function main() {
     sourcePolicySnapshotHash(buildSourcePolicySnapshot(profile)) !== input.profileSnapshotHash ||
     expectedReleaseBuildSupplyProof(profile).supplyChainDigest !== input.supplyChainDigest ||
     policy.registryPolicyDigest !== input.registryPolicyDigest ||
+    !policy.dependencyNetworkModes.includes(input.dependencyNetworkMode) ||
     input.packageManifestDigest !== DEPENDENCY_FETCH_PACKAGE_DIGEST) throw invalid();
   const executable = profile.packageManagers.pnpm?.executable;
   if (!executable) throw invalid();
@@ -56,7 +60,9 @@ async function readInput(path: string) {
   if (value?.schemaVersion !== 1 || !hex(value.combinationHash) ||
     !hex(value.lockfileDigest) || !hex(value.registryPolicyDigest) ||
     !hex(value.profileSnapshotHash) || !hex(value.supplyChainDigest) ||
-    !hex(value.packageManifestDigest) ||
+    !hex(value.packageManifestDigest) || !hex(value.engineEvidenceDigest) ||
+    !["docker-desktop-engine-proxy-v1", "direct-public-dns-v1"]
+      .includes(value.dependencyNetworkMode) ||
     typeof value.profileId !== "string" || !Number.isInteger(value.profileVersion) ||
     typeof value.pnpmVersion !== "string" || value.platformOs !== "linux" ||
     !["amd64", "arm64"].includes(value.platformArch) ||

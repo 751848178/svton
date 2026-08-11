@@ -1,6 +1,7 @@
 import type { ConfigService } from "@nestjs/config";
 import { isAbsolute, relative, resolve } from "node:path";
-import { EXTERNAL_OCI_LAUNCHER, verifyLauncherProof } from "./release-build-launcher-proof.policy";
+import { EXTERNAL_OCI_LAUNCHER,
+  readVerifiedLauncherProof } from "./release-build-launcher-proof.policy";
 
 export function resolveReleaseBuildWorkerRuntime(
   config: ConfigService,
@@ -31,11 +32,14 @@ export function resolveReleaseBuildWorkerRuntime(
     sharedGid: positive(config.get("RELEASE_BUILD_WORKER_SHARED_GID"), 2000),
     external,
     jobImage,
+    get launcherProof() {
+      return apiPathsConfigured ? readVerifiedLauncherProof({
+        proofFile, secretFile: secret, jobImage,
+      }) : null;
+    },
     get ready() {
       return trustedTestFixture || launcherChild ||
-        (apiPathsConfigured && verifyLauncherProof({
-          proofFile, secretFile: secret, jobImage,
-        }));
+        Boolean(this.launcherProof);
     },
   };
 }

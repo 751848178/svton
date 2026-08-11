@@ -8,7 +8,7 @@ import {
 } from "./release-build-acceptance-profile";
 import { resolveReleaseBuildWorkerRuntime } from "./release-build-worker-runtime-config";
 import { verifyReleaseBuildSupplyProof } from "./release-build-supply-proof.policy";
-
+import { stableHash } from "../release-orchestration/utils/release-hash.utils";
 const CHILD_ENVIRONMENT_KEYS = [
   "CI",
   "HOME",
@@ -17,7 +17,6 @@ const CHILD_ENVIRONMENT_KEYS = [
   "PATH",
   "TMPDIR",
 ] as const;
-
 @Injectable()
 export class ReleaseBuildRuntimeProfileService {
   readonly profile: string;
@@ -35,7 +34,6 @@ export class ReleaseBuildRuntimeProfileService {
   private readonly trustedTestFixture: boolean;
   private readonly worker: ReturnType<typeof resolveReleaseBuildWorkerRuntime>;
   private readonly supplyProofVerified: boolean;
-
   constructor(config: ConfigService) {
     this.profile =
       config.get<string>("RELEASE_BUILD_EXECUTOR_PROFILE") || "disabled";
@@ -70,7 +68,6 @@ export class ReleaseBuildRuntimeProfileService {
       config.get<string>("RELEASE_BUILD_COMMAND_PATH") ||
       "/usr/local/bin:/usr/bin:/bin";
   }
-
   get available() {
     return (
       this.executionEnabled &&
@@ -86,11 +83,22 @@ export class ReleaseBuildRuntimeProfileService {
       !overlaps(this.artifactRoot, process.cwd())
     );
   }
-
   get activationRequested() {
     return this.executionEnabled || this.profile !== "disabled";
   }
-
+  dependencyNetworkEvidence() {
+    if (this.trustedTestFixture) return {
+      dependencyNetworkMode: "direct-public-dns-v1" as const,
+      engineEvidenceDigest: stableHash({ scope: "trusted-test-fixture-network" }),
+    };
+    const proof = this.worker.launcherProof;
+    if (!proof) throw new UnprocessableEntityException({
+      code: "BUILD_DEPENDENCY_NETWORK_UNAVAILABLE",
+      message: "Build 依赖网络引擎证明不可用",
+    });
+    return { dependencyNetworkMode: proof.dependencyNetworkMode,
+      engineEvidenceDigest: proof.engineEvidenceDigest };
+  }
   get unavailableReason() {
     if (this.registeredProfile && !this.worker.ready) {
       return "untrusted_worker_provider_missing";
@@ -100,7 +108,6 @@ export class ReleaseBuildRuntimeProfileService {
     }
     return "build_executor_disabled_or_invalid";
   }
-
   assertAvailable() {
     if (!this.available) {
       throw new UnprocessableEntityException({
@@ -110,7 +117,6 @@ export class ReleaseBuildRuntimeProfileService {
       });
     }
   }
-
   descriptor(): ReleaseBuildRuntimeDescriptor {
     const registered = this.registeredProfile;
     if (!registered) {
@@ -148,7 +154,6 @@ export class ReleaseBuildRuntimeProfileService {
       ),
     };
   }
-
   get workerInputRoot() { return this.worker.inputRoot; }
   get workerOutputRoot() { return this.worker.outputRoot; }
   get workerSecretFile() { return this.worker.secretFile; }

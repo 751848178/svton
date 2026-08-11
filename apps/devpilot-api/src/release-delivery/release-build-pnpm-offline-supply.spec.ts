@@ -5,6 +5,8 @@ import { lockedInstallArgs } from "./release-build-package-policy";
 
 const PNPM_SHA512 = "279278f83be782f6faaefbacbccc503301c4ec2cdafd40983e7c26aeeee7c38270f5c8e635b43464691b897abe1675b40c06df6edadde922532b7368aa9a5267";
 const PNPM_EXECUTABLE = "/opt/devpilot/pnpm/8.12.0/bin/pnpm.cjs";
+const PNPM_PATH_EXECUTABLE = "/usr/local/bin/pnpm";
+const PNPM_PATH_SHA256 = "4dc93970ff042377f241cd53d3ca8cb0b28939b878757526956ae95bbfdc0977";
 
 describe("controlled acceptance pnpm supply", () => {
   const dockerfile = readFileSync(join(process.cwd(), "Dockerfile"), "utf8");
@@ -15,12 +17,31 @@ describe("controlled acceptance pnpm supply", () => {
   it("binds package execution to the verified regular pnpm entity", () => {
     expect(profile.packageManagers.pnpm).toEqual({
       executable: PNPM_EXECUTABLE,
+      pathExecutable: PNPM_PATH_EXECUTABLE,
+      executableDigest: `sha256:${PNPM_PATH_SHA256}`,
       toolVersion: "8.12.0",
     });
     expect(profile.supplyChain.artifactDigests.pnpmPackage)
       .toBe(`sha512:${PNPM_SHA512}`);
+    expect(profile.supplyChain.artifactDigests.pnpmPathExecutable)
+      .toBe(`sha256:${PNPM_PATH_SHA256}`);
     expect(dockerfile).toContain(`${PNPM_SHA512}  /tmp/pnpm-8.12.0.tgz`);
     expect(dockerfile).toContain(`test ! -L "$PNPM_EXECUTABLE"`);
+    expect(dockerfile).toContain(
+      `${PNPM_PATH_SHA256}  ${PNPM_PATH_EXECUTABLE}`,
+    );
+    expect(dockerfile).toContain(
+      `io.svton.devpilot.pnpm-path-executable="sha256:${PNPM_PATH_SHA256}"`,
+    );
+    expect(dockerfile).toContain("chmod 0555 /usr/local/bin/pnpm");
+    expect(dockerfile).toContain(
+      "chown root:root /usr/local/bin/pnpm /usr/local/dist/pnpm.cjs",
+    );
+    expect(dockerfile).toContain("test -f /usr/local/bin/pnpm");
+    expect(dockerfile).toContain("test ! -L /usr/local/bin/pnpm");
+    expect(dockerfile).toContain(
+      "PATH=/usr/local/bin:/usr/bin:/bin pnpm --version",
+    );
     expect(dockerfile).not.toContain("corepack prepare");
     expect(dockerfile).not.toContain("corepack enable");
   });

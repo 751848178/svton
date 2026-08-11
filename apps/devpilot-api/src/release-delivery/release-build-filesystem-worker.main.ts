@@ -10,6 +10,7 @@ import { verifyReleaseBuildSupplyProof } from "./release-build-supply-proof.poli
 import { assertReleaseBuildLauncherHostContract } from "./release-build-launcher-host-contract";
 import { cleanupExternalOciLauncherContainers } from "./release-build-external-oci-runner";
 import { assertLauncherLabel } from "./release-build-external-oci.policy";
+import { probeDockerEngineNetwork } from "./release-build-engine-network.policy";
 
 async function main() {
   const config = {
@@ -46,15 +47,28 @@ async function main() {
   Object.assign(config, hostPaths, { externalOci: {
     ...config.externalOci, dockerExecutable: hostPaths.dockerExecutable,
   }, tarExecutable: hostPaths.toolExecutables[hostPaths.toolExecutables.length - 1] });
+  const engine = await probeDockerEngineNetwork(config.externalOci.dockerExecutable);
+  Object.assign(config.externalOci, engine);
   const secret = await readReleaseBuildWorkerSecret(config.secretFile);
   const instance = config.externalOci.launcherLabel;
   const startedAt = new Date().toISOString();
-  const heartbeat = () => writeLauncherProof(config.proofFile, signLauncherProof({
+  let stopping = false;
+  const shutdown = new AbortController();
+  const heartbeat = async () => {
+    const current = await probeDockerEngineNetwork(config.externalOci.dockerExecutable);
+    if (current.engineEvidenceDigest !== engine.engineEvidenceDigest) {
+      stopping = true; shutdown.abort();
+      throw new Error("Docker engine network evidence changed");
+    }
+    await writeLauncherProof(config.proofFile, signLauncherProof({
     schemaVersion: 1, provider: "external-oci-launcher-v1",
     profileId: "controlled-local-acceptance-v2",
     jobImage: config.externalOci.image, controlsDigest: launcherControlsDigest,
+    dependencyNetworkMode: engine.dependencyNetworkMode,
+    engineEvidenceDigest: engine.engineEvidenceDigest,
     launcherInstanceId: instance, startedAt, heartbeatAt: new Date().toISOString(),
-  }, secret));
+    }, secret));
+  };
   await cleanupExternalOciLauncherContainers({
     dockerExecutable: config.externalOci.dockerExecutable,
     launcherLabel: config.externalOci.launcherLabel,
@@ -65,8 +79,6 @@ async function main() {
   }), 5_000);
   heartbeatTimer.unref();
   const worker = new ReleaseBuildFilesystemWorker(config);
-  let stopping = false;
-  const shutdown = new AbortController();
   const stop = () => { stopping = true; shutdown.abort(); };
   process.once("SIGTERM", stop);
   process.once("SIGINT", stop);
@@ -122,7 +134,9 @@ function assertToolchain(supplyProofFile: string, tarExecutable: string) {
   if (!profile || !verifyReleaseBuildSupplyProof(supplyProofFile, profile))
     throw new Error("release-build launcher supply proof is invalid");
   return [...profile.scanners.map((value) => value.executable),
-    ...Object.values(profile.packageManagers).map((value) => value!.executable),
+    ...Object.values(profile.packageManagers).flatMap((value) => value
+      ? [value.executable, ...(value.pathExecutable ? [value.pathExecutable] : [])]
+      : []),
     tarExecutable];
 }
 

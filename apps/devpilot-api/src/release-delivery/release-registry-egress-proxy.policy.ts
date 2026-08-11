@@ -2,13 +2,39 @@ import { isIP } from "node:net";
 
 export const RELEASE_REGISTRY_HOST = "registry.npmjs.org";
 export const RELEASE_REGISTRY_PORT = 443;
+export const DESKTOP_ENGINE_PROXY_HOST = "http.docker.internal";
+export const DESKTOP_ENGINE_PROXY_PORT = 3128;
+
+export function registryProxyUsesPublicDns(mode: string) {
+  if (mode === "direct-public-dns-v1") return true;
+  if (mode === "docker-desktop-engine-proxy-v1") return false;
+  throw new Error("registry_egress_blocked");
+}
+
+export function authorizeRegistryRequest(requestLine: string, headers: string) {
+  if (requestLine !==
+      `CONNECT ${RELEASE_REGISTRY_HOST}:${RELEASE_REGISTRY_PORT} HTTP/1.1` ||
+    headers.length > 4096 || /proxy-authorization\s*:/i.test(headers))
+    throw new Error("registry_egress_blocked");
+}
+
+export function desktopEngineConnectRequest() {
+  return `CONNECT ${RELEASE_REGISTRY_HOST}:${RELEASE_REGISTRY_PORT} HTTP/1.1\r\n`+
+    `Host: ${RELEASE_REGISTRY_HOST}:${RELEASE_REGISTRY_PORT}\r\n`+
+    "Connection: keep-alive\r\n\r\n";
+}
+
+export function acceptDesktopEngineResponse(value: Buffer) {
+  if (value.length > 4096 || !value.includes("\r\n\r\n") ||
+    !/^HTTP\/1\.[01] 200(?: |\r\n)/.test(value.toString("ascii")))
+    throw new Error("registry_egress_blocked");
+}
 
 export function authorizeRegistryConnect(input: {
   requestLine: string; headers: string; addresses: string[];
 }) {
-  if (input.requestLine !==
-      `CONNECT ${RELEASE_REGISTRY_HOST}:${RELEASE_REGISTRY_PORT} HTTP/1.1` ||
-    /proxy-authorization\s*:/i.test(input.headers) || !input.addresses.length ||
+  authorizeRegistryRequest(input.requestLine, input.headers);
+  if (!input.addresses.length ||
     input.addresses.some(specialUseAddress)) throw new Error("registry_egress_blocked");
   return input.addresses[0];
 }

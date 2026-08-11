@@ -155,7 +155,8 @@ function assertImmutable(row: Record<string, unknown>, input: ReserveInput) {
   for (const key of ["combinationHash", "lockfileDigest", "profileId",
     "profileVersion", "profileSnapshotHash", "supplyChainDigest", "fetchImage",
     "jobImage", "pnpmVersion", "platformOs", "platformArch", "platformAbi",
-    "platformLibc", "registryPolicyDigest"] as const) if (row[key] !== input[key])
+    "platformLibc", "registryPolicyDigest", "dependencyNetworkMode",
+    "engineEvidenceDigest"] as const) if (row[key] !== input[key])
     throw new ConflictException("依赖预取组合哈希与不可变输入不一致");
 }
 function conflict() { return new ConflictException("依赖预取状态已被其他执行占用"); }

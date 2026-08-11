@@ -27,6 +27,8 @@ export type RegisteredReleaseBuildProfile = {
   dependencyStorePolicy: ReleaseDependencyStorePolicy;
   packageManagers: Readonly<Partial<Record<"npm" | "pnpm" | "yarn", {
     executable: string;
+    pathExecutable?: string;
+    executableDigest?: string;
     toolVersion: string;
   }>>>;
   scanners: readonly ReleaseBuildScannerProfile[];
@@ -79,6 +81,9 @@ const PROFILE: RegisteredReleaseBuildProfile = {
   packageManagers: {
     pnpm: {
       executable: "/opt/devpilot/pnpm/8.12.0/bin/pnpm.cjs",
+      pathExecutable: "/usr/local/bin/pnpm",
+      executableDigest:
+        "sha256:4dc93970ff042377f241cd53d3ca8cb0b28939b878757526956ae95bbfdc0977",
       toolVersion: "8.12.0",
     },
   },
@@ -112,6 +117,7 @@ const PROFILE: RegisteredReleaseBuildProfile = {
     ],
     artifactDigests: {
       pnpmPackage: "sha512:279278f83be782f6faaefbacbccc503301c4ec2cdafd40983e7c26aeeee7c38270f5c8e635b43464691b897abe1675b40c06df6edadde922532b7368aa9a5267",
+      pnpmPathExecutable: "sha256:4dc93970ff042377f241cd53d3ca8cb0b28939b878757526956ae95bbfdc0977",
       semgrepRequirements: "sha256:278aedc50045986f04e0eb268e5e42883bed7bdf6bff64d08cc2ef455f0b334c",
       semgrepRules: "sha256:b7e483abf001c405a3e908251ff66cb198a26702aff5fe4c5f0c4b2fffec4919",
       semgrepRuleManifest: "sha256:50f2b21179f82f6c7248122df5a141974c14c3657965cfe9d7465eb0841179ae",

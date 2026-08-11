@@ -13,6 +13,9 @@ describe("release dependency store migration contract", () => {
   const generationSql = readFileSync(join(root,
     "prisma/migrations/20260811230000_dependency_store_generation/migration.sql"),
   "utf8");
+  const networkSql = readFileSync(join(root,
+    "prisma/migrations/20260811240000_dependency_network_evidence/migration.sql"),
+  "utf8");
   const schema = readFileSync(join(root, "prisma/schema.prisma"), "utf8");
 
   it("persists the complete fetch state machine and immutable identity", () => {
@@ -26,6 +29,13 @@ describe("release dependency store migration contract", () => {
     expect(schema).toContain(
       'combinationHash      String   @unique(map: "DependencyFetch_combination_key")',
     );
+  });
+
+  it("freezes the launcher engine network evidence on fetch identity", () => {
+    expect(networkSql).toContain("`dependencyNetworkMode` VARCHAR(191) NULL");
+    expect(networkSql).toContain("`engineEvidenceDigest` VARCHAR(191) NULL");
+    expect(schema).toContain("dependencyNetworkMode String?");
+    expect(schema).toContain("engineEvidenceDigest String?");
   });
 
   it("freezes exact fetch and store identity on BuildRun", () => {

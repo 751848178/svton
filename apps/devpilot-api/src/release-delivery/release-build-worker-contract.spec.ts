@@ -128,7 +128,9 @@ function identity(): ReleaseBuildWorkerIdentity {
       jobImage: `registry.test/api@sha256:${"7".repeat(64)}`,
       pnpmVersion: "8.12.0", platformOs: "linux", platformArch: "arm64",
       platformAbi: "node20-modules-115", platformLibc: "glibc-debian-bookworm",
-      registryPolicyDigest: "3".repeat(64), mode: "reuse",
+      registryPolicyDigest: "3".repeat(64),
+      dependencyNetworkMode: "direct-public-dns-v1",
+      engineEvidenceDigest: "4".repeat(64), mode: "reuse",
       storeDigest: "4".repeat(64) },
     deadline: "2099-01-01T00:00:00.000Z",
   };

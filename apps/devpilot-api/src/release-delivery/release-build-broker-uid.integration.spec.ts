@@ -21,9 +21,9 @@ describeRootLinux("release build real uid-3000 malicious boundary", () => {
     const secret = join(root, "worker.secret");
     await Promise.all([
       mkdir(workRoot, { recursive: true, mode: 0o700 }),
-      mkdir(control, { mode: 0o755 }),
-      mkdir(sibling, { mode: 0o700 }),
-      mkdir(exchange, { mode: 0o750 }),
+      mkdir(control, { recursive: true, mode: 0o755 }),
+      mkdir(sibling, { recursive: true, mode: 0o700 }),
+      mkdir(exchange, { recursive: true, mode: 0o750 }),
       writeFile(secret, "must-not-leak", { mode: 0o400 }),
     ]);
     await chownTree(jobRoot, 3_000, 3_000);

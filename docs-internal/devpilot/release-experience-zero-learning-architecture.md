@@ -314,6 +314,14 @@ flowchart TD
   participant and permits only public `registry.npmjs.org:443` HTTPS CONNECT.
   The untrusted build job remains offline and consumes only a verified
   root-owned read-only store copied into its private writable work tree.
+- The launcher probes a bounded canonical Docker engine tuple on every
+  heartbeat. Native Linux without an engine proxy uses public-DNS validation;
+  exact Docker Desktop `http.docker.internal:3128` uses one fixed upstream
+  CONNECT without resolving the registry in the job network. Mode and engine
+  evidence digest are frozen in proof, worker request, fetch identity and store
+  manifest; tuple drift withdraws the launcher proof. The job image also ships
+  a root-owned non-symlink `/usr/local/bin/pnpm` whose digest is bound to the
+  verified pnpm 8.12 supply, so repository `pnpm run build` works offline.
 - Dependency fetch leases persist only hashes with expiry/heartbeat and are
   reclaimable from both fetching and verifying. Exact profile/supply/image/
   OS/architecture/ABI/libc/registry identity is immutable. Fresh fetches release

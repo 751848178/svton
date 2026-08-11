@@ -11,7 +11,9 @@ import { releaseBuildExecutionFailure } from "./release-build-execution-failure"
 export async function prepareWorkerDependencyStore(input: {
   request: ReleaseBuildWorkerRequest; profile: RegisteredReleaseBuildProfile;
   sourceRoot: string; cacheRoot: string; jobRoot: string;
-  externalOci?: { image: string; dockerExecutable: string; launcherLabel: string };
+  externalOci?: { image: string; dockerExecutable: string; launcherLabel: string;
+    dependencyNetworkMode: "docker-desktop-engine-proxy-v1" | "direct-public-dns-v1";
+    engineEvidenceDigest: string };
   timeoutMs: number; signal?: AbortSignal;
 }) {
   const lockfile = await readSignedPnpmLock(input.sourceRoot,
@@ -21,6 +23,8 @@ export async function prepareWorkerDependencyStore(input: {
     manifest: input.request.sourceManifest, bytes: lockfile,
     profile: input.profile, platformArch: expected.platformArch,
     jobImage: expected.jobImage,
+    dependencyNetworkMode: expected.dependencyNetworkMode,
+    engineEvidenceDigest: expected.engineEvidenceDigest,
   });
   if (!verdict.allowed || verdict.fetchRunId !== expected.fetchRunId ||
     verdict.combinationHash !== expected.combinationHash ||

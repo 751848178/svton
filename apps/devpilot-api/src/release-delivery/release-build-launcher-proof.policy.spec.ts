@@ -1,4 +1,5 @@
-import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, symlinkSync,
+  writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { launcherControlsDigest, signLauncherProof, verifyLauncherProof } from "./release-build-launcher-proof.policy";
@@ -23,6 +24,14 @@ describe("external OCI launcher proof", () => {
     expect(verifyLauncherProof({ ...fixture, proofFile: link })).toBe(false);
   });
 
+  it("rejects a tampered engine evidence tuple", () => {
+    const fixture = proofFixture(Date.now());
+    const proof = JSON.parse(readFileSync(fixture.proofFile!, "utf8"));
+    proof.dependencyNetworkMode = "docker-desktop-engine-proxy-v1";
+    writeFileSync(fixture.proofFile!, JSON.stringify(proof), { mode: 0o600 });
+    expect(verifyLauncherProof(fixture)).toBe(false);
+  });
+
   function proofFixture(nowMs: number) {
     const root = mkdtempSync(join(tmpdir(), "launcher-proof-")); roots.push(root);
     const secretFile = join(root, "secret"); const proofFile = join(root, "proof.json");
@@ -34,6 +43,8 @@ describe("external OCI launcher proof", () => {
       schemaVersion: 1, provider: "external-oci-launcher-v1",
       profileId: "controlled-local-acceptance-v2", jobImage,
       controlsDigest: launcherControlsDigest, launcherInstanceId: "launcher_instance_01",
+      dependencyNetworkMode: "direct-public-dns-v1",
+      engineEvidenceDigest: "b".repeat(64),
       startedAt: now, heartbeatAt: now,
     }, secret)), { mode: 0o600 });
     return { root, proofFile, secretFile, jobImage, now: nowMs };

@@ -28,11 +28,18 @@ const secret = "integration-worker-secret-is-at-least-32-bytes";
 
 describe("filesystem isolated build worker exchange", () => {
   let scope: string;
+  let previousNodeEnvironment: string | undefined;
 
   beforeEach(async () => {
+    previousNodeEnvironment = process.env.NODE_ENV;
+    process.env.NODE_ENV = "test";
     scope = await mkdtemp(join(tmpdir(), "release-worker-integration-"));
   });
-  afterEach(async () => rm(scope, { recursive: true, force: true }));
+  afterEach(async () => {
+    if (previousNodeEnvironment === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = previousNodeEnvironment;
+    await rm(scope, { recursive: true, force: true });
+  });
 
   it("returns an authenticated fail-closed scan result without running build", async () => {
     const repository = join(scope, "repository");
@@ -146,7 +153,9 @@ function dependency() {
     jobImage: `registry.test/api@sha256:${"7".repeat(64)}`,
     pnpmVersion: "8.12.0", platformOs: "linux", platformArch: "arm64",
     platformAbi: "node20-modules-115", platformLibc: "glibc-debian-bookworm",
-    registryPolicyDigest: "3".repeat(64), mode: "reuse",
+    registryPolicyDigest: "3".repeat(64),
+    dependencyNetworkMode: "direct-public-dns-v1",
+    engineEvidenceDigest: "4".repeat(64), mode: "reuse",
     storeDigest: "4".repeat(64) } as const;
 }
 

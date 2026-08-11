@@ -19,6 +19,9 @@ export type ReleaseDependencyStoreManifest = {
   platformAbi: string;
   platformLibc: string;
   registryPolicyDigest: string;
+  dependencyNetworkMode:
+    "docker-desktop-engine-proxy-v1" | "direct-public-dns-v1";
+  engineEvidenceDigest: string;
   files: ReleaseDependencyStoreFile[];
   storeDigest: string;
 };
@@ -37,11 +40,14 @@ export function validDependencyStoreManifest(value: unknown):
   value is ReleaseDependencyStoreManifest {
   if (!record(value) || value.schemaVersion !== 1 ||
     !hex(value.combinationHash) || !hex(value.lockfileDigest) ||
-    !hex(value.registryPolicyDigest) || !hex(value.storeDigest) ||
+    !hex(value.registryPolicyDigest) || !hex(value.engineEvidenceDigest) ||
+    !hex(value.storeDigest) ||
     !hex(value.profileSnapshotHash) || !hex(value.supplyChainDigest) ||
     typeof value.fetchImage !== "string" || !value.fetchImage.includes("@sha256:") ||
     typeof value.jobImage !== "string" || !value.jobImage.includes("@sha256:") ||
     typeof value.profileId !== "string" ||
+    !["docker-desktop-engine-proxy-v1", "direct-public-dns-v1"]
+      .includes(value.dependencyNetworkMode) ||
     !Number.isInteger(value.profileVersion) || typeof value.pnpmVersion !== "string" ||
     value.platformOs !== "linux" || !["amd64", "arm64"].includes(String(value.platformArch)) ||
     typeof value.platformAbi !== "string" || typeof value.platformLibc !== "string" ||
@@ -60,6 +66,8 @@ export function validDependencyStoreManifest(value: unknown):
     platformArch: value.platformArch as string,
     platformAbi: value.platformAbi as string, platformLibc: value.platformLibc as string,
     registryPolicyDigest: value.registryPolicyDigest as string,
+    dependencyNetworkMode: value.dependencyNetworkMode,
+    engineEvidenceDigest: value.engineEvidenceDigest as string,
     files: value.files as ReleaseDependencyStoreFile[],
   });
   return rebuilt.storeDigest === value.storeDigest;

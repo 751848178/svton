@@ -1,5 +1,6 @@
 import { exactOciImage } from "./release-build-launcher-proof.policy";
 import { RELEASE_DEPENDENCY_STORE_CONTRACT } from "./release-dependency-store-contract";
+import type { DependencyNetworkMode } from "./release-build-engine-network.policy";
 
 const FETCHER_MAIN =
   "/app/apps/devpilot-api/dist/release-delivery/release-dependency-fetcher.main.js";
@@ -9,6 +10,7 @@ const PROXY_MAIN =
 export type DependencyNetworkJob = {
   fetchName: string; proxyName: string; networkName: string;
   launcherLabel: string; image: string; controlRoot: string; outputRoot: string;
+  dependencyNetworkMode: DependencyNetworkMode;
 };
 
 export function dependencyNetworkCreateArguments(job: DependencyNetworkJob) {
@@ -26,6 +28,7 @@ export function dependencyProxyCreateArguments(job: DependencyNetworkJob) {
     "--security-opt", "no-new-privileges", "--pids-limit", "32",
     "--memory", "128m", "--cpus", "0.25", "--user", "3000:3000",
     "--tmpfs", "/tmp:rw,nosuid,nodev,size=8m,mode=0700",
+    "--env", `DEVPILOT_DEPENDENCY_NETWORK_MODE=${job.dependencyNetworkMode}`,
     job.image, "node", PROXY_MAIN];
 }
 
@@ -63,6 +66,8 @@ function assert(job: DependencyNetworkJob) {
   for (const value of [job.fetchName, job.proxyName, job.networkName,
     job.launcherLabel]) if (!/^[a-z0-9][a-z0-9_.-]{15,62}$/.test(value)) throw invalid();
   if (!exactOciImage(job.image)) throw invalid();
+  if (!["docker-desktop-engine-proxy-v1", "direct-public-dns-v1"]
+    .includes(job.dependencyNetworkMode)) throw invalid();
 }
 function mount(source: string, destination: string, readonly: boolean) {
   return `--mount=type=bind,src=${source},dst=${destination}${readonly ? ",readonly" : ""}`;

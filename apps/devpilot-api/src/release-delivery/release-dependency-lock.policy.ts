@@ -14,6 +14,8 @@ export function evaluateReleaseDependencyLock(input: {
   profile: RegisteredReleaseBuildProfile;
   platformArch: "amd64" | "arm64";
   jobImage: string;
+  dependencyNetworkMode: "docker-desktop-engine-proxy-v1" | "direct-public-dns-v1";
+  engineEvidenceDigest: string;
 }) {
   const npmrc = input.manifest.entries.some((entry) =>
     entry.path.split("/").at(-1)?.toLowerCase() === ".npmrc");
@@ -53,6 +55,8 @@ export function evaluateReleaseDependencyLock(input: {
     platformAbi: policy.platformAbi,
     platformLibc: policy.platformLibc,
     registryPolicyDigest: policy.registryPolicyDigest,
+    dependencyNetworkMode: input.dependencyNetworkMode,
+    engineEvidenceDigest: input.engineEvidenceDigest,
   });
   return { allowed: true as const, lockfilePath: lock.path,
     lockfileDigest: digest, combinationHash, profileSnapshotHash,

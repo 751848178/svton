@@ -12,7 +12,17 @@ RUN npm pack pnpm@8.12.0 --ignore-scripts --pack-destination /tmp \
  && chown -R root:root /opt/devpilot/pnpm \
  && chmod -R go-w /opt/devpilot/pnpm \
  && test ! -L "$PNPM_EXECUTABLE" \
- && test "$("$PNPM_EXECUTABLE" --version)" = '8.12.0'
+ && test "$("$PNPM_EXECUTABLE" --version)" = '8.12.0' \
+ && mkdir -p /usr/local/dist \
+ && cp /opt/devpilot/pnpm/8.12.0/bin/pnpm.cjs /usr/local/bin/pnpm \
+ && cp /opt/devpilot/pnpm/8.12.0/dist/pnpm.cjs /usr/local/dist/pnpm.cjs \
+ && chown root:root /usr/local/bin/pnpm /usr/local/dist/pnpm.cjs \
+ && chmod 0555 /usr/local/bin/pnpm \
+ && chmod 0444 /usr/local/dist/pnpm.cjs \
+ && test -f /usr/local/bin/pnpm \
+ && test ! -L /usr/local/bin/pnpm \
+ && echo '4dc93970ff042377f241cd53d3ca8cb0b28939b878757526956ae95bbfdc0977  /usr/local/bin/pnpm' | sha256sum -c - \
+ && test "$(PATH=/usr/local/bin:/usr/bin:/bin pnpm --version)" = '8.12.0'
 WORKDIR /app
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml turbo.json ./
 COPY packages ./packages
@@ -128,6 +138,7 @@ ENV SEMGREP_SEND_METRICS=off
 ENV SEMGREP_ENABLE_VERSION_CHECK=0
 LABEL io.svton.devpilot.acceptance-profile="controlled-local-acceptance-v2" \
       io.svton.devpilot.pnpm-package="sha512:279278f83be782f6faaefbacbccc503301c4ec2cdafd40983e7c26aeeee7c38270f5c8e635b43464691b897abe1675b40c06df6edadde922532b7368aa9a5267" \
+      io.svton.devpilot.pnpm-path-executable="sha256:4dc93970ff042377f241cd53d3ca8cb0b28939b878757526956ae95bbfdc0977" \
       io.svton.devpilot.semgrep-rules="40b8c63f75dc7c22c8a77482d73bfb864b146f7e" \
       io.svton.devpilot.semgrep-rule-manifest="sha256:50f2b21179f82f6c7248122df5a141974c14c3657965cfe9d7465eb0841179ae" \
       io.svton.devpilot.trivy-db="sha256:e5c54b277db94d2973c2d4fdf68c94be8729a3d5fc2e48e7da04b6dacdf0bb71"

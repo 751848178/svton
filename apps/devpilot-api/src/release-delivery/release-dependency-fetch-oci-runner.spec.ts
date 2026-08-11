@@ -24,5 +24,7 @@ function identity(image: string): DependencyFetchIdentity {
     fetchImage: image, jobImage: image, pnpmVersion: "8.12.0",
     platformOs: "linux", platformArch: "arm64",
     platformAbi: "node20-modules-115", platformLibc: "glibc-debian-bookworm",
-    registryPolicyDigest: "5".repeat(64) };
+    registryPolicyDigest: "5".repeat(64),
+    dependencyNetworkMode: "direct-public-dns-v1",
+    engineEvidenceDigest: "6".repeat(64) };
 }

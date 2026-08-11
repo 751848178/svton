@@ -42,7 +42,8 @@ export async function runDependencyFetchOci(input: {
     `${label}:${input.identity.fetchRunId}`).digest("hex").slice(0, 24);
   const job: DependencyNetworkJob = { fetchName: `dp-fetch-${suffix}`,
     proxyName: `dp-proxy-${suffix}`, networkName: `dp-net-${suffix}`,
-    launcherLabel: label, image: input.image, controlRoot, outputRoot: pendingRoot };
+    launcherLabel: label, image: input.image, controlRoot, outputRoot: pendingRoot,
+    dependencyNetworkMode: input.identity.dependencyNetworkMode };
   const executable = assertDockerExecutable(input.dockerExecutable);
   try {
     await cleanup(executable, job);
@@ -67,6 +68,8 @@ export async function runDependencyFetchOci(input: {
       platformArch: input.identity.platformArch,
       platformAbi: input.identity.platformAbi, platformLibc: input.identity.platformLibc,
       registryPolicyDigest: input.identity.registryPolicyDigest,
+      dependencyNetworkMode: input.identity.dependencyNetworkMode,
+      engineEvidenceDigest: input.identity.engineEvidenceDigest,
     });
     const root = await promoteDependencyStore({ cacheRoot: input.cacheRoot,
       pendingRoot, manifest });

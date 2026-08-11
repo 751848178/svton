@@ -8,7 +8,8 @@ import { exactOciImage } from "./release-build-launcher-proof.policy";
 import { resolveRegisteredReleaseBuildProfile } from "./release-build-acceptance-profile";
 import { runExternalOciBroker } from "./release-build-external-oci-runner";
 import { expectedReleaseBuildSupplyProof } from "./release-build-supply-proof.policy";
-import { createDependencyStoreManifest } from "./release-dependency-store-filesystem";
+import { createDependencyStoreManifest,
+  verifyDependencyStore } from "./release-dependency-store-filesystem";
 
 const exec = promisify(execFile);
 const image = process.env.RELEASE_BUILD_OCI_INTEGRATION_IMAGE;
@@ -33,12 +34,15 @@ describeDocker("external OCI launcher real Docker boundary", () => {
       platformOs: "linux", platformArch: "arm64",
       platformAbi: "node20-modules-115", platformLibc: "glibc-debian-bookworm",
       registryPolicyDigest: profile.dependencyStorePolicy.registryPolicyDigest,
+      dependencyNetworkMode: "direct-public-dns-v1",
+      engineEvidenceDigest: "7".repeat(64),
     });
     storeDigest = manifest.storeDigest;
     await writeFile(join(root, "dependency-store", "manifest.json"),
-      JSON.stringify(manifest), { mode: 0o400 });
-    await chmod(join(root, "dependency-store", "store"), 0o500);
-    await chmod(join(root, "dependency-store"), 0o500);
+      JSON.stringify(manifest), { mode: 0o444 });
+    await chmod(join(root, "dependency-store", "store"), 0o555);
+    await chmod(join(root, "dependency-store"), 0o555);
+    await verifyDependencyStore(join(root, "dependency-store"), manifest);
     await chown(join(root, "output"), 3_000, 3_000);
     await chmod(join(root, "output"), 0o700);
   });

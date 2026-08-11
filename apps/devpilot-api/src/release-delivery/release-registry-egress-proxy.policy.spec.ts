@@ -1,4 +1,6 @@
-import { authorizeRegistryConnect } from "./release-registry-egress-proxy.policy";
+import { acceptDesktopEngineResponse, authorizeRegistryConnect,
+  desktopEngineConnectRequest,
+  registryProxyUsesPublicDns } from "./release-registry-egress-proxy.policy";
 
 describe("registry egress proxy policy", () => {
   it("allows only the exact public registry CONNECT target", () => {
@@ -40,5 +42,24 @@ describe("registry egress proxy policy", () => {
       requestLine: "CONNECT registry.npmjs.org:443 HTTP/1.1", headers: "",
       addresses: ["104.16.1.35", "10.0.0.1"] }))
       .toThrow("registry_egress_blocked");
+  });
+
+  it("uses one credential-free fixed CONNECT for Docker Desktop", () => {
+    expect(registryProxyUsesPublicDns("docker-desktop-engine-proxy-v1")).toBe(false);
+    expect(registryProxyUsesPublicDns("direct-public-dns-v1")).toBe(true);
+    expect(desktopEngineConnectRequest()).toBe(
+      "CONNECT registry.npmjs.org:443 HTTP/1.1\r\n"+
+      "Host: registry.npmjs.org:443\r\nConnection: keep-alive\r\n\r\n");
+    expect(desktopEngineConnectRequest()).not.toMatch(/auth|http\.docker|\/path/i);
+    expect(() => acceptDesktopEngineResponse(
+      Buffer.from("HTTP/1.1 200 Connection Established\r\n\r\n"))).not.toThrow();
+  });
+
+  it.each([
+    Buffer.from("HTTP/1.1 407 Proxy Authentication Required\r\n\r\n"),
+    Buffer.alloc(4097, 65),
+    Buffer.from("HTTP/1.1 200 OK\r\n"),
+  ])("rejects non-200, oversized or incomplete desktop response", (response) => {
+    expect(() => acceptDesktopEngineResponse(response)).toThrow("registry_egress_blocked");
   });
 });

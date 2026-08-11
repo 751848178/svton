@@ -14,6 +14,8 @@ export const RELEASE_DEPENDENCY_STORE_POLICY = {
   platformAbi: "node20-modules-115" as const,
   platformLibc: "glibc-debian-bookworm" as const,
   registry: REGISTRY,
+  dependencyNetworkModes: ["docker-desktop-engine-proxy-v1",
+    "direct-public-dns-v1"] as const,
   registryPolicy: "trusted-fetcher-application-allowlist-v1" as const,
   lifecycleScripts: "forbidden" as const,
   projectNpmrc: "forbidden" as const,
@@ -22,6 +24,8 @@ export const RELEASE_DEPENDENCY_STORE_POLICY = {
   registryPolicyDigest: stableHash({
     scope: "release-dependency-registry-policy-v1",
     registry: REGISTRY,
+    dependencyNetworkModes: ["docker-desktop-engine-proxy-v1",
+      "direct-public-dns-v1"],
     platformAbi: "node20-modules-115",
     platformLibc: "glibc-debian-bookworm",
     prohibitedProtocols: PROHIBITED,

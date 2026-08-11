@@ -89,6 +89,8 @@ describe("ReleaseBuildRuntimeProfileService", () => {
       schemaVersion: 1, provider: "external-oci-launcher-v1",
       profileId: "controlled-local-acceptance-v2", jobImage: launcher.image,
       controlsDigest: launcherControlsDigest, launcherInstanceId: "launcher_instance_01",
+      dependencyNetworkMode: "direct-public-dns-v1",
+      engineEvidenceDigest: "b".repeat(64),
       startedAt: stale, heartbeatAt: stale,
     }, launcher.secret)), { mode: 0o600 });
     expect(() => runtime.assertAvailable()).toThrow(
@@ -120,6 +122,8 @@ function launcherProof() {
     schemaVersion: 1, provider: "external-oci-launcher-v1",
     profileId: "controlled-local-acceptance-v2", jobImage: image,
     controlsDigest: launcherControlsDigest, launcherInstanceId: "launcher_instance_01",
+    dependencyNetworkMode: "direct-public-dns-v1",
+    engineEvidenceDigest: "b".repeat(64),
     startedAt: now, heartbeatAt: now,
   }, secret)), { mode: 0o600 });
   return { secretFile, proofFile, image, secret };

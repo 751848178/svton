@@ -33,18 +33,15 @@ import { isolatedWorkerFailure as workerFailure, publishIsolatedWorkerCancel,
   readIsolatedWorkerResult, readWorkerDependencyReady, sourceEnvironment,
   DependencyStoreRetryError,
   workerDelay as delay } from "./release-build-isolated-executor.helpers";
-
 @Injectable()
 export class FilesystemIsolatedReleaseBuildExecutorService
   extends ReleaseBuildExecutorPort {
   private readonly jobs = new Map<string, ReleaseBuildWorkerIdentity>();
-
   constructor(
     private readonly runtime: ReleaseBuildRuntimeProfileService,
     private readonly snapshots: ReleaseBuildSourceSnapshotService,
     private readonly dependencies: ReleaseDependencyApiCoordinator,
   ) { super(); }
-
   async execute(input: ReleaseBuildExecutionInput, signal?: AbortSignal, dependencyRepairAttempt = 0): Promise<ReleaseBuildExecutionResult> {
     this.runtime.assertAvailable();
     const profile = resolveRegisteredReleaseBuildProfile(this.runtime.profile);
@@ -90,11 +87,13 @@ export class FilesystemIsolatedReleaseBuildExecutorService
     const profileSnapshot = buildSourcePolicySnapshot(profile);
     const profileSnapshotHash = sourcePolicySnapshotHash(profileSnapshot);
     const supplyChainDigest = expectedReleaseBuildSupplyProof(profile).supplyChainDigest;
+    const dependencyNetwork = this.runtime.dependencyNetworkEvidence();
     const preparedDependency = await this.dependencies.prepare({
       buildRunId: input.buildRunId, checkoutRoot: input.checkoutRoot,
       manifest: archive.manifest, profileId: profile.id, deadline,
       profileSnapshotHash, supplyChainDigest,
       jobImage: this.runtime.workerJobImage!,
+      ...dependencyNetwork,
     });
     const dependency = preparedDependency;
     const identity: ReleaseBuildWorkerIdentity = {

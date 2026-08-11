@@ -181,7 +181,9 @@ function input() {
     profileVersion: 6, profileSnapshotHash: "snapshot", supplyChainDigest: "supply",
     fetchImage: image, jobImage: image, pnpmVersion: "8.12.0",
     platformOs: "linux" as const, platformArch: "arm64" as const,
-    platformAbi: "node20", platformLibc: "glibc", registryPolicyDigest: "policy" };
+    platformAbi: "node20", platformLibc: "glibc", registryPolicyDigest: "policy",
+    dependencyNetworkMode: "direct-public-dns-v1" as const,
+    engineEvidenceDigest: "8".repeat(64) };
 }
 function row(status: string) {
   return { id: "dep_hash", ...input(), status, storeDigest: null,

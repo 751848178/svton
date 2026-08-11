@@ -92,5 +92,7 @@ function fixture(value: string, profileValue = profile, extra: string[] = []) {
     ({ path, mode: "100644" as const, sizeBytes: 0, sha256: "0".repeat(64) }))],
     digest: "f".repeat(64) } satisfies WorkerSourceManifest;
   return { manifest, bytes, profile: profileValue, platformArch: "arm64" as const,
-    jobImage: `registry.test/api@sha256:${"7".repeat(64)}` };
+    jobImage: `registry.test/api@sha256:${"7".repeat(64)}`,
+    dependencyNetworkMode: "direct-public-dns-v1" as const,
+    engineEvidenceDigest: "8".repeat(64) };
 }

@@ -18,4 +18,7 @@ export type DependencyFetchIdentity = {
   platformAbi: string;
   platformLibc: string;
   registryPolicyDigest: string;
+  dependencyNetworkMode:
+    "docker-desktop-engine-proxy-v1" | "direct-public-dns-v1";
+  engineEvidenceDigest: string;
 };

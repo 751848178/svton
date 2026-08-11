@@ -63,5 +63,7 @@ function identity() {
     jobImage: `registry.test/api@sha256:${"f".repeat(64)}`,
     pnpmVersion: "8.12.0", platformOs: "linux", platformArch: "arm64",
     platformAbi: "node20-modules-115", platformLibc: "glibc-debian-bookworm",
-    registryPolicyDigest: "c".repeat(64) };
+    registryPolicyDigest: "c".repeat(64),
+    dependencyNetworkMode: "direct-public-dns-v1" as const,
+    engineEvidenceDigest: "d".repeat(64) };
 }

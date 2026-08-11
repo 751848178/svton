@@ -117,7 +117,9 @@ describe("ReleaseDependencyApiCoordinator", () => {
       profileId: profile.id, deadline: new Date(Date.now() + 5_000),
       profileSnapshotHash: sourcePolicySnapshotHash(buildSourcePolicySnapshot(profile)),
       supplyChainDigest: expectedReleaseBuildSupplyProof(profile).supplyChainDigest,
-      jobImage: `registry.test/api@sha256:${"7".repeat(64)}` };
+      jobImage: `registry.test/api@sha256:${"7".repeat(64)}`,
+      dependencyNetworkMode: "direct-public-dns-v1" as const,
+      engineEvidenceDigest: "8".repeat(64) };
   }
 });
 

@@ -31,7 +31,9 @@ export type FilesystemWorkerConfig = {
   inputRoot: string; outputRoot: string; workRoot: string; secretFile: string;
   commandPath: string; tarExecutable: string; commandTimeoutMs: number;
   cancelGraceMs: number; brokerUid: number; brokerGid: number;
-  externalOci?: { image: string; dockerExecutable: string; launcherLabel: string };
+  externalOci?: { image: string; dockerExecutable: string; launcherLabel: string;
+    dependencyNetworkMode: "docker-desktop-engine-proxy-v1" | "direct-public-dns-v1";
+    engineEvidenceDigest: string };
 };
 export class ReleaseBuildFilesystemWorker {
   constructor(private readonly config: FilesystemWorkerConfig) {}
@@ -140,12 +142,14 @@ export class ReleaseBuildFilesystemWorker {
       sourcePolicySnapshotHash(buildSourcePolicySnapshot(profile)) !==
         request.identity.profileSnapshotHash ||
       request.sourceManifest.digest !== request.identity.sourceManifestDigest ||
+      (this.config.externalOci &&
+        (request.identity.dependency.dependencyNetworkMode !== this.config.externalOci.dependencyNetworkMode ||
+         request.identity.dependency.engineEvidenceDigest !== this.config.externalOci.engineEvidenceDigest)) ||
       new Date(request.identity.deadline).getTime() <= Date.now()) {
       throw new Error("Release Build worker request attestation is invalid");
     }
     return profile;
   }
-
   private runTrustedTestBroker(
     input: Parameters<typeof runReleaseBuildBrokerProcess>[0],
   ) {
@@ -154,7 +158,6 @@ export class ReleaseBuildFilesystemWorker {
     }
     return runReleaseBuildBrokerProcess(input);
   }
-
   private async writeResult(directory: string, request: ReleaseBuildWorkerRequest,
     status: "succeeded" | "failed" | "canceled", result?: unknown, failure?: unknown,
     dependencyStore?: { fetchRunId: string; cacheGeneration: number;
@@ -167,13 +170,11 @@ export class ReleaseBuildFilesystemWorker {
       ...(dependencyStore ? { dependencyStore } : {}),
     }, secret));
   }
-
   private async createTrustedRoot(jobId: string) {
     const root = join(this.config.workRoot, "supervisor");
     await mkdir(root, { recursive: true, mode: 0o700 });
     return mkdtemp(join(root, `${jobId}-`));
   }
-
   private async extractAndVerify(directory: string, root: string,
     request: ReleaseBuildWorkerRequest) {
     const archive = join(directory, "source.tar");
@@ -192,7 +193,6 @@ export class ReleaseBuildFilesystemWorker {
     return source;
   }
 }
-
 async function exists(path: string) { try { await access(path); return true; } catch { return false; } }
 function combineSignals(first: AbortSignal, second?: AbortSignal) {
   return second ? AbortSignal.any([first, second]) : first;

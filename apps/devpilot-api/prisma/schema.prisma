@@ -3059,6 +3059,8 @@ model ReleaseDependencyFetchRun {
   platformAbi          String?
   platformLibc         String?
   registryPolicyDigest String
+  dependencyNetworkMode String?
+  engineEvidenceDigest String?
   cacheGeneration      Int      @default(0)
   status               String   @default("queued") // queued | fetching | verifying | succeeded | invalidated | failed | blocked | unavailable
   storeDigest          String?

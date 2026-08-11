@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 const FIRST = "20260811120000";
-const LAST = "20260811230000";
+const LAST = "20260811240000";
 
 describe("release experience MySQL migration identifiers", () => {
   const root = join(process.cwd(), "prisma/migrations");
@@ -17,6 +17,7 @@ describe("release experience MySQL migration identifiers", () => {
       "20260811160000", "20260811170000", "20260811180000", "20260811190000",
       "20260811200000", "20260811210000", "20260811220000",
       "20260811230000",
+      "20260811240000",
     ]);
   });
 

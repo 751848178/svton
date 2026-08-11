@@ -19,12 +19,17 @@ export class ReleaseDependencyApiCoordinator {
 
   async prepare(input: { buildRunId: string; checkoutRoot: string;
     manifest: WorkerSourceManifest; profileId: string; deadline: Date;
-    profileSnapshotHash: string; supplyChainDigest: string; jobImage: string }) {
+    profileSnapshotHash: string; supplyChainDigest: string; jobImage: string;
+    dependencyNetworkMode:
+      "docker-desktop-engine-proxy-v1" | "direct-public-dns-v1";
+    engineEvidenceDigest: string }) {
     const profile = resolveRegisteredReleaseBuildProfile(input.profileId);
     if (!profile) throw unavailable("dependency_profile_missing");
     const bytes = await readSignedPnpmLock(input.checkoutRoot, input.manifest);
     const verdict = evaluateReleaseDependencyLock({ manifest: input.manifest,
-      bytes, profile, platformArch: platformArch(), jobImage: input.jobImage });
+      bytes, profile, platformArch: platformArch(), jobImage: input.jobImage,
+      dependencyNetworkMode: input.dependencyNetworkMode,
+      engineEvidenceDigest: input.engineEvidenceDigest });
     if (!verdict.allowed) throw unavailable(verdict.detailCode);
     if (verdict.profileSnapshotHash !== input.profileSnapshotHash ||
       verdict.supplyChainDigest !== input.supplyChainDigest)
@@ -40,7 +45,9 @@ export class ReleaseDependencyApiCoordinator {
       pnpmVersion: policy.pnpmVersion, platformOs: policy.platformOs,
       platformArch: platformArch(), platformAbi: policy.platformAbi,
       platformLibc: policy.platformLibc,
-      registryPolicyDigest: policy.registryPolicyDigest };
+      registryPolicyDigest: policy.registryPolicyDigest,
+      dependencyNetworkMode: input.dependencyNetworkMode,
+      engineEvidenceDigest: input.engineEvidenceDigest };
     while (Date.now() < input.deadline.getTime()) {
       const reservation = await this.repository.reserve({
         buildRunId: input.buildRunId, ...identity });

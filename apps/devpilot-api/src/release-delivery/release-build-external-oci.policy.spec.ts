@@ -40,7 +40,8 @@ describe("external OCI launcher argv policy", () => {
     const network: DependencyNetworkJob = {
       fetchName: "dp-fetch-0123456789abcdef", proxyName: "dp-proxy-0123456789abcdef",
       networkName: "dp-net-0123456789abcdef", launcherLabel: job.launcherLabel,
-      image: job.image, controlRoot: job.controlRoot, outputRoot: job.outputRoot };
+      image: job.image, controlRoot: job.controlRoot, outputRoot: job.outputRoot,
+      dependencyNetworkMode: "direct-public-dns-v1" };
     const args = dependencyFetcherCreateArguments(network);
     expect(args).toEqual(expect.arrayContaining([
       "--network", network.networkName, "--read-only", "--cap-drop", "ALL",

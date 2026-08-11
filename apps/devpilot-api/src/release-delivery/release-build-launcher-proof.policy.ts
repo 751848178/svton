@@ -4,11 +4,14 @@ import { createHmac, hkdfSync, timingSafeEqual } from "node:crypto";
 import { lstat, open, rename, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { canonicalJson, stableHash } from "../release-orchestration/utils/release-hash.utils";
+import type { DependencyNetworkMode } from "./release-build-engine-network.policy";
 
 export const EXTERNAL_OCI_LAUNCHER = "external-oci-launcher-v1" as const;
 export const launcherControls = {
   schemaVersion: 1,
   network: "none",
+  dependencyNetworkModes: ["docker-desktop-engine-proxy-v1",
+    "direct-public-dns-v1"],
   rootFilesystem: "read-only",
   capabilities: "drop-all",
   privileges: "no-new-privileges",
@@ -24,6 +27,8 @@ export type ReleaseBuildLauncherProof = {
   profileId: "controlled-local-acceptance-v2";
   jobImage: string;
   controlsDigest: string;
+  dependencyNetworkMode: DependencyNetworkMode;
+  engineEvidenceDigest: string;
   launcherInstanceId: string;
   startedAt: string;
   heartbeatAt: string;
@@ -66,21 +71,32 @@ export function verifyLauncherProof(input: {
   now?: number;
   maximumAgeMs?: number;
 }) {
-  if (!input.proofFile || !input.secretFile || !exactOciImage(input.jobImage)) return false;
+  return Boolean(readVerifiedLauncherProof(input));
+}
+
+export function readVerifiedLauncherProof(input: {
+  proofFile?: string; secretFile?: string; jobImage?: string;
+  now?: number; maximumAgeMs?: number;
+}): ReleaseBuildLauncherProof | null {
+  if (!input.proofFile || !input.secretFile || !exactOciImage(input.jobImage)) return null;
   try {
     const proof = readNoFollow<ReleaseBuildLauncherProof>(input.proofFile);
     const secret = readNoFollowText(input.secretFile).trim();
     const { signature: actual, ...unsigned } = proof;
     const expected = signature(unsigned, secret);
     const age = (input.now ?? Date.now()) - new Date(proof.heartbeatAt).getTime();
-    return proof.schemaVersion === 1 && proof.provider === EXTERNAL_OCI_LAUNCHER &&
+    const valid = proof.schemaVersion === 1 && proof.provider === EXTERNAL_OCI_LAUNCHER &&
       proof.profileId === "controlled-local-acceptance-v2" &&
       proof.jobImage === input.jobImage && proof.controlsDigest === launcherControlsDigest &&
+      ["docker-desktop-engine-proxy-v1", "direct-public-dns-v1"]
+        .includes(proof.dependencyNetworkMode) &&
+      /^[a-f0-9]{64}$/.test(proof.engineEvidenceDigest) &&
       /^[A-Za-z0-9_-]{16,128}$/.test(proof.launcherInstanceId) &&
       age >= 0 && age <= (input.maximumAgeMs ?? 30_000) &&
       /^[a-f0-9]{64}$/.test(actual) &&
       timingSafeEqual(Buffer.from(actual, "hex"), Buffer.from(expected, "hex"));
-  } catch { return false; }
+    return valid ? proof : null;
+  } catch { return null; }
 }
 
 function signature(value: unknown, secret: string) {

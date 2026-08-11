@@ -12,6 +12,8 @@ export async function prepareWorkerBuild(input: {
     workRoot: string; commandPath: string; commandTimeoutMs: number;
     cancelGraceMs: number; externalOci?: {
       image: string; dockerExecutable: string; launcherLabel: string;
+      dependencyNetworkMode: "docker-desktop-engine-proxy-v1" | "direct-public-dns-v1";
+      engineEvidenceDigest: string;
     };
   };
   signal?: AbortSignal;
