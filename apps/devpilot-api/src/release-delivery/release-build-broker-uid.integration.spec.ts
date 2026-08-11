@@ -13,12 +13,15 @@ describeRootLinux("release build real uid-3000 malicious boundary", () => {
   afterEach(async () => rm(root, { recursive: true, force: true }));
 
   it("denies supervisor secret, exchange, sibling, proc and signal access", async () => {
-    const jobRoot = join(root, "jobs", "unguessable-current");
+    const jobsRoot = join(root, "jobs");
+    const jobRoot = join(jobsRoot, "unguessable-current");
     const workRoot = join(jobRoot, "work");
     const control = join(jobRoot, "control");
     const sibling = join(root, "jobs", "unguessable-sibling");
     const exchange = join(root, "exchange");
     const secret = join(root, "worker.secret");
+    await chmod(root, 0o711);
+    await mkdir(jobsRoot, { mode: 0o711 });
     await Promise.all([
       mkdir(workRoot, { recursive: true, mode: 0o700 }),
       mkdir(control, { recursive: true, mode: 0o755 }),
@@ -27,6 +30,7 @@ describeRootLinux("release build real uid-3000 malicious boundary", () => {
       writeFile(secret, "must-not-leak", { mode: 0o400 }),
     ]);
     await chownTree(jobRoot, 3_000, 3_000);
+    await chown(workRoot, 3_000, 3_000);
     await Promise.all([chown(sibling, 0, 0), chown(exchange, 2_000, 2_000),
       chown(secret, 0, 0), chmod(sibling, 0o700), chmod(exchange, 0o750)]);
     const script = join(control, "attack.cjs");

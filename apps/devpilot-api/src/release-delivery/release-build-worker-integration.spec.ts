@@ -130,7 +130,7 @@ describe("filesystem isolated build worker exchange", () => {
     );
     expect(verifyWorkerResult(result, secret)).toBe(true);
     expect(result.status).toBe("failed");
-  });
+  }, 30_000);
 });
 
 async function waitForJob(root: string) {

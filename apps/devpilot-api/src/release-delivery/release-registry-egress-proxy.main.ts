@@ -1,11 +1,11 @@
 import { lookup } from "node:dns/promises";
 import { createServer, connect } from "node:net";
-import { acceptDesktopEngineResponse, authorizeRegistryConnect,
-  authorizeRegistryRequest, desktopEngineConnectRequest,
-  DESKTOP_ENGINE_PROXY_HOST, DESKTOP_ENGINE_PROXY_PORT,
+import { authorizeRegistryConnect,
+  authorizeRegistryRequest,
   registryProxyUsesPublicDns,
   RELEASE_REGISTRY_HOST as HOST, RELEASE_REGISTRY_PORT as PORT,
 } from "./release-registry-egress-proxy.policy";
+import { tunnelDesktop } from "./release-registry-desktop-tunnel";
 
 const mode = process.env.DEVPILOT_DEPENDENCY_NETWORK_MODE;
 if (!["docker-desktop-engine-proxy-v1", "direct-public-dns-v1"].includes(mode || ""))
@@ -49,29 +49,5 @@ function readHeader(socket: import("node:net").Socket) {
       if (error) reject(error); else resolve(value!);
     };
     socket.on("data", onData);
-  });
-}
-
-function tunnelDesktop(client: import("node:net").Socket) {
-  return new Promise<void>((resolve, reject) => {
-    const upstream = connect({ host: DESKTOP_ENGINE_PROXY_HOST,
-      port: DESKTOP_ENGINE_PROXY_PORT });
-    const chunks: Buffer[] = []; let bytes = 0;
-    const timer = setTimeout(() => fail(new Error("desktop proxy timeout")), 5_000);
-    const fail = (error: Error) => { clearTimeout(timer); upstream.destroy(); reject(error); };
-    upstream.once("error", fail);
-    upstream.once("connect", () => upstream.write(desktopEngineConnectRequest()));
-    upstream.on("data", (chunk: Buffer) => {
-      bytes += chunk.length; chunks.push(chunk);
-      if (bytes > 4096) { fail(new Error("desktop proxy header too large")); return; }
-      const response = Buffer.concat(chunks);
-      if (!response.includes("\r\n\r\n")) return;
-      try { acceptDesktopEngineResponse(response); } catch (error) {
-        fail(error as Error); return;
-      }
-      clearTimeout(timer); upstream.removeListener("error", fail);
-      client.write("HTTP/1.1 200 Connection Established\r\n\r\n");
-      client.pipe(upstream); upstream.pipe(client); resolve();
-    });
   });
 }
