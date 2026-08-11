@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, chown, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { assertReleaseBuildLauncherHostContract } from "./release-build-launcher-host-contract";
@@ -33,16 +33,31 @@ describe("release build launcher host contract", () => {
       process.getuid?.() ?? 0)).rejects.toThrow("overlap");
   });
 
+  it("rejects a group-writable host tool", async () => {
+    const paths = await fixture();
+    await chmod(paths.toolExecutables[0], 0o720);
+    await expect(assertReleaseBuildLauncherHostContract(paths, process.getuid?.() ?? 0))
+      .rejects.toThrow("owner or mode");
+  });
+
+  const itRoot = process.getuid?.() === 0 ? it : it.skip;
+  itRoot("rejects a non-root-owned host tool", async () => {
+    const paths = await fixture();
+    await chown(paths.toolExecutables[0], 3_000, 3_000);
+    await expect(assertReleaseBuildLauncherHostContract(paths, 0))
+      .rejects.toThrow("owner or mode");
+  });
+
   async function fixture() {
     const directories = ["input", "output", "work"]
       .map((name) => join(root, name));
     await Promise.all(directories.map((path) => mkdir(path, { mode: 0o700 })));
-    const files = ["proof", "secret", "supply", "docker"]
+    const files = ["proof", "secret", "supply", "docker", "scanner"]
       .map((name) => join(root, name));
     await Promise.all(files.map((path) => writeFile(path, "fixture", { mode: 0o600 })));
-    await chmod(files[3], 0o700);
+    await Promise.all([chmod(files[3], 0o700), chmod(files[4], 0o700)]);
     return { inputRoot: directories[0], outputRoot: directories[1],
       workRoot: directories[2], proofFile: files[0], secretFile: files[1],
-      supplyProofFile: files[2], dockerExecutable: files[3] };
+      supplyProofFile: files[2], dockerExecutable: files[3], toolExecutables: [files[4]] };
   }
 });

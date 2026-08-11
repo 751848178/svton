@@ -1,17 +1,16 @@
 import { repositoryIntakeSummary } from "../project-intake/repository-intake-summary.utils";
 import { isStoredConnectionAligned } from "../repository-identity/repository-identity-policy.utils";
-import { exactCurrentEnvironmentVersion } from "./current-environment-version.utils";
 import type { ProjectDeliverySummaryRecord } from "./project-delivery-summary.select";
 import type {
   ProjectDeliveryBaselineRole,
-  ProjectDeliveryCurrentVersionSummary,
   ProjectDeliverySummaryResponse,
 } from "./project-delivery-summary.types";
 import { projectDeliveryReadiness } from "./project-delivery-readiness.presenter";
 import {
   isProjectDeliveryBaseline,
-  presentProjectDeliveryBaseline,
 } from "./project-delivery-baseline.policy";
+import { presentCompleteProjectDeliveryBaseline, presentProjectDeliveryCurrentVersion } from
+  "./project-delivery-complete-baseline.presenter";
 import {
   projectDeliveryEntrySummary,
   projectDeliveryResourceSummary,
@@ -36,8 +35,8 @@ export function presentProjectDeliverySummary(
     Boolean(repository(project) && intake.componentCount !== null),
     providerKey,
   );
-  const stagingVersion = currentVersion(project, staging);
-  const productionVersion = currentVersion(project, production);
+  const stagingVersion = presentProjectDeliveryCurrentVersion(project, staging);
+  const productionVersion = presentProjectDeliveryCurrentVersion(project, production);
   return {
     version: 2,
     scope: { teamId: project.teamId, actorId, projectId: project.id },
@@ -45,8 +44,9 @@ export function presentProjectDeliverySummary(
     repository: repository(project),
     intake,
     baselines: {
-      staging: completeBaseline(project, staging, "staging", stagingVersion, readiness.checkpoints),
-      production: completeBaseline(project, production, "production", productionVersion,
+      staging: presentCompleteProjectDeliveryBaseline(project, staging, "staging", stagingVersion,
+        readiness.checkpoints),
+      production: presentCompleteProjectDeliveryBaseline(project, production, "production", productionVersion,
         readiness.checkpoints),
     },
     resources,
@@ -57,21 +57,6 @@ export function presentProjectDeliverySummary(
     },
     ...readiness,
   };
-}
-
-function completeBaseline(
-  project: ProjectDeliverySummaryRecord,
-  environment: Environment | undefined,
-  role: ProjectDeliveryBaselineRole,
-  version: ProjectDeliveryCurrentVersionSummary | null,
-  checkpoints: ReturnType<typeof projectDeliveryReadiness>["checkpoints"],
-) {
-  if (!environment) return null;
-  const baseline = presentProjectDeliveryBaseline(project, environment);
-  const required = checkpoints.filter((item) => item.scope === role ||
-    (item.scope === "project" && item.id !== "release"));
-  return { ...baseline, ready: baseline.ready && Boolean(version) &&
-    required.every((item) => item.status === "ready") };
 }
 
 function repository(project: ProjectDeliverySummaryRecord) {
@@ -104,23 +89,4 @@ function baseline(
     (item) =>
       isProjectDeliveryBaseline(project, item, role),
   );
-}
-
-function currentVersion(
-  project: ProjectDeliverySummaryRecord,
-  environment: Environment | undefined,
-): ProjectDeliveryCurrentVersionSummary | null {
-  if (!environment) return null;
-  const version = exactCurrentEnvironmentVersion(project, environment);
-  const digest = version?.artifactManifest.digest?.trim();
-  if (!version || !digest) return null;
-  return {
-    id: version.id,
-    releaseOrderId: version.releaseOrder.id,
-    releaseVersion: version.releaseOrder.releaseVersion,
-    artifactManifestId: version.artifactManifest.id,
-    manifestDigest: digest,
-    deploymentRunId: version.deploymentRun.id,
-    effectiveAt: version.effectiveAt.toISOString(),
-  };
 }

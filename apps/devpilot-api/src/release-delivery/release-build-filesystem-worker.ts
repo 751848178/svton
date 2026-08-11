@@ -116,7 +116,7 @@ export class ReleaseBuildFilesystemWorker {
         ),
       });
     } catch (error) {
-      const failure = releaseBuildFailureDetail(error, new AbortController().signal);
+      const failure = releaseBuildFailureDetail(error, signal);
       await this.writeResult(
         outputDirectory, request,
         failure.status === "canceled" ? "canceled" : "failed",

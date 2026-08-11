@@ -18,6 +18,17 @@ describe("project directory presenter", () => {
 
     expect(directory.checkpoints).toEqual(detail.checkpoints);
     expect(directory.nextAction).toEqual(detail.nextAction);
+    expect(directory.baselines).toEqual(detail.baselines);
+  });
+
+  it("keeps directory and detail baseline readiness closed without a current version", () => {
+    const record = projectDirectoryRecord();
+    record.environments[0].currentEnvironmentVersion = null;
+    record.environments[0].currentEnvironmentVersionId = null;
+    const directory = present(record);
+    const detail = presentProjectDeliverySummary(record, "actor-1", "ssh-v1");
+    expect(directory.baselines.staging?.ready).toBe(false);
+    expect(directory.baselines).toEqual(detail.baselines);
   });
 
   it("presents exact F415 shape and real Production evidence as online", () => {

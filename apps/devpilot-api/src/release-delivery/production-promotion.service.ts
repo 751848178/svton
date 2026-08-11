@@ -150,14 +150,19 @@ export class ProductionPromotionService {
 
   private async fail(r: ReservedProductionPromotionCommand, input: ProductionPromotionResumeInput,
     lease: ProductionPromotionLease, request: SiteRouteSwitchInput | undefined, error: unknown) {
-    const detail = environmentDeploymentFailureDetail(error);
+    const blocked = error instanceof ReleaseGateBlockedException;
+    const detail = blocked ? {
+      code: "RELEASE_GATE_BLOCKED",
+      message: `${error.decision.stage} 门禁未满足，服务端已拒绝执行`,
+      logs: [],
+    } : environmentDeploymentFailureDetail(error);
     if (!request) {
       await this.commands.finish({ commandId: r.command.id, lease,
-        status: error instanceof ReleaseGateBlockedException ? "blocked" : "failed",
+        status: blocked ? "blocked" : "failed",
         errorCode: detail.code, errorMessage: detail.message });
-      return { ...r.command, status: error instanceof ReleaseGateBlockedException ? "blocked" : "failed",
-        awaitingValidation: true,
-        gateDecision: gateDecisionReference(error instanceof ReleaseGateBlockedException ? error.decision : undefined) };
+      return { ...r.command, status: blocked ? "blocked" : "failed",
+        awaitingValidation: true, errorCode: detail.code, errorMessage: detail.message,
+        gateDecision: gateDecisionReference(blocked ? error.decision : undefined) };
     }
     const compensation = await this.withLease(r, lease, () => this.routeSaga.compensate(request.operationId, error));
     const status = compensation === "compensation_required" ? "blocked" : "failed";

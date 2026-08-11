@@ -10,13 +10,14 @@ export type ReleaseBuildLauncherHostPaths = {
   secretFile: string;
   supplyProofFile: string;
   dockerExecutable: string;
+  toolExecutables: string[];
 };
 
 export async function assertReleaseBuildLauncherHostContract(
   paths: ReleaseBuildLauncherHostPaths,
   expectedOwnerUid = 0,
 ) {
-  const entries = await Promise.all([
+  const fixed = await Promise.all([
     securePath(paths.inputRoot, "directory", expectedOwnerUid),
     securePath(paths.outputRoot, "directory", expectedOwnerUid),
     securePath(paths.workRoot, "directory", expectedOwnerUid),
@@ -25,6 +26,9 @@ export async function assertReleaseBuildLauncherHostContract(
     securePath(paths.supplyProofFile, "file", expectedOwnerUid),
     securePath(paths.dockerExecutable, "executable", expectedOwnerUid),
   ]);
+  const tools = await Promise.all(paths.toolExecutables.map((value) =>
+    securePath(value, "executable", expectedOwnerUid)));
+  const entries = [...fixed, ...tools];
   for (let left = 0; left < entries.length; left += 1) {
     for (let right = left + 1; right < entries.length; right += 1) {
       if (contains(entries[left], entries[right]) || contains(entries[right], entries[left]))
@@ -32,9 +36,9 @@ export async function assertReleaseBuildLauncherHostContract(
     }
   }
   return Object.freeze({
-    inputRoot: entries[0], outputRoot: entries[1], workRoot: entries[2],
-    proofFile: entries[3], secretFile: entries[4], supplyProofFile: entries[5],
-    dockerExecutable: entries[6],
+    inputRoot: fixed[0], outputRoot: fixed[1], workRoot: fixed[2],
+    proofFile: fixed[3], secretFile: fixed[4], supplyProofFile: fixed[5],
+    dockerExecutable: fixed[6], toolExecutables: tools,
   });
 }
 
@@ -44,7 +48,7 @@ async function securePath(
   expectedOwnerUid: number,
 ) {
   if (!isAbsolute(value)) throw new Error("release-build launcher path must be absolute");
-  await assertNoSymlinkSegments(resolve(value));
+  await assertSecureAncestry(resolve(value), expectedOwnerUid);
   const canonical = await realpath(value);
   const stat = await lstat(canonical);
   if (stat.uid !== expectedOwnerUid || (stat.mode & 0o022) !== 0)
@@ -55,14 +59,17 @@ async function securePath(
   return canonical;
 }
 
-async function assertNoSymlinkSegments(value: string) {
+async function assertSecureAncestry(value: string, expectedOwnerUid: number) {
   const root = parse(value).root;
   const parts = value.slice(root.length).split("/").filter(Boolean);
   let current = root;
   for (const part of parts) {
     current = resolve(current, part);
-    if ((await lstat(current)).isSymbolicLink())
+    const stat = await lstat(current);
+    if (stat.isSymbolicLink())
       throw new Error("release-build launcher path contains symlink");
+    if ((stat.uid !== 0 && stat.uid !== expectedOwnerUid) || (stat.mode & 0o022) !== 0)
+      throw new Error("release-build launcher path ancestry owner or mode is unsafe");
   }
 }
 

@@ -6,16 +6,8 @@ import type {
   ProjectDirectoryStatus,
 } from "./project-directory.types";
 import type { ProjectDeliveryCheckpoint } from "../release-delivery/project-delivery-summary.types";
-import { presentProjectDeliveryBaseline } from "../release-delivery/project-delivery-baseline.policy";
 
 type DirectoryEnvironment = ProjectDirectoryRecord["environments"][number];
-
-export function baselineSummary(
-  project: ProjectDirectoryRecord,
-  environment: DirectoryEnvironment,
-): ProjectDirectoryEnvironmentSummary {
-  return presentProjectDeliveryBaseline(project, environment);
-}
 
 export function productionSummary(
   project: ProjectDirectoryRecord,
@@ -39,7 +31,9 @@ export function productionSummary(
 
 export function projectDirectoryStatus(
   checkpoints: ProjectDeliveryCheckpoint[],
+  baselines: Array<ProjectDirectoryEnvironmentSummary | null>,
 ): ProjectDirectoryStatus {
-  return checkpoints.every((checkpoint) => checkpoint.status === "ready")
+  return baselines.every((baseline) => baseline?.ready === true) &&
+    checkpoints.every((checkpoint) => checkpoint.status === "ready")
     ? "online" : "needs_configuration";
 }

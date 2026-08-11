@@ -9,7 +9,9 @@ describe("Production promotion resume", () => {
     );
     const result = await deps.service.resume(input());
 
-    expect(result).toMatchObject({ status: "blocked", awaitingValidation: true });
+    expect(result).toMatchObject({ status: "blocked", awaitingValidation: true,
+      errorCode: "RELEASE_GATE_BLOCKED",
+      errorMessage: "production 门禁未满足，服务端已拒绝执行" });
     expect(deps.gates.promote).toHaveBeenCalledWith(
       expect.objectContaining({
         releaseRunId: "release-1",
@@ -19,7 +21,8 @@ describe("Production promotion resume", () => {
       }),
     );
     expect(deps.commands.finish).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "blocked" }),
+      expect.objectContaining({ status: "blocked", errorCode: "RELEASE_GATE_BLOCKED",
+        errorMessage: "production 门禁未满足，服务端已拒绝执行" }),
     );
     expect(deps.routeSaga.apply).not.toHaveBeenCalled();
     expect(deps.completion.complete).not.toHaveBeenCalled();

@@ -3,13 +3,14 @@ import { repositoryIntakeSummary } from "../project-intake/repository-intake-sum
 import { projectDirectoryActivity } from "./project-directory-activity.utils";
 import type { ProjectDirectoryRecord } from "./project-directory.repository";
 import {
-  baselineSummary,
   productionSummary,
   projectDirectoryStatus,
 } from "./project-directory-status.utils";
 import type { ProjectDirectoryItem } from "./project-directory.types";
 import { projectDeliveryReadiness } from "../release-delivery/project-delivery-readiness.presenter";
 import { isProjectDeliveryBaseline } from "../release-delivery/project-delivery-baseline.policy";
+import { presentCompleteProjectDeliveryBaseline, presentProjectDeliveryCurrentVersion } from
+  "../release-delivery/project-delivery-complete-baseline.presenter";
 
 export function toProjectDirectoryItem(
   project: ProjectDirectoryRecord,
@@ -32,8 +33,6 @@ export function toProjectDirectoryItem(
           canonicalUrl: project.repositoryIdentity.canonicalUrl,
         }
       : null;
-  const stagingSummary = staging ? baselineSummary(project, staging) : null;
-  const productionBaseline = production ? baselineSummary(project, production) : null;
   const liveProduction = productionSummary(project, production);
   const intake = repositoryIntakeSummary(project);
   const readiness = projectDeliveryReadiness(
@@ -41,11 +40,18 @@ export function toProjectDirectoryItem(
     Boolean(repository && intake.componentCount !== null),
     providerKey,
   );
+  const stagingVersion = presentProjectDeliveryCurrentVersion(project, staging);
+  const productionVersion = presentProjectDeliveryCurrentVersion(project, production);
+  const stagingSummary = presentCompleteProjectDeliveryBaseline(project, staging,
+    "staging", stagingVersion, readiness.checkpoints);
+  const productionBaseline = presentCompleteProjectDeliveryBaseline(project, production,
+    "production", productionVersion, readiness.checkpoints);
 
   return {
     id: project.id,
     name: project.name,
-    status: projectDirectoryStatus(readiness.checkpoints),
+    status: projectDirectoryStatus(readiness.checkpoints,
+      [stagingSummary, productionBaseline]),
     repository,
     intake,
     baselines: {

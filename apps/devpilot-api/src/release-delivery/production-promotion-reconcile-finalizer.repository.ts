@@ -4,6 +4,7 @@ import type { PrismaService } from "../prisma/prisma.service";
 import { exactLegacyPromotionSagas, safeBeforeProvider } from "./production-promotion-legacy-saga.repository";
 import { exactLegacyPromotionCandidate } from "./production-promotion-reconcile.policy";
 import type { ProductionPromotionReadback } from "./production-promotion-reconcile.types";
+import { lockExactLegacyPromotionSaga } from "./production-promotion-reconcile-saga-lock.repository";
 
 export function finalizeProductionPromotionReconcile(
   prisma: PrismaService,
@@ -15,17 +16,7 @@ export function finalizeProductionPromotionReconcile(
     const audit = await lockedReconcile(tx, id);
     assertReadback(audit, readback, outcome);
     const candidate = candidateFor(audit);
-    const route = await tx.siteRouteSwitchRun.findFirst({
-      where: { operationId: readback.operationId,
-        providerKey: readback.providerKey!, teamId: audit.teamId,
-        projectId: audit.projectId, environmentId: candidate.environmentId,
-        releaseRunId: candidate.releaseRunId, deploymentRunId: candidate.deploymentRunId,
-        targetRef: candidate.targetRef,
-        status: outcome === "committed" ? "committed" :
-          { in: ["prepared", "compensated", "failed"] } },
-      select: { id: true },
-    });
-    if (!route) throw new ConflictException("Route readback 与冻结候选不一致");
+    await lockExactLegacyPromotionSaga(tx, audit, candidate, readback, outcome);
     if (outcome === "committed") await assertCommittedBoundary(tx, audit, candidate);
     const now = new Date();
     await tx.productionPromotionCommand.update({ where: { id: audit.promotionCommandId },

@@ -100,13 +100,16 @@ function PrivateCredentialFields({ intake }: { intake: ProjectIntakeHook }) {
           <Field label={t('intakeCredentialReference')}>
             <Select
               required
-              value={form.teamCredentialId}
-              onChange={(event) => updateForm({ teamCredentialId: event.target.value })}
+              value={form.managedCredential
+                ? `${form.managedCredential.source}:${form.managedCredential.id}` : ''}
+              onChange={(event) => updateForm({ managedCredential:
+                intake.credentialOptions.find((option) =>
+                  `${option.source}:${option.id}` === event.target.value) ?? null })}
               options={[
                 { label: t('intakeCredentialSelect'), value: '' },
                 ...intake.credentialOptions.map((option) => ({
                   label: option.label,
-                  value: option.id,
+                  value: `${option.source}:${option.id}`,
                 })),
               ]}
             />

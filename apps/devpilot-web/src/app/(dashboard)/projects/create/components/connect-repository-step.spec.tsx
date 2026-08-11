@@ -50,7 +50,7 @@ function fixture(
     projectId: null,
     form: {
       repositoryUrl: '', visibility, name: '', branch: '', description: '',
-      credentialMode, teamCredentialId: '', credentialType: 'https_token',
+      credentialMode, managedCredential: null, credentialType: 'https_token',
       credentialName: '', credentialUsername: '', credentialSecret: '',
     },
     updateForm: vi.fn(),

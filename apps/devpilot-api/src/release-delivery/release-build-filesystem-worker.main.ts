@@ -1,5 +1,4 @@
-import { access, readdir } from "node:fs/promises";
-import { constants } from "node:fs";
+import { readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { ReleaseBuildFilesystemWorker } from "./release-build-filesystem-worker";
 import { assertWorkerJobId } from "./release-build-worker-exchange";
@@ -36,17 +35,18 @@ async function main() {
   if (process.getuid?.() !== 0 || config.brokerUid === 0 || config.brokerGid === 0) {
     throw new Error("release-build supervisor requires root and a non-root broker uid/gid");
   }
+  const toolExecutables = assertToolchain(config.supplyProofFile);
   const hostPaths = await assertReleaseBuildLauncherHostContract({
     inputRoot: config.inputRoot, outputRoot: config.outputRoot,
     workRoot: config.workRoot, proofFile: config.proofFile,
     secretFile: config.secretFile, supplyProofFile: config.supplyProofFile,
     dockerExecutable: config.externalOci.dockerExecutable,
+    toolExecutables,
   });
   Object.assign(config, hostPaths, { externalOci: {
     ...config.externalOci, dockerExecutable: hostPaths.dockerExecutable,
   } });
   const secret = await readReleaseBuildWorkerSecret(config.secretFile);
-  await assertToolchain(config.supplyProofFile);
   const instance = config.externalOci.launcherLabel;
   const startedAt = new Date().toISOString();
   const heartbeat = () => writeLauncherProof(config.proofFile, signLauncherProof({
@@ -117,14 +117,13 @@ function safe(error: unknown) {
 }
 function delay(ms: number) { return new Promise((resolvePromise) => setTimeout(resolvePromise, ms)); }
 
-async function assertToolchain(supplyProofFile: string) {
+function assertToolchain(supplyProofFile: string) {
   const profile = resolveRegisteredReleaseBuildProfile("controlled-local-acceptance-v2");
   if (!profile || !verifyReleaseBuildSupplyProof(supplyProofFile, profile))
     throw new Error("release-build launcher supply proof is invalid");
-  const executables = [...profile.scanners.map((value) => value.executable),
+  return [...profile.scanners.map((value) => value.executable),
     ...Object.values(profile.packageManagers).map((value) => value!.executable),
     "/bin/tar"];
-  await Promise.all(executables.map((value) => access(value, constants.X_OK)));
 }
 
 void main();

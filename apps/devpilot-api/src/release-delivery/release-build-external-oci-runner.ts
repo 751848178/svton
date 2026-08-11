@@ -1,13 +1,11 @@
 import { createHash } from "node:crypto";
-import { spawn } from "node:child_process";
 import { chmod, chown, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { ReleaseBuildBrokerInput, ReleaseBuildBrokerResult } from "./release-build-filesystem-broker";
 import type { ReleaseBuildSupplyProof } from "./release-build-supply-proof.policy";
 import { assertDockerExecutable, assertExternalOciJob, assertLauncherLabel,
   dockerCreateArguments } from "./release-build-external-oci.policy";
-
-const MAX_OUTPUT = 10 * 1024 * 1024;
+import { runExternalOciCommand as command } from "./release-build-external-oci-command";
 
 export async function runExternalOciBroker(input: {
   broker: ReleaseBuildBrokerInput;
@@ -73,31 +71,6 @@ export async function cleanupExternalOciLauncherContainers(input: {
   for (const id of ids) await command(executable, ["rm", "--force", id], 30_000);
 }
 
-function command(executable: string, args: string[], timeoutMs: number, signal?: AbortSignal) {
-  return new Promise<{ stdout: Buffer }>((resolve, reject) => {
-    const child = spawn(executable, args, { shell: false, stdio: ["ignore", "pipe", "pipe"],
-      env: { PATH: "/usr/local/bin:/usr/bin:/bin", LANG: "C.UTF-8" } });
-    const stdout: Buffer[] = []; const stderr: Buffer[] = []; let bytes = 0; let done = false;
-    const collect = (target: Buffer[], chunk: Buffer) => {
-      bytes += chunk.length;
-      if (bytes > MAX_OUTPUT) finish(new Error("OCI launcher output limit exceeded"));
-      else target.push(chunk);
-    };
-    const finish = (error?: Error) => {
-      if (done) return; done = true; clearTimeout(timer);
-      signal?.removeEventListener("abort", canceled); child.kill("SIGKILL");
-      if (error) reject(error); else resolve({ stdout: Buffer.concat(stdout) });
-    };
-    child.stdout.on("data", (chunk: Buffer) => collect(stdout, chunk));
-    child.stderr.on("data", (chunk: Buffer) => collect(stderr, chunk));
-    const timer = setTimeout(() => finish(new Error("OCI launcher command timed out")), timeoutMs);
-    const canceled = () => finish(new Error("OCI launcher command canceled"));
-    signal?.addEventListener("abort", canceled, { once: true });
-    child.once("error", finish);
-    child.once("close", (code) => code === 0 ? finish() :
-      finish(new Error(`OCI launcher command failed: ${Buffer.concat(stderr).toString("utf8").slice(0, 500)}`)));
-  });
-}
 function parse(value: Buffer): ReleaseBuildBrokerResult {
   const parsed = JSON.parse(value.toString("utf8"));
   if (parsed?.version !== 1 || !["succeeded", "failed", "canceled"].includes(parsed.status))
