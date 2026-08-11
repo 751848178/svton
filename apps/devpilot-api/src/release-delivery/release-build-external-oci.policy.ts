@@ -4,8 +4,6 @@ import { exactOciImage } from "./release-build-launcher-proof.policy";
 
 const BROKER_MAIN =
   "/app/apps/devpilot-api/dist/release-delivery/release-build-filesystem-broker.main.js";
-const DEPENDENCY_FETCHER_MAIN =
-  "/app/apps/devpilot-api/dist/release-delivery/release-dependency-fetcher.main.js";
 const DOCKER_EXECUTABLES = new Set([
   "/usr/bin/docker",
   "/usr/local/bin/docker",
@@ -23,10 +21,6 @@ export type ExternalOciJob = {
   outputRoot: string;
 };
 
-export type DependencyFetchOciJob = {
-  name: string; launcherLabel: string; image: string;
-  controlRoot: string; outputRoot: string;
-};
 
 export function assertDockerExecutable(value: string) {
   if (!DOCKER_EXECUTABLES.has(value)) throw new Error("Docker executable is not registered");
@@ -68,26 +62,6 @@ export function dockerCreateArguments(job: ExternalOciJob) {
     mount(job.dependencyStoreRoot, "/dependency-store", true),
     mount(job.workRoot, "/work", false), mount(job.outputRoot, "/output", false),
     job.image, "node", BROKER_MAIN, "/job/broker-input.json",
-  ];
-}
-
-export function dependencyFetchDockerArguments(job: DependencyFetchOciJob) {
-  if (!safeLabel(job.name) || !safeLabel(job.launcherLabel) ||
-    !exactOciImage(job.image)) throw new Error("Dependency fetch OCI identity is invalid");
-  return [
-    "create", "--name", job.name,
-    "--label", `devpilot.release-build.launcher=${job.launcherLabel}`,
-    "--label", "devpilot.release-build.contract=lockfile-bound-dependency-store-v1",
-    "--network", "bridge", "--read-only", "--cap-drop", "ALL",
-    "--security-opt", "no-new-privileges", "--pids-limit", "64",
-    "--memory", "1g", "--cpus", "1", "--user", "3000:3000",
-    "--workdir", "/job", "--tmpfs", "/tmp:rw,nosuid,nodev,size=64m,mode=0700",
-    "--tmpfs", "/home:rw,nosuid,nodev,size=16m,mode=0700",
-    "--env", "NODE_ENV=production", "--env", "CI=true", "--env", "HOME=/home",
-    "--env", "npm_config_registry=https://registry.npmjs.org",
-    "--env", "npm_config_ignore_scripts=true",
-    mount(job.controlRoot, "/job", true), mount(job.outputRoot, "/output", false),
-    job.image, "node", DEPENDENCY_FETCHER_MAIN, "/job/fetch-input.json",
   ];
 }
 

@@ -73,11 +73,21 @@ publishes an immutable manifest with a digest for every store file. Concurrent
 requests share only a completed combination digest; interrupted or unverified
 stores are never exposed to a build.
 
-The fetcher permits only the server-owned `https://registry.npmjs.org` policy and
-rejects project npmrc/auth, git/local/link dependencies and non-registry
-tarballs before execution. This is an application-level allowlist, not a claim
-of kernel- or network-level domain filtering; deployments that require an
-egress firewall must replace the fetch Provider with one enforcing that network
-boundary. The repository build container remains `network=none`: it verifies
-the exact read-only dependency-store manifest, copies the store into its private
-writable work directory, then installs offline/frozen with scripts disabled.
+The fetcher rejects project npmrc/auth, git/local/link dependencies and
+non-registry tarballs through a strict parsed lockfile policy. Each fetch gets a
+private Docker `--internal` network and cannot attach to the bridge. A separate
+fixed-command proxy in the pinned job image attaches to that internal network
+and the controlled bridge, and permits only HTTPS `CONNECT
+registry.npmjs.org:443`; foreign targets, credentials and private/reserved DNS
+answers are rejected. Both containers and the per-fetch network carry the exact
+launcher/contract labels and are removed on success, failure, cancellation or
+timeout. The repository build container remains `network=none`: it verifies the
+exact root-owned read-only dependency-store manifest, copies the store into its
+private writable work directory, then installs offline/frozen with scripts
+disabled.
+
+The durable lease stores only a token hash plus heartbeat/expiry; the raw token
+stays in API memory and never enters a worker envelope or control directory.
+Expired fetching or verifying owners are reclaimable. A completed store and its
+BuildRun fetch/digest identity are frozen in one transaction, while a missing or
+tampered physical store is atomically quarantined and refetched.

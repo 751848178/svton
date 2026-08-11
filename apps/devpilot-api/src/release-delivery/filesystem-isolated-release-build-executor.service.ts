@@ -1,9 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
-import { join } from "node:path";
-import { controlledBuildEnvironment } from "./release-build-command-policy";
-import { releaseBuildExecutionFailure } from "./release-build-execution-failure";
 import { ReleaseBuildExecutionError } from "./release-build-execution.error";
+import { releaseBuildExecutionFailure } from "./release-build-execution-failure";
 import { resolveRegisteredReleaseBuildProfile } from "./release-build-acceptance-profile";
 import { ReleaseBuildRuntimeProfileService } from "./release-build-runtime-profile.service";
 import { ReleaseBuildSourceSnapshotService } from "./release-build-source-snapshot.service";
@@ -15,14 +13,11 @@ import { ReleaseBuildExecutorPort } from "./release-build.types";
 import { ReleaseDependencyApiCoordinator } from "./release-dependency-api-coordinator.service";
 import {
   sameWorkerIdentity,
-  signWorkerCancellation,
   signWorkerRequest,
   verifyWorkerResult,
   type ReleaseBuildWorkerIdentity,
-  type ReleaseBuildWorkerResult,
 } from "./release-build-worker-envelope.policy";
 import {
-  readImmutableWorkerJson,
   workerJobDirectory,
   writeImmutableWorkerJson,
 } from "./release-build-worker-exchange";
@@ -32,6 +27,10 @@ import {
   buildSourcePolicySnapshot,
   sourcePolicySnapshotHash,
 } from "./source-policy-snapshot.policy";
+import { expectedReleaseBuildSupplyProof } from "./release-build-supply-proof.policy";
+import { isolatedWorkerFailure as workerFailure, publishIsolatedWorkerCancel,
+  readIsolatedWorkerResult, sourceEnvironment,
+  workerDelay as delay } from "./release-build-isolated-executor.helpers";
 
 @Injectable()
 export class FilesystemIsolatedReleaseBuildExecutorService
@@ -86,11 +85,16 @@ export class FilesystemIsolatedReleaseBuildExecutorService
       throw workerFailure("BUILD_SOURCE_CHANGED_DURING_ARCHIVE");
     }
     const deadline = new Date(Date.now() + this.runtime.runTimeoutMs);
-    const dependency = await this.dependencies.prepare({
+    const profileSnapshot = buildSourcePolicySnapshot(profile);
+    const profileSnapshotHash = sourcePolicySnapshotHash(profileSnapshot);
+    const supplyChainDigest = expectedReleaseBuildSupplyProof(profile).supplyChainDigest;
+    const preparedDependency = await this.dependencies.prepare({
       buildRunId: input.buildRunId, checkoutRoot: input.checkoutRoot,
       manifest: archive.manifest, profileId: profile.id, deadline,
+      profileSnapshotHash, supplyChainDigest,
+      jobImage: this.runtime.workerJobImage!,
     });
-    const profileSnapshot = buildSourcePolicySnapshot(profile);
+    const dependency = preparedDependency;
     const identity: ReleaseBuildWorkerIdentity = {
       contract: "external-oci-launcher-v1",
       jobId,
@@ -104,7 +108,7 @@ export class FilesystemIsolatedReleaseBuildExecutorService
       sourceManifestDigest: archive.manifest.digest,
       profileId: profile.id,
       profileVersion: profile.profileVersion,
-      profileSnapshotHash: sourcePolicySnapshotHash(profileSnapshot),
+      profileSnapshotHash,
       dependency,
       deadline: deadline.toISOString(),
     };
@@ -122,7 +126,9 @@ export class FilesystemIsolatedReleaseBuildExecutorService
     const identity = this.jobs.get(input.buildRunId);
     if (!identity) return;
     const secret = await readReleaseBuildWorkerSecret(this.runtime.workerSecretFile);
-    await this.cancel(identity, secret, "canceled");
+    await publishIsolatedWorkerCancel(this.runtime, identity, secret, "canceled");
+    await this.dependencies.cancel(identity.buildRunId, identity.dependency,
+      "dependency_fetch_canceled");
   }
 
   private async awaitResult(
@@ -132,18 +138,23 @@ export class FilesystemIsolatedReleaseBuildExecutorService
   ): Promise<ReleaseBuildExecutionResult> {
     while (Date.now() <= new Date(identity.deadline).getTime()) {
       if (signal?.aborted) {
-        await this.cancel(identity, secret, "canceled");
+        await publishIsolatedWorkerCancel(this.runtime, identity, secret, "canceled");
+        await this.dependencies.cancel(identity.buildRunId, identity.dependency,
+          "dependency_fetch_canceled");
         throw releaseBuildExecutionFailure(
           "BUILD_COMMAND_CANCELED", "隔离 Build Worker 已取消", [], "可重新构建。", "canceled",
         );
       }
-      const result = await this.readResult(identity).catch((error) => {
+      await this.dependencies.heartbeat(identity.buildRunId, identity.dependency);
+      const result = await readIsolatedWorkerResult(this.runtime, identity).catch((error) => {
         if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
         throw error;
       });
       if (result) {
         if (!verifyWorkerResult(result, secret) ||
           !sameWorkerIdentity(result.identity, identity)) {
+          await this.dependencies.cancel(identity.buildRunId, identity.dependency,
+            "dependency_attestation_invalid");
           throw workerFailure("UNTRUSTED_WORKER_ATTESTATION_INVALID");
         }
         await this.dependencies.acceptResult(identity.buildRunId,
@@ -154,43 +165,10 @@ export class FilesystemIsolatedReleaseBuildExecutorService
       }
       await delay(this.runtime.workerPollIntervalMs);
     }
-    await this.cancel(identity, secret, "timeout");
+    await publishIsolatedWorkerCancel(this.runtime, identity, secret, "timeout");
+    await this.dependencies.cancel(identity.buildRunId, identity.dependency,
+      "dependency_fetch_timeout");
     throw workerFailure("UNTRUSTED_WORKER_TIMEOUT");
   }
 
-  private async readResult(identity: ReleaseBuildWorkerIdentity) {
-    const directory = await workerJobDirectory(
-      this.runtime.workerOutputRoot,
-      identity.jobId,
-      false,
-      this.runtime.workerSharedGid,
-    );
-    return readImmutableWorkerJson<ReleaseBuildWorkerResult>(
-      join(directory, "result.json"),
-    );
-  }
-
-  private async cancel(
-    identity: ReleaseBuildWorkerIdentity,
-    secret: string,
-    reason: "canceled" | "timeout",
-  ) {
-    const directory = await workerJobDirectory(
-      this.runtime.workerInputRoot,
-      identity.jobId,
-      false,
-      this.runtime.workerSharedGid,
-    );
-    await writeImmutableWorkerJson(directory, "cancel.json", signWorkerCancellation({
-      version: 1, identity, reason, requestedAt: new Date().toISOString(),
-    }, secret), this.runtime.workerSharedGid).catch(() => undefined);
-  }
-}
-
-function sourceEnvironment(path: string) {
-  return controlledBuildEnvironment(path, "/nonexistent", "/tmp");
-}
-function delay(ms: number) { return new Promise((resolve) => setTimeout(resolve, ms)); }
-function workerFailure(code: string) {
-  return releaseBuildExecutionFailure(code, "隔离 Build Worker 未返回可信结果", [], "检查 Worker 状态后重试。");
 }

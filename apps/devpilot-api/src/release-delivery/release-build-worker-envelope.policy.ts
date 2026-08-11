@@ -6,7 +6,7 @@ import type {
   ReleaseBuildExecutionResult,
 } from "./release-build.types";
 import type { WorkerSourceManifest } from "./release-build-worker-source-manifest";
-import type { DependencyFetchIdentity } from "./release-dependency-fetch-oci-runner";
+import type { DependencyFetchIdentity } from "./release-dependency-store-contract";
 
 export const RELEASE_BUILD_WORKER_CONTRACT =
   "external-oci-launcher-v1" as const;
@@ -26,8 +26,7 @@ export type ReleaseBuildWorkerIdentity = {
   profileVersion: number;
   profileSnapshotHash: string;
   dependency: DependencyFetchIdentity & {
-    mode: "fetch" | "reuse";
-    leaseToken: string | null;
+    mode: "verify_or_fetch";
     storeDigest: string | null;
   };
   deadline: string;

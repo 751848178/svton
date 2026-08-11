@@ -84,8 +84,10 @@ describe("filesystem isolated build worker exchange", () => {
     const adapter = new FilesystemIsolatedReleaseBuildExecutorService(
       runtime,
       new ReleaseBuildSourceSnapshotService(),
-      { prepare: jest.fn().mockResolvedValue(dependency()),
-        acceptResult: jest.fn().mockResolvedValue(undefined) } as never,
+      { prepare: jest.fn().mockResolvedValue({ ...dependency(), leaseToken: "raw" }),
+        acceptResult: jest.fn().mockResolvedValue(undefined),
+        heartbeat: jest.fn().mockResolvedValue(undefined),
+        cancel: jest.fn().mockResolvedValue(undefined) } as never,
     );
     const execution = adapter.execute({
       buildRunId: "build-integration-1",
@@ -138,8 +140,12 @@ function dependency() {
   return { fetchRunId: `dep_${"1".repeat(64)}`,
     combinationHash: "1".repeat(64), lockfileDigest: "2".repeat(64),
     profileId: "controlled-local-acceptance-v2", profileVersion: 6,
+    profileSnapshotHash: "5".repeat(64), supplyChainDigest: "6".repeat(64),
+    fetchImage: `registry.test/api@sha256:${"7".repeat(64)}`,
+    jobImage: `registry.test/api@sha256:${"7".repeat(64)}`,
     pnpmVersion: "8.12.0", platformOs: "linux", platformArch: "arm64",
-    registryPolicyDigest: "3".repeat(64), mode: "reuse", leaseToken: null,
+    platformAbi: "node20-modules-115", platformLibc: "glibc-debian-bookworm",
+    registryPolicyDigest: "3".repeat(64), mode: "verify_or_fetch",
     storeDigest: "4".repeat(64) } as const;
 }
 

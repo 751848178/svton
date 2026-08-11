@@ -308,11 +308,18 @@ flowchart TD
   pnpm, build profile, platform and registry policy. Its durable fetch CAS only
   exposes a verified immutable per-file manifest; BuildRun records the exact
   fetch run and store digest.
-- The trusted dependency fetcher uses a fixed npm registry application policy,
-  receives no repository source, npmrc, auth or build secrets, and disables
-  scripts. This does not assert a kernel-level egress firewall. The untrusted
-  build job remains offline and consumes only a verified read-only store copied
-  into its private writable work tree.
+- The dependency fetcher receives no repository source, npmrc, auth or build
+  secrets and disables scripts. It attaches only to a per-fetch internal Docker
+  network; a separately pinned fixed-command proxy is the sole bridge-attached
+  participant and permits only public `registry.npmjs.org:443` HTTPS CONNECT.
+  The untrusted build job remains offline and consumes only a verified
+  root-owned read-only store copied into its private writable work tree.
+- Dependency fetch leases persist only hashes with expiry/heartbeat and are
+  reclaimable from both fetching and verifying. Exact profile/supply/image/
+  OS/architecture/ABI/libc/registry identity is immutable; completion freezes
+  the succeeded store and BuildRun digest together. Corrupt cache targets are
+  atomically quarantined before refetch, and artifact commit rechecks the exact
+  succeeded dependency invariant.
 - Focused policy/CAS/worker/migration tests, API type-check and Prisma schema
   validation are source evidence only. Docker fetch/build runtime, migration
   deployment and Browser/API/DB acceptance remain unexecuted and fail closed.

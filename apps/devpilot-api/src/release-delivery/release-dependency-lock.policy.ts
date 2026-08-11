@@ -2,6 +2,9 @@ import { createHash } from "node:crypto";
 import { stableHash } from "../release-orchestration/utils/release-hash.utils";
 import type { RegisteredReleaseBuildProfile } from "./release-build-acceptance-profile";
 import type { WorkerSourceManifest } from "./release-build-worker-source-manifest";
+import { validateDependencyLockAst } from "./release-dependency-lock-ast.policy";
+import { buildSourcePolicySnapshot, sourcePolicySnapshotHash } from "./source-policy-snapshot.policy";
+import { expectedReleaseBuildSupplyProof } from "./release-build-supply-proof.policy";
 
 export const DEPENDENCY_POLICY_BLOCKED = "dependency_lock_policy_blocked" as const;
 
@@ -10,6 +13,7 @@ export function evaluateReleaseDependencyLock(input: {
   bytes: Buffer;
   profile: RegisteredReleaseBuildProfile;
   platformArch: "amd64" | "arm64";
+  jobImage: string;
 }) {
   const npmrc = input.manifest.entries.some((entry) =>
     entry.path.split("/").at(-1)?.toLowerCase() === ".npmrc");
@@ -26,34 +30,34 @@ export function evaluateReleaseDependencyLock(input: {
   const text = input.bytes.toString("utf8");
   if (Buffer.from(text).compare(input.bytes) !== 0 || text.includes("\0"))
     return blocked("lockfile_encoding_invalid");
-  const reason = prohibitedReason(text, input.profile.dependencyStorePolicy.registry);
+  const reason = validateDependencyLockAst(input.bytes,
+    input.profile.dependencyStorePolicy.registry);
   if (reason) return blocked(reason);
   const policy = input.profile.dependencyStorePolicy;
+  const profileSnapshotHash = sourcePolicySnapshotHash(
+    buildSourcePolicySnapshot(input.profile));
+  const supplyChainDigest = expectedReleaseBuildSupplyProof(
+    input.profile).supplyChainDigest;
   const combinationHash = stableHash({
     scope: policy.contract,
     lockfileDigest: digest,
     profileId: input.profile.id,
     profileVersion: input.profile.profileVersion,
+    profileSnapshotHash,
+    supplyChainDigest,
+    fetchImage: input.jobImage,
+    jobImage: input.jobImage,
     pnpmVersion: policy.pnpmVersion,
     platformOs: policy.platformOs,
     platformArch: input.platformArch,
+    platformAbi: policy.platformAbi,
+    platformLibc: policy.platformLibc,
     registryPolicyDigest: policy.registryPolicyDigest,
   });
   return { allowed: true as const, lockfilePath: lock.path,
-    lockfileDigest: digest, combinationHash,
+    lockfileDigest: digest, combinationHash, profileSnapshotHash,
+    supplyChainDigest,
     fetchRunId: `dep_${combinationHash}` };
-}
-
-function prohibitedReason(value: string, registry: string) {
-  if (/^\s*(?:_auth|_authToken|auth|password|token|username)\s*:/im.test(value))
-    return "dependency_auth_forbidden";
-  if (/(?:git\+ssh|git\+https|git|ssh|file|link):/i.test(value))
-    return "dependency_protocol_forbidden";
-  const urls = Array.from(value.matchAll(/https?:\/\/[^\s,}\]]+/gi),
-    (match) => match[0]);
-  if (urls.some((url) => !url.startsWith(`${registry}/`)))
-    return "dependency_registry_host_forbidden";
-  return null;
 }
 
 function blocked(detailCode: string) {

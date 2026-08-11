@@ -1,8 +1,10 @@
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { assertExternalOciJob, dependencyFetchDockerArguments,
-  dockerCreateArguments } from "./release-build-external-oci.policy";
+import { assertExternalOciJob, dockerCreateArguments } from "./release-build-external-oci.policy";
+import { dependencyFetcherCreateArguments, dependencyNetworkCreateArguments,
+  dependencyProxyConnectArguments, dependencyProxyCreateArguments,
+  type DependencyNetworkJob } from "./release-dependency-network.policy";
 
 describe("external OCI launcher argv policy", () => {
   let root: string;
@@ -35,16 +37,27 @@ describe("external OCI launcher argv policy", () => {
 
   it("runs the trusted fetcher with only lock control and store output mounts", async () => {
     const job = await fixture();
-    const args = dependencyFetchDockerArguments({ name: "dp-fetch-0123456789abcdef",
-      launcherLabel: job.launcherLabel, image: job.image,
-      controlRoot: job.controlRoot, outputRoot: job.outputRoot });
+    const network: DependencyNetworkJob = {
+      fetchName: "dp-fetch-0123456789abcdef", proxyName: "dp-proxy-0123456789abcdef",
+      networkName: "dp-net-0123456789abcdef", launcherLabel: job.launcherLabel,
+      image: job.image, controlRoot: job.controlRoot, outputRoot: job.outputRoot };
+    const args = dependencyFetcherCreateArguments(network);
     expect(args).toEqual(expect.arrayContaining([
-      "--network", "bridge", "--read-only", "--cap-drop", "ALL",
+      "--network", network.networkName, "--read-only", "--cap-drop", "ALL",
+      "HTTPS_PROXY=http://registry-egress-proxy:3128",
       "npm_config_registry=https://registry.npmjs.org",
       "/app/apps/devpilot-api/dist/release-delivery/release-dependency-fetcher.main.js",
     ]));
     expect(args.filter((arg) => arg.startsWith("--mount="))).toHaveLength(2);
     expect(args.join(" ")).not.toMatch(/\/source|docker\.sock|HMAC|secret/i);
+    expect(dependencyNetworkCreateArguments(network)).toContain("--internal");
+    expect(dependencyProxyCreateArguments(network)).toEqual(expect.arrayContaining([
+      "--network", "bridge", network.image, "node",
+      "/app/apps/devpilot-api/dist/release-delivery/release-registry-egress-proxy.main.js",
+    ]));
+    expect(dependencyProxyConnectArguments(network)).toEqual([
+      "network", "connect", "--alias", "registry-egress-proxy",
+      network.networkName, network.proxyName]);
   });
 
   async function fixture() {

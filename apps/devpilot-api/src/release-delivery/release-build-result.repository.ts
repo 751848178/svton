@@ -9,6 +9,7 @@ import type { ReleaseGateDecisionReference } from "./release-gate-decision.types
 import { claimReleaseGateDecision } from "./release-gate-decision.repository";
 import { releaseBuildInclude } from "./release-build.prisma";
 import { lockActionableReleaseOrder } from "./release-order-action-boundary";
+import { assertBuildDependencyStoreSucceeded } from "./release-build-dependency-invariant";
 
 interface CompleteBuildInput {
   buildRunId: string;
@@ -42,6 +43,7 @@ export class ReleaseBuildResultRepository {
     return this.prisma.$transaction(async (tx) => {
       await lockActionableReleaseOrder(tx, input);
       await tx.$queryRaw`SELECT id FROM Project WHERE id = ${input.projectId} FOR UPDATE`;
+      await assertBuildDependencyStoreSucceeded(tx, input.buildRunId);
       const prior = await assertReproducibleArtifact(tx, input);
       const claimed = await tx.buildRun.updateMany({
         where: { id: input.buildRunId, status: "running" },

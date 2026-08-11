@@ -1,7 +1,7 @@
 import { constants } from "node:fs";
 import { createHash } from "node:crypto";
 import { chmod, chown, lstat, mkdir, open, readdir, rename, rm } from "node:fs/promises";
-import { join, relative } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 import { canonicalJson } from "../release-orchestration/utils/release-hash.utils";
 import { dependencyStoreManifest, validDependencyStoreManifest,
   type ReleaseDependencyStoreManifest } from "./release-dependency-store-manifest.policy";
@@ -23,14 +23,21 @@ export async function promoteDependencyStore(input: {
   try { await descriptor.writeFile(canonicalJson(input.manifest)); }
   finally { await descriptor.close(); }
   await seal(join(input.pendingRoot, "store"));
+  await chown(input.pendingRoot, 0, 0);
+  await chmod(input.pendingRoot, 0o500);
   const target = join(input.cacheRoot, input.manifest.combinationHash);
   try {
     await rename(input.pendingRoot, target);
   } catch (error) {
     if (!["EEXIST", "ENOTEMPTY"].includes((error as NodeJS.ErrnoException).code || ""))
       throw error;
-    await verifyDependencyStore(target, input.manifest);
-    await rm(input.pendingRoot, { recursive: true, force: true });
+    try {
+      await verifyDependencyStore(target, input.manifest);
+      await rm(input.pendingRoot, { recursive: true, force: true });
+    } catch {
+      await quarantineDependencyStore(target);
+      await rename(input.pendingRoot, target);
+    }
   }
   await chmod(target, 0o500);
   return target;
@@ -39,24 +46,43 @@ export async function promoteDependencyStore(input: {
 export async function verifyDependencyStore(
   root: string,
   expected: Pick<ReleaseDependencyStoreManifest, "combinationHash" | "storeDigest">,
+  trustedOwner = { uid: 0, gid: 0 },
 ) {
+  const rootStat = await lstat(root);
+  if (!rootStat.isDirectory() || rootStat.uid !== trustedOwner.uid ||
+    rootStat.gid !== trustedOwner.gid ||
+    (rootStat.mode & 0o022) !== 0) throw invalid();
   const handle = await open(join(root, "manifest.json"),
     constants.O_RDONLY | constants.O_NOFOLLOW);
   let manifest: ReleaseDependencyStoreManifest;
   try {
     const stat = await handle.stat();
-    if (!stat.isFile() || stat.size > 10 * 1024 * 1024) throw invalid();
+    if (!stat.isFile() || stat.uid !== trustedOwner.uid ||
+      stat.gid !== trustedOwner.gid ||
+      (stat.mode & 0o022) !== 0 || stat.size > 10 * 1024 * 1024) throw invalid();
     manifest = JSON.parse(await handle.readFile("utf8"));
   } finally { await handle.close(); }
   if (!validDependencyStoreManifest(manifest) ||
     manifest.combinationHash !== expected.combinationHash ||
     manifest.storeDigest !== expected.storeDigest) throw invalid();
-  const files = await collectStoreFiles(join(root, "store"));
+  const files = await collectStoreFiles(join(root, "store"), trustedOwner);
   if (canonicalJson(files) !== canonicalJson(manifest.files)) throw invalid();
   return manifest;
 }
 
-async function collectStoreFiles(root: string) {
+export async function quarantineDependencyStore(root: string) {
+  const parent = dirname(root);
+  const quarantine = join(parent, ".quarantine");
+  await mkdir(quarantine, { recursive: true, mode: 0o700 });
+  const target = join(quarantine,
+    `${basename(root)}.${Date.now()}.${createHash("sha256").update(root)
+      .update(String(process.hrtime.bigint())).digest("hex").slice(0, 12)}`);
+  await rename(root, target);
+  return target;
+}
+
+async function collectStoreFiles(root: string,
+  trustedOwner?: { uid: number; gid: number }) {
   const output: Array<{ path: string; sizeBytes: number; sha256: string }> = [];
   let total = 0;
   async function visit(directory: string) {
@@ -65,6 +91,9 @@ async function collectStoreFiles(root: string) {
       const target = join(directory, entry.name);
       const stat = await lstat(target);
       if (stat.isSymbolicLink()) throw invalid();
+      if (trustedOwner && (stat.uid !== trustedOwner.uid ||
+        stat.gid !== trustedOwner.gid ||
+        (stat.mode & 0o022) !== 0)) throw invalid();
       if (stat.isDirectory()) await visit(target);
       else if (stat.isFile()) {
         total += stat.size;

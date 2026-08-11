@@ -28,7 +28,10 @@ describeDocker("external OCI launcher real Docker boundary", () => {
       pendingRoot: join(root, "dependency-store"), combinationHash: "1".repeat(64),
       lockfileDigest: "2".repeat(64), profileId: profile.id,
       profileVersion: profile.profileVersion, pnpmVersion: "8.12.0",
+      profileSnapshotHash: "5".repeat(64), supplyChainDigest: "6".repeat(64),
+      fetchImage: image!, jobImage: image!,
       platformOs: "linux", platformArch: "arm64",
+      platformAbi: "node20-modules-115", platformLibc: "glibc-debian-bookworm",
       registryPolicyDigest: profile.dependencyStorePolicy.registryPolicyDigest,
     });
     storeDigest = manifest.storeDigest;

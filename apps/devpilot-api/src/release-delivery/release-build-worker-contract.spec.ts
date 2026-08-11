@@ -53,6 +53,7 @@ describe("filesystem isolated worker contract", () => {
     expect(verifyWorkerResult(result, secret)).toBe(true);
     expect(verifyWorkerCancellation(cancel, secret)).toBe(true);
     expect(request.signature).not.toBe(result.signature);
+    expect(JSON.stringify(request)).not.toContain("leaseToken");
     expect(verifyWorkerRequest({ ...request, components: [{ key: "tampered" }] as never }, secret))
       .toBe(false);
   });
@@ -114,8 +115,12 @@ function identity(): ReleaseBuildWorkerIdentity {
     dependency: { fetchRunId: `dep_${"1".repeat(64)}`,
       combinationHash: "1".repeat(64), lockfileDigest: "2".repeat(64),
       profileId: "controlled-local-acceptance-v2", profileVersion: 2,
+      profileSnapshotHash: "5".repeat(64), supplyChainDigest: "6".repeat(64),
+      fetchImage: `registry.test/api@sha256:${"7".repeat(64)}`,
+      jobImage: `registry.test/api@sha256:${"7".repeat(64)}`,
       pnpmVersion: "8.12.0", platformOs: "linux", platformArch: "arm64",
-      registryPolicyDigest: "3".repeat(64), mode: "reuse", leaseToken: null,
+      platformAbi: "node20-modules-115", platformLibc: "glibc-debian-bookworm",
+      registryPolicyDigest: "3".repeat(64), mode: "verify_or_fetch",
       storeDigest: "4".repeat(64) },
     deadline: "2099-01-01T00:00:00.000Z",
   };

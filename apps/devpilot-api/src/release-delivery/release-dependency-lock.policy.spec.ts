@@ -28,12 +28,18 @@ describe("release dependency lock policy", () => {
 
   it.each([
     ["project_npmrc_forbidden", lock(), [".npmrc"]],
-    ["dependency_protocol_forbidden", `${lock()}\n  dep: git+https://example/x.git\n`, []],
-    ["dependency_protocol_forbidden", `${lock()}\n  dep: file:../x\n`, []],
-    ["dependency_protocol_forbidden", `${lock()}\n  dep: link:../x\n`, []],
+    ["dependency_protocol_forbidden", `${lock()}\nresolution:\n  repo: git+https://example/x.git\n`, []],
+    ["dependency_protocol_forbidden", `${lock()}\nresolution:\n  path: file:../x\n`, []],
+    ["dependency_protocol_forbidden", `${lock()}\nresolution:\n  path: link:../x\n`, []],
     ["dependency_registry_host_forbidden",
-      `${lock()}\n  tarball: https://example.test/pkg.tgz\n`, []],
+      `${lock()}\nresolution:\n  tarball: https://example.test/pkg.tgz\n`, []],
     ["dependency_auth_forbidden", `${lock()}\n_authToken: secret\n`, []],
+    ["dependency_registry_host_forbidden",
+      `${lock()}\nresolution:\n  tarball: \"https:\\u002f\\u002fevil.test/pkg.tgz\"\n`, []],
+    ["dependency_protocol_forbidden",
+      `${lock()}\nresolution:\n  tarball: //registry.npmjs.org/pkg.tgz\n`, []],
+    ["dependency_auth_forbidden",
+      `${lock()}\nresolution:\n  tarball: https://u:p@registry.npmjs.org/pkg.tgz\n`, []],
   ])("blocks %s before fetch", (detailCode, value, extra) => {
     expect(evaluateReleaseDependencyLock(fixture(value, profile, extra)))
       .toMatchObject({ allowed: false, detailCode });
@@ -55,5 +61,6 @@ function fixture(value: string, profileValue = profile, extra: string[] = []) {
   const manifest = { version: 1 as const, entries: [entry, ...extra.map((path) =>
     ({ path, mode: "100644" as const, sizeBytes: 0, sha256: "0".repeat(64) }))],
     digest: "f".repeat(64) } satisfies WorkerSourceManifest;
-  return { manifest, bytes, profile: profileValue, platformArch: "arm64" as const };
+  return { manifest, bytes, profile: profileValue, platformArch: "arm64" as const,
+    jobImage: `registry.test/api@sha256:${"7".repeat(64)}` };
 }

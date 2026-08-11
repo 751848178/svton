@@ -3048,14 +3048,22 @@ model ReleaseDependencyFetchRun {
   lockfileDigest       String
   profileId            String
   profileVersion       Int
+  profileSnapshotHash  String?
+  supplyChainDigest    String?
+  fetchImage           String?
+  jobImage             String?
   pnpmVersion          String
   platformOs           String
   platformArch         String
+  platformAbi          String?
+  platformLibc         String?
   registryPolicyDigest String
-  status               String   @default("queued") // queued | fetching | verifying | succeeded | failed | blocked | unavailable
+  status               String   @default("queued") // queued | fetching | verifying | succeeded | invalidated | failed | blocked | unavailable
   storeDigest          String?
-  leaseToken           String?
+  leaseTokenHash       String?
   leasedAt             DateTime?
+  leaseExpiresAt       DateTime?
+  heartbeatAt          DateTime?
   errorCode            String?
   errorMessage         String?  @db.Text
   finishedAt           DateTime?
@@ -3064,7 +3072,7 @@ model ReleaseDependencyFetchRun {
 
   buildRuns            BuildRun[]
 
-  @@index([status, leasedAt], map: "DependencyFetch_status_lease_idx")
+  @@index([status, leaseExpiresAt], map: "DependencyFetch_status_lease_idx")
   @@index([lockfileDigest], map: "DependencyFetch_lock_digest_idx")
 }
 

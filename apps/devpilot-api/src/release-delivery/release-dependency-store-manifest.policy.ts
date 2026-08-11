@@ -9,9 +9,15 @@ export type ReleaseDependencyStoreManifest = {
   lockfileDigest: string;
   profileId: string;
   profileVersion: number;
+  profileSnapshotHash: string;
+  supplyChainDigest: string;
+  fetchImage: string;
+  jobImage: string;
   pnpmVersion: string;
   platformOs: string;
   platformArch: string;
+  platformAbi: string;
+  platformLibc: string;
   registryPolicyDigest: string;
   files: ReleaseDependencyStoreFile[];
   storeDigest: string;
@@ -32,9 +38,13 @@ export function validDependencyStoreManifest(value: unknown):
   if (!record(value) || value.schemaVersion !== 1 ||
     !hex(value.combinationHash) || !hex(value.lockfileDigest) ||
     !hex(value.registryPolicyDigest) || !hex(value.storeDigest) ||
+    !hex(value.profileSnapshotHash) || !hex(value.supplyChainDigest) ||
+    typeof value.fetchImage !== "string" || !value.fetchImage.includes("@sha256:") ||
+    typeof value.jobImage !== "string" || !value.jobImage.includes("@sha256:") ||
     typeof value.profileId !== "string" ||
     !Number.isInteger(value.profileVersion) || typeof value.pnpmVersion !== "string" ||
     value.platformOs !== "linux" || !["amd64", "arm64"].includes(String(value.platformArch)) ||
+    typeof value.platformAbi !== "string" || typeof value.platformLibc !== "string" ||
     !Array.isArray(value.files)) return false;
   if (!value.files.every((file) => record(file) && safePath(file.path) &&
     Number.isInteger(file.sizeBytes) && Number(file.sizeBytes) >= 0 && hex(file.sha256)))
@@ -43,8 +53,12 @@ export function validDependencyStoreManifest(value: unknown):
     combinationHash: value.combinationHash as string,
     lockfileDigest: value.lockfileDigest as string,
     profileId: value.profileId, profileVersion: value.profileVersion as number,
+    profileSnapshotHash: value.profileSnapshotHash as string,
+    supplyChainDigest: value.supplyChainDigest as string,
+    fetchImage: value.fetchImage as string, jobImage: value.jobImage as string,
     pnpmVersion: value.pnpmVersion, platformOs: value.platformOs,
     platformArch: value.platformArch as string,
+    platformAbi: value.platformAbi as string, platformLibc: value.platformLibc as string,
     registryPolicyDigest: value.registryPolicyDigest as string,
     files: value.files as ReleaseDependencyStoreFile[],
   });

@@ -3,7 +3,8 @@ import type { RegisteredReleaseBuildProfile } from "./release-build-acceptance-p
 import { runDependencyFetchOci } from "./release-dependency-fetch-oci-runner";
 import { evaluateReleaseDependencyLock } from "./release-dependency-lock.policy";
 import { readSignedPnpmLock } from "./release-dependency-lock.reader";
-import { verifyDependencyStore } from "./release-dependency-store-filesystem";
+import { quarantineDependencyStore,
+  verifyDependencyStore } from "./release-dependency-store-filesystem";
 import type { ReleaseBuildWorkerRequest } from "./release-build-worker-envelope.policy";
 
 export async function prepareWorkerDependencyStore(input: {
@@ -18,26 +19,32 @@ export async function prepareWorkerDependencyStore(input: {
   const verdict = evaluateReleaseDependencyLock({
     manifest: input.request.sourceManifest, bytes: lockfile,
     profile: input.profile, platformArch: expected.platformArch,
+    jobImage: expected.jobImage,
   });
   if (!verdict.allowed || verdict.fetchRunId !== expected.fetchRunId ||
     verdict.combinationHash !== expected.combinationHash ||
     verdict.lockfileDigest !== expected.lockfileDigest ||
+    verdict.profileSnapshotHash !== expected.profileSnapshotHash ||
+    verdict.supplyChainDigest !== expected.supplyChainDigest ||
     expected.profileId !== input.profile.id ||
     expected.profileVersion !== input.profile.profileVersion ||
     expected.pnpmVersion !== input.profile.dependencyStorePolicy.pnpmVersion ||
     expected.registryPolicyDigest !==
       input.profile.dependencyStorePolicy.registryPolicyDigest) throw invalid();
   const root = join(input.cacheRoot, expected.combinationHash);
-  if (expected.mode === "reuse") {
-    const storeDigest = expected.storeDigest;
-    if (!storeDigest) throw invalid();
-    const manifest = await verifyDependencyStore(root, {
-      combinationHash: expected.combinationHash, storeDigest,
-    });
-    return { root, manifest };
+  if (expected.storeDigest) {
+    try {
+      const manifest = await verifyDependencyStore(root, {
+        combinationHash: expected.combinationHash,
+        storeDigest: expected.storeDigest });
+      return { root, manifest };
+    } catch {
+      await quarantineDependencyStore(root).catch((error) => {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      });
+    }
   }
-  if (!expected.leaseToken || expected.storeDigest || !input.externalOci)
-    throw invalid();
+  if (!input.externalOci) throw invalid();
   const manifest = await runDependencyFetchOci({
     identity: expected, lockfile, cacheRoot: input.cacheRoot,
     jobRoot: input.jobRoot, image: input.externalOci.image,

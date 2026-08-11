@@ -154,6 +154,7 @@ export class ReleaseBuildRuntimeProfileService {
   get workerSecretFile() { return this.worker.secretFile; }
   get workerPollIntervalMs() { return this.worker.pollIntervalMs; }
   get workerSharedGid() { return this.worker.sharedGid; }
+  get workerJobImage() { return this.worker.jobImage; }
 }
 
 function unavailableMessage(reason: string) {
