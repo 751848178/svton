@@ -54,9 +54,9 @@ describe("project directory service", () => {
       service.list("team-1", "user-1", query),
     ).resolves.toMatchObject({
       scope: { teamId: "team-1", actorId: "user-1" },
-      items: [{ id: "project-needs-config" }],
-      total: 1,
-      summary: { total: 2, online: 1, needsConfiguration: 1 },
+      items: [{ id: "project-needs-config" }, { id: "project-online" }],
+      total: 2,
+      summary: { total: 2, online: 0, needsConfiguration: 2 },
     });
     expect(repository.list).toHaveBeenCalledWith("team-1");
   });

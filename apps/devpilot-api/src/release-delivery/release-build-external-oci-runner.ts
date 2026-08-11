@@ -4,7 +4,8 @@ import { chmod, chown, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { ReleaseBuildBrokerInput, ReleaseBuildBrokerResult } from "./release-build-filesystem-broker";
 import type { ReleaseBuildSupplyProof } from "./release-build-supply-proof.policy";
-import { assertDockerExecutable, assertExternalOciJob, dockerCreateArguments } from "./release-build-external-oci.policy";
+import { assertDockerExecutable, assertExternalOciJob, assertLauncherLabel,
+  dockerCreateArguments } from "./release-build-external-oci.policy";
 
 const MAX_OUTPUT = 10 * 1024 * 1024;
 
@@ -13,6 +14,7 @@ export async function runExternalOciBroker(input: {
   supplyProof: ReleaseBuildSupplyProof;
   image: string;
   dockerExecutable: string;
+  launcherLabel: string;
   timeoutMs: number;
   signal?: AbortSignal;
 }) {
@@ -34,9 +36,11 @@ export async function runExternalOciBroker(input: {
       { flag: "wx", mode: 0o444 }),
   ]);
   await chmod(controlRoot, 0o555);
-  const name = `dp-build-${createHash("sha256").update(input.broker.request.identity.jobId)
+  const label = assertLauncherLabel(input.launcherLabel);
+  const name = `dp-build-${createHash("sha256").update(
+    `${label}:${input.broker.request.identity.jobId}`)
     .digest("hex").slice(0, 24)}`;
-  const job = { name, image: input.image, controlRoot,
+  const job = { name, launcherLabel: label, image: input.image, controlRoot,
     sourceRoot: input.broker.buildRoot, workRoot, outputRoot: input.broker.artifactRoot };
   await assertExternalOciJob(job, input.broker.jobRoot);
   const executable = assertDockerExecutable(input.dockerExecutable);
@@ -53,6 +57,20 @@ export async function runExternalOciBroker(input: {
       await command(executable, ["rm", "--force", name], 30_000);
     }
   }
+}
+
+export async function cleanupExternalOciLauncherContainers(input: {
+  dockerExecutable: string;
+  launcherLabel: string;
+}) {
+  const executable = assertDockerExecutable(input.dockerExecutable);
+  const label = assertLauncherLabel(input.launcherLabel);
+  const listed = await command(executable, ["ps", "--all", "--quiet", "--filter",
+    `label=devpilot.release-build.launcher=${label}`], 30_000);
+  const ids = listed.stdout.toString("utf8").split(/\s+/).filter(Boolean);
+  if (ids.some((id) => !/^[a-f0-9]{12,64}$/.test(id)))
+    throw new Error("OCI launcher returned an invalid stale container id");
+  for (const id of ids) await command(executable, ["rm", "--force", id], 30_000);
 }
 
 function command(executable: string, args: string[], timeoutMs: number, signal?: AbortSignal) {

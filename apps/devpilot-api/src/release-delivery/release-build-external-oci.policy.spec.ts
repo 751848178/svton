@@ -13,6 +13,7 @@ describe("external OCI launcher argv policy", () => {
     await expect(assertExternalOciJob(job, root)).resolves.toBeUndefined();
     const args = dockerCreateArguments(job);
     expect(args).toEqual(expect.arrayContaining([
+      "--label", "devpilot.release-build.launcher=launcher_instance_01",
       "--network", "none", "--read-only", "--cap-drop", "ALL",
       "--security-opt", "no-new-privileges", "--user", "3000:3000",
       job.image, "node",
@@ -37,6 +38,7 @@ describe("external OCI launcher argv policy", () => {
     await Promise.all(paths.map((path) => mkdir(path)));
     return { name: "dp-build-0123456789abcdef", image:
       `registry.test/devpilot/api@sha256:${"a".repeat(64)}`,
+    launcherLabel: "launcher_instance_01",
     controlRoot: paths[0], sourceRoot: paths[1], workRoot: paths[2], outputRoot: paths[3] };
   }
 });

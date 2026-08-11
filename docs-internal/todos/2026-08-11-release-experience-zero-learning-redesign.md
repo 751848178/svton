@@ -24,7 +24,7 @@
 | F675 | pending | 完整走查新项目从创建到生产/恢复的链路，建立业务逻辑图、组织架构图、功能地图、数据流图、页面结构图与页面/状态覆盖矩阵。 | 架构文档、逐页截图、响应式/a11y 审计 |
 | F676 | pending | 基于真实截图产出三套视觉/交互方向，通过对抗性设计复核选择一套并完成可交互画板。 | `visualize` 画板与选择记录 |
 | F677 | completed | 由唯一 impl writer 按选定方案实施，保持单一职责、依赖无环、源文件不超过 200 行。 | S1-S6 原子 diff；`/tmp/codex-tool-runs/svton/f674-impl-*` focused tests/type-check |
-| F678 | pending | 创建 Draft MR，完成 product/frontend/backend/test 独立 CR 与架构师裁决，修复后执行全量、Docker、Browser、API/DB 验证并 commit/push。 | MR、CR ledger、日志、最终截图 |
+| F678 | in_progress | 创建 Draft MR，完成 product/frontend/backend/test 独立 CR 与架构师裁决，修复后执行全量、Docker、Browser、API/DB 验证并 commit/push。 | MR、CR ledger、日志、最终截图 |
 
 ## Acceptance Rules
 
@@ -37,3 +37,4 @@
 
 - 2026-08-11: 创建 F674-F678；完成 master/Docker 基线确认并开始三路只读 invest 与当前运行态截图审计。
 - 2026-08-11: F677 实施完成：服务端 checkpoint/两阶段 Build/Production post+promote、双基线组件身份、统一变量与路由要求、readiness v2，以及方向 A 的 blocker-first/渐进披露 UI；外部 Provider 缺口继续 fail-closed，转入 F678 独立 CR 与运行态验收。
+- 2026-08-11: F678 架构 CR 的最终源码修复已完成：收紧迁移索引、host launcher 目录与供应证明、只读源码/可写构建副本、launcher 停机回收、legacy promotion 唯一反查和 UI 领域阻断展示。Docker、迁移应用、Browser/API/DB 运行态验收仍未执行，因此 F674/F678 保持 `in_progress`，不得视为生产签收。

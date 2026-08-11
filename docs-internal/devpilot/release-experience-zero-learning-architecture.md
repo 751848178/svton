@@ -266,3 +266,34 @@ flowchart TD
   defined for Linux/root plus an explicitly supplied immutable image, but was
   intentionally not executed in this no-Docker review; runtime signoff remains
   fail closed until that acceptance run is retained.
+
+## Final Architecture Ruling Source Closure (2026-08-11)
+
+- The additive promotion-command migration now uses an explicitly mapped
+  unique-index name below MySQL's 64-byte identifier limit, with a migration
+  contract test covering every declared index name.
+- `external-oci-launcher-v1` is the only acceptance worker Provider. Startup
+  validates the real path, ownership, mode, non-symlink status and mutual
+  non-containment of every exchange, work, proof, secret, supply and executable
+  path. The launcher script never creates or repairs privileged host paths.
+- Supervisor scanning remains bound to the exact read-only `/source` tree.
+  The broker copies that verified tree into a fresh UID/GID 3000 writable
+  `/work/build` tree; install, build and artifact discovery operate only on the
+  copy, and symlink/special-file/overlap inputs fail closed.
+- The launcher uses one configured stable instance label, removes only stale
+  containers carrying that exact label, and propagates SIGTERM/SIGINT through
+  the active job before Docker kill/remove. The systemd unit grants a bounded
+  graceful-stop window and then enforces termination.
+- Legacy Production reconciliation resolves the exact team/project/environment/
+  release/deployment/target tuple. Exactly one saga permits Provider readback,
+  multiple sagas stay blocked, and zero sagas terminate only with the persisted
+  `prepare_before_provider` proof. Succeeded release runs remain visible while
+  an active legacy reconciliation command exists.
+- Repository intake now submits a discriminated public/managed/inline-private
+  credential contract. HTTP-200 blocked resume/reconcile results remain domain
+  blockers in the UI, promotion progress renders them as blocked, and baseline
+  cards use the complete server readiness projection rather than structural
+  row-count heuristics.
+- This closure is source, focused-test and type-check evidence. The gated real
+  Docker fixture, migration application and browser/API/DB acceptance remain
+  unexecuted boundaries and continue to block production signoff.

@@ -9,6 +9,7 @@ import { ReleaseBuildPackageEvidenceService } from "./release-build-package-evid
 import { ReleaseBuildRuntimeProfileService } from "./release-build-runtime-profile.service";
 import type { ReleaseBuildExecutionResult } from "./release-build.types";
 import type { ReleaseBuildWorkerRequest } from "./release-build-worker-envelope.policy";
+import { createWritableBrokerWorkspace } from "./release-build-broker-workspace";
 
 export type ReleaseBuildBrokerInput = {
   version: 1;
@@ -39,6 +40,10 @@ export async function runReleaseBuildBroker(
 ): Promise<ReleaseBuildBrokerResult> {
   try {
     await assertBrokerInput(input);
+    const writableBuildRoot = await createWritableBrokerWorkspace(
+      input.buildRoot,
+      input.workRoot,
+    );
     const config = brokerConfig(input);
     const runtime = new ReleaseBuildRuntimeProfileService(config);
     const evidence = new LocalReleaseEvidenceArtifactService(config);
@@ -46,7 +51,7 @@ export async function runReleaseBuildBroker(
       runtime,
       new ReleaseBuildArtifactService(config),
       new ReleaseBuildPackageEvidenceService(evidence),
-      { prepare: async () => ({ ...input.prepared, buildRoot: input.buildRoot }) } as never,
+      { prepare: async () => ({ ...input.prepared, buildRoot: writableBuildRoot }) } as never,
     );
     const request = input.request;
     const result = await executor.execute({
@@ -54,7 +59,7 @@ export async function runReleaseBuildBroker(
       projectId: request.identity.projectId,
       releaseOrderId: request.identity.releaseOrderId,
       sourceCommitSha: request.identity.sourceCommitSha,
-      checkoutRoot: input.buildRoot,
+      checkoutRoot: writableBuildRoot,
       components: request.components,
     });
     return { version: 1, status: "succeeded", result };

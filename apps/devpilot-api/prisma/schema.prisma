@@ -3237,7 +3237,7 @@ model ProductionPromotionReconcileCommand {
   promotionCommand   ProductionPromotionCommand @relation(fields: [promotionCommandId], references: [id], onDelete: Cascade)
   actor              User @relation("ProductionPromotionReconcileCommandActor", fields: [actorId], references: [id], onDelete: Restrict)
 
-  @@unique([promotionCommandId, idempotencyKey])
+  @@unique([promotionCommandId, idempotencyKey], map: "prod_promo_reconcile_command_idem_key")
   @@index([teamId])
   @@index([projectId])
   @@index([releaseOrderId])

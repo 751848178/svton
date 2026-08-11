@@ -113,6 +113,9 @@ describe("project delivery summary presenter", () => {
       reasonCodes: ["legacy_component_identity_unresolved"],
       action: { href: "/projects/project-1/settings?section=repository" },
     });
+    expect(result.baselines).toMatchObject({
+      staging: { ready: false }, production: { ready: false },
+    });
   });
 
   it("uses exact provider readiness and environment settings deep links", () => {
@@ -184,6 +187,9 @@ describe("project delivery summary presenter", () => {
     expect(result.checkpoints.find((item) => item.id === "release")?.action).toEqual(
       result.nextAction,
     );
+    expect(result.baselines).toMatchObject({
+      staging: { ready: true }, production: { ready: false },
+    });
   });
 
   it("fails frozen config hash and exact route target drift closed", () => {

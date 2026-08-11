@@ -97,8 +97,9 @@ function EnvironmentTaskCard({
 }) {
   const t = useTranslations('projects');
   const version = summary.currentVersions[role];
+  const ready = summary.baselines[role]?.ready === true;
   const blockers = summary.checkpoints.filter(
-    (item) => item.scope === role && item.status !== 'ready',
+    (item) => (item.scope === role || item.scope === 'project') && item.status !== 'ready',
   );
   const next = blockers.find((item) => item.action)?.action;
   return (
@@ -109,15 +110,15 @@ function EnvironmentTaskCard({
             {t(releaseEnvironmentLabelKey(role))}
           </p>
           <p className="mt-1 font-semibold">
-            {blockers.length
+            {!ready
               ? t('projectDeliveryActionRequired', { count: blockers.length })
               : t('projectDeliveryEnvironmentReady')}
           </p>
         </div>
-        <span className={blockers.length
+        <span className={!ready
           ? 'rounded-full bg-amber-500/10 px-2 py-1 text-xs text-amber-700'
           : 'rounded-full bg-emerald-500/10 px-2 py-1 text-xs text-emerald-700'}>
-          {blockers.length ? t('projectDeliveryBlocked') : t('projectDeliveryReady')}
+          {!ready ? t('projectDeliveryBlocked') : t('projectDeliveryReady')}
         </span>
       </div>
       {blockers[0] ? (

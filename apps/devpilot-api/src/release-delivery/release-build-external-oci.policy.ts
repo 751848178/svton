@@ -12,6 +12,7 @@ const DOCKER_EXECUTABLES = new Set([
 
 export type ExternalOciJob = {
   name: string;
+  launcherLabel: string;
   image: string;
   controlRoot: string;
   sourceRoot: string;
@@ -25,7 +26,7 @@ export function assertDockerExecutable(value: string) {
 }
 
 export async function assertExternalOciJob(job: ExternalOciJob, jobRoot: string) {
-  if (!/^[a-z0-9][a-z0-9_.-]{7,62}$/.test(job.name) || !exactOciImage(job.image))
+  if (!safeLabel(job.name) || !safeLabel(job.launcherLabel) || !exactOciImage(job.image))
     throw new Error("External OCI job identity is invalid");
   const root = await realpath(jobRoot);
   const resolvedPaths: string[] = [];
@@ -45,6 +46,8 @@ export async function assertExternalOciJob(job: ExternalOciJob, jobRoot: string)
 export function dockerCreateArguments(job: ExternalOciJob) {
   return [
     "create", "--name", job.name,
+    "--label", `devpilot.release-build.launcher=${job.launcherLabel}`,
+    "--label", "devpilot.release-build.contract=external-oci-launcher-v1",
     "--network", "none", "--read-only", "--cap-drop", "ALL",
     "--security-opt", "no-new-privileges", "--pids-limit", "128",
     "--memory", "2g", "--cpus", "2", "--user", "3000:3000",
@@ -58,7 +61,13 @@ export function dockerCreateArguments(job: ExternalOciJob) {
   ];
 }
 
+export function assertLauncherLabel(value: string) {
+  if (!safeLabel(value)) throw new Error("External OCI launcher label is invalid");
+  return value;
+}
+
 function mount(source: string, destination: string, readonly: boolean) {
   return `--mount=type=bind,src=${source},dst=${destination}${readonly ? ",readonly" : ""}`;
 }
 function unsafe() { return new Error("External OCI job path escapes its private root"); }
+function safeLabel(value: string) { return /^[a-z0-9][a-z0-9_.-]{15,62}$/.test(value); }

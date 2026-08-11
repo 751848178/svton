@@ -9,6 +9,8 @@ import type {
   ProductionPromotionResumeInput,
 } from '../types/environment-version.types';
 import { isProjectDeliverySummaryCacheKey } from './use-project-delivery-summary';
+import { promotionActionDomainError, type PromotionActionResult } from
+  '../utils/promotion-action-result.model';
 
 export function useEnvironmentVersions(projectId: string) {
   const { mutate: mutateCache } = useSWRConfig();
@@ -84,11 +86,12 @@ export function useEnvironmentVersions(projectId: string) {
     setExecuting(true);
     setError('');
     try {
-      const result = await apiRequest<Record<string, unknown>>(
+      const result = await apiRequest<PromotionActionResult>(
         `POST:/projects/${projectId}/delivery/environment-versions/${environmentId}/production-promotion/resume`,
         { ...input, idempotencyKey: crypto.randomUUID() },
       );
       await refreshDelivery();
+      setError(promotionActionDomainError(result) ?? '');
       return result;
     } catch (caught) {
       setError(message(caught));
@@ -105,11 +108,12 @@ export function useEnvironmentVersions(projectId: string) {
     setExecuting(true);
     setError('');
     try {
-      const result = await apiRequest<Record<string, unknown>>(
+      const result = await apiRequest<PromotionActionResult>(
         `POST:/projects/${projectId}/delivery/environment-versions/${environmentId}/production-promotion/reconcile`,
         { promotionCommandId, idempotencyKey: crypto.randomUUID() },
       );
       await refreshDelivery();
+      setError(promotionActionDomainError(result) ?? '');
       return result;
     } catch (caught) {
       setError(message(caught));

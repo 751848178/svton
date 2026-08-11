@@ -27,13 +27,31 @@ describe("ProductionPromotionReconcileService", () => {
   );
 
   it("records missing route identity as blocked without Provider access", async () => {
-    const fixture = setup("unknown", { routeSwitchOperationId: null });
+    const fixture = setup("unknown", { routeSwitchOperationId: null,
+      sagaResolution: "none_blocked" });
     await fixture.service.reconcile(input());
     expect(fixture.readback.inspectExact).not.toHaveBeenCalled();
     expect(fixture.repository.block).toHaveBeenCalledWith(
       "audit-1", expect.objectContaining({ state: "unknown", providerKey: "route-v1" }),
       "LEGACY_PROMOTION_ROUTE_IDENTITY_MISSING",
     );
+  });
+
+  it("terminates without Provider only for a persisted pre-provider proof", async () => {
+    const fixture = setup("unknown", { routeSwitchOperationId: null,
+      routeProviderKey: null, sagaResolution: "none_safe" });
+    await fixture.service.reconcile(input());
+    expect(fixture.repository.terminateBeforeProvider).toHaveBeenCalledWith("audit-1");
+    expect(fixture.readback.inspectExact).not.toHaveBeenCalled();
+  });
+
+  it("blocks ambiguous exact-scope saga history without Provider access", async () => {
+    const fixture = setup("unknown", { routeSwitchOperationId: null,
+      routeProviderKey: null, sagaResolution: "ambiguous" });
+    await fixture.service.reconcile(input());
+    expect(fixture.repository.block).toHaveBeenCalledWith("audit-1",
+      expect.objectContaining({ state: "unknown" }), "LEGACY_PROMOTION_SAGA_AMBIGUOUS");
+    expect(fixture.readback.inspectExact).not.toHaveBeenCalled();
   });
 
   it("replays a terminal audit without another Provider readback", async () => {
@@ -49,12 +67,14 @@ function setup(state: string, overrides: Record<string, unknown> = {}) {
   const prepared = {
     audit: { id: "audit-1", status: "running", inputHash: "input-hash" },
     candidate: {}, routeSwitchOperationId: "route-1",
-    routeProviderKey: "route-v1", shouldInspect: true, ...overrides,
+    routeProviderKey: "route-v1", sagaResolution: "unique",
+    shouldInspect: true, ...overrides,
   };
   const repository = {
     prepare: jest.fn().mockResolvedValue(prepared),
     convergeCommitted: jest.fn().mockResolvedValue({ status: "completed" }),
     terminateNotSwitched: jest.fn().mockResolvedValue({ status: "completed" }),
+    terminateBeforeProvider: jest.fn().mockResolvedValue({ status: "completed" }),
     block: jest.fn().mockResolvedValue({ status: "blocked" }),
   };
   const readback = { inspectExact: jest.fn().mockResolvedValue({

@@ -95,7 +95,12 @@ export class EnvironmentVersionReadRepository {
         },
         releaseRuns: {
           where: {
-            status: { in: ["awaiting_approval", "running", "awaiting_validation"] },
+            OR: [
+              { status: { in: ["awaiting_approval", "running", "awaiting_validation"] } },
+              { status: "succeeded", productionPromotionCommands: { some: {
+                legacyReconcileRequired: true, status: "running",
+              } } },
+            ],
           },
           orderBy: [{ createdAt: "desc" }, { id: "desc" }],
           take: 1,

@@ -13,6 +13,14 @@ export class ProductionPromotionReconcileService {
   async reconcile(input: ProductionPromotionReconcileInput) {
     const prepared = await this.repository.prepare(input);
     if (!prepared.shouldInspect) return prepared.audit;
+    if (prepared.sagaResolution === "none_safe") {
+      return this.repository.terminateBeforeProvider(prepared.audit.id);
+    }
+    if (prepared.sagaResolution === "ambiguous") {
+      return this.repository.block(prepared.audit.id, {
+        operationId: `ambiguous:${prepared.audit.id}`, providerKey: null, state: "unknown",
+      }, "LEGACY_PROMOTION_SAGA_AMBIGUOUS");
+    }
     const operationId = prepared.routeSwitchOperationId;
     if (!operationId || !prepared.routeProviderKey) {
       return this.repository.block(prepared.audit.id, {

@@ -1,6 +1,12 @@
 import type { ExactSiteRouteSagaReadback } from "../site/site-route-switch-saga-readback.service";
 import type { FrozenProductionCandidate } from "./production-promotion-candidate.policy";
 
+export type LegacyPromotionSagaResolution =
+  | { kind: "unique"; operationId: string; providerKey: string }
+  | { kind: "none_safe" }
+  | { kind: "none_blocked" }
+  | { kind: "ambiguous" };
+
 export type ProductionPromotionReconcileInput = {
   teamId: string;
   projectId: string;
@@ -15,6 +21,7 @@ export type PreparedProductionPromotionReconcile = {
   candidate: FrozenProductionCandidate;
   routeSwitchOperationId: string | null;
   routeProviderKey: string | null;
+  sagaResolution: LegacyPromotionSagaResolution["kind"];
   shouldInspect: boolean;
 };
 

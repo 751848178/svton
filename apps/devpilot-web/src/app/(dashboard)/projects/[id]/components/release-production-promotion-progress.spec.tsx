@@ -29,6 +29,18 @@ describe('ReleaseProductionPromotionProgress', () => {
     );
     expect(html.match(/releaseProductionProgressStatus_done/g)).toHaveLength(3);
   });
+
+  it('marks promotion progress blocked for blocked runs and legacy recovery', () => {
+    const blocked = run('blocked', 'awaiting_validation');
+    expect(renderToStaticMarkup(<ReleaseProductionPromotionProgress run={blocked} />))
+      .toContain('releaseProductionProgressStatus_blocked');
+    const legacy = run('succeeded', 'completed');
+    legacy.legacyPromotionRecovery = { status: 'required', commandIds: ['command-1'],
+      phase: 'legacy_reconcile_required', reason: 'unknown',
+      reasonCode: 'legacy_promotion_reconciliation_required' };
+    expect(renderToStaticMarkup(<ReleaseProductionPromotionProgress run={legacy} />))
+      .toContain('releaseProductionProgressStatus_blocked');
+  });
 });
 
 function run(releaseStatus: string, deploymentStatus: string) {

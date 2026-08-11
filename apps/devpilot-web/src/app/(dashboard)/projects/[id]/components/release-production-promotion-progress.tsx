@@ -15,7 +15,9 @@ export function ReleaseProductionPromotionProgress({
       item.environmentId === run.environmentId &&
       item.artifactManifestId === run.artifactManifestId,
   );
-  const failed = run.status === 'failed' || deployment?.status === 'failed';
+  const failed = ['failed', 'blocked'].includes(run.status) ||
+    ['failed', 'blocked'].includes(deployment?.status ?? '');
+  const legacyBlocked = Boolean(run.legacyPromotionRecovery);
   const deployed = Boolean(
     deployment && ['awaiting_validation', 'running', 'completed'].includes(deployment.status),
   );
@@ -24,7 +26,7 @@ export function ReleaseProductionPromotionProgress({
   const steps = [
     status(deployed, !deployed, failed),
     status(manualDone, deployed && !manualDone, failed),
-    status(complete, manualDone && !complete, failed),
+    legacyBlocked ? 'blocked' : status(complete, manualDone && !complete, failed),
   ];
   const labels = [
     'releaseProductionProgressCandidate',

@@ -9,17 +9,14 @@ import { FinalizeBaselineStep } from './components/finalize-baseline-step';
 import { ProjectIntakeStepper } from './components/project-intake-stepper';
 import { ReviewAnalysisStep } from './components/review-analysis-step';
 import { useProjectIntake } from './hooks/use-project-intake';
+import { projectIntakeCredentialReady } from './project-intake-repository-input';
 
 export default function CreateProjectPage() {
   const t = useTranslations('projects');
   const tc = useTranslations('common');
   const router = useRouter();
   const intake = useProjectIntake();
-  const credentialReady =
-    intake.form.visibility === 'public' ||
-    (intake.form.credentialMode === 'managed' && Boolean(intake.form.teamCredentialId)) ||
-    (intake.form.credentialMode === 'inline' &&
-      Boolean(intake.form.credentialName.trim() && intake.form.credentialSecret));
+  const credentialReady = projectIntakeCredentialReady(intake.form);
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();

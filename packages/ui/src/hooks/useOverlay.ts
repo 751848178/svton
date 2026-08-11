@@ -28,7 +28,7 @@ export function useOverlay(open: boolean, onClose: () => void) {
     };
   }, [open]);
 
-  const topmost = open && stack.at(-1) === id.current;
+  const topmost = open && stack[stack.length - 1] === id.current;
   const layer = Math.max(0, stack.indexOf(id.current));
 
   useEffect(() => {

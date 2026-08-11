@@ -36,6 +36,8 @@ export function presentProjectDeliverySummary(
     Boolean(repository(project) && intake.componentCount !== null),
     providerKey,
   );
+  const stagingVersion = currentVersion(project, staging);
+  const productionVersion = currentVersion(project, production);
   return {
     version: 2,
     scope: { teamId: project.teamId, actorId, projectId: project.id },
@@ -43,17 +45,33 @@ export function presentProjectDeliverySummary(
     repository: repository(project),
     intake,
     baselines: {
-      staging: staging ? presentProjectDeliveryBaseline(project, staging) : null,
-      production: production ? presentProjectDeliveryBaseline(project, production) : null,
+      staging: completeBaseline(project, staging, "staging", stagingVersion, readiness.checkpoints),
+      production: completeBaseline(project, production, "production", productionVersion,
+        readiness.checkpoints),
     },
     resources,
     entries: { ...entries, unit: "site" },
     currentVersions: {
-      staging: currentVersion(project, staging),
-      production: currentVersion(project, production),
+      staging: stagingVersion,
+      production: productionVersion,
     },
     ...readiness,
   };
+}
+
+function completeBaseline(
+  project: ProjectDeliverySummaryRecord,
+  environment: Environment | undefined,
+  role: ProjectDeliveryBaselineRole,
+  version: ProjectDeliveryCurrentVersionSummary | null,
+  checkpoints: ReturnType<typeof projectDeliveryReadiness>["checkpoints"],
+) {
+  if (!environment) return null;
+  const baseline = presentProjectDeliveryBaseline(project, environment);
+  const required = checkpoints.filter((item) => item.scope === role ||
+    (item.scope === "project" && item.id !== "release"));
+  return { ...baseline, ready: baseline.ready && Boolean(version) &&
+    required.every((item) => item.status === "ready") };
 }
 
 function repository(project: ProjectDeliverySummaryRecord) {

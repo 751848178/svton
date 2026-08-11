@@ -21,7 +21,7 @@ CREATE TABLE `ProductionPromotionReconcileCommand` (
   `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   `updatedAt` DATETIME(3) NOT NULL,
 
-  UNIQUE INDEX `ProductionPromotionReconcileCommand_promotionCommandId_idempotencyKey_key`(`promotionCommandId`, `idempotencyKey`),
+  UNIQUE INDEX `prod_promo_reconcile_command_idem_key`(`promotionCommandId`, `idempotencyKey`),
   INDEX `ProductionPromotionReconcileCommand_teamId_idx`(`teamId`),
   INDEX `ProductionPromotionReconcileCommand_projectId_idx`(`projectId`),
   INDEX `ProductionPromotionReconcileCommand_releaseOrderId_idx`(`releaseOrderId`),

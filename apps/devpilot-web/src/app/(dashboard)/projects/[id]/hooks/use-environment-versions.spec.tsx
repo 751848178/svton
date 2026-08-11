@@ -113,4 +113,18 @@ describe('useEnvironmentVersions refresh contract', () => {
     );
     expect(mocks.mutateCache).toHaveBeenCalledTimes(1);
   });
+
+  it('shows a blocked domain result returned with HTTP 200', async () => {
+    mocks.apiRequest.mockImplementation((endpoint: string) => endpoint.startsWith('GET:')
+      ? Promise.resolve({ environments: [], candidates: { staging: [], production: [] } })
+      : Promise.resolve({ status: 'blocked', errorCode: 'READBACK_UNKNOWN',
+          errorMessage: 'Provider readback is inconclusive' }));
+    function Harness() { latest = useEnvironmentVersions('project-1'); return null; }
+    await act(async () => root.render(<Harness />));
+    await act(async () => undefined);
+    await act(async () => {
+      await latest.reconcilePromotion('environment-1', 'promotion-1');
+    });
+    expect(latest.error).toBe('Provider readback is inconclusive');
+  });
 });

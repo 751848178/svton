@@ -11,40 +11,32 @@ import { expectedReleaseBuildSupplyProof } from "./release-build-supply-proof.po
 import { scanSupervisorSource } from "./release-build-supervisor-security";
 import { supervisorGateSummary } from "./release-build-supervisor-result.presenter";
 import { watchSupervisorCancellation } from "./release-build-supervisor-cancellation";
-import {
-  sameWorkerIdentity,
-  signWorkerResult,
-  verifyWorkerRequest,
-  type ReleaseBuildWorkerRequest,
-} from "./release-build-worker-envelope.policy";
+import { signWorkerResult, verifyWorkerRequest,
+  type ReleaseBuildWorkerRequest } from "./release-build-worker-envelope.policy";
 import {
   readImmutableWorkerJson,
   workerJobDirectory,
   writeImmutableWorkerJson,
 } from "./release-build-worker-exchange";
-import {
-  createBrokerJobLayout,
-  transferBuildWorkspace,
-} from "./release-build-worker-job-layout";
+import { createBrokerJobLayout,
+  transferBuildWorkspace } from "./release-build-worker-job-layout";
 import { readReleaseBuildWorkerSecret } from "./release-build-worker-secret";
 import { hashWorkerFile } from "./release-build-worker-source-archive";
 import { verifyExtractedWorkerSource } from "./release-build-worker-source-manifest";
-import {
-  buildSourcePolicySnapshot,
-  sourcePolicySnapshotHash,
-} from "./source-policy-snapshot.policy";
+import { buildSourcePolicySnapshot,
+  sourcePolicySnapshotHash } from "./source-policy-snapshot.policy";
 
 export type FilesystemWorkerConfig = {
   inputRoot: string; outputRoot: string; workRoot: string; secretFile: string;
   commandPath: string; tarExecutable: string; commandTimeoutMs: number;
   cancelGraceMs: number; brokerUid: number; brokerGid: number;
-  externalOci?: { image: string; dockerExecutable: string };
+  externalOci?: { image: string; dockerExecutable: string; launcherLabel: string };
 };
 
 export class ReleaseBuildFilesystemWorker {
   constructor(private readonly config: FilesystemWorkerConfig) {}
 
-  async runJob(jobId: string) {
+  async runJob(jobId: string, shutdownSignal?: AbortSignal) {
     const inputDirectory = await workerJobDirectory(this.config.inputRoot, jobId, false);
     const request = await readImmutableWorkerJson<ReleaseBuildWorkerRequest>(
       join(inputDirectory, "request.json"),
@@ -56,6 +48,7 @@ export class ReleaseBuildFilesystemWorker {
     const cancellation = watchSupervisorCancellation({
       inputDirectory, secretFile: this.config.secretFile, request,
     });
+    const signal = combineSignals(cancellation.signal, shutdownSignal);
     let broker: Awaited<ReturnType<typeof createBrokerJobLayout>> | undefined;
     try {
       const sourceRoot = await this.extractAndVerify(inputDirectory, trustedRoot, request);
@@ -64,7 +57,7 @@ export class ReleaseBuildFilesystemWorker {
         commandPath: this.config.commandPath,
         commandTimeoutMs: this.config.commandTimeoutMs,
         cancelGraceMs: this.config.cancelGraceMs,
-        signal: cancellation.signal,
+        signal,
       });
       broker = await createBrokerJobLayout({
         root: join(this.config.workRoot, "broker-jobs"),
@@ -94,12 +87,13 @@ export class ReleaseBuildFilesystemWorker {
         supplyProof: expectedReleaseBuildSupplyProof(profile),
         brokerUid: this.config.brokerUid, brokerGid: this.config.brokerGid,
         timeoutMs: this.config.commandTimeoutMs,
-        signal: cancellation.signal,
+        signal,
       };
       const brokerResult = this.config.externalOci
         ? await runExternalOciBroker({ ...brokerInput,
           image: this.config.externalOci.image,
-          dockerExecutable: this.config.externalOci.dockerExecutable })
+          dockerExecutable: this.config.externalOci.dockerExecutable,
+          launcherLabel: this.config.externalOci.launcherLabel })
         : await this.runTrustedTestBroker(brokerInput);
       if (brokerResult.status !== "succeeded" || !brokerResult.result) {
         throw brokerResult.failure ?? new Error("broker failed");
@@ -199,3 +193,6 @@ function unsigned(request: ReleaseBuildWorkerRequest) {
   return value;
 }
 async function exists(path: string) { try { await access(path); return true; } catch { return false; } }
+function combineSignals(first: AbortSignal, second?: AbortSignal) {
+  return second ? AbortSignal.any([first, second]) : first;
+}

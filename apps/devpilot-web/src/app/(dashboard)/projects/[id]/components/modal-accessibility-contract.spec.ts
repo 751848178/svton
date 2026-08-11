@@ -15,7 +15,7 @@ describe('core release Modal accessibility contract', () => {
     expect(modal).toContain("element.hasAttribute('disabled')");
     expect(modal).toContain("data-overlay-topmost={overlay.topmost ? 'true' : 'false'}");
     const overlay = source('packages/ui/src/hooks/useOverlay.ts');
-    expect(overlay).toContain('stack.at(-1) === id.current');
+    expect(overlay).toContain('stack[stack.length - 1] === id.current');
     expect(overlay).toContain('bodyLockCount');
     expect(modal).toContain('min-h-11 min-w-11');
   });

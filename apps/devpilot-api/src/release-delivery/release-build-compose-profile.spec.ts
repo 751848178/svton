@@ -74,6 +74,10 @@ describe("F426 V13 compose profile", () => {
     }
     expect(source).not.toContain("/var/run/docker.sock");
     expect(source).not.toContain("release-build-worker:");
+    const launcher = await readFile(resolve(root,
+      "scripts/devpilot/run-release-build-external-oci-launcher.sh"), "utf8");
+    expect(launcher).not.toMatch(/\binstall\s+-d\b/);
+    expect(launcher).toContain("pre-provisioned directory missing");
   });
 
   it("keeps the F431 password SSH fixture isolated from source and build tools", async () => {

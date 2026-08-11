@@ -21,6 +21,7 @@ jest.mock("node:child_process", () => ({
         if (args[0] === "start") child.stdout.end(JSON.stringify({
           version: 1, status: "succeeded", result: { artifact: {}, logs: [], gateSummary: {} },
         }));
+        if (args[0] === "ps") child.stdout.end("abcdef123456\n123456abcdef\n");
         child.emit("close", 0);
       }
     });
@@ -28,7 +29,8 @@ jest.mock("node:child_process", () => ({
   },
 }));
 
-import { runExternalOciBroker } from "./release-build-external-oci-runner";
+import { cleanupExternalOciLauncherContainers,
+  runExternalOciBroker } from "./release-build-external-oci-runner";
 
 const describeRootLinux = process.platform === "linux" && process.getuid?.() === 0
   ? describe : describe.skip;
@@ -67,6 +69,20 @@ describeRootLinux("external OCI broker lifecycle", () => {
       supplyProof: {} as never,
       image: `registry.test/devpilot/api@sha256:${"a".repeat(64)}`,
       dockerExecutable: "/usr/bin/docker", timeoutMs: 1_000,
+      launcherLabel: "launcher_instance_01",
     });
   }
+});
+
+describe("external OCI launcher stale cleanup", () => {
+  beforeEach(() => { calls.length = 0; failStart = false; });
+  it("cleans only containers selected by the exact launcher label", async () => {
+    await cleanupExternalOciLauncherContainers({ dockerExecutable: "/usr/bin/docker",
+      launcherLabel: "launcher_instance_01" });
+    expect(calls[0]).toEqual(["ps", "--all", "--quiet", "--filter",
+      "label=devpilot.release-build.launcher=launcher_instance_01"]);
+    expect(calls.slice(1)).toEqual([
+      ["rm", "--force", "abcdef123456"], ["rm", "--force", "123456abcdef"],
+    ]);
+  });
 });

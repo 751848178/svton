@@ -1,6 +1,5 @@
 import { access, readdir } from "node:fs/promises";
 import { constants } from "node:fs";
-import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { ReleaseBuildFilesystemWorker } from "./release-build-filesystem-worker";
 import { assertWorkerJobId } from "./release-build-worker-exchange";
@@ -9,6 +8,9 @@ import { exactOciImage, launcherControlsDigest, signLauncherProof,
   writeLauncherProof } from "./release-build-launcher-proof.policy";
 import { resolveRegisteredReleaseBuildProfile } from "./release-build-acceptance-profile";
 import { verifyReleaseBuildSupplyProof } from "./release-build-supply-proof.policy";
+import { assertReleaseBuildLauncherHostContract } from "./release-build-launcher-host-contract";
+import { cleanupExternalOciLauncherContainers } from "./release-build-external-oci-runner";
+import { assertLauncherLabel } from "./release-build-external-oci.policy";
 
 async function main() {
   const config = {
@@ -26,6 +28,7 @@ async function main() {
     externalOci: {
       image: requiredImage("RELEASE_BUILD_LAUNCHER_JOB_IMAGE"),
       dockerExecutable: requiredPath("RELEASE_BUILD_LAUNCHER_DOCKER_EXECUTABLE"),
+      launcherLabel: assertLauncherLabel(required("RELEASE_BUILD_LAUNCHER_INSTANCE_LABEL")),
     },
     proofFile: requiredPath("RELEASE_BUILD_LAUNCHER_PROOF_FILE"),
     supplyProofFile: requiredPath("RELEASE_BUILD_SUPPLY_PROOF_FILE"),
@@ -33,9 +36,18 @@ async function main() {
   if (process.getuid?.() !== 0 || config.brokerUid === 0 || config.brokerGid === 0) {
     throw new Error("release-build supervisor requires root and a non-root broker uid/gid");
   }
+  const hostPaths = await assertReleaseBuildLauncherHostContract({
+    inputRoot: config.inputRoot, outputRoot: config.outputRoot,
+    workRoot: config.workRoot, proofFile: config.proofFile,
+    secretFile: config.secretFile, supplyProofFile: config.supplyProofFile,
+    dockerExecutable: config.externalOci.dockerExecutable,
+  });
+  Object.assign(config, hostPaths, { externalOci: {
+    ...config.externalOci, dockerExecutable: hostPaths.dockerExecutable,
+  } });
   const secret = await readReleaseBuildWorkerSecret(config.secretFile);
   await assertToolchain(config.supplyProofFile);
-  const instance = randomUUID().replaceAll("-", "");
+  const instance = config.externalOci.launcherLabel;
   const startedAt = new Date().toISOString();
   const heartbeat = () => writeLauncherProof(config.proofFile, signLauncherProof({
     schemaVersion: 1, provider: "external-oci-launcher-v1",
@@ -43,6 +55,10 @@ async function main() {
     jobImage: config.externalOci.image, controlsDigest: launcherControlsDigest,
     launcherInstanceId: instance, startedAt, heartbeatAt: new Date().toISOString(),
   }, secret));
+  await cleanupExternalOciLauncherContainers({
+    dockerExecutable: config.externalOci.dockerExecutable,
+    launcherLabel: config.externalOci.launcherLabel,
+  });
   await heartbeat();
   const heartbeatTimer = setInterval(() => void heartbeat().catch((error) => {
     process.stderr.write(`release-build launcher heartbeat: ${safe(error)}\n`);
@@ -50,12 +66,14 @@ async function main() {
   heartbeatTimer.unref();
   const worker = new ReleaseBuildFilesystemWorker(config);
   let stopping = false;
-  process.once("SIGTERM", () => { stopping = true; });
-  process.once("SIGINT", () => { stopping = true; });
+  const shutdown = new AbortController();
+  const stop = () => { stopping = true; shutdown.abort(); };
+  process.once("SIGTERM", stop);
+  process.once("SIGINT", stop);
   while (!stopping) {
     for (const jobId of await jobs(config.inputRoot)) {
       try {
-        await worker.runJob(jobId);
+        await worker.runJob(jobId, shutdown.signal);
       } catch (error) {
         process.stderr.write(`release-build-worker ${jobId}: ${safe(error)}\n`);
       }
@@ -79,6 +97,11 @@ function requiredPath(key: string) {
   const value = process.env[key];
   if (!value || !value.startsWith("/")) throw new Error(`${key} must be absolute`);
   return resolve(value);
+}
+function required(key: string) {
+  const value = process.env[key];
+  if (!value) throw new Error(`${key} is required`);
+  return value;
 }
 function positive(key: string, fallback: number) {
   const value = Number(process.env[key]);

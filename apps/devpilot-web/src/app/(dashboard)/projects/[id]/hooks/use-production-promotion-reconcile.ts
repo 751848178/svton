@@ -2,6 +2,8 @@
 
 import { useCallback, useState } from 'react';
 import { apiRequest } from '@/lib/api-client';
+import { promotionActionDomainError, type PromotionActionResult } from
+  '../utils/promotion-action-result.model';
 
 export function useProductionPromotionReconcile(
   projectId: string,
@@ -15,11 +17,12 @@ export function useProductionPromotionReconcile(
     setReconciling(true);
     setError('');
     try {
-      const result = await apiRequest<Record<string, unknown>>(
+      const result = await apiRequest<PromotionActionResult>(
         `POST:/projects/${projectId}/delivery/environment-versions/${environmentId}/production-promotion/reconcile`,
         { promotionCommandId, idempotencyKey: crypto.randomUUID() },
       );
       await onChanged();
+      setError(promotionActionDomainError(result) ?? '');
       return result;
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught));

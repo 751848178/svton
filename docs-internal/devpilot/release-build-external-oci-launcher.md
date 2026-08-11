@@ -45,6 +45,20 @@ capabilities. The earlier same-container UID runner remains test-fixture-only.
    variables. The proof is a directory bind, so atomic heartbeat replacements
    are visible inside the API container.
 
+Every configured input, output, work, heartbeat proof, HMAC secret, supply proof,
+Docker executable and scanner/package executable path must already exist. The
+launcher resolves every path segment without following symlinks, verifies the
+expected owner/mode/type, and rejects any pair of paths where one contains the
+other. Its startup script intentionally does not call `install -d`, `mkdir` or
+change ownership: host provisioning is a separate privileged operation.
+
+`RELEASE_BUILD_LAUNCHER_INSTANCE_LABEL` is stable across restarts of one launcher
+installation. Startup removes only containers with that exact label. SIGTERM or
+SIGINT aborts the current job; Docker kill/remove completes before systemd's
+bounded stop timeout expires. The broker scans the read-only source mount first,
+then copies it into its private writable `/work/build` tree for package install,
+build and artifact collection. Repository commands never mutate `/source`.
+
 The host acceptance run must retain the launcher log, exact job image digest,
 heartbeat proof, Docker inspect evidence and focused build result. Failure to
 prove any of them is a product blocker, never a passed or deferred gate.
