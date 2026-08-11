@@ -150,12 +150,16 @@ RUN "$PNPM_EXECUTABLE" fetch --frozen-lockfile --ignore-scripts \
       --dir=/tmp/dependency-public-fixture \
  && chmod -R a-w /tmp/dependency-public-store \
  && mkdir -p /home /tmp/pnpm-offline-proof \
- && cp -R /tmp/dependency-public-fixture/. /tmp/pnpm-offline-proof/ \
+ && cp /tmp/dependency-public-fixture/package.json \
+      /tmp/dependency-public-fixture/pnpm-lock.yaml \
+      /tmp/pnpm-offline-proof/ \
+ && test ! -e /tmp/pnpm-offline-proof/node_modules \
  && cp -R /tmp/dependency-public-store /tmp/pnpm-offline-proof/store \
  && chown -R 3000:3000 /home /tmp/pnpm-offline-proof
 USER 3000:3000
 ENV HOME=/home
-RUN --network=none test "$("$PNPM_EXECUTABLE" --version)" = '8.12.0' \
+RUN --network=none export CI=true \
+ && test "$("$PNPM_EXECUTABLE" --version)" = '8.12.0' \
  && "$PNPM_EXECUTABLE" install --offline --frozen-lockfile \
       --ignore-scripts \
       --store-dir=/tmp/pnpm-offline-proof/store \

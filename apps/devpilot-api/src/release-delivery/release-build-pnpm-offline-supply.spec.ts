@@ -29,11 +29,25 @@ describe("controlled acceptance pnpm supply", () => {
     expect(dockerfile).toContain("USER 3000:3000");
     expect(dockerfile).toContain("ENV HOME=/home");
     expect(dockerfile).toContain("RUN --network=none");
+    expect(dockerfile).toContain("RUN --network=none export CI=true");
     expect(dockerfile).toContain('"$PNPM_EXECUTABLE" install --offline --frozen-lockfile');
     expect(dockerfile).toContain("--dir=/tmp/pnpm-offline-proof");
     expect(dockerfile).toContain('fetch --frozen-lockfile --ignore-scripts');
     expect(dockerfile).toContain("node_modules/is-number/package.json");
     expect(dockerfile).toContain("test ! -e /tmp/pnpm-offline-proof/preinstall-ran");
+    expect(dockerfile).toContain(
+      "cp /tmp/dependency-public-fixture/package.json \\",
+    );
+    expect(dockerfile).toContain(
+      "/tmp/dependency-public-fixture/pnpm-lock.yaml \\",
+    );
+    expect(dockerfile).toContain(
+      "test ! -e /tmp/pnpm-offline-proof/node_modules",
+    );
+    expect(dockerfile).not.toContain(
+      "cp -R /tmp/dependency-public-fixture/. /tmp/pnpm-offline-proof/",
+    );
+    expect(dockerfile).not.toContain("install --force");
   });
 
   it("uses the same mounted store for dependency install and rebuild", () => {
