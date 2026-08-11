@@ -88,11 +88,16 @@ export class ReleaseDependencyApiCoordinator {
         dependency.cacheGeneration, dependency.storeDigest!);
       return "retry" as const;
     }
-    if (result.status !== "succeeded" && this.active.has(buildRunId))
-      await this.finishActive(buildRunId,
-        result.failure?.code || "dependency_fetch_worker_failed");
+    if (this.active.has(buildRunId)) {
+      const reason = result.status === "succeeded"
+        ? "DEPENDENCY_READY_EVIDENCE_MISSING"
+        : result.failure?.code || "dependency_fetch_worker_failed";
+      await this.finishActive(buildRunId, reason);
+      if (result.status === "succeeded") throw unavailable(reason);
+      return "complete" as const;
+    }
+    if (result.status !== "succeeded") return "complete" as const;
     if (!result.dependencyStore) {
-      await this.finishActive(buildRunId, "dependency_fetch_result_missing");
       throw unavailable("dependency_fetch_result_missing");
     }
     assertEvidence(dependency, result.dependencyStore);

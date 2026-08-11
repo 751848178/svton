@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 
 describe("release dependency store migration contract", () => {
@@ -21,7 +22,6 @@ describe("release dependency store migration contract", () => {
     expect(sql).toContain("UNIQUE INDEX `DependencyFetch_combination_key`");
     expect(leaseSql).toContain("`leaseTokenHash` VARCHAR(191) NULL");
     expect(leaseSql).toContain("DROP COLUMN `leaseToken`");
-    expect(leaseSql).toContain("`storeDigest` = NULL");
     expect(leaseSql).toContain("`leaseExpiresAt` DATETIME(3) NULL");
     expect(schema).toContain(
       'combinationHash      String   @unique(map: "DependencyFetch_combination_key")',
@@ -46,8 +46,15 @@ describe("release dependency store migration contract", () => {
   });
 
   it("adds a monotonic cache generation without rewriting migration 220000", () => {
+    expect(createHash("sha256").update(leaseSql).digest("hex"))
+      .toBe("04c42442cc4da3b2ed0c9b3401351e13e5ce377c1aefaa3f1f91a359b8d60033");
+    expect(leaseSql).not.toContain("`storeDigest` = NULL");
     expect(generationSql).toContain("`cacheGeneration` INTEGER NOT NULL DEFAULT 0");
     expect(generationSql).toContain("SET `cacheGeneration` = 1");
+    expect(generationSql).toContain("SET `storeDigest` = NULL");
+    expect(generationSql).toContain(
+      "`errorCode` = 'dependency_identity_upgrade_required'",
+    );
     expect(generationSql).toContain("`dependencyStoreGeneration` INTEGER NULL");
     expect(schema).toContain("cacheGeneration      Int      @default(0)");
     expect(schema).toContain("dependencyStoreGeneration Int?");

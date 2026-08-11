@@ -67,6 +67,34 @@ describe("ReleaseDependencyApiCoordinator", () => {
     expect(repository.heartbeat).not.toHaveBeenCalled();
   });
 
+  it("blocks a successful final result that skipped dependency-ready", async () => {
+    const repository = repo({ role: "owner", row: { storeDigest: null,
+      cacheGeneration: 4 }, leaseToken: "raw" });
+    const coordinator = new ReleaseDependencyApiCoordinator(repository as never);
+    const dependency = await coordinator.prepare(await input());
+    await expect(coordinator.acceptFinal("build-1", dependency, {
+      status: "succeeded", dependencyStore: evidence(dependency, "digest"),
+    } as never)).rejects.toMatchObject({ detail: { gateSummary: {
+      dependencyStore: { reasonCode: "DEPENDENCY_READY_EVIDENCE_MISSING" } } } });
+    expect(repository.finish).toHaveBeenCalledWith(expect.objectContaining({
+      cacheGeneration: 4, code: "DEPENDENCY_READY_EVIDENCE_MISSING" }));
+    await coordinator.heartbeat("build-1", dependency);
+    expect(repository.heartbeat).not.toHaveBeenCalled();
+  });
+
+  it("preserves the worker failure after an idempotent lease takeover", async () => {
+    const repository = repo({ role: "owner", row: { storeDigest: null,
+      cacheGeneration: 5 }, leaseToken: "raw" });
+    repository.finish.mockResolvedValue(undefined);
+    const coordinator = new ReleaseDependencyApiCoordinator(repository as never);
+    const dependency = await coordinator.prepare(await input());
+    await expect(coordinator.acceptFinal("build-1", dependency, {
+      status: "failed", failure: { code: "ORIGINAL_WORKER_FAILURE" },
+    } as never)).resolves.toBe("complete");
+    expect(repository.finish).toHaveBeenCalledWith(expect.objectContaining({
+      code: "ORIGINAL_WORKER_FAILURE" }));
+  });
+
   it("surfaces a permanent blocked reason instead of entering the wait loop", async () => {
     const repository = repo({ role: "blocked",
       row: { errorCode: "dependency_private_registry_forbidden" } });

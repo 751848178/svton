@@ -98,6 +98,16 @@ describe("ReleaseDependencyFetchRepository", () => {
       .rejects.toThrow("依赖预取状态已被其他执行占用");
   });
 
+  it.each([
+    ["higher generation", { ...row("fetching"), cacheGeneration: 2 }],
+    ["terminal state", { ...row("succeeded"), cacheGeneration: 1 }],
+  ])("treats a lease taken over by %s as an idempotent finish", async (_, current) => {
+    const fixture = setup(current, 0);
+    await expect(repository(fixture).finish({ fetchRunId: "dep_hash",
+      cacheGeneration: 1, leaseToken: "old", status: "failed",
+      code: "original", message: "original" })).resolves.toBeUndefined();
+  });
+
   it("atomically completes the store and freezes the BuildRun relation", async () => {
     const fixture = setup(row("verifying"), 1);
     const token = "raw-token";

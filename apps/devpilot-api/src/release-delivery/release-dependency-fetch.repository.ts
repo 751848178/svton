@@ -122,7 +122,13 @@ export class ReleaseDependencyFetchRepository {
         errorMessage: input.message, leaseTokenHash: null, leasedAt: null,
         heartbeatAt: null, leaseExpiresAt: null, finishedAt: now },
     });
-    if (result.count !== 1) throw conflict();
+    if (result.count === 1) return;
+    const current = await this.prisma.releaseDependencyFetchRun.findUnique({
+      where: { id: input.fetchRunId },
+      select: { cacheGeneration: true, status: true } });
+    if (current && (current.cacheGeneration > input.cacheGeneration ||
+      !["fetching", "verifying"].includes(current.status))) return;
+    throw conflict();
   }
 }
 
