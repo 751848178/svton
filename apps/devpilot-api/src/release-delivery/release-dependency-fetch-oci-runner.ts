@@ -10,6 +10,8 @@ import type { DependencyFetchIdentity } from "./release-dependency-store-contrac
 import { RELEASE_DEPENDENCY_STORE_CONTRACT } from "./release-dependency-store-contract";
 import { createDependencyStoreManifest, promoteDependencyStore,
   verifyDependencyStore } from "./release-dependency-store-filesystem";
+import { DEPENDENCY_FETCH_PACKAGE_DIGEST,
+  DEPENDENCY_FETCH_PACKAGE_JSON } from "./release-dependency-fetch-workspace";
 
 export async function runDependencyFetchOci(input: {
   identity: DependencyFetchIdentity; lockfile: Buffer;
@@ -23,11 +25,14 @@ export async function runDependencyFetchOci(input: {
   await mkdir(controlRoot, { mode: 0o700 });
   const pendingRoot = await mkdtemp(join(input.cacheRoot, ".pending", "fetch-"));
   await chown(pendingRoot, 3_000, 3_000);
-  const payload = { schemaVersion: 1, ...input.identity };
+  const payload = { schemaVersion: 1, ...input.identity,
+    packageManifestDigest: DEPENDENCY_FETCH_PACKAGE_DIGEST };
   await Promise.all([
     writeFile(join(controlRoot, "fetch-input.json"), JSON.stringify(payload),
       { flag: "wx", mode: 0o444 }),
     writeFile(join(controlRoot, "pnpm-lock.yaml"), input.lockfile,
+      { flag: "wx", mode: 0o444 }),
+    writeFile(join(controlRoot, "package.json"), DEPENDENCY_FETCH_PACKAGE_JSON,
       { flag: "wx", mode: 0o444 }),
   ]);
   await chmod(controlRoot, 0o555);

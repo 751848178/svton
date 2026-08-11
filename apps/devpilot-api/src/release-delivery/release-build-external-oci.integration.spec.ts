@@ -36,7 +36,9 @@ describeDocker("external OCI launcher real Docker boundary", () => {
     });
     storeDigest = manifest.storeDigest;
     await writeFile(join(root, "dependency-store", "manifest.json"),
-      JSON.stringify(manifest));
+      JSON.stringify(manifest), { mode: 0o400 });
+    await chmod(join(root, "dependency-store", "store"), 0o500);
+    await chmod(join(root, "dependency-store"), 0o500);
     await chown(join(root, "output"), 3_000, 3_000);
     await chmod(join(root, "output"), 0o700);
   });
@@ -81,7 +83,8 @@ function broker(root: string, jobId: string, success = false) {
   } as never, jobRoot: root, workRoot: join(root, "unused"),
   buildRoot: join(root, "source"), artifactRoot: join(root, "output"),
   dependencyStoreRoot: join(root, "dependency-store"),
-  supplyProofFile: join(root, "unused-proof"), commandPath: "/usr/bin:/bin",
+  supplyProofFile: join(root, "unused-proof"),
+  commandPath: "/usr/local/bin:/usr/bin:/bin",
   commandTimeoutMs: 1_000, cancelGraceMs: 50,
   prepared: { security: {}, sourceSnapshot: {
     sourceCommitSha: "a".repeat(40), treeHash: "tree", snapshotDigest: "snapshot",

@@ -35,7 +35,7 @@ describe("external OCI launcher argv policy", () => {
       .rejects.toThrow("escapes");
   });
 
-  it("runs the trusted fetcher with only lock control and store output mounts", async () => {
+  it("runs the trusted fetcher with read-only control and store output mounts", async () => {
     const job = await fixture();
     const network: DependencyNetworkJob = {
       fetchName: "dp-fetch-0123456789abcdef", proxyName: "dp-proxy-0123456789abcdef",
@@ -46,9 +46,11 @@ describe("external OCI launcher argv policy", () => {
       "--network", network.networkName, "--read-only", "--cap-drop", "ALL",
       "HTTPS_PROXY=http://registry-egress-proxy:3128",
       "npm_config_registry=https://registry.npmjs.org",
+      "--tmpfs", "/tmp:rw,nosuid,nodev,size=64m,mode=0700,uid=3000,gid=3000",
       "/app/apps/devpilot-api/dist/release-delivery/release-dependency-fetcher.main.js",
     ]));
     expect(args.filter((arg) => arg.startsWith("--mount="))).toHaveLength(2);
+    expect(args.find((arg) => arg.includes("dst=/job"))).toContain("readonly");
     expect(args.join(" ")).not.toMatch(/\/source|docker\.sock|HMAC|secret/i);
     expect(dependencyNetworkCreateArguments(network)).toContain("--internal");
     expect(dependencyProxyCreateArguments(network)).toEqual(expect.arrayContaining([

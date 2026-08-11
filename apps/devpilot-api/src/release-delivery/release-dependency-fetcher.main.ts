@@ -1,15 +1,17 @@
-import { createHash } from "node:crypto";
 import { constants } from "node:fs";
 import { open } from "node:fs/promises";
 import { resolveRegisteredReleaseBuildProfile } from "./release-build-acceptance-profile";
 import { runReleaseBuildArgv } from "./release-build-argv-command-runner";
 import { buildSourcePolicySnapshot, sourcePolicySnapshotHash } from "./source-policy-snapshot.policy";
 import { expectedReleaseBuildSupplyProof } from "./release-build-supply-proof.policy";
+import { createDependencyFetchWorkspace, DEPENDENCY_FETCH_PACKAGE_DIGEST,
+  dependencyFetchArgv } from "./release-dependency-fetch-workspace";
 
 type FetchInput = {
   schemaVersion: 1; combinationHash: string; lockfileDigest: string;
   profileId: string; profileVersion: number; pnpmVersion: string;
   profileSnapshotHash: string; supplyChainDigest: string;
+  packageManifestDigest: string;
   platformOs: "linux"; platformArch: "amd64" | "arm64";
   platformAbi: string; platformLibc: string;
   registryPolicyDigest: string;
@@ -25,29 +27,28 @@ async function main() {
     policy.platformAbi !== input.platformAbi || policy.platformLibc !== input.platformLibc ||
     sourcePolicySnapshotHash(buildSourcePolicySnapshot(profile)) !== input.profileSnapshotHash ||
     expectedReleaseBuildSupplyProof(profile).supplyChainDigest !== input.supplyChainDigest ||
-    policy.registryPolicyDigest !== input.registryPolicyDigest) throw invalid();
-  const lock = await readBounded("/job/pnpm-lock.yaml", 10 * 1024 * 1024);
-  if (createHash("sha256").update(lock).digest("hex") !== input.lockfileDigest)
-    throw invalid();
+    policy.registryPolicyDigest !== input.registryPolicyDigest ||
+    input.packageManifestDigest !== DEPENDENCY_FETCH_PACKAGE_DIGEST) throw invalid();
   const executable = profile.packageManagers.pnpm?.executable;
   if (!executable) throw invalid();
-  const outcome = await runReleaseBuildArgv({
-    executable,
-    args: ["fetch", "--frozen-lockfile", "--ignore-scripts",
-      "--store-dir=/output/store", "--config.registry=https://registry.npmjs.org",
-      "--config.ignore-scripts=true", "--dir=/job"],
-    cwd: "/job", env: { PATH: "/usr/local/bin:/usr/bin:/bin", HOME: "/home",
-      TMPDIR: "/tmp", CI: "true", npm_config_registry: policy.registry,
-      HTTPS_PROXY: "http://registry-egress-proxy:3128",
-      HTTP_PROXY: "http://registry-egress-proxy:3128",
-      npm_config_https_proxy: "http://registry-egress-proxy:3128",
-      npm_config_proxy: "http://registry-egress-proxy:3128" },
-    timeoutMs: 10 * 60_000, cancelGraceMs: 5_000,
-  });
-  if (outcome.kind !== "completed" || outcome.exitCode !== 0)
-    throw new Error("Dependency fetch failed");
-  process.stdout.write(JSON.stringify({ schemaVersion: 1, status: "succeeded",
-    combinationHash: input.combinationHash }));
+  const workspace = await createDependencyFetchWorkspace({ controlRoot: "/job",
+    temporaryRoot: "/tmp", packageDigest: input.packageManifestDigest,
+    lockfileDigest: input.lockfileDigest });
+  try {
+    const outcome = await runReleaseBuildArgv({ executable,
+      args: dependencyFetchArgv(workspace.root), cwd: workspace.root,
+      env: { PATH: "/usr/local/bin:/usr/bin:/bin", HOME: "/home",
+        TMPDIR: "/tmp", CI: "true", npm_config_registry: policy.registry,
+        HTTPS_PROXY: "http://registry-egress-proxy:3128",
+        HTTP_PROXY: "http://registry-egress-proxy:3128",
+        npm_config_https_proxy: "http://registry-egress-proxy:3128",
+        npm_config_proxy: "http://registry-egress-proxy:3128" },
+      timeoutMs: 10 * 60_000, cancelGraceMs: 5_000 });
+    if (outcome.kind !== "completed" || outcome.exitCode !== 0)
+      throw new Error("Dependency fetch failed");
+    process.stdout.write(JSON.stringify({ schemaVersion: 1, status: "succeeded",
+      combinationHash: input.combinationHash }));
+  } finally { await workspace.cleanup(); }
 }
 
 async function readInput(path: string) {
@@ -55,6 +56,7 @@ async function readInput(path: string) {
   if (value?.schemaVersion !== 1 || !hex(value.combinationHash) ||
     !hex(value.lockfileDigest) || !hex(value.registryPolicyDigest) ||
     !hex(value.profileSnapshotHash) || !hex(value.supplyChainDigest) ||
+    !hex(value.packageManifestDigest) ||
     typeof value.profileId !== "string" || !Number.isInteger(value.profileVersion) ||
     typeof value.pnpmVersion !== "string" || value.platformOs !== "linux" ||
     !["amd64", "arm64"].includes(value.platformArch) ||
