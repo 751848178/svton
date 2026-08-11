@@ -12,7 +12,7 @@ export function ProjectDeliveryHeader({
 }: {
   summary: ProjectDeliverySummary;
   showCreate: boolean;
-  onCreate: () => void;
+  onCreate?: () => void;
 }) {
   const t = useTranslations('projects');
   const router = useRouter();
@@ -62,7 +62,9 @@ export function ProjectDeliveryHeader({
         >
           {t('manageProject')}
         </LinkButton>
-        {showCreate ? <Button onClick={onCreate}>{t('createReleaseOrder')}</Button> : null}
+        {showCreate && onCreate ? (
+          <Button onClick={onCreate}>{t('createReleaseOrder')}</Button>
+        ) : null}
       </div>
     </header>
   );

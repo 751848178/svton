@@ -324,6 +324,38 @@ describe('ReleaseOrderProductionStep confirmation dialog', () => {
     expect(disabledRequest).not.toBeNull();
   });
 
+  it('shows the exact continue-release task while Production awaits validation', async () => {
+    const awaiting = productionRun('release-awaiting');
+    awaiting.status = 'awaiting_validation';
+    awaiting.operationApproval.status = 'approved';
+    const evidence = {
+      evidence: {
+        buildRuns: { items: [], total: 0, hasMore: false },
+        stagingDeploymentRuns: { items: [], total: 0, hasMore: false },
+        productionReleaseRuns: { items: [awaiting], total: 1, hasMore: false },
+      },
+      loading: false,
+      error: '',
+      load: vi.fn(),
+    } as unknown as ReleaseOrderEvidenceHook;
+    await act(async () => root.render(
+      <ReleaseOrderProductionStep
+        {...props(evidence)}
+        focusedReleaseRunId="release-awaiting"
+        focusedDeploymentRunId={undefined}
+        onFocus={vi.fn()}
+      />,
+    ));
+
+    expect(container.textContent).toContain('environmentVersionAwaitingValidation');
+    const continueLink = Array.from(container.querySelectorAll('a')).find(
+      (item) => item.textContent === 'environmentVersionContinueProduction',
+    );
+    expect(continueLink?.getAttribute('href')).toBe(
+      '/projects/project-1?view=environment-versions',
+    );
+  });
+
   it('does not offer a new production approval after the release artifact is frozen', async () => {
     await act(async () =>
       root.render(

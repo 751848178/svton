@@ -42,7 +42,7 @@ const VARIANT_CLASS: Record<NonNullable<ButtonVariant>, string> = {
 };
 
 const SIZE_CLASS: Record<NonNullable<ButtonSize>, string> = {
-  sm: 'min-h-9 px-3',
+  sm: 'min-h-11 px-3',
   md: 'min-h-11 px-4 py-2',
   icon: 'min-h-11 w-11 p-0',
 };

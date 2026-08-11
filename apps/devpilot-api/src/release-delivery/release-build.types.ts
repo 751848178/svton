@@ -22,7 +22,14 @@ export interface ReleaseBuildArtifactItem {
 }
 
 export interface ReleaseBuildRuntimeDescriptor {
-  profile: "controlled-local-v1";
+  profile: "controlled-local-v1" | "controlled-local-acceptance-v2";
+  profileVersion?: number;
+  runnerVersion?: string;
+  scannerRules?: Array<{
+    id: string;
+    toolVersion: string;
+    rulesDigest: string;
+  }>;
   runTimeoutMs: number;
   commandTimeoutMs: number;
   cancelGraceMs: number;
@@ -99,12 +106,14 @@ export interface ReleaseBuildResolvedSource {
     branch: string;
   };
   commitSha: string;
+  sourceEvidence: import("./release-build-source-evidence.types").ReleaseBuildSourceEvidence;
 }
 
 export interface ReleaseBuildExecutionInput {
   buildRunId: string;
   projectId: string;
   releaseOrderId: string;
+  sourceCommitSha: string;
   checkoutRoot: string;
   components: ReleaseBuildComponent[];
 }

@@ -104,9 +104,10 @@ function detectCommands(scripts: Record<string, string>): DetectedCommandSet {
     bootstrap: find(/bootstrap|initialize|init:prod/i),
     seed: find(/^seed|db:seed/i),
     backfill: find(/backfill/i),
+    status: find(/^status$|status:prod|health:check/i),
+    cleanup: find(/^stop$|^cleanup$|cleanup:prod/i),
   };
 }
-
 function detectFrameworks(deps: Record<string, string>): string[] {
   const mapping: Array<[string, string]> = [
     ['@nestjs/core', 'NestJS'], ['next', 'Next.js'], ['react', 'React'],
@@ -115,7 +116,6 @@ function detectFrameworks(deps: Record<string, string>): string[] {
   ];
   return mapping.filter(([key]) => deps[key]).map(([, label]) => label);
 }
-
 function pickVersions(deps: Record<string, string>): Record<string, string> {
   return Object.fromEntries(
     ['@nestjs/core', 'next', 'react', '@tarojs/taro', 'vue', 'nuxt', '@prisma/client']

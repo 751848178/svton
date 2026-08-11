@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { parseControlledBuildArgv } from "./release-build-command-argv.policy";
 
 export type ReleaseBuildCommandOutcome = {
   kind:
@@ -24,17 +25,26 @@ export function runControlledBuildCommand(input: {
   if (input.signal?.aborted) {
     return Promise.resolve(outcome("canceled", 1, [], []));
   }
+  let parsed: ReturnType<typeof parseControlledBuildArgv>;
+  try {
+    parsed = parseControlledBuildArgv(input.command);
+  } catch (error) {
+    return Promise.resolve({
+      ...outcome("spawn_failed", 1, [], [Buffer.from(String(error))]),
+    });
+  }
   return new Promise((resolvePromise) => {
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
     let outputBytes = 0;
     let terminalKind: ReleaseBuildCommandOutcome["kind"] | undefined;
     let killTimer: NodeJS.Timeout | undefined;
-    const child = spawn("/bin/sh", ["-c", input.command], {
+    const child = spawn(parsed.executable, parsed.args, {
       cwd: input.cwd,
       detached: true,
       env: input.env,
       stdio: ["ignore", "pipe", "pipe"],
+      shell: false,
     });
     const terminate = (kind: ReleaseBuildCommandOutcome["kind"]) => {
       if (terminalKind) return;

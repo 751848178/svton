@@ -73,6 +73,7 @@ function decisionInput(
     target: {
       sourceBranch: source.identity.branch,
       sourceCommitSha: source.commitSha,
+      sourceEvidence: source.sourceEvidence,
     },
     actionInput: {
       repositoryIdentityRevisionId: source.identity.revisionId,

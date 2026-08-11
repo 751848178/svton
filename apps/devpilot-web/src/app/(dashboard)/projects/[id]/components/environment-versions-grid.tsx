@@ -5,6 +5,7 @@ import type {
   EnvironmentVersionActionResult,
   EnvironmentVersionCandidates,
   EnvironmentVersionEnvironment,
+  ProductionPromotionResumeInput,
 } from '../types/environment-version.types';
 import { approvedEnvironmentVersionRun, EnvironmentVersionCard } from './environment-version-card';
 import { EnvironmentUpgradeDialog } from './environment-upgrade-dialog';
@@ -29,6 +30,10 @@ export function EnvironmentVersionsGrid(props: {
     },
   ) => Promise<EnvironmentVersionActionResult | null>;
   onRecovery: (environment: EnvironmentVersionEnvironment, sourceVersionId: string) => void;
+  onResumePromotion: (
+    environmentId: string,
+    input: ProductionPromotionResumeInput,
+  ) => Promise<unknown>;
 }) {
   const [selection, setSelection] = useState<Record<string, string>>({});
   const [upgradeTarget, setUpgradeTarget] = useState<UpgradeTarget | null>(null);
@@ -60,6 +65,7 @@ export function EnvironmentVersionsGrid(props: {
                 setUpgradeTarget({ environment, candidateId: candidate.id, releaseRunId })
               }
               onRecovery={(sourceVersionId) => props.onRecovery(environment, sourceVersionId)}
+              onResumePromotion={(input) => props.onResumePromotion(environment.id, input)}
             />
           );
         })}

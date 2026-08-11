@@ -68,7 +68,7 @@ describe("F454 isolated parity compose stack", () => {
     );
     for (const expected of [
       'RELEASE_BUILD_EXECUTION_ENABLED: "true"',
-      "RELEASE_BUILD_EXECUTOR_PROFILE: controlled-local-v1",
+      "RELEASE_BUILD_EXECUTOR_PROFILE: controlled-local-acceptance-v2",
       "RELEASE_BUILD_WORK_ROOT: /var/lib/devpilot/release-build/work",
       "RELEASE_BUILD_ARTIFACT_ROOT: /var/lib/devpilot/release-build/artifacts",
       'RELEASE_BUILD_RUN_TIMEOUT_MS: "180000"',

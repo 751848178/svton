@@ -13,6 +13,7 @@ import { RepositoryIdentityRevisionRepository } from "../repository-identity/rep
 import { RepositoryCredentialService } from "../repository-analysis/repository-credential.service";
 import { RepositoryGitCommandService } from "../repository-analysis/repository-git-command.service";
 import { RepositoryGitExecutorService } from "../repository-analysis/repository-git-executor.service";
+import { RepositoryGitInspectionService } from "../repository-analysis/repository-git-inspection.service";
 import { RepositoryIdentityBranchService } from "../repository-analysis/repository-identity-branch.service";
 import { seedReleaseBuildRealGitDatabase } from "./release-build-real-git-database.fixture";
 import { ReleaseBuildRepository } from "./release-build.repository";
@@ -24,6 +25,9 @@ import { ReleaseBuildService } from "./release-build.service";
 import { ReleaseBuildSourceResolverService } from "./release-build-source-resolver.service";
 import { gatePolicyTestDouble } from "./release-gate-test-decision.spec-utils";
 import type { ReleaseBuildExecutionInput } from "./release-build.types";
+import { ReleaseBuildSourceEvidenceService } from "./release-build-source-evidence.service";
+import { LocalReleaseEvidenceArtifactService } from "./local-release-evidence-artifact.service";
+import { SourcePolicyRevisionRepository } from "./source-policy-revision.repository";
 
 const git = promisify(execFile);
 
@@ -135,15 +139,13 @@ export class ReleaseBuildRealGitFixture {
     const config = new ConfigService({
       REPOSITORY_ANALYSIS_LOCAL_ROOTS: this.parentRoot,
       RELEASE_BUILD_EXECUTION_ENABLED: true,
-      RELEASE_BUILD_EXECUTOR_PROFILE: "controlled-local-v1",
+      RELEASE_BUILD_EXECUTOR_PROFILE: "controlled-local-acceptance-v2",
       RELEASE_BUILD_WORK_ROOT: join(this.parentRoot, "build-work"),
       RELEASE_BUILD_ARTIFACT_ROOT: join(this.parentRoot, "artifacts"),
       RELEASE_BUILD_MAX_CONCURRENCY: 1,
     });
-    const gitExecutor = new RepositoryGitExecutorService(
-      config,
-      new RepositoryGitCommandService(config),
-    );
+    const gitCommand = new RepositoryGitCommandService(config);
+    const gitExecutor = new RepositoryGitExecutorService(config, gitCommand);
     const credentials = new RepositoryCredentialService(
       this.db,
       createTestCryptoService(),
@@ -158,6 +160,12 @@ export class ReleaseBuildRealGitFixture {
       gitExecutor,
     );
     const runtime = new ReleaseBuildRuntimeProfileService(config);
+    const sourceEvidence = new ReleaseBuildSourceEvidenceService(
+      new RepositoryGitInspectionService(gitExecutor, gitCommand),
+      runtime,
+      new LocalReleaseEvidenceArtifactService(config),
+      new SourcePolicyRevisionRepository(this.db),
+    );
     const results = new ReleaseBuildResultRepository(this.db);
     const executor = {
       execute: async (input: ReleaseBuildExecutionInput) => {
@@ -178,7 +186,12 @@ export class ReleaseBuildRealGitFixture {
     };
     this.service = new ReleaseBuildService(
       new ReleaseBuildRepository(this.db),
-      new ReleaseBuildSourceResolverService(reads, credentials, gitExecutor),
+      new ReleaseBuildSourceResolverService(
+        reads,
+        credentials,
+        gitExecutor,
+        sourceEvidence,
+      ),
       gatePolicyTestDouble(this.prisma) as never,
       new ReleaseBuildRunnerService(
         results,

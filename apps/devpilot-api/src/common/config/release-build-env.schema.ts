@@ -4,7 +4,11 @@ import { booleanString, positiveInt } from "./env-schema-primitives";
 export const releaseBuildEnvSchema = z.object({
   RELEASE_BUILD_EXECUTION_ENABLED: booleanString.default("false"),
   RELEASE_BUILD_EXECUTOR_PROFILE: z
-    .enum(["disabled", "controlled-local-v1"])
+    .enum([
+      "disabled",
+      "controlled-local-v1",
+      "controlled-local-acceptance-v2",
+    ])
     .default("disabled"),
   RELEASE_BUILD_WORK_ROOT: z.string().optional(),
   RELEASE_BUILD_RUN_TIMEOUT_MS: positiveInt(1).default(900000),

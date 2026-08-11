@@ -10,6 +10,7 @@ interface Props {
   runStatus?: string;
   approvalStatus?: string;
   recoveryHref: string;
+  awaitingValidationHref: string;
   snapshotReady: boolean;
   confirming: boolean;
   onRequest: () => void;
@@ -28,6 +29,13 @@ export function ReleaseProductionPrimaryAction(props: Props) {
     );
   }
   if (props.active) {
+    if (props.runStatus === 'awaiting_validation') {
+      return (
+        <LinkButton data-primary="true" href={props.awaitingValidationHref}>
+          {t('environmentVersionContinueProduction')}
+        </LinkButton>
+      );
+    }
     return (
       <Button disabled>
         {props.runStatus === 'running'

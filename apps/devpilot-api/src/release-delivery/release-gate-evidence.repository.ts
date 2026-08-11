@@ -14,6 +14,16 @@ export const releaseGateEvidenceSelect = {
   releaseVersion: true,
   project: {
     select: {
+      currentSourcePolicyRevision: {
+        select: {
+          id: true,
+          profileId: true,
+          profileVersion: true,
+          externalRequiredChecks: true,
+          requiredIndependentApprovals: true,
+          snapshotHash: true,
+        },
+      },
       repositoryConnection: {
         select: {
           id: true,

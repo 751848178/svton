@@ -31,7 +31,7 @@ describe("ReleaseBuildRecoveryService", () => {
     const runtime = new ReleaseBuildRuntimeProfileService(
       config({
         RELEASE_BUILD_EXECUTION_ENABLED: true,
-        RELEASE_BUILD_EXECUTOR_PROFILE: "controlled-local-v1",
+        RELEASE_BUILD_EXECUTOR_PROFILE: "controlled-local-acceptance-v2",
         RELEASE_BUILD_WORK_ROOT: workRoot,
         RELEASE_BUILD_ARTIFACT_ROOT: artifactRoot,
       }),
@@ -59,7 +59,7 @@ describe("ReleaseBuildRecoveryService", () => {
     const runtime = new ReleaseBuildRuntimeProfileService(
       config({
         RELEASE_BUILD_EXECUTION_ENABLED: true,
-        RELEASE_BUILD_EXECUTOR_PROFILE: "controlled-local-v1",
+        RELEASE_BUILD_EXECUTOR_PROFILE: "controlled-local-acceptance-v2",
         RELEASE_BUILD_WORK_ROOT: workRoot,
         RELEASE_BUILD_ARTIFACT_ROOT: artifactRoot,
       }),

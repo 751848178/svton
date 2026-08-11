@@ -1,8 +1,11 @@
-import { UnprocessableEntityException } from "@nestjs/common";
+import { NotFoundException, UnprocessableEntityException } from "@nestjs/common";
 import { ReleaseGateManualConfirmationService } from "./release-gate-manual-confirmation.service";
 
 describe("ReleaseGateManualConfirmationService", () => {
-  const evaluations = { confirmManual: jest.fn() };
+  const evaluations = {
+    confirmManual: jest.fn(),
+    manualConfirmationTarget: jest.fn(),
+  };
   const service = new ReleaseGateManualConfirmationService(
     evaluations as never,
   );
@@ -31,5 +34,33 @@ describe("ReleaseGateManualConfirmationService", () => {
       UnprocessableEntityException,
     );
     expect(evaluations.confirmManual).not.toHaveBeenCalled();
+  });
+
+  it("resolves commit/build permission from the persisted gate", async () => {
+    evaluations.manualConfirmationTarget.mockResolvedValue({
+      id: "evaluation-1", gateId: "C06", buildRunId: "build-1",
+      releaseRunId: null, summary: {},
+    });
+    await expect(service.resolve({ ...input, gateId: "C06" }))
+      .resolves.toEqual({ permission: "build" });
+  });
+
+  it("requires exact candidate identity for a persisted promote gate", async () => {
+    evaluations.manualConfirmationTarget.mockResolvedValue({
+      id: "evaluation-1", gateId: "P03", buildRunId: "build-1",
+      releaseRunId: "release-1", summary: { decisionIdentity: {
+        deploymentRunId: "deployment-1", candidateHash: "a".repeat(64),
+      } },
+    });
+    await expect(service.resolve({ ...input, gateId: "P03" }))
+      .resolves.toEqual({ permission: "production" });
+  });
+
+  it("rejects a spoofed gate id even when the evaluation id exists", async () => {
+    evaluations.manualConfirmationTarget.mockResolvedValue({
+      id: "evaluation-1", gateId: "P03", summary: {},
+    });
+    await expect(service.resolve({ ...input, gateId: "C06" }))
+      .rejects.toThrow(NotFoundException);
   });
 });

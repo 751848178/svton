@@ -31,7 +31,7 @@ regardless of evidence. Pinned by `release-build-compose-profile.spec.ts`
 | env                                | parity value                                                                    | base default                   | effect                                               |
 | ---------------------------------- | ------------------------------------------------------------------------------- | ------------------------------ | ---------------------------------------------------- |
 | `RELEASE_BUILD_EXECUTION_ENABLED`  | `true`                                                                          | `false`                        | master switch; without it `assertAvailable()` throws |
-| `RELEASE_BUILD_EXECUTOR_PROFILE`   | `controlled-local-v1`                                                           | `disabled`                     | selects `LocalReleaseBuildExecutorService`           |
+| `RELEASE_BUILD_EXECUTOR_PROFILE`   | `controlled-local-acceptance-v2`                                                | `disabled`                     | selects the registered acceptance toolchain          |
 | `RELEASE_BUILD_WORK_ROOT`          | `/var/lib/devpilot/release-build/work` (volume `devpilot-parity-release-build`) | unset → `.`                    | checkout + runtime dirs must live under this root    |
 | `RELEASE_BUILD_ARTIFACT_ROOT`      | `/var/lib/devpilot/release-build/artifacts` (same volume)                       | unset → `.`                    | artifact bundle root                                 |
 | `RELEASE_BUILD_RUN_TIMEOUT_MS`     | `180000`                                                                        | `900000`                       | whole-run timeout                                    |

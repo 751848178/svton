@@ -11,6 +11,7 @@ import {
   type GateEvaluationScope,
   type PersistedGateStatus,
 } from "./gate-evaluation-persistence.utils";
+import { assertIndependentCodeApproval } from "./gate-evaluation-independent-approval.repository";
 
 @Injectable()
 export class GateEvaluationRepository {
@@ -93,6 +94,9 @@ export class GateEvaluationRepository {
     if (row.expiresAt && row.expiresAt.getTime() < Date.now()) {
       throw new UnprocessableEntityException("门禁证据已过期，必须重新检查");
     }
+    if (row.gateId === "C03") {
+      await assertIndependentCodeApproval(this.prisma, row, input.actorId);
+    }
     const confirmedAt = new Date();
     const waiver = {
       kind: "manual_confirmation",
@@ -122,4 +126,30 @@ export class GateEvaluationRepository {
       where: { id: row.id },
     });
   }
+
+  manualConfirmationTarget(input: {
+    teamId: string;
+    projectId: string;
+    releaseOrderId: string;
+    evaluationId: string;
+  }) {
+    return this.prisma.gateEvaluation.findFirst({
+      where: {
+        id: input.evaluationId,
+        teamId: input.teamId,
+        projectId: input.projectId,
+        releaseOrderId: input.releaseOrderId,
+      },
+      select: {
+        id: true,
+        gateId: true,
+        status: true,
+        providerKey: true,
+        releaseRunId: true,
+        buildRunId: true,
+        summary: true,
+      },
+    });
+  }
+
 }

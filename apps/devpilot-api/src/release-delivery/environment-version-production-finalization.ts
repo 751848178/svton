@@ -1,17 +1,5 @@
-import type {
-  SiteProbePort,
-  SiteRouteActivationPort,
-} from "../site/site-route-activation.types";
-import type { SiteRouteSwitchSagaOrchestrator } from "../site/site-route-switch-saga.orchestrator";
-import { createSiteRouteSwitchInput } from "../site/site-route-switch-receipt.policy";
-import type {
-  SiteRouteSwitchAttemptPersistence,
-  SiteRouteSwitchInput,
-} from "../site/site-route-switch.types";
-import {
-  assertSiteProbeAcceptable,
-  extractSiteEvidence,
-} from "../site/site-probe-policy";
+import { ConflictException } from "@nestjs/common";
+import { extractSiteEvidence } from "../site/site-probe-policy";
 import type { EnvironmentVersionCompletionRepository } from "./environment-version-completion.repository";
 import { environmentDeploymentFailureDetail } from "./environment-version-failure.utils";
 import type { EnvironmentVersionExecutionContext } from "./environment-version-execution.types";
@@ -20,17 +8,15 @@ import {
   gateDecisionReference,
 } from "./environment-version-production-gate.service";
 import {
-  routeBooleanValue,
-  routeSnapshotRecord,
-  unavailableSiteRouteSwitchEvidence,
-} from "./environment-version-route-switch-evidence";
+  freezeProductionPromotionCandidate,
+  type FrozenProductionCandidate,
+} from "./production-promotion-candidate.policy";
+import type { ProductionPromotionAwaitingRepository } from "./production-promotion-awaiting.repository";
 
 export interface EnvironmentVersionFinalizationDependencies {
   completion: EnvironmentVersionCompletionRepository;
   productionGates: EnvironmentVersionProductionGateService;
-  routeActivation: SiteRouteActivationPort;
-  routeSaga: SiteRouteSwitchSagaOrchestrator;
-  siteProbe: SiteProbePort;
+  promotionAwaiting: ProductionPromotionAwaitingRepository;
 }
 
 export async function finalizeDeployedEnvironment(
@@ -39,95 +25,30 @@ export async function finalizeDeployedEnvironment(
   logs: string[],
   deploymentEvidence: Record<string, unknown>,
 ) {
-  let attempt: SiteRouteSwitchAttemptPersistence | undefined;
-  let request: SiteRouteSwitchInput | undefined;
   try {
-    await deps.routeSaga.assertProductionReady();
-    const targetRef =
-      context.frozenInput?.deploymentInput.snapshot.target.targetRef ??
-      "unconfigured";
-    const routeSnapshot = routeSnapshotRecord(
-      context.productionRun?.routeSnapshot,
-    );
-    const activation = await deps.routeActivation.resolve({
-      teamId: context.input.teamId,
-      projectId: context.input.projectId,
-      environmentId: context.environment.id,
-      routeSnapshot: routeSnapshot ?? null,
-    });
-    let routeSwitch: Record<string, unknown> =
-      unavailableSiteRouteSwitchEvidence(context, activation, targetRef);
-    if (context.releaseRunId && activation.siteId && activation.primaryDomain) {
-      request = createSiteRouteSwitchInput({
-        teamId: context.input.teamId,
-        projectId: context.input.projectId,
-        environmentId: context.environment.id,
-        deploymentRunId: context.run.id,
-        releaseRunId: context.releaseRunId,
-        targetRef,
-        activation,
-      });
-      attempt = await deps.routeSaga.apply(request);
-      const evidence = attempt.evidence;
-      routeSwitch = evidence as unknown as Record<string, unknown>;
-    }
-    const probe = await deps.siteProbe.probe({
-      teamId: context.input.teamId,
-      projectId: context.input.projectId,
-      environmentId: context.environment.id,
-      deploymentRunId: context.run.id,
-      primaryDomain: activation.primaryDomain,
-      tlsRequired: routeBooleanValue(routeSnapshot?.tlsRequired),
-      targetRef,
-    });
-    assertSiteProbeAcceptable(probe, routeSwitch);
-    if (attempt) {
-      attempt = {
-        ...attempt,
-        siteProbe: probe,
-        dnsProbe: probe.dns,
-        tlsProbe: probe.tls,
-      };
-    }
+    const candidate = productionCandidate(context);
     const postDecision = await deps.productionGates.finalize({
       ...context.gateContext,
       deploymentRunId: context.run.id,
+      candidateHash: candidate.candidateHash,
     });
-    const promoteDecision = await deps.productionGates.promote({
-      ...context.gateContext,
-      deploymentRunId: context.run.id,
-    });
-    return await deps.completion.complete({
-      ...completionIdentity(context),
-      status: "completed",
+    const reference = gateDecisionReference(postDecision);
+    if (!reference) throw new ConflictException("Production 缺少发布后门禁决定");
+    const run = await deps.promotionAwaiting.wait({
+      candidate,
+      actorId: context.input.actorId,
       logs,
-      result: {
-        ...deploymentEvidence,
-        siteProbe: probe,
-        routeSwitch,
-        gateDecision: gateDecisionReference(promoteDecision),
-      },
-      gateDecisions: [postDecision, promoteDecision]
-        .map(gateDecisionReference)
-        .filter((item): item is NonNullable<typeof item> => Boolean(item)),
-      routeSwitchAttempt: attempt,
-      routeSwitchOperationId: request?.operationId,
+      result: deploymentEvidence,
+      postDecision: reference,
     });
+    return { run, version: null, candidate };
   } catch (error) {
-    const compensation = request
-      ? await deps.routeSaga.compensate(request.operationId, error)
-      : "not_applied";
-    return completeFailedEnvironment(
-      deps,
-      context,
-      error,
-      compensation === "compensation_required" ? "blocked" : "failed",
-    );
+    return completeFailedEnvironment(deps, context, error);
   }
 }
 
 export async function completeFailedEnvironment(
-  deps: EnvironmentVersionFinalizationDependencies,
+  deps: Pick<EnvironmentVersionFinalizationDependencies, "completion" | "productionGates">,
   context: EnvironmentVersionExecutionContext,
   error: unknown,
   status: "failed" | "blocked" = "failed",
@@ -149,6 +70,37 @@ export async function completeFailedEnvironment(
       gateDecision: gateDecisionReference(denied),
     },
     gateDecision: gateDecisionReference(denied),
+  });
+}
+
+function productionCandidate(
+  context: EnvironmentVersionExecutionContext,
+): FrozenProductionCandidate {
+  const releaseRunId = context.releaseRunId;
+  const providerKey = context.gateContext.providerKey;
+  if (!releaseRunId || !providerKey) {
+    throw new ConflictException("Production 候选缺少 ReleaseRun 或 Provider");
+  }
+  return freezeProductionPromotionCandidate({
+    version: 1,
+    teamId: context.input.teamId,
+    projectId: context.input.projectId,
+    releaseOrderId: context.manifest.releaseOrderId,
+    environmentId: context.environment.id,
+    releaseRunId,
+    deploymentRunId: context.run.id,
+    configRevisionId: context.frozenConfigRevisionId,
+    manifestId: context.manifest.id,
+    manifestDigest: context.manifest.digest,
+    buildRunId: context.manifest.buildRun.id,
+    providerKey,
+    bindingId: context.gateContext.bindingId ?? null,
+    deploymentInputHash: context.frozenInput.deploymentInput.snapshot.inputHash,
+    workloadInputHash: context.frozenInput.workload.inputHash,
+    workloadServiceCount: context.frozenInput.workload.services.length,
+    workloadHealthConfigured: context.gateContext.workloadHealthConfigured === true,
+    targetRef: context.frozenInput.deploymentInput.snapshot.target.targetRef,
+    kind: context.input.kind,
   });
 }
 

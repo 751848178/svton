@@ -71,6 +71,11 @@ export class ReleaseGateEvaluationService {
         releaseRunId: target
           ? target.releaseRunId
           : context.promote?.releaseRun?.id,
+        decisionIdentity: {
+          checkpoint: checkpoint ?? null,
+          deploymentRunId: target?.deploymentRunId ?? null,
+          candidateHash: target?.candidateHash ?? null,
+        },
       },
       evaluated,
     );

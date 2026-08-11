@@ -15,7 +15,7 @@ describeIntegration("project delivery summary real MySQL integration", () => {
   const repository = new ProjectDeliverySummaryRepository(
     prisma as unknown as PrismaService,
   );
-  const service = new ProjectDeliverySummaryService(repository);
+  const service = new ProjectDeliverySummaryService(repository, { providerKey: "ssh-v1" } as never);
   const suffix = randomUUID();
   const userId = `f418-user-${suffix}`;
   const teamId = `f418-team-${suffix}`;

@@ -74,10 +74,16 @@ function fixture(): ProjectDeliverySummary {
       id: 'targets',
       scope: 'production',
       status: 'action_required',
-      reasonCodes: ['deployment_target_missing'],
+      reasonCodes: ['TARGET_MISSING'],
       evidenceRefs: [],
-      action: { kind: 'bind_target', href: '/projects/project-1/settings' },
+      action: {
+        kind: 'bind_target',
+        href: '/projects/project-1/settings?section=environments&env=production&envTab=targets',
+      },
     }],
-    nextAction: { kind: 'bind_target', href: '/projects/project-1/settings' },
+    nextAction: {
+      kind: 'bind_target',
+      href: '/projects/project-1/settings?section=environments&env=production&envTab=targets',
+    },
   };
 }

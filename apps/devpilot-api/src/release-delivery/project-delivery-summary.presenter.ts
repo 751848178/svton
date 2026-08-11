@@ -18,6 +18,7 @@ type Environment = ProjectDeliverySummaryRecord["environments"][number];
 export function presentProjectDeliverySummary(
   project: ProjectDeliverySummaryRecord,
   actorId: string,
+  providerKey: string,
 ): ProjectDeliverySummaryResponse {
   const staging = baseline(project, "staging");
   const production = baseline(project, "production");
@@ -30,6 +31,7 @@ export function presentProjectDeliverySummary(
   const readiness = projectDeliveryReadiness(
     project,
     Boolean(repository(project) && intake.componentCount !== null),
+    providerKey,
   );
   return {
     version: 2,

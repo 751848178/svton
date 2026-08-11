@@ -27,7 +27,7 @@ describe('validateRouteSnapshotTargets', () => {
     await expect(validateRouteSnapshotTargets(tx as never, scope, {
       entries: [{ serviceId: null, component: 'custom-worker', port: 9123 }],
     })).resolves.toBeUndefined();
-    expect(tx.applicationService.findFirst).not.toHaveBeenCalled();
+    expect(tx.applicationService.findMany).not.toHaveBeenCalled();
   });
 
   it('rejects custom targets in governed baselines', async () => {
@@ -41,5 +41,9 @@ describe('validateRouteSnapshotTargets', () => {
 });
 
 function transaction(result: unknown) {
-  return { applicationService: { findFirst: jest.fn().mockResolvedValue(result) } };
+  return {
+    applicationService: {
+      findMany: jest.fn().mockResolvedValue(result ? [result] : []),
+    },
+  };
 }

@@ -10,8 +10,10 @@ describe("release gate checkpoint decision model", () => {
     ["build_post_execution", "build", "commit", 3],
     ["staging_pre_execution", "staging", "build", 5],
     ["production_pre_execution", "production", "deploy", 19],
-    ["production_post_deploy", "production", "promote", 3],
-    ["production_promote", "production", "promote", 8],
+    ["production_post_deploy", "production", "promote", 4],
+    ["production_promote", "production", "promote", 7],
+    ["production_promote_pre_route", "production", "promote", 7],
+    ["production_post_route", "production", "promote", 1],
   ] as const)("selects exact %s gate set", (checkpoint, stage, phase, count) => {
     const decision = buildReleaseGateDecision({
       checkpoint,
@@ -82,6 +84,31 @@ describe("release gate checkpoint decision model", () => {
         now,
       }),
     ).toMatchObject({ allowed: false, blockerGateIds: ["D17"] });
+  });
+
+  it("does not let the C03 confirmer execute the same candidate", () => {
+    const input = checks();
+    const c03 = input.find((check) => check.id === "C03")!;
+    c03.status = "manual";
+    c03.persistedStatus = "needs_human";
+    c03.waiver = {
+      kind: "manual_confirmation",
+      actorId: "reviewer-1",
+      confirmedAt: now.toISOString(),
+      evaluationInputHash: c03.evaluationInputHash,
+    };
+    expect(buildReleaseGateDecision({
+      checkpoint: "build_pre_execution",
+      checks: input,
+      actorId: "reviewer-1",
+      now,
+    })).toMatchObject({ allowed: false, manualGateIds: ["C03"] });
+    expect(buildReleaseGateDecision({
+      checkpoint: "build_pre_execution",
+      checks: input,
+      actorId: "requester-1",
+      now,
+    })).toMatchObject({ allowed: true, confirmedManualGateIds: ["C03"] });
   });
 });
 

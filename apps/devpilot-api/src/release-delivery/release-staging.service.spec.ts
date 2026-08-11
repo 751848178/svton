@@ -182,7 +182,7 @@ describe("ReleaseStagingService", () => {
     await service.deploy(input());
     expect(gates.assertAllowed).toHaveBeenCalledWith(
       expect.objectContaining({
-        stage: "staging",
+        checkpoint: "staging_pre_execution",
       }),
     );
     expect(gates.assertAllowed.mock.calls[0][0]).not.toHaveProperty(

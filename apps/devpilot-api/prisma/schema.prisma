@@ -82,6 +82,7 @@ model User {
   createdReleasePolicyRevisions ReleasePolicyRevision[] @relation("ReleasePolicyRevisionActor")
   gateEvaluations GateEvaluation[] @relation("GateEvaluationActor")
   releaseGateDecisions ReleaseGateDecision[] @relation("ReleaseGateDecisionActor")
+  productionPromotionCommands ProductionPromotionCommand[] @relation("ProductionPromotionCommandActor")
 
   createdAt     DateTime  @default(now())
   updatedAt     DateTime @updatedAt
@@ -160,8 +161,10 @@ model Team {
   releaseRuns ReleaseRun[]
   environmentVersions EnvironmentVersion[]
   releasePolicyRevisions ReleasePolicyRevision[]
+  sourcePolicyRevisions SourcePolicyRevision[]
   gateEvaluations GateEvaluation[]
   releaseGateDecisions ReleaseGateDecision[]
+  productionPromotionCommands ProductionPromotionCommand[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -723,6 +726,7 @@ model Project {
   onboardingFinalizedAt DateTime?
   archivedAt DateTime?
   currentReleasePolicyRevisionId String? @unique
+  currentSourcePolicyRevisionId String? @unique
 
   team         Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
   createdBy    User     @relation(fields: [createdById], references: [id])
@@ -775,8 +779,11 @@ model Project {
   environmentVersions EnvironmentVersion[]
   releasePolicyRevisions ReleasePolicyRevision[] @relation("ProjectReleasePolicyRevisionHistory")
   currentReleasePolicyRevision ReleasePolicyRevision? @relation("CurrentReleasePolicyRevision", fields: [currentReleasePolicyRevisionId], references: [id], onDelete: SetNull)
+  sourcePolicyRevisions SourcePolicyRevision[] @relation("ProjectSourcePolicyRevisionHistory")
+  currentSourcePolicyRevision SourcePolicyRevision? @relation("CurrentSourcePolicyRevision", fields: [currentSourcePolicyRevisionId], references: [id], onDelete: SetNull)
   gateEvaluations GateEvaluation[]
   releaseGateDecisions ReleaseGateDecision[]
+  productionPromotionCommands ProductionPromotionCommand[]
   generatedArtifactClaim GeneratedProjectArtifactClaim?
 
   createdAt    DateTime @default(now())
@@ -830,6 +837,29 @@ model ReleasePolicyRevision {
   @@unique([projectId, revision])
   @@index([teamId])
   @@index([createdById])
+  @@index([createdAt])
+}
+
+// 服务端注册的源码门禁策略冻结修订；项目只持有当前不可变修订指针。
+model SourcePolicyRevision {
+  id                           String   @id @default(cuid())
+  teamId                       String
+  projectId                    String
+  revision                     Int
+  profileId                    String
+  profileVersion               Int
+  externalRequiredChecks       Int
+  requiredIndependentApprovals Int
+  snapshotHash                 String
+  createdAt                    DateTime @default(now())
+
+  team                         Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project                      Project  @relation("ProjectSourcePolicyRevisionHistory", fields: [projectId], references: [id], onDelete: Cascade)
+  currentForProject            Project? @relation("CurrentSourcePolicyRevision")
+
+  @@unique([projectId, revision])
+  @@unique([projectId, profileId, profileVersion])
+  @@index([teamId])
   @@index([createdAt])
 }
 
@@ -1470,7 +1500,7 @@ model DeploymentRun {
   executorKey      String   @default("server-executor")
   adapterKey       String   @default("script-plan")
   dryRun           Boolean  @default(true)
-  status           String   @default("running") // running | completed | failed | blocked
+  status           String   @default("running") // running | awaiting_validation | completed | failed | blocked
   gitRepo          String?
   branch           String?
   commitSha        String?
@@ -1508,6 +1538,7 @@ model DeploymentRun {
   logCollectionRuns LogCollectionRun[]
   releaseStageAttempts ReleaseStageAttempt[]
   siteRouteSwitchRuns SiteRouteSwitchRun[]
+  productionPromotionCommands ProductionPromotionCommand[]
 
   @@index([teamId])
   @@index([projectId])
@@ -2933,6 +2964,7 @@ model ReleaseOrder {
   legacyPlans    ReleasePlan[]
   gateEvaluations GateEvaluation[]
   gateDecisions ReleaseGateDecision[]
+  productionPromotionCommands ProductionPromotionCommand[]
 
   @@unique([projectId, releaseVersion])
   @@index([teamId])
@@ -3046,7 +3078,7 @@ model ReleaseRun {
   sourceReleaseRunId    String?
   actorId               String?
   mode                  String   @default("standard") // standard | upgrade | recovery
-  status                String   @default("pending") // pending | awaiting_approval | running | succeeded | failed | canceled
+  status                String   @default("pending") // pending | awaiting_approval | running | awaiting_validation | succeeded | failed | canceled
   verifiedDigest        String
   resourceSnapshot      Json?
   routeSnapshot         Json?
@@ -3077,6 +3109,7 @@ model ReleaseRun {
   stageAttempt          ReleaseStageAttempt?
   gateEvaluations       GateEvaluation[]
   siteRouteSwitchRuns   SiteRouteSwitchRun[]
+  productionPromotionCommands ProductionPromotionCommand[]
 
   @@unique([releaseOrderId, idempotencyKey])
   @@index([teamId])
@@ -3088,6 +3121,45 @@ model ReleaseRun {
   @@index([configRevisionId])
   @@index([operationApprovalId])
   @@index([sourceReleaseRunId])
+  @@index([actorId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// Production provider deploy 后，按精确候选继续 promotion 的幂等命令。
+// GateEvaluation/ReleaseGateDecision 仍是独立的追加式评估历史。
+model ProductionPromotionCommand {
+  id              String   @id @default(cuid())
+  teamId          String
+  projectId       String
+  releaseOrderId  String
+  releaseRunId    String
+  deploymentRunId String
+  actorId         String
+  idempotencyKey  String
+  candidateHash   String
+  inputHash       String
+  status          String   @default("running") // running | completed | failed | blocked
+  result          Json?
+  errorCode       String?
+  errorMessage    String?  @db.Text
+  startedAt       DateTime @default(now())
+  finishedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  team            Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  releaseOrder    ReleaseOrder @relation(fields: [releaseOrderId], references: [id], onDelete: Cascade)
+  releaseRun      ReleaseRun @relation(fields: [releaseRunId], references: [id], onDelete: Cascade)
+  deploymentRun   DeploymentRun @relation(fields: [deploymentRunId], references: [id], onDelete: Cascade)
+  actor           User     @relation("ProductionPromotionCommandActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@unique([deploymentRunId, idempotencyKey])
+  @@index([teamId])
+  @@index([projectId])
+  @@index([releaseOrderId])
+  @@index([releaseRunId])
   @@index([actorId])
   @@index([status])
   @@index([createdAt])

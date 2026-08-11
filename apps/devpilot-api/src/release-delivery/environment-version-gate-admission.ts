@@ -11,6 +11,7 @@ export type EnvironmentVersionGateContext = {
   buildRunId: string;
   releaseRunId?: string;
   deploymentRunId?: string;
+  candidateHash?: string;
   providerKey?: string;
   bindingId?: string;
   deploymentInputHash?: string;
@@ -67,6 +68,7 @@ export function finalEnvironmentVersionDecision(
       providerKey: context.providerKey ?? null,
       bindingId: context.bindingId ?? null,
       deploymentInputHash: context.deploymentInputHash ?? null,
+      candidateHash: context.candidateHash ?? null,
       idempotencyKey: context.idempotencyKey ?? null,
     },
     requestKey: `final:${context.releaseRunId}:${context.deploymentRunId}`,
@@ -75,20 +77,49 @@ export function finalEnvironmentVersionDecision(
 
 export function promoteEnvironmentVersionDecision(
   gates: ReleaseGateDecisionService,
-  context: EnvironmentVersionGateContext & { deploymentRunId: string },
+  context: EnvironmentVersionGateContext & {
+    deploymentRunId: string;
+    candidateHash: string;
+    promotionCommandId?: string;
+  },
 ) {
   return gates.assertAllowed({
     ...scope(context),
-    checkpoint: "production_promote",
+    checkpoint: "production_promote_pre_route",
     target: target(context),
     actionInput: {
-      checkpoint: "promote",
+      checkpoint: "promote_pre_route",
       deploymentRunId: context.deploymentRunId,
       releaseRunId: context.releaseRunId ?? null,
       manifestId: context.manifestId,
       deploymentInputHash: context.deploymentInputHash ?? null,
+      candidateHash: context.candidateHash,
+      promotionCommandId: context.promotionCommandId ?? null,
     },
-    requestKey: `promote:${context.releaseRunId}:${context.deploymentRunId}`,
+  });
+}
+
+export function postRouteEnvironmentVersionDecision(
+  gates: ReleaseGateDecisionService,
+  context: EnvironmentVersionGateContext & {
+    deploymentRunId: string;
+    candidateHash: string;
+    promotionCommandId: string;
+    routeSwitchOperationId: string;
+  },
+) {
+  return gates.assertAllowed({
+    ...scope(context),
+    checkpoint: "production_post_route",
+    target: target(context),
+    actionInput: {
+      checkpoint: "post_route",
+      deploymentRunId: context.deploymentRunId,
+      releaseRunId: context.releaseRunId ?? null,
+      candidateHash: context.candidateHash,
+      promotionCommandId: context.promotionCommandId,
+      routeSwitchOperationId: context.routeSwitchOperationId,
+    },
   });
 }
 
@@ -107,6 +138,7 @@ function target(context: EnvironmentVersionGateContext) {
     manifestId: context.manifestId,
     releaseRunId: context.releaseRunId,
     deploymentRunId: context.deploymentRunId,
+    candidateHash: context.candidateHash,
     environmentId: context.environmentId,
     configRevisionId: context.configRevisionId,
     providerKey: context.providerKey,

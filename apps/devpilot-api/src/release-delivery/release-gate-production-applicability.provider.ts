@@ -3,8 +3,9 @@ import type { ReleaseGateDefinition } from "./release-gate-catalog.types";
 import type { ReleaseGateEvidenceContext } from "./release-gate-evidence.repository";
 import { isMigrationNotApplicable } from "./release-gate-migration-applicability.evaluator";
 import { evaluated, record, unavailable } from "./release-gate-provider.types";
+import { evaluateCandidatePromotionGate } from "./release-gate-candidate-promotion.policy";
 
-const STANDARD_NA_GATES = new Set(["P04", "P05", "P06", "P07", "P08", "P09"]);
+const STANDARD_NA_GATES = new Set(["P07", "P08"]);
 
 @Injectable()
 export class ReleaseGateProductionApplicabilityProvider {
@@ -16,6 +17,8 @@ export class ReleaseGateProductionApplicabilityProvider {
     now: Date,
   ) {
     if (!context.decisionCheckpoint?.startsWith("production_")) return null;
+    const candidate = evaluateCandidatePromotionGate(definition.id, context, now);
+    if (candidate) return candidate;
     if (definition.id === "D06") return this.standard(definition.id, context, now);
     if (definition.id === "D09") return this.singleHost(context, now);
     if (definition.id === "D19") return this.rollbackCandidate(context, now);
@@ -25,6 +28,7 @@ export class ReleaseGateProductionApplicabilityProvider {
     }
     return null;
   }
+
 
   private standard(id: string, context: ReleaseGateEvidenceContext, now: Date) {
     const run = context.promote?.releaseRun;

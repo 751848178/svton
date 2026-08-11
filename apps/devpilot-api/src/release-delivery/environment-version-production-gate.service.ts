@@ -11,6 +11,7 @@ import {
   admitEnvironmentVersion,
   type EnvironmentVersionGateContext,
   finalEnvironmentVersionDecision,
+  postRouteEnvironmentVersionDecision,
   promoteEnvironmentVersionDecision,
 } from "./environment-version-gate-admission";
 import { ProductionRouteSagaGuard } from "../site/production-route-saga.guard";
@@ -44,10 +45,26 @@ export class EnvironmentVersionProductionGateService {
   }
 
   promote(
-    context: EnvironmentVersionGateContext & { deploymentRunId: string },
+    context: EnvironmentVersionGateContext & {
+      deploymentRunId: string;
+      candidateHash: string;
+      promotionCommandId?: string;
+    },
   ) {
     if (!context.releaseRunId) return undefined;
     return promoteEnvironmentVersionDecision(this.gates, context);
+  }
+
+  postRoute(
+    context: EnvironmentVersionGateContext & {
+      deploymentRunId: string;
+      candidateHash: string;
+      promotionCommandId: string;
+      routeSwitchOperationId: string;
+    },
+  ) {
+    if (!context.releaseRunId) return undefined;
+    return postRouteEnvironmentVersionDecision(this.gates, context);
   }
 
   async denied(

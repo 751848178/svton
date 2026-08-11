@@ -21,6 +21,9 @@ import { ReleaseDeploymentTargetReadinessService } from "./release-deployment-ta
 import { ReleaseProductionWorkloadService } from "./release-production-workload.service";
 import { ReleaseStagingExecutorPort } from "./release-staging.types";
 import { ReleaseStagingWorkloadService } from "./release-staging-workload.service";
+import { ProductionPromotionAwaitingRepository } from "./production-promotion-awaiting.repository";
+import { ProductionPromotionService } from "./production-promotion.service";
+import type { ProductionPromotionResumeInput } from "./production-promotion-command.types";
 
 @Injectable()
 export class EnvironmentVersionService {
@@ -41,6 +44,8 @@ export class EnvironmentVersionService {
     private readonly routeSaga: SiteRouteSwitchSagaOrchestrator,
     private readonly routeSagaGuard: ProductionRouteSagaGuard,
     private readonly siteProbe: SiteProbePort,
+    private readonly promotionAwaiting?: ProductionPromotionAwaitingRepository,
+    private readonly promotion?: ProductionPromotionService,
   ) {}
 
   async list(teamId: string, projectId: string) {
@@ -68,6 +73,11 @@ export class EnvironmentVersionService {
     };
   }
 
+  resumeProductionPromotion(input: ProductionPromotionResumeInput) {
+    if (!this.promotion) throw new Error("PRODUCTION_PROMOTION_SERVICE_MISSING");
+    return this.promotion.resume(input);
+  }
+
   execute(input: EnvironmentVersionExecuteInput) {
     return executeEnvironmentVersion(
       {
@@ -87,14 +97,19 @@ export class EnvironmentVersionService {
               gateEvidence: this.gateEvidence,
               completion: this.completion,
               productionGates: this.productionGates,
-              routeActivation: this.routeActivation,
-              routeSaga: this.routeSaga,
-              siteProbe: this.siteProbe,
+              promotionAwaiting: this.productionAwaiting(),
             },
             context,
           ),
       },
       input,
     );
+  }
+
+  private productionAwaiting() {
+    if (!this.promotionAwaiting) {
+      throw new Error("PRODUCTION_PROMOTION_AWAITING_REPOSITORY_MISSING");
+    }
+    return this.promotionAwaiting;
   }
 }

@@ -58,7 +58,7 @@ export class ReleaseGatePromoteEvidenceRepository {
     });
     if (!environment) return emptyPromoteEvidence();
     const where = { teamId, projectId, environmentId: environment.id };
-    const [releaseRun, sites, alerts, logRuns, metrics] = await Promise.all([
+    const [releaseRun, sites, alerts, logRuns, metrics, routeSwitchRuns] = await Promise.all([
       this.prisma.releaseRun.findFirst({
         where: {
           ...where,
@@ -163,8 +163,18 @@ export class ReleaseGatePromoteEvidenceRepository {
           raw: true,
         },
       }),
+      this.prisma.siteRouteSwitchRun.findMany({
+        where: { teamId, projectId, ...(releaseRunId ? { releaseRunId } : {}) },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: 10,
+        select: {
+          id: true, operationId: true, releaseRunId: true, deploymentRunId: true,
+          targetRef: true, status: true, result: true, applyReceipt: true,
+          updatedAt: true,
+        },
+      }),
     ]);
-    return { environment, releaseRun, sites, alerts, logRuns, metrics };
+    return { environment, releaseRun, sites, alerts, logRuns, metrics, routeSwitchRuns };
   }
 }
 
@@ -176,5 +186,6 @@ function emptyPromoteEvidence(): ReleaseGatePromoteEvidence {
     alerts: [],
     logRuns: [],
     metrics: [],
+    routeSwitchRuns: [],
   };
 }

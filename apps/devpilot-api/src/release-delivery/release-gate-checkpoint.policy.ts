@@ -41,12 +41,22 @@ const CHECKPOINTS: Record<
   production_post_deploy: {
     stage: "production",
     phase: "promote",
-    requiredGateIds: ["D17", "P01", "P02"],
+    requiredGateIds: ["D17", "D18", "P01", "P02"],
   },
   production_promote: {
     stage: "production",
     phase: "promote",
-    requiredGateIds: ["P03", "P04", "P05", "P06", "P07", "P08", "P09", "P10"],
+    requiredGateIds: ["P03", "P04", "P05", "P06", "P07", "P08", "P10"],
+  },
+  production_promote_pre_route: {
+    stage: "production",
+    phase: "promote",
+    requiredGateIds: ["P03", "P04", "P05", "P06", "P07", "P08", "P10"],
+  },
+  production_post_route: {
+    stage: "production",
+    phase: "promote",
+    requiredGateIds: ["P09"],
   },
 };
 

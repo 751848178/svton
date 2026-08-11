@@ -27,6 +27,10 @@ import { EnvironmentVersionRecoveryRepository } from "./environment-version-reco
 import { EnvironmentVersionRecoveryService } from "./environment-version-recovery.service";
 import { EnvironmentVersionRepository } from "./environment-version.repository";
 import { EnvironmentVersionService } from "./environment-version.service";
+import { ProductionPromotionAwaitingRepository } from "./production-promotion-awaiting.repository";
+import { ProductionPromotionCommandRepository } from "./production-promotion-command.repository";
+import { ProductionPromotionObservationRepository } from "./production-promotion-observation.repository";
+import { ProductionPromotionService } from "./production-promotion.service";
 
 export const releaseDeliveryEnvironmentProviders = [
   EnvironmentVersionRepository,
@@ -38,6 +42,10 @@ export const releaseDeliveryEnvironmentProviders = [
   EnvironmentVersionRecoveryService,
   EnvironmentVersionProductionGateService,
   EnvironmentVersionGateEvidenceRepository,
+  ProductionPromotionAwaitingRepository,
+  ProductionPromotionCommandRepository,
+  ProductionPromotionObservationRepository,
+  ProductionPromotionService,
   ProductionRouteSagaGuard,
   SiteRouteActivationService,
   SiteFinalProbeService,

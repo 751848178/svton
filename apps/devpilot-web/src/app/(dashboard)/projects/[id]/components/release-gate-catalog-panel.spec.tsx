@@ -74,16 +74,13 @@ describe('ReleaseGateCatalogPanel', () => {
     vi.clearAllMocks();
   });
 
-  it('shows the 15/51 conclusion and four MVP previews before opening the catalog', async () => {
+  it('keeps the complete 51-check catalog behind advanced disclosure when no blocker exists', async () => {
     await renderPanel(root);
 
-    expect(container.textContent).toContain('releaseGateGroupCount:{"count":15}');
-    expect(container.textContent).toContain('releaseGateCheckCount:{"count":51}');
     expect(container.textContent).toContain('releaseGateCanEnterBuild');
-    expect(container.textContent).toContain('releaseGatePreview.source.title');
-    expect(container.textContent).toContain('releaseGatePreview.impact.title');
-    expect(container.textContent).toContain('releaseGatePreview.security.title');
-    expect(container.textContent).toContain('releaseGatePreview.baseline.title');
+    expect(container.textContent).toContain('releaseGateCatalogExpand');
+    expect(container.textContent).not.toContain('releaseGatePreview.source.title');
+    expect(container.querySelector('button[aria-haspopup="dialog"]')).not.toBeNull();
     expect(container.querySelector('[role="dialog"]')).toBeNull();
   });
 
@@ -155,6 +152,22 @@ describe('ReleaseGateCatalogPanel', () => {
   });
 
   it('filters the detail dialog when a summary card is clicked and refreshes explicitly', async () => {
+    const catalog = releaseGateCatalogFixture();
+    catalog.decisions.build.allowed = false;
+    catalog.decisions.build.blockerGateIds = ['C01'];
+    catalog.checks[0].status = 'blocked';
+    catalog.checks[0].persistedStatus = 'failed';
+    catalog.summary.statusCounts = {
+      ...catalog.summary.statusCounts,
+      checked: 50,
+      blocked: 1,
+    };
+    mocks.useReleaseGateCatalog.mockReturnValue({
+      catalog,
+      loading: false,
+      error: null,
+      load: mocks.load,
+    });
     await renderPanel(root);
     const sourceCard = Array.from(container.querySelectorAll('button')).find((button) =>
       button.textContent?.includes('releaseGatePreview.source.title'),

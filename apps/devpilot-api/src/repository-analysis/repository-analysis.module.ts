@@ -17,6 +17,7 @@ import { RepositoryConnectionService } from './repository-connection.service';
 import { RepositoryCredentialService } from './repository-credential.service';
 import { RepositoryGitCommandService } from './repository-git-command.service';
 import { RepositoryGitExecutorService } from './repository-git-executor.service';
+import { RepositoryGitInspectionService } from './repository-git-inspection.service';
 import { RepositoryInventoryService } from './repository-inventory.service';
 import { RepositoryIdentityBranchService } from './repository-identity-branch.service';
 import { RepositoryIntakeSnapshotWriter } from './repository-intake-snapshot.writer';
@@ -43,6 +44,7 @@ import { RepositorySuggestionBuilderService } from './repository-suggestion-buil
     RepositoryCredentialService,
     RepositoryGitCommandService,
     RepositoryGitExecutorService,
+    RepositoryGitInspectionService,
     RepositoryInventoryService,
     RepositoryIdentityBranchService,
     RepositoryIntakeSnapshotWriter,
@@ -57,6 +59,7 @@ import { RepositorySuggestionBuilderService } from './repository-suggestion-buil
     RepositoryConnectionService,
     RepositoryCredentialService,
     RepositoryGitExecutorService,
+    RepositoryGitInspectionService,
     RepositorySuggestionApplyService,
   ],
 })

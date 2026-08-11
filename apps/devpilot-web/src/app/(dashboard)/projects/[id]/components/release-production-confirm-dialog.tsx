@@ -44,6 +44,7 @@ export function ReleaseProductionConfirmDialog(props: Props) {
       title={t('releaseProductionConfirmTitle')}
       confirmText={t('releaseProductionConfirmAction')}
       cancelText={t('releaseGateCancel')}
+      ariaCloseLabel={t('releaseGateCancel')}
       onConfirm={handleConfirm}
       loading={confirming}
       confirmDisabled={confirming}

@@ -34,6 +34,18 @@ export interface EnvironmentVersionEnvironment {
   currentEnvironmentVersionId: string | null;
   targetReadiness: ReleaseDeploymentTargetReadiness;
   environmentVersions: EnvironmentVersionItem[];
+  releaseRuns?: Array<{
+    id: string;
+    mode: string;
+    status: string;
+    artifactManifestId: string;
+    deploymentRuns: Array<{
+      id: string;
+      status: string;
+      result: unknown;
+      createdAt: string;
+    }>;
+  }>;
 }
 
 export interface EnvironmentVersionCandidate {
@@ -65,6 +77,12 @@ export interface EnvironmentVersionsResponse {
 export interface EnvironmentVersionActionResult {
   run: { id: string; status: string; artifactManifestId: string };
   version: EnvironmentVersionItem | null;
+}
+
+export interface ProductionPromotionResumeInput {
+  releaseRunId: string;
+  deploymentRunId: string;
+  candidateHash: string;
 }
 
 export interface EnvironmentVersionRecoveryPreview {

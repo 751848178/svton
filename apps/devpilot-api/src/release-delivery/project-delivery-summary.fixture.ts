@@ -1,5 +1,6 @@
 import type { ProjectDeliverySummaryRecord } from "./project-delivery-summary.select";
 import { frozenRepositoryIntakeFinalization } from "../project-intake/repository-intake-summary.fixture";
+import { hashEnvironmentConfigSnapshot } from "../project-environment/environment-config-revision.utils";
 
 export function projectDeliverySummaryRecord(
   overrides: Partial<ProjectDeliverySummaryRecord> = {},
@@ -68,6 +69,17 @@ function environment(projectId: string, role: "staging" | "production") {
   const manifestId = `manifest-${role}`;
   const deploymentId = `deployment-${role}`;
   const versionId = `version-${role}`;
+  const serviceId = `service-${role}`;
+  const configSnapshot = {
+    plainVariables: {},
+    secretReferences: [],
+    resourceReferences: [],
+    routeSnapshot: { entries: [{
+      domain: `${role}.example.com`, path: "/", serviceId,
+      component: "api", port: 3000, tlsMode: "managed_cert",
+    }] },
+    policyReferences: [],
+  };
   return {
     id,
     teamId: "team-1",
@@ -84,7 +96,30 @@ function environment(projectId: string, role: "staging" | "production") {
       teamId: "team-1",
       projectId,
       environmentId: id,
+      revision: 1,
+      snapshotHash: hashEnvironmentConfigSnapshot(configSnapshot),
+      ...configSnapshot,
+      createdAt: new Date("2026-08-04T00:00:00.000Z"),
     },
+    serverBindings: [{
+      id: `binding-${role}`,
+      status: "active",
+      metadata: { releaseDeployment: { providerKey: "ssh-v1", root: `/srv/${role}` } },
+      updatedAt: new Date("2026-08-04T00:00:00.000Z"),
+      server: {
+        id: `server-${role}`, host: "127.0.0.1", port: 22,
+        username: "deploy", authType: "key", credentials: "credential-ref",
+        status: "online",
+      },
+    }],
+    applicationServices: [{
+      id: serviceId,
+      releaseComponentKey: "api",
+      name: "api",
+      ports: [3000],
+      deployConfig: {},
+      metadata: {},
+    }],
     currentEnvironmentVersion: {
       id: versionId,
       teamId: "team-1",

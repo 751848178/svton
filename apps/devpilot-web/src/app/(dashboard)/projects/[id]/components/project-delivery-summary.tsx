@@ -9,12 +9,17 @@ import type {
   ProjectDeliverySummary,
 } from '../types/project-delivery-summary.types';
 import { releaseEnvironmentLabelKey } from '../utils/release-copy.model';
+import { projectDeliveryReasonKey } from './project-delivery-reason-copy';
 
 export function ProjectDeliveryWeakSummary({ summary }: { summary: ProjectDeliverySummary }) {
   const t = useTranslations('projects');
   const pending = summary.checkpoints.filter((item) => item.status !== 'ready');
-  const next = pending.find((item) => item.action)?.action ?? summary.nextAction;
-  const current = pending[0];
+  const next = summary.nextAction;
+  const current = next
+    ? summary.checkpoints.find(
+        (item) => item.action?.kind === next.kind && item.action.href === next.href,
+      )
+    : undefined;
   return (
     <section
       aria-label={t('projectDeliveryNow')}
@@ -164,16 +169,6 @@ function scopeLabel(scope: ProjectDeliveryCheckpoint['scope'], t: Translator) {
 
 function reasonLabel(reason: string | undefined, t: Translator) {
   if (!reason) return t('projectDeliveryActionRequiredGeneric');
-  const known: Record<string, string> = {
-    repository_intake_incomplete: 'projectDeliveryReasonRepository',
-    governed_baselines_incomplete: 'projectDeliveryReasonBaselines',
-    baseline_service_topology_mismatch: 'projectDeliveryReasonServices',
-    required_variables_unresolved: 'projectDeliveryReasonVariables',
-    config_revision_missing: 'projectDeliveryReasonConfig',
-    deployment_target_missing: 'projectDeliveryReasonTargetMissing',
-    deployment_target_duplicate: 'projectDeliveryReasonTargetDuplicate',
-    governed_route_missing: 'projectDeliveryReasonRoute',
-    release_action_required: 'projectDeliveryReasonRelease',
-  };
-  return known[reason] ? t(known[reason] as never) : reason;
+  const key = projectDeliveryReasonKey(reason);
+  return key ? t(key as never) : reason;
 }

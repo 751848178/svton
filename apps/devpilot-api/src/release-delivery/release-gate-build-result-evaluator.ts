@@ -15,6 +15,35 @@ export function evaluateStructuredBuildResult(
       `BuildRun did not provide ${key} provider evidence`,
     );
   }
+  const evidenceRef =
+    typeof evidence.evidenceRef === "string" ? evidence.evidenceRef : "";
+  const evidenceHash =
+    typeof evidence.evidenceHash === "string" ? evidence.evidenceHash : "";
+  const exactPrefix = `release-evidence://${build.id}/`;
+  if (
+    !evidenceRef ||
+    !evidenceHash ||
+    evidenceRef.split(";").some((reference) => !reference.startsWith(exactPrefix))
+  ) {
+    return unavailable(
+      `${key}_evidence_identity_invalid`,
+      `BuildRun ${key} 证据未绑定当前精确 BuildRun`,
+      `BuildRun ${key} evidence is not bound to the exact current BuildRun`,
+    );
+  }
+  const identity = record(evidence.identity);
+  if (
+    Object.keys(identity).length > 0 &&
+    (identity.buildRunId !== build.id ||
+      identity.sourceCommitSha !== build.sourceCommitSha ||
+      identity.reportDigest === undefined)
+  ) {
+    return unavailable(
+      `${key}_evidence_identity_mismatch`,
+      `BuildRun ${key} 证据身份与当前候选不一致`,
+      `BuildRun ${key} evidence identity does not match the current candidate`,
+    );
+  }
   const status = normalizeBuildGateStatus(evidence.status);
   return evaluated({
     status,
@@ -31,10 +60,19 @@ export function evaluateStructuredBuildResult(
         : status === "blocked"
           ? `${key} check blocked`
           : `${key} check did not pass the gate`,
-    evidenceRef: `build-run:${build.id}#${key}`,
-    checkedAt: build.finishedAt ?? build.startedAt ?? build.createdAt,
+    evidenceRef,
+    checkedAt:
+      typeof identity.finishedAt === "string"
+        ? new Date(identity.finishedAt)
+        : build.finishedAt ?? build.startedAt ?? build.createdAt,
     now,
   });
+}
+
+function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
 function normalizeBuildGateStatus(value: unknown): ReleaseGateStatus {

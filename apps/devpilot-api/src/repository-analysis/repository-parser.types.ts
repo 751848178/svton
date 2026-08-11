@@ -8,6 +8,8 @@ export interface DetectedCommandSet {
   bootstrap?: string;
   seed?: string;
   backfill?: string;
+  status?: string;
+  cleanup?: string;
 }
 
 export interface DetectedEnvironmentVariable {

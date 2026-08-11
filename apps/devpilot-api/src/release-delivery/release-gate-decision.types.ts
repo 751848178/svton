@@ -20,6 +20,8 @@ export const RELEASE_GATE_CHECKPOINTS = [
   "production_pre_execution",
   "production_post_deploy",
   "production_promote",
+  "production_promote_pre_route",
+  "production_post_route",
 ] as const;
 
 export type ReleaseGateCheckpoint =
@@ -39,10 +41,12 @@ export type ReleaseGateDecisionTarget = {
   sourceResolution?: "unavailable";
   sourceBranch?: string;
   sourceCommitSha?: string;
+  sourceEvidence?: import("./release-build-source-evidence.types").ReleaseBuildSourceEvidence;
   buildRunId?: string;
   manifestId?: string;
   releaseRunId?: string;
   deploymentRunId?: string;
+  candidateHash?: string;
   environmentId?: string;
   configRevisionId?: string | null;
   /** Deployment provider key (ssh-v1 / local-filesystem-v1) so D07 gates

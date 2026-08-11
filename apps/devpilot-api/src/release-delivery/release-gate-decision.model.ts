@@ -11,6 +11,7 @@ export function buildReleaseGateDecision(input: {
   checkpoint: ReleaseGateCheckpoint;
   checks: PersistedReleaseGateEvaluation[];
   actionInput?: Record<string, string | null>;
+  actorId?: string;
   now?: Date;
 }): ReleaseGateDecisionDraft {
   const policy = releaseGateCheckpointPolicy(input.checkpoint);
@@ -46,7 +47,7 @@ export function buildReleaseGateDecision(input: {
       continue;
     }
     if (check.status === "manual") {
-      if (hasManualConfirmation(check, now))
+      if (hasManualConfirmation(check, now, input.actorId))
         confirmedManualGateIds.push(check.id);
       else if (definition.dispositions.includes("manual"))
         manualGateIds.push(check.id);
@@ -115,6 +116,7 @@ function isFreshProviderFact(check: PersistedReleaseGateEvaluation, now: Date) {
 function hasManualConfirmation(
   check: PersistedReleaseGateEvaluation,
   now: Date,
+  actorId?: string,
 ) {
   if (
     !check.dispositions.includes("manual") ||
@@ -128,6 +130,8 @@ function hasManualConfirmation(
     waiver.evaluationInputHash === check.evaluationInputHash &&
     typeof waiver.actorId === "string" &&
     typeof waiver.confirmedAt === "string" &&
+    (check.id !== "C03" ||
+      (Boolean(actorId) && waiver.actorId !== actorId)) &&
     (!check.waiverExpiresAt ||
       new Date(check.waiverExpiresAt).getTime() >= now.getTime())
   );

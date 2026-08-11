@@ -208,3 +208,13 @@ flowchart TD
 - Web direction A now uses one server-owned next action, blocker-first preflight with the complete 51-check catalog behind advanced disclosure, five environment setup steps, task-oriented environment version actions, and 44px primary interaction targets.
 - Standard single-host/stateless applicability is generated only from exact frozen facts. Unknown Provider, migration surface, missing business validation, route drift, and target drift remain explicit blockers.
 - Final Docker/browser/API/DB acceptance, Draft MR and independent CR remain F678 work; this implementation status is not runtime signoff.
+
+## CR Reconciliation Status (2026-08-11)
+
+- Legacy component backfill updates only unambiguous null identities. Ambiguous rows stay null and surface `legacy_component_identity_unresolved`; historical manifests, runs and versions are never rewritten.
+- Fresh intake now freezes one service identity across both baselines, projects the unique declared port into its health URL, and distinguishes managed processes from lifecycle commands. Build, manifest and workload identity use the stable component key.
+- `controlled-local-acceptance-v2` records exact source-policy, commit, independent approval, package command and scanner evidence. Missing tools, policy receipts or actor identity stay `unavailable`/`needs_human`; the ordinary controlled-local profile remains unavailable.
+- Production now stops at `awaiting_validation` before route or version-pointer mutation. Resume is bound to the exact release run, deployment run and candidate hash; only post-route observation success completes the command and current version atomically.
+- Manual confirmations resolve gate, checkpoint and candidate scope on the server before checking stage-specific permission. Candidate observation gaps, including D18 without a real observability Provider, remain explicit blockers.
+- The Web uses the server-owned `nextAction` as the only primary task, repository-first progressive intake, blocker-first preflight, five environment setup steps, exact awaiting-validation continuation and task-oriented version actions. Desktop and 390px DOM checks cover progressive disclosure, wrapping and 44px targets.
+- The isolated acceptance image target pins scanner versions, rules, database metadata and artifact hashes. This is build-supply evidence only; browser/API/DB release signoff still requires a fresh task-owned runtime and the negative no-side-effect matrix.

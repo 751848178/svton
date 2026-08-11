@@ -2,6 +2,10 @@ import { Injectable, UnprocessableEntityException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { isAbsolute, relative, resolve } from "node:path";
 import type { ReleaseBuildRuntimeDescriptor } from "./release-build.types";
+import {
+  resolveRegisteredReleaseBuildProfile,
+  type RegisteredReleaseBuildProfile,
+} from "./release-build-acceptance-profile";
 
 const CHILD_ENVIRONMENT_KEYS = [
   "CI",
@@ -25,10 +29,12 @@ export class ReleaseBuildRuntimeProfileService {
   private readonly executionEnabled: boolean;
   private readonly configuredWorkRoot: string | undefined;
   private readonly configuredArtifactRoot: string | undefined;
+  readonly registeredProfile: RegisteredReleaseBuildProfile | null;
 
   constructor(config: ConfigService) {
     this.profile =
       config.get<string>("RELEASE_BUILD_EXECUTOR_PROFILE") || "disabled";
+    this.registeredProfile = resolveRegisteredReleaseBuildProfile(this.profile);
     this.executionEnabled = boolean(
       config.get("RELEASE_BUILD_EXECUTION_ENABLED"),
     );
@@ -54,7 +60,7 @@ export class ReleaseBuildRuntimeProfileService {
   get available() {
     return (
       this.executionEnabled &&
-      this.profile === "controlled-local-v1" &&
+      Boolean(this.registeredProfile) &&
       Boolean(this.configuredWorkRoot) &&
       Boolean(this.configuredArtifactRoot) &&
       isAbsolute(this.configuredWorkRoot || "") &&
@@ -80,8 +86,28 @@ export class ReleaseBuildRuntimeProfileService {
   }
 
   descriptor(): ReleaseBuildRuntimeDescriptor {
+    const registered = this.registeredProfile;
+    if (!registered) {
+      return {
+        profile: "controlled-local-v1",
+        runTimeoutMs: this.runTimeoutMs,
+        commandTimeoutMs: this.commandTimeoutMs,
+        cancelGraceMs: this.cancelGraceMs,
+        maxConcurrency: this.maxConcurrency,
+        concurrencyScope: "single-process",
+        workspacePolicy: "dedicated-build-root",
+        environmentKeys: CHILD_ENVIRONMENT_KEYS,
+      };
+    }
     return {
-      profile: "controlled-local-v1",
+      profile: registered.id,
+      profileVersion: registered.profileVersion,
+      runnerVersion: registered.runnerVersion,
+      scannerRules: registered.scanners.map(({ id, toolVersion, rulesDigest }) => ({
+        id,
+        toolVersion,
+        rulesDigest,
+      })),
       runTimeoutMs: this.runTimeoutMs,
       commandTimeoutMs: this.commandTimeoutMs,
       cancelGraceMs: this.cancelGraceMs,

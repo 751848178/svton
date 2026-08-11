@@ -79,6 +79,12 @@ import { ReleaseGateManualConfirmationService } from "./release-gate-manual-conf
 import { ProjectDeliverySummaryController } from "./project-delivery-summary.controller";
 import { ProjectDeliverySummaryRepository } from "./project-delivery-summary.repository";
 import { ProjectDeliverySummaryService } from "./project-delivery-summary.service";
+import { LocalReleaseEvidenceArtifactService } from "./local-release-evidence-artifact.service";
+import { ReleaseEvidenceArtifactPort } from "./release-evidence-artifact.port";
+import { ReleaseBuildPackageEvidenceService } from "./release-build-package-evidence.service";
+import { ReleaseBuildScannerEvidenceService } from "./release-build-scanner-evidence.service";
+import { ReleaseBuildSourceEvidenceService } from "./release-build-source-evidence.service";
+import { SourcePolicyRevisionRepository } from "./source-policy-revision.repository";
 
 @Module({
   imports: [
@@ -164,9 +170,18 @@ import { ProjectDeliverySummaryService } from "./project-delivery-summary.servic
     ReleaseGateManualConfirmationService,
     ProjectDeliverySummaryRepository,
     ProjectDeliverySummaryService,
+    LocalReleaseEvidenceArtifactService,
+    ReleaseBuildPackageEvidenceService,
+    ReleaseBuildScannerEvidenceService,
+    ReleaseBuildSourceEvidenceService,
+    SourcePolicyRevisionRepository,
     {
       provide: ReleaseBuildExecutorPort,
       useExisting: LocalReleaseBuildExecutorService,
+    },
+    {
+      provide: ReleaseEvidenceArtifactPort,
+      useExisting: LocalReleaseEvidenceArtifactService,
     },
     {
       provide: ReleaseStagingExecutorPort,

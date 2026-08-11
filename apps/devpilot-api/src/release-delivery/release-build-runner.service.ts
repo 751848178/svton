@@ -66,6 +66,7 @@ export class ReleaseBuildRunnerService {
           buildRunId: input.buildRun.id,
           projectId: input.projectId,
           releaseOrderId: input.releaseOrderId,
+          sourceCommitSha: input.source.commitSha,
           checkoutRoot: checkout.root,
           components: input.components,
         },

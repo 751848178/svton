@@ -139,33 +139,39 @@ export function EnvironmentSettingsDetail({
 
   return (
     <div className="space-y-4">
-      <EnvironmentSettingsSummary
-        environment={environment}
-        revision={governance.current}
-        policyCount={governance.policies.length}
-        deploymentRunCount={environment._count?.deploymentRuns ?? 0}
-        versionsHref={deliveryHref(projectId, 'environment-versions', searchParams)}
-        deploymentsHref={deliveryHref(projectId, 'deployments', searchParams)}
-        currentTarget={targets.data?.currentTarget ?? null}
-      />
-
-      <EnvironmentSettingsRevisionBar
-        inputId={summaryInputId}
-        summary={summary}
-        revisionCount={governance.data?.revisions.length ?? 0}
-        saving={governance.saving}
-        loading={governance.loading}
-        invalid={draftInvalid}
-        onSummaryChange={setSummary}
-        onSave={save}
-      />
-
       <EnvironmentSettingsTablist
         tablistId={tablistId}
         panelId={panelId}
         selected={envTab}
         onSelect={selectTab}
       />
+
+      <details className="rounded-lg border bg-muted/20">
+        <summary className="flex min-h-11 cursor-pointer items-center px-4 text-sm font-medium">
+          {t('environmentSettingsRevisionDetails')}
+        </summary>
+        <div className="space-y-4 border-t p-4">
+          <EnvironmentSettingsSummary
+            environment={environment}
+            revision={governance.current}
+            policyCount={governance.policies.length}
+            deploymentRunCount={environment._count?.deploymentRuns ?? 0}
+            versionsHref={deliveryHref(projectId, 'environment-versions', searchParams)}
+            deploymentsHref={deliveryHref(projectId, 'deployments', searchParams)}
+            currentTarget={targets.data?.currentTarget ?? null}
+          />
+          <EnvironmentSettingsRevisionBar
+            inputId={summaryInputId}
+            summary={summary}
+            revisionCount={governance.data?.revisions.length ?? 0}
+            saving={governance.saving}
+            loading={governance.loading}
+            invalid={draftInvalid}
+            onSummaryChange={setSummary}
+            onSave={save}
+          />
+        </div>
+      </details>
 
       <div
         id={panelId}

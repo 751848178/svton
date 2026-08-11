@@ -111,6 +111,7 @@ describe("executeEnvironmentVersion staging admission", () => {
         configRevision: { id: "config-1" },
         resourceReferences: [{ id: "resource-1" }],
         secretReferences: [{ id: "secret-1" }],
+        routeTargets: [{ serviceId: "service-api", component: "api", port: 3000 }],
       },
       globalEnvironment: { NODE_ENV: "staging" },
       componentEnvironments: { api: { DATABASE_URL: "secret" } },
@@ -118,7 +119,12 @@ describe("executeEnvironmentVersion staging admission", () => {
     const workload = {
       environmentId: "staging-1",
       inputHash: "workload-hash",
-      services: [{ componentKey: "api" }],
+      services: [{
+        serviceId: "service-api",
+        componentKey: "api",
+        name: "api",
+        ports: [3000],
+      }],
     };
     inputs.prepare.mockResolvedValue(deploymentInput);
     stagingWorkloads.prepare.mockResolvedValue(workload);

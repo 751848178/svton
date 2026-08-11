@@ -40,9 +40,13 @@ vi.mock('../hooks/use-release-orders', () => ({
   useReleaseOrders: mocks.useReleaseOrders,
 }));
 vi.mock('./project-delivery-header', () => ({
-  ProjectDeliveryHeader: ({ onCreate }: { onCreate: () => void }) => (
-    <button onClick={onCreate}>create-release-order</button>
-  ),
+  ProjectDeliveryHeader: ({
+    showCreate,
+    onCreate,
+  }: {
+    showCreate: boolean;
+    onCreate?: () => void;
+  }) => showCreate && onCreate ? <button onClick={onCreate}>create-release-order</button> : null,
 }));
 vi.mock('./project-delivery-summary', () => ({
   ProjectDeliveryEnvironmentStrip: () => <div>versions</div>,
@@ -76,7 +80,10 @@ describe('ProjectDeliveryRoute create action owner', () => {
     ).IS_REACT_ACT_ENVIRONMENT = true;
     mocks.modalOrders = [];
     mocks.useProjectDeliverySummary.mockReturnValue({
-      summary: { project: { id: 'project-1', name: 'Project 1' } },
+      summary: {
+        project: { id: 'project-1', name: 'Project 1' },
+        nextAction: { kind: 'open_release', href: '/projects/project-1?section=delivery' },
+      },
       loading: false,
       error: null,
       refresh: vi.fn(),
@@ -132,5 +139,25 @@ describe('ProjectDeliveryRoute create action owner', () => {
     });
 
     expect(mocks.useReleaseOrders).toHaveBeenCalledWith('');
+  });
+
+  it('does not expose a competing create action while the server owns another checkpoint', async () => {
+    mocks.useProjectDeliverySummary.mockReturnValue({
+      summary: {
+        project: { id: 'project-1', name: 'Project 1' },
+        nextAction: {
+          kind: 'bind_target',
+          href: '/projects/project-1/settings?section=environments&env=staging&envTab=targets',
+        },
+      },
+      loading: false,
+      error: null,
+      refresh: vi.fn(),
+    });
+    await act(async () => {
+      root.render(<ProjectDeliveryRoute projectId="project-1" />);
+    });
+
+    expect(container.textContent).not.toContain('create-release-order');
   });
 });

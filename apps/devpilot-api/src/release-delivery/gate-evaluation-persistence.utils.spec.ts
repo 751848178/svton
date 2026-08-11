@@ -54,4 +54,38 @@ describe("GateEvaluation persistence mapping", () => {
     expect(replay.inputHash).toBe(first.inputHash);
     expect(changed.inputHash).not.toBe(first.inputHash);
   });
+
+  it("changes identity when the frozen source policy or exact Commit changes", () => {
+    const scope = {
+      teamId: "team-1",
+      projectId: "project-1",
+      releaseOrderId: "order-1",
+      actorId: "requester-1",
+    };
+    const c03 = {
+      ...evaluation,
+      id: "C03",
+      status: "manual" as const,
+      evidenceIdentity: {
+        sourcePolicyRevisionId: "policy-1",
+        sourcePolicySnapshotHash: "hash-1",
+        sourceCommitSha: "a".repeat(40),
+        commitAuthorUserId: "author-1",
+      },
+    };
+    const first = buildGateEvaluationRow(scope, c03);
+    expect(buildGateEvaluationRow(scope, c03).inputHash).toBe(first.inputHash);
+    expect(buildGateEvaluationRow(scope, {
+      ...c03,
+      evidenceIdentity: { ...c03.evidenceIdentity, sourceCommitSha: "b".repeat(40) },
+    }).inputHash).not.toBe(first.inputHash);
+    expect(buildGateEvaluationRow(scope, {
+      ...c03,
+      evidenceIdentity: {
+        ...c03.evidenceIdentity,
+        sourcePolicyRevisionId: "policy-2",
+        sourcePolicySnapshotHash: "hash-2",
+      },
+    }).inputHash).not.toBe(first.inputHash);
+  });
 });

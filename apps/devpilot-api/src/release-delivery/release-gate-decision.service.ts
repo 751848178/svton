@@ -98,6 +98,7 @@ export class ReleaseGateDecisionService {
         checkpoint,
         checks,
         actionInput,
+        actorId: scope.actorId,
       }),
       requestKey,
     );

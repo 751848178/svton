@@ -7,6 +7,7 @@ import { ReleaseBuildArtifactService } from "./release-build-artifact.service";
 import { runControlledBuildCommand } from "./release-build-command-runner";
 import { ReleaseBuildRuntimeProfileService } from "./release-build-runtime-profile.service";
 import { ReleaseBuildRuntimeSupervisorService } from "./release-build-runtime-supervisor.service";
+import { releaseBuildEvidenceStubs } from "./release-build-executor-evidence.spec-utils";
 
 const describeRuntime =
   process.env.RUN_F426_DOCKER_PROFILE === "1" ? describe : describe.skip;
@@ -19,9 +20,12 @@ describeRuntime("F426 V13 Docker runtime profile", () => {
   beforeAll(async () => {
     const config = new ConfigService(envSchema.parse(process.env));
     runtime = new ReleaseBuildRuntimeProfileService(config);
+    const evidence = releaseBuildEvidenceStubs();
     executor = new LocalReleaseBuildExecutorService(
       runtime,
       new ReleaseBuildArtifactService(config),
+      evidence.packages,
+      evidence.scanners,
     );
     runtime.assertAvailable();
     await mkdir(runtime.workRoot, { recursive: true });
@@ -136,6 +140,7 @@ function input(root: string, buildRunId: string, buildCommand: string) {
     buildRunId,
     projectId: "docker-project",
     releaseOrderId: "docker-order",
+    sourceCommitSha: "a".repeat(40),
     checkoutRoot: root,
     components: [
       {

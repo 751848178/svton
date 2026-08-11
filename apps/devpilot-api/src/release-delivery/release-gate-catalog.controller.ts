@@ -52,11 +52,23 @@ export class ReleaseGateCatalogController {
     @Param("evaluationId") evaluationId: string,
     @Body() dto: ConfirmReleaseGateDto,
   ) {
-    await this.access.assertBuild({
+    const scope = {
       teamId: req.teamId,
       actorId: req.user.id,
       projectId,
+    };
+    const target = await this.confirmations.resolve({
+      teamId: req.teamId,
+      projectId,
+      releaseOrderId,
+      gateId,
+      evaluationId,
     });
+    if (target.permission === "production") {
+      await this.access.assertConfirmProduction(scope);
+    } else {
+      await this.access.assertBuild(scope);
+    }
     return this.confirmations.confirm({
       teamId: req.teamId,
       actorId: req.user.id,

@@ -84,6 +84,25 @@ export class EnvironmentVersionReadRepository {
           orderBy: [{ effectiveAt: "desc" }, { id: "desc" }],
           take: 50,
         },
+        releaseRuns: {
+          where: {
+            status: { in: ["awaiting_approval", "running", "awaiting_validation"] },
+          },
+          orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          take: 1,
+          select: {
+            id: true,
+            mode: true,
+            status: true,
+            artifactManifestId: true,
+            deploymentRuns: {
+              where: { status: { in: ["running", "awaiting_validation"] } },
+              orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+              take: 1,
+              select: { id: true, status: true, result: true, createdAt: true },
+            },
+          },
+        },
       },
       orderBy: { baselineRole: "desc" },
     });
@@ -116,7 +135,7 @@ export class EnvironmentVersionReadRepository {
         },
         releaseRuns: {
           where: {
-            status: "awaiting_approval",
+            status: { in: ["awaiting_approval", "awaiting_validation"] },
             environment: { baselineRole: "production" },
           },
           select: {

@@ -86,4 +86,31 @@ describe('useEnvironmentVersions refresh contract', () => {
     expect(value).toBeUndefined();
     expect(options).toEqual({ revalidate: true });
   });
+
+  it('resumes the exact frozen production candidate and refreshes the server-owned checkpoint', async () => {
+    function Harness() {
+      latest = useEnvironmentVersions('project-1');
+      return null;
+    }
+    await act(async () => root.render(<Harness />));
+    await act(async () => undefined);
+    const input = {
+      releaseRunId: 'release-1',
+      deploymentRunId: 'deployment-1',
+      candidateHash: 'a'.repeat(64),
+    };
+
+    await act(async () => {
+      await latest.resumePromotion('environment-1', input);
+    });
+
+    expect(mocks.apiRequest).toHaveBeenCalledWith(
+      'POST:/projects/project-1/delivery/environment-versions/environment-1/production-promotion/resume',
+      { ...input, idempotencyKey: expect.any(String) },
+    );
+    expect(mocks.apiRequest).toHaveBeenCalledWith(
+      'GET:/projects/project-1/delivery/environment-versions',
+    );
+    expect(mocks.mutateCache).toHaveBeenCalledTimes(1);
+  });
 });

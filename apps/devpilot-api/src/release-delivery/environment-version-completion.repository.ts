@@ -5,6 +5,7 @@ import type { SiteRouteSwitchAttemptPersistence } from "../site/site-route-switc
 import { completeVersionedDeployment } from "./environment-version-write.utils";
 import { claimReleaseGateDecision } from "./release-gate-decision.repository";
 import type { ReleaseGateDecisionReference } from "./release-gate-decision.types";
+import { completeProductionPromotionCommand } from "./production-promotion-command-completion.repository";
 
 @Injectable()
 export class EnvironmentVersionCompletionRepository {
@@ -23,6 +24,13 @@ export class EnvironmentVersionCompletionRepository {
       gateDecisions?: ReleaseGateDecisionReference[];
       routeSwitchAttempt?: SiteRouteSwitchAttemptPersistence;
       routeSwitchOperationId?: string;
+      promotionCommand?: {
+        id: string;
+        candidateHash: string;
+        result?: Record<string, unknown>;
+        errorCode?: string;
+        errorMessage?: string;
+      };
     },
   ) {
     return this.prisma.$transaction(async (tx) => {
@@ -41,6 +49,17 @@ export class EnvironmentVersionCompletionRepository {
       const run = await tx.deploymentRun.findUniqueOrThrow({
         where: { id: input.deploymentRunId },
       });
+      if (input.promotionCommand) {
+        await completeProductionPromotionCommand(tx, {
+          commandId: input.promotionCommand.id,
+          deploymentRunId: run.id,
+          candidateHash: input.promotionCommand.candidateHash,
+          status: input.status,
+          result: input.promotionCommand.result,
+          errorCode: input.promotionCommand.errorCode,
+          errorMessage: input.promotionCommand.errorMessage,
+        });
+      }
       const decisions = input.gateDecisions ??
         (input.gateDecision ? [input.gateDecision] : []);
       for (const decision of decisions) {

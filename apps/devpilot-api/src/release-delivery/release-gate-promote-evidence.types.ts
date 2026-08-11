@@ -102,4 +102,15 @@ export type ReleaseGatePromoteEvidence = {
     sampledAt: Date;
     raw: unknown;
   }>;
+  routeSwitchRuns: Array<{
+    id: string;
+    operationId: string;
+    releaseRunId: string | null;
+    deploymentRunId: string | null;
+    targetRef: string | null;
+    status: string;
+    result: unknown;
+    applyReceipt: unknown;
+    updatedAt: Date;
+  }>;
 };

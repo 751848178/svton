@@ -46,6 +46,11 @@ describe("LocalFilesystemDeploymentProviderService security", () => {
         await symlink(attackerTarget, join(target, ".devpilot", "env", "api.env"));
         await mkdir(join(target, "dist"), { recursive: true });
         await writeFile(join(target, "dist", "app.txt"), "exact artifact");
+        await Promise.all(["start", "status", "cleanup"].map((name) =>
+          writeFile(join(target, "dist", `${name}.sh`), "#!/bin/sh\nexit 0\n", {
+            mode: 0o700,
+          }),
+        ));
       }),
     });
     const receipt = await provider.deployExactManifest(input(true));
@@ -114,9 +119,9 @@ function workload() {
         artifactDigest: `sha256:${"b".repeat(64)}`,
         workingDirectory: ".",
         executionMode: "managed-command-v1" as const,
-        startCommand: "true",
-        statusCommand: "true",
-        failureCleanupCommand: "true",
+        startCommand: "./dist/start.sh",
+        statusCommand: "./dist/status.sh",
+        failureCleanupCommand: "./dist/cleanup.sh",
         startTimeoutMs: 5_000,
         statusTimeoutMs: 1_000,
         stateHash: "state",
