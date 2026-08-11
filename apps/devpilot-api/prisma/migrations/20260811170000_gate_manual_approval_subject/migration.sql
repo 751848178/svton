@@ -4,14 +4,14 @@ ALTER TABLE `GateManualApproval`
 CREATE INDEX `GateManualApproval_approvalSubjectHash_idx`
   ON `GateManualApproval`(`approvalSubjectHash`);
 
-CREATE INDEX `GateManualApproval_releaseOrderId_approvalSubjectHash_requesterActorId_idx`
+CREATE INDEX `GateManualApproval_subject_requester_idx`
   ON `GateManualApproval`(
     `releaseOrderId`,
     `approvalSubjectHash`,
     `requesterActorId`
   );
 
-CREATE UNIQUE INDEX `GateManualApproval_gateEvaluationId_evaluationInputHash_approvalSubjectHash_reviewerActorId_key`
+CREATE UNIQUE INDEX `GateManualApproval_subject_reviewer_key`
   ON `GateManualApproval`(
     `gateEvaluationId`,
     `evaluationInputHash`,

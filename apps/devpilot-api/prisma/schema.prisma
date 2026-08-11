@@ -3353,15 +3353,15 @@ model GateManualApproval {
   requester            User                  @relation("GateManualApprovalRequester", fields: [requesterActorId], references: [id], onDelete: Restrict)
   reviewer             User                  @relation("GateManualApprovalReviewer", fields: [reviewerActorId], references: [id], onDelete: Restrict)
 
-  @@unique([gateEvaluationId, evaluationInputHash, actionInputHash, reviewerActorId])
-  @@unique([gateEvaluationId, evaluationInputHash, approvalSubjectHash, reviewerActorId])
+  @@unique([gateEvaluationId, evaluationInputHash, actionInputHash, reviewerActorId], map: "GateManualApproval_evaluation_action_reviewer_key")
+  @@unique([gateEvaluationId, evaluationInputHash, approvalSubjectHash, reviewerActorId], map: "GateManualApproval_subject_reviewer_key")
   @@index([teamId])
   @@index([projectId])
   @@index([releaseOrderId])
   @@index([sourcePolicyRevisionId])
   @@index([actionInputHash])
   @@index([approvalSubjectHash])
-  @@index([releaseOrderId, approvalSubjectHash, requesterActorId])
+  @@index([releaseOrderId, approvalSubjectHash, requesterActorId], map: "GateManualApproval_subject_requester_idx")
   @@index([expiresAt])
   @@index([createdAt])
 }
