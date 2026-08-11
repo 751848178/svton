@@ -40,6 +40,22 @@ describe("release build launcher host contract", () => {
       .rejects.toThrow("owner or mode");
   });
 
+  it("rejects an unsafe relative tool override", async () => {
+    const paths = await fixture();
+    await expect(assertReleaseBuildLauncherHostContract({ ...paths,
+      toolExecutables: ["bin/tar"] }, process.getuid?.() ?? 0))
+      .rejects.toThrow("must be absolute");
+  });
+
+  it("rejects a symlinked tool override", async () => {
+    const paths = await fixture();
+    const link = join(root, "tool-link");
+    await symlink(paths.toolExecutables[0], link);
+    await expect(assertReleaseBuildLauncherHostContract({ ...paths,
+      toolExecutables: [link] }, process.getuid?.() ?? 0))
+      .rejects.toThrow("symlink");
+  });
+
   const itRoot = process.getuid?.() === 0 ? it : it.skip;
   itRoot("rejects a non-root-owned host tool", async () => {
     const paths = await fixture();

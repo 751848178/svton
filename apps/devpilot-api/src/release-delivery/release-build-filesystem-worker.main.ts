@@ -19,7 +19,7 @@ async function main() {
     secretFile: requiredPath("RELEASE_BUILD_WORKER_HMAC_SECRET_FILE"),
     commandPath: process.env.RELEASE_BUILD_COMMAND_PATH ||
       "/pnpm:/usr/local/bin:/usr/bin:/bin",
-    tarExecutable: process.env.RELEASE_BUILD_WORKER_TAR_EXECUTABLE || "/bin/tar",
+    tarExecutable: process.env.RELEASE_BUILD_WORKER_TAR_EXECUTABLE || "/usr/bin/tar",
     commandTimeoutMs: positive("RELEASE_BUILD_COMMAND_TIMEOUT_MS", 120_000),
     cancelGraceMs: positive("RELEASE_BUILD_CANCEL_GRACE_MS", 5_000),
     brokerUid: positive("RELEASE_BUILD_BROKER_UID", 3_000),
@@ -35,7 +35,7 @@ async function main() {
   if (process.getuid?.() !== 0 || config.brokerUid === 0 || config.brokerGid === 0) {
     throw new Error("release-build supervisor requires root and a non-root broker uid/gid");
   }
-  const toolExecutables = assertToolchain(config.supplyProofFile);
+  const toolExecutables = assertToolchain(config.supplyProofFile, config.tarExecutable);
   const hostPaths = await assertReleaseBuildLauncherHostContract({
     inputRoot: config.inputRoot, outputRoot: config.outputRoot,
     workRoot: config.workRoot, proofFile: config.proofFile,
@@ -45,7 +45,7 @@ async function main() {
   });
   Object.assign(config, hostPaths, { externalOci: {
     ...config.externalOci, dockerExecutable: hostPaths.dockerExecutable,
-  } });
+  }, tarExecutable: hostPaths.toolExecutables[hostPaths.toolExecutables.length - 1] });
   const secret = await readReleaseBuildWorkerSecret(config.secretFile);
   const instance = config.externalOci.launcherLabel;
   const startedAt = new Date().toISOString();
@@ -117,13 +117,13 @@ function safe(error: unknown) {
 }
 function delay(ms: number) { return new Promise((resolvePromise) => setTimeout(resolvePromise, ms)); }
 
-function assertToolchain(supplyProofFile: string) {
+function assertToolchain(supplyProofFile: string, tarExecutable: string) {
   const profile = resolveRegisteredReleaseBuildProfile("controlled-local-acceptance-v2");
   if (!profile || !verifyReleaseBuildSupplyProof(supplyProofFile, profile))
     throw new Error("release-build launcher supply proof is invalid");
   return [...profile.scanners.map((value) => value.executable),
     ...Object.values(profile.packageManagers).map((value) => value!.executable),
-    "/bin/tar"];
+    tarExecutable];
 }
 
 void main();
