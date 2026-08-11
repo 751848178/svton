@@ -84,8 +84,9 @@ describe("filesystem isolated build worker exchange", () => {
     const adapter = new FilesystemIsolatedReleaseBuildExecutorService(
       runtime,
       new ReleaseBuildSourceSnapshotService(),
-      { prepare: jest.fn().mockResolvedValue({ ...dependency(), leaseToken: "raw" }),
-        acceptResult: jest.fn().mockResolvedValue(undefined),
+      { prepare: jest.fn().mockResolvedValue(dependency()),
+        acceptReady: jest.fn().mockResolvedValue(undefined),
+        acceptFinal: jest.fn().mockResolvedValue("complete"),
         heartbeat: jest.fn().mockResolvedValue(undefined),
         cancel: jest.fn().mockResolvedValue(undefined) } as never,
     );
@@ -145,7 +146,7 @@ function dependency() {
     jobImage: `registry.test/api@sha256:${"7".repeat(64)}`,
     pnpmVersion: "8.12.0", platformOs: "linux", platformArch: "arm64",
     platformAbi: "node20-modules-115", platformLibc: "glibc-debian-bookworm",
-    registryPolicyDigest: "3".repeat(64), mode: "verify_or_fetch",
+    registryPolicyDigest: "3".repeat(64), mode: "reuse",
     storeDigest: "4".repeat(64) } as const;
 }
 

@@ -3050,8 +3050,8 @@ model ReleaseDependencyFetchRun {
   profileVersion       Int
   profileSnapshotHash  String?
   supplyChainDigest    String?
-  fetchImage           String?
-  jobImage             String?
+  fetchImage           String?  @db.VarChar(512)
+  jobImage             String?  @db.VarChar(512)
   pnpmVersion          String
   platformOs           String
   platformArch         String

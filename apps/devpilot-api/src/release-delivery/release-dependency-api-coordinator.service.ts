@@ -8,6 +8,9 @@ import type { ReleaseBuildWorkerResult } from "./release-build-worker-envelope.p
 import type { DependencyFetchIdentity } from "./release-dependency-store-contract";
 import type { WorkerSourceManifest } from "./release-build-worker-source-manifest";
 
+type WorkerDependency = DependencyFetchIdentity & {
+  mode: "fetch" | "reuse"; storeDigest: string | null };
+
 @Injectable()
 export class ReleaseDependencyApiCoordinator {
   private readonly active = new Map<string, {
@@ -41,48 +44,71 @@ export class ReleaseDependencyApiCoordinator {
     while (Date.now() < input.deadline.getTime()) {
       const reservation = await this.repository.reserve({
         buildRunId: input.buildRunId, ...identity });
+      if (reservation.role === "blocked")
+        throw unavailable(reservation.row.errorCode || "dependency_policy_blocked");
+      if (reservation.role === "reuse") return { ...identity,
+        mode: "reuse" as const, storeDigest: reservation.row.storeDigest! };
       if (reservation.role === "owner") {
         this.active.set(input.buildRunId, { identity,
           leaseToken: reservation.leaseToken });
-        return { ...identity, mode: "verify_or_fetch" as const,
-          storeDigest: reservation.row.storeDigest };
+        return { ...identity, mode: "fetch" as const, storeDigest: null };
       }
       await delay(250);
     }
     throw unavailable("dependency_fetch_wait_timeout");
   }
 
-  async acceptResult(buildRunId: string, dependency: DependencyFetchIdentity & {
-    mode: "verify_or_fetch"; storeDigest: string | null },
-    result: ReleaseBuildWorkerResult) {
-    const leaseToken = this.lease(buildRunId, dependency);
-    const evidence = result.dependencyStore;
-    if (!evidence || evidence.fetchRunId !== dependency.fetchRunId ||
-      evidence.combinationHash !== dependency.combinationHash) {
-      await this.repository.finish({ fetchRunId: dependency.fetchRunId,
-        leaseToken, status: result.status === "canceled" ? "failed" : "unavailable",
-        code: "dependency_fetch_result_missing", message: "依赖预取未返回可信摘要" });
-      throw unavailable("dependency_fetch_result_missing");
+  async acceptReady(buildRunId: string, dependency: WorkerDependency,
+    evidence: { fetchRunId: string; combinationHash: string; storeDigest: string }) {
+    assertEvidence(dependency, evidence);
+    if (dependency.mode === "reuse") {
+      await this.repository.freezeReuse({ buildRunId,
+        fetchRunId: evidence.fetchRunId, storeDigest: evidence.storeDigest });
+      return;
     }
+    const leaseToken = this.lease(buildRunId, dependency);
     await this.repository.markVerifying(dependency.fetchRunId, leaseToken);
     await this.repository.succeed({ buildRunId, fetchRunId: dependency.fetchRunId,
       leaseToken, storeDigest: evidence.storeDigest });
     this.active.delete(buildRunId);
   }
 
-  async cancel(buildRunId: string, dependency: DependencyFetchIdentity, code: string) {
-    const leaseToken = this.lease(buildRunId, dependency);
-    await this.repository.finish({ fetchRunId: dependency.fetchRunId, leaseToken,
-      status: "failed", code, message: "依赖预取被取消或证明无效" });
-    this.active.delete(buildRunId);
+  async acceptFinal(buildRunId: string, dependency: WorkerDependency,
+    result: ReleaseBuildWorkerResult) {
+    if (dependency.mode === "reuse" &&
+      result.failure?.code === "BUILD_DEPENDENCY_STORE_INVALIDATED") {
+      await this.repository.invalidateSucceeded(dependency.fetchRunId,
+        dependency.storeDigest!);
+      return "retry" as const;
+    }
+    if (!result.dependencyStore) {
+      await this.finishActive(buildRunId, "dependency_fetch_result_missing");
+      throw unavailable("dependency_fetch_result_missing");
+    }
+    assertEvidence(dependency, result.dependencyStore);
+    return "complete" as const;
   }
 
-  async heartbeat(buildRunId: string, dependency: DependencyFetchIdentity) {
-    const leaseToken = this.lease(buildRunId, dependency);
-    const result = await this.repository.heartbeat(dependency.fetchRunId, leaseToken);
+  async cancel(buildRunId: string, _dependency: DependencyFetchIdentity, code: string) {
+    await this.finishActive(buildRunId, code);
+  }
+
+  async heartbeat(buildRunId: string, _dependency: DependencyFetchIdentity) {
+    const active = this.active.get(buildRunId);
+    if (!active) return;
+    const result = await this.repository.heartbeat(active.identity.fetchRunId,
+      active.leaseToken);
     if (result.count !== 1) throw unavailable("dependency_fetch_lease_lost");
   }
 
+  private async finishActive(buildRunId: string, code: string) {
+    const active = this.active.get(buildRunId);
+    if (!active) return;
+    await this.repository.finish({ fetchRunId: active.identity.fetchRunId,
+      leaseToken: active.leaseToken, status: "failed", code,
+      message: "依赖预取被取消或证明无效" });
+    this.active.delete(buildRunId);
+  }
   private lease(buildRunId: string, dependency: DependencyFetchIdentity) {
     const active = this.active.get(buildRunId);
     if (!active || active.identity.fetchRunId !== dependency.fetchRunId)
@@ -91,6 +117,13 @@ export class ReleaseDependencyApiCoordinator {
   }
 }
 
+function assertEvidence(dependency: WorkerDependency, evidence: {
+  fetchRunId: string; combinationHash: string; storeDigest: string }) {
+  if (evidence.fetchRunId !== dependency.fetchRunId ||
+    evidence.combinationHash !== dependency.combinationHash ||
+    (dependency.mode === "reuse" && evidence.storeDigest !== dependency.storeDigest))
+    throw unavailable("dependency_store_evidence_mismatch");
+}
 function platformArch(): "amd64" | "arm64" {
   if (process.arch === "x64") return "amd64";
   if (process.arch === "arm64") return "arm64";

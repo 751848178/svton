@@ -25,7 +25,7 @@ export function buildSourcePolicySnapshot(
       networkPolicy: "none",
       containerPolicy: "per-job-immutable-oci-v1",
       terminationPolicy: "kill-remove-before-promote",
-      packageInstallPolicy: "locked-offline",
+      packageInstallPolicy: "lockfile-bound-dependency-store-v1",
     },
     externalRequiredChecks: profile.externalRequiredChecks,
     requiredIndependentApprovals: profile.requiredIndependentApprovals,

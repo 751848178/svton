@@ -54,7 +54,9 @@ export async function runReleaseBuildBroker(
     const writableDependencyStore = await createWritableBrokerWorkspace(
       input.dependencyStoreRoot, input.workRoot, "dependency-store",
     );
-    await verifyDependencyStore(writableDependencyStore, expectedStore);
+    await verifyDependencyStore(writableDependencyStore, expectedStore, {
+      uid: process.getuid?.() ?? 3_000, gid: process.getgid?.() ?? 3_000 },
+    { writable: true });
     const config = brokerConfig(input);
     const runtime = new ReleaseBuildRuntimeProfileService(config);
     const evidence = new LocalReleaseEvidenceArtifactService(config);

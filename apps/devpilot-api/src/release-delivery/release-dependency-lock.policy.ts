@@ -56,7 +56,7 @@ export function evaluateReleaseDependencyLock(input: {
   });
   return { allowed: true as const, lockfilePath: lock.path,
     lockfileDigest: digest, combinationHash, profileSnapshotHash,
-    supplyChainDigest,
+    supplyChainDigest, sanitizedLockfile: Buffer.from(input.bytes),
     fetchRunId: `dep_${combinationHash}` };
 }
 

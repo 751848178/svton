@@ -9,19 +9,55 @@ export function authorizeRegistryConnect(input: {
   if (input.requestLine !==
       `CONNECT ${RELEASE_REGISTRY_HOST}:${RELEASE_REGISTRY_PORT} HTTP/1.1` ||
     /proxy-authorization\s*:/i.test(input.headers) || !input.addresses.length ||
-    input.addresses.some(privateAddress)) throw new Error("registry_egress_blocked");
+    input.addresses.some(specialUseAddress)) throw new Error("registry_egress_blocked");
   return input.addresses[0];
 }
 
-export function privateAddress(value: string) {
-  if (!isIP(value)) return true;
-  if (value.includes(":")) {
-    const normalized = value.toLowerCase();
-    return normalized === "::1" || normalized.startsWith("fc") ||
-      normalized.startsWith("fd") || /^fe[89ab]/.test(normalized);
-  }
-  const [a, b] = value.split(".").map(Number);
-  return a === 10 || a === 127 || a === 0 || a >= 224 ||
-    (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) ||
-    (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127);
+export function specialUseAddress(value: string) {
+  const kind = isIP(value);
+  if (kind === 4) return specialIpv4(value);
+  if (kind !== 6) return true;
+  const words = ipv6Words(value);
+  if (!words) return true;
+  const [first, second, third, fourth] = words;
+  return first === 0 || first === 0xffff ||
+    (first & 0xfe00) === 0xfc00 ||
+    (first & 0xffc0) === 0xfe80 ||
+    (first & 0xffc0) === 0xfec0 ||
+    (first & 0xff00) === 0xff00 ||
+    (first === 0x0064 && second === 0xff9b && third === 0 && fourth === 0) ||
+    (first === 0x0064 && second === 0xff9b && third === 1) ||
+    (first === 0x0100 && second === 0 && third === 0 && fourth === 0) ||
+    (first === 0x2001 && second <= 0x01ff) ||
+    (first === 0x2001 && second === 0x0db8) || first === 0x2002;
+}
+
+function specialIpv4(value: string) {
+  const octets = value.split(".").map(Number);
+  if (octets.length !== 4 || octets.some((part) => part < 0 || part > 255)) return true;
+  const [a, b, c] = octets;
+  return a === 0 || a === 10 || a === 127 || a >= 224 ||
+    (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) ||
+    (a === 192 && b === 0 && c === 0) || (a === 192 && b === 0 && c === 2) ||
+    (a === 192 && b === 31 && c === 196) ||
+    (a === 192 && b === 52 && c === 193) ||
+    (a === 192 && b === 88 && c === 99) ||
+    (a === 192 && b === 175 && c === 48) ||
+    (a === 198 && (b === 18 || b === 19 || b === 51 && c === 100)) ||
+    (a === 203 && b === 0 && c === 113);
+}
+
+function ipv6Words(value: string) {
+  if (value.includes(".")) return null;
+  const halves = value.toLowerCase().split("::");
+  if (halves.length > 2) return null;
+  const left = halves[0] ? halves[0].split(":") : [];
+  const right = halves[1] ? halves[1].split(":") : [];
+  const missing = 8 - left.length - right.length;
+  if ((halves.length === 1 && missing !== 0) || missing < 0) return null;
+  const words = [...left, ...Array(missing).fill("0"), ...right];
+  if (words.length !== 8 || words.some((word) => !/^[a-f0-9]{1,4}$/.test(word)))
+    return null;
+  return words.map((word) => Number.parseInt(word, 16));
 }

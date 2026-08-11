@@ -26,7 +26,7 @@ export type ReleaseBuildWorkerIdentity = {
   profileVersion: number;
   profileSnapshotHash: string;
   dependency: DependencyFetchIdentity & {
-    mode: "verify_or_fetch";
+    mode: "fetch" | "reuse";
     storeDigest: string | null;
   };
   deadline: string;
@@ -60,6 +60,14 @@ export type ReleaseBuildWorkerCancellation = {
   signature: string;
 };
 
+export type ReleaseBuildWorkerDependencyReady = {
+  version: 1;
+  identity: ReleaseBuildWorkerIdentity;
+  dependencyStore: { fetchRunId: string; combinationHash: string;
+    storeDigest: string };
+  signature: string;
+};
+
 export function signWorkerRequest(
   unsigned: Omit<ReleaseBuildWorkerRequest, "signature">,
   secret: string,
@@ -79,6 +87,13 @@ export function signWorkerCancellation(
   secret: string,
 ): ReleaseBuildWorkerCancellation {
   return { ...unsigned, signature: sign("cancel", unsigned, secret) };
+}
+
+export function signWorkerDependencyReady(
+  unsigned: Omit<ReleaseBuildWorkerDependencyReady, "signature">,
+  secret: string,
+): ReleaseBuildWorkerDependencyReady {
+  return { ...unsigned, signature: sign("dependency-ready", unsigned, secret) };
 }
 
 export function verifyWorkerRequest(
@@ -103,6 +118,14 @@ export function verifyWorkerCancellation(
 ) {
   const { signature, ...unsigned } = envelope;
   return verify(signature, sign("cancel", unsigned, secret));
+}
+
+export function verifyWorkerDependencyReady(
+  envelope: ReleaseBuildWorkerDependencyReady,
+  secret: string,
+) {
+  const { signature, ...unsigned } = envelope;
+  return verify(signature, sign("dependency-ready", unsigned, secret));
 }
 
 export function sameWorkerIdentity(

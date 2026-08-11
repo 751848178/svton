@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { controlledBuildEnvironment } from "./release-build-command-policy";
 import { releaseBuildExecutionFailure } from "./release-build-execution-failure";
 import { signWorkerCancellation, type ReleaseBuildWorkerIdentity,
+  type ReleaseBuildWorkerDependencyReady,
   type ReleaseBuildWorkerResult } from "./release-build-worker-envelope.policy";
 import { readImmutableWorkerJson, workerJobDirectory,
   writeImmutableWorkerJson } from "./release-build-worker-exchange";
@@ -28,6 +29,14 @@ export async function readIsolatedWorkerResult(
     identity.jobId, false, runtime.workerSharedGid);
   return readImmutableWorkerJson<ReleaseBuildWorkerResult>(join(directory, "result.json"));
 }
+export async function readWorkerDependencyReady(
+  runtime: WorkerRoots, identity: ReleaseBuildWorkerIdentity,
+) {
+  const directory = await workerJobDirectory(runtime.workerOutputRoot,
+    identity.jobId, false, runtime.workerSharedGid);
+  return readImmutableWorkerJson<ReleaseBuildWorkerDependencyReady>(
+    join(directory, "dependency-ready.json"));
+}
 export async function publishIsolatedWorkerCancel(
   runtime: WorkerRoots, identity: ReleaseBuildWorkerIdentity, secret: string,
   reason: "canceled" | "timeout",
@@ -38,3 +47,5 @@ export async function publishIsolatedWorkerCancel(
     version: 1, identity, reason, requestedAt: new Date().toISOString(),
   }, secret), runtime.workerSharedGid).catch(() => undefined);
 }
+
+export class DependencyStoreRetryError extends Error {}

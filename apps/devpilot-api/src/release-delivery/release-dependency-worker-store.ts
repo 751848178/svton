@@ -6,6 +6,7 @@ import { readSignedPnpmLock } from "./release-dependency-lock.reader";
 import { quarantineDependencyStore,
   verifyDependencyStore } from "./release-dependency-store-filesystem";
 import type { ReleaseBuildWorkerRequest } from "./release-build-worker-envelope.policy";
+import { releaseBuildExecutionFailure } from "./release-build-execution-failure";
 
 export async function prepareWorkerDependencyStore(input: {
   request: ReleaseBuildWorkerRequest; profile: RegisteredReleaseBuildProfile;
@@ -32,7 +33,8 @@ export async function prepareWorkerDependencyStore(input: {
     expected.registryPolicyDigest !==
       input.profile.dependencyStorePolicy.registryPolicyDigest) throw invalid();
   const root = join(input.cacheRoot, expected.combinationHash);
-  if (expected.storeDigest) {
+  if (expected.mode === "reuse") {
+    if (!expected.storeDigest) throw invalid();
     try {
       const manifest = await verifyDependencyStore(root, {
         combinationHash: expected.combinationHash,
@@ -42,11 +44,16 @@ export async function prepareWorkerDependencyStore(input: {
       await quarantineDependencyStore(root).catch((error) => {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
       });
+      throw releaseBuildExecutionFailure("BUILD_DEPENDENCY_STORE_INVALIDATED",
+        "依赖缓存证明损坏，已隔离并准备重新预取", [], "重新执行依赖预取。",
+        "failed", { dependencyStore: { status: "invalidated",
+          fetchRunId: expected.fetchRunId, storeDigest: expected.storeDigest } });
     }
   }
-  if (!input.externalOci) throw invalid();
+  if (expected.mode !== "fetch" || expected.storeDigest || !input.externalOci)
+    throw invalid();
   const manifest = await runDependencyFetchOci({
-    identity: expected, lockfile, cacheRoot: input.cacheRoot,
+    identity: expected, lockfile: verdict.sanitizedLockfile, cacheRoot: input.cacheRoot,
     jobRoot: input.jobRoot, image: input.externalOci.image,
     dockerExecutable: input.externalOci.dockerExecutable,
     launcherLabel: input.externalOci.launcherLabel,

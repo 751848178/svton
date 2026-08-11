@@ -22,6 +22,8 @@ jest.mock("node:child_process", () => ({
           version: 1, status: "succeeded", result: { artifact: {}, logs: [], gateSummary: {} },
         }));
         if (args[0] === "ps") child.stdout.end("abcdef123456\n123456abcdef\n");
+        if (args[0] === "network" && args[1] === "ls")
+          child.stdout.end("fedcba654321\n");
         child.emit("close", 0);
       }
     });
@@ -85,6 +87,9 @@ describe("external OCI launcher stale cleanup", () => {
       "label=devpilot.release-build.launcher=launcher_instance_01"]);
     expect(calls.slice(1)).toEqual([
       ["rm", "--force", "abcdef123456"], ["rm", "--force", "123456abcdef"],
+      ["network", "ls", "--quiet", "--filter",
+        "label=devpilot.release-build.launcher=launcher_instance_01"],
+      ["network", "rm", "fedcba654321"],
     ]);
   });
 });

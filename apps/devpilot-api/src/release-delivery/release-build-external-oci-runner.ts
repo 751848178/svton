@@ -72,6 +72,13 @@ export async function cleanupExternalOciLauncherContainers(input: {
   if (ids.some((id) => !/^[a-f0-9]{12,64}$/.test(id)))
     throw new Error("OCI launcher returned an invalid stale container id");
   for (const id of ids) await command(executable, ["rm", "--force", id], 30_000);
+  const networks = await command(executable, ["network", "ls", "--quiet", "--filter",
+    `label=devpilot.release-build.launcher=${label}`], 30_000);
+  const networkIds = networks.stdout.toString("utf8").split(/\s+/).filter(Boolean);
+  if (networkIds.some((id) => !/^[a-f0-9]{12,64}$/.test(id)))
+    throw new Error("OCI launcher returned an invalid stale network id");
+  for (const id of networkIds)
+    await command(executable, ["network", "rm", id], 30_000);
 }
 
 function parse(value: Buffer): ReleaseBuildBrokerResult {

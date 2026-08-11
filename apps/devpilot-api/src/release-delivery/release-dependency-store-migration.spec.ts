@@ -18,6 +18,7 @@ describe("release dependency store migration contract", () => {
     expect(sql).toContain("UNIQUE INDEX `DependencyFetch_combination_key`");
     expect(leaseSql).toContain("`leaseTokenHash` VARCHAR(191) NULL");
     expect(leaseSql).toContain("DROP COLUMN `leaseToken`");
+    expect(leaseSql).toContain("`storeDigest` = NULL");
     expect(leaseSql).toContain("`leaseExpiresAt` DATETIME(3) NULL");
     expect(schema).toContain(
       'combinationHash      String   @unique(map: "DependencyFetch_combination_key")',
@@ -35,5 +36,9 @@ describe("release dependency store migration contract", () => {
       expect(leaseSql).toContain(`\`${field}\``);
       expect(schema).toContain(field);
     }
+    expect(leaseSql).toContain("`fetchImage` VARCHAR(512) NULL");
+    expect(leaseSql).toContain("`jobImage` VARCHAR(512) NULL");
+    expect(schema).toContain("fetchImage           String?  @db.VarChar(512)");
+    expect(schema).toContain("jobImage             String?  @db.VarChar(512)");
   });
 });

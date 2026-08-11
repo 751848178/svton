@@ -14,6 +14,7 @@ import { ReleaseDependencyApiCoordinator } from "./release-dependency-api-coordi
 import {
   sameWorkerIdentity,
   signWorkerRequest,
+  verifyWorkerDependencyReady,
   verifyWorkerResult,
   type ReleaseBuildWorkerIdentity,
 } from "./release-build-worker-envelope.policy";
@@ -29,7 +30,8 @@ import {
 } from "./source-policy-snapshot.policy";
 import { expectedReleaseBuildSupplyProof } from "./release-build-supply-proof.policy";
 import { isolatedWorkerFailure as workerFailure, publishIsolatedWorkerCancel,
-  readIsolatedWorkerResult, sourceEnvironment,
+  readIsolatedWorkerResult, readWorkerDependencyReady, sourceEnvironment,
+  DependencyStoreRetryError,
   workerDelay as delay } from "./release-build-isolated-executor.helpers";
 
 @Injectable()
@@ -43,7 +45,7 @@ export class FilesystemIsolatedReleaseBuildExecutorService
     private readonly dependencies: ReleaseDependencyApiCoordinator,
   ) { super(); }
 
-  async execute(input: ReleaseBuildExecutionInput, signal?: AbortSignal) {
+  async execute(input: ReleaseBuildExecutionInput, signal?: AbortSignal, dependencyRepairAttempt = 0): Promise<ReleaseBuildExecutionResult> {
     this.runtime.assertAvailable();
     const profile = resolveRegisteredReleaseBuildProfile(this.runtime.profile);
     if (!profile) throw new Error("Release Build worker profile is not registered");
@@ -119,7 +121,14 @@ export class FilesystemIsolatedReleaseBuildExecutorService
       components: input.components,
       sourceManifest: archive.manifest,
     }, secret), this.runtime.workerSharedGid);
-    return this.awaitResult(identity, secret, signal);
+    try { return await this.awaitResult(identity, secret, signal); }
+    catch (error) {
+      if (error instanceof DependencyStoreRetryError) {
+        if (dependencyRepairAttempt >= 1) throw workerFailure("DEPENDENCY_STORE_REPAIR_RETRY_EXHAUSTED");
+        return this.execute(input, signal, dependencyRepairAttempt + 1);
+      }
+      throw error;
+    }
   }
 
   async discardArtifact(input: { buildRunId: string }) {
@@ -136,6 +145,7 @@ export class FilesystemIsolatedReleaseBuildExecutorService
     secret: string,
     signal?: AbortSignal,
   ): Promise<ReleaseBuildExecutionResult> {
+    let dependencyReady = false;
     while (Date.now() <= new Date(identity.deadline).getTime()) {
       if (signal?.aborted) {
         await publishIsolatedWorkerCancel(this.runtime, identity, secret, "canceled");
@@ -146,6 +156,19 @@ export class FilesystemIsolatedReleaseBuildExecutorService
         );
       }
       await this.dependencies.heartbeat(identity.buildRunId, identity.dependency);
+      if (!dependencyReady) {
+        const ready = await readWorkerDependencyReady(this.runtime, identity)
+          .catch((error) => (error as NodeJS.ErrnoException).code === "ENOENT"
+            ? null : Promise.reject(error));
+        if (ready) {
+          if (!verifyWorkerDependencyReady(ready, secret) ||
+            !sameWorkerIdentity(ready.identity, identity))
+            throw workerFailure("UNTRUSTED_DEPENDENCY_READY_INVALID");
+          await this.dependencies.acceptReady(identity.buildRunId,
+            identity.dependency, ready.dependencyStore);
+          dependencyReady = true;
+        }
+      }
       const result = await readIsolatedWorkerResult(this.runtime, identity).catch((error) => {
         if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
         throw error;
@@ -157,8 +180,11 @@ export class FilesystemIsolatedReleaseBuildExecutorService
             "dependency_attestation_invalid");
           throw workerFailure("UNTRUSTED_WORKER_ATTESTATION_INVALID");
         }
-        await this.dependencies.acceptResult(identity.buildRunId,
+        const action = await this.dependencies.acceptFinal(identity.buildRunId,
           identity.dependency, result);
+        if (action === "retry") throw new DependencyStoreRetryError();
+        if (result.status === "succeeded" && !dependencyReady)
+          throw workerFailure("DEPENDENCY_READY_EVIDENCE_MISSING");
         if (result.status === "succeeded" && result.result) return result.result;
         if (result.failure) throw new ReleaseBuildExecutionError(result.failure);
         throw workerFailure(result.error?.code || "UNTRUSTED_WORKER_FAILED");

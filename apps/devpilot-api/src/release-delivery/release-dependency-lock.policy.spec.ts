@@ -40,6 +40,18 @@ describe("release dependency lock policy", () => {
       `${lock()}\nresolution:\n  tarball: //registry.npmjs.org/pkg.tgz\n`, []],
     ["dependency_auth_forbidden",
       `${lock()}\nresolution:\n  tarball: https://u:p@registry.npmjs.org/pkg.tgz\n`, []],
+    ["dependency_auth_forbidden",
+      `${lock()}\n\"//registry.npmjs.org/:_authToken\": secret\n`, []],
+    ["dependency_auth_forbidden",
+      `${lock()}\nalways-auth: true\n`, []],
+    ["dependency_auth_forbidden",
+      `${lock()}\nresolution:\n  tarball: https://registry.npmjs.org/pkg.tgz?token=secret\n`, []],
+    ["dependency_auth_forbidden",
+      `${lock()}\nresolution:\n  tarball: https://registry.npmjs.org/pkg.tgz?X-Amz-Signature=secret\n`, []],
+    ["dependency_auth_forbidden",
+      `${lock()}\nresolution:\n  note: \"//registry.npmjs.org/:_auth=secret\"\n`, []],
+    ["lockfile_yaml_invalid",
+      `${lock()}\npackages: {}\n`, []],
   ])("blocks %s before fetch", (detailCode, value, extra) => {
     expect(evaluateReleaseDependencyLock(fixture(value, profile, extra)))
       .toMatchObject({ allowed: false, detailCode });

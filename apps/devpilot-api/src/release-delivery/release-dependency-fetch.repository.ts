@@ -13,14 +13,18 @@ export class ReleaseDependencyFetchRepository {
   async reserve(input: ReserveInput) {
     const row = await this.prisma.releaseDependencyFetchRun.upsert({
       where: { combinationHash: input.combinationHash },
-      create: persistent(input), update: {},
+      create: { id: input.fetchRunId, ...persistentIdentity(input) }, update: {},
     });
     assertImmutable(row, input);
+    if (row.status === "succeeded" && row.storeDigest)
+      return { role: "reuse" as const, row };
+    if (row.status === "blocked")
+      return { role: "blocked" as const, row };
     const now = new Date();
     const lease = createDependencyFetchLease(now);
     const claimed = await this.prisma.releaseDependencyFetchRun.updateMany({
       where: { id: row.id, OR: [
-        { status: { in: ["queued", "failed", "invalidated", "succeeded"] } },
+        { status: { in: ["queued", "failed", "unavailable", "invalidated"] } },
         { status: { in: ["fetching", "verifying"] }, leaseExpiresAt: { lt: now } },
       ] },
       data: { status: "fetching", leaseTokenHash: lease.tokenHash,
@@ -31,10 +35,6 @@ export class ReleaseDependencyFetchRepository {
       ? { role: "owner" as const, row: { ...row, status: "fetching" },
           leaseToken: lease.token }
       : { role: "wait" as const, row };
-  }
-
-  get(fetchRunId: string) {
-    return this.prisma.releaseDependencyFetchRun.findUnique({ where: { id: fetchRunId } });
   }
 
   heartbeat(fetchRunId: string, token: string, now = new Date()) {
@@ -64,47 +64,71 @@ export class ReleaseDependencyFetchRepository {
       const claimed = await tx.releaseDependencyFetchRun.updateMany({
         where: { id: input.fetchRunId, status: "verifying",
           leaseTokenHash: dependencyFetchLeaseTokenHash(input.leaseToken),
-          leaseExpiresAt: { gt: now } },
+          leaseExpiresAt: { gt: now },
+          OR: [{ storeDigest: null }, { storeDigest: input.storeDigest }] },
         data: { status: "succeeded", storeDigest: input.storeDigest,
           leaseTokenHash: null, leasedAt: null, heartbeatAt: null,
           leaseExpiresAt: null, finishedAt: now },
       });
       if (claimed.count !== 1) throw conflict();
-      const frozen = await tx.buildRun.updateMany({
-        where: { id: input.buildRunId, status: "running",
-          OR: [{ dependencyFetchRunId: null },
-            { dependencyFetchRunId: input.fetchRunId }] },
-        data: { dependencyFetchRunId: input.fetchRunId,
-          dependencyStoreDigest: input.storeDigest },
-      });
-      if (frozen.count !== 1) throw conflict();
+      await freezeBuild(tx, input);
     });
   }
 
-  finish(input: { fetchRunId: string; leaseToken: string;
-    status: "failed" | "blocked" | "unavailable" | "invalidated";
-    code: string; message: string }) {
-    return this.prisma.releaseDependencyFetchRun.updateMany({
+  async freezeReuse(input: { buildRunId: string; fetchRunId: string;
+    storeDigest: string }) {
+    return this.prisma.$transaction(async (tx) => {
+      const row = await tx.releaseDependencyFetchRun.findFirst({ where: {
+        id: input.fetchRunId, status: "succeeded", storeDigest: input.storeDigest } });
+      if (!row) throw conflict();
+      await freezeBuild(tx, input);
+    });
+  }
+
+  async invalidateSucceeded(fetchRunId: string, storeDigest: string) {
+    const result = await this.prisma.releaseDependencyFetchRun.updateMany({
+      where: { id: fetchRunId, status: "succeeded", storeDigest },
+      data: { status: "invalidated", storeDigest: null,
+        errorCode: "dependency_store_invalidated", finishedAt: new Date() },
+    });
+    if (result.count !== 1) throw conflict();
+  }
+
+  async finish(input: { fetchRunId: string; leaseToken: string;
+    status: "failed" | "blocked" | "unavailable";
+    code: string; message: string }, now = new Date()) {
+    const result = await this.prisma.releaseDependencyFetchRun.updateMany({
       where: { id: input.fetchRunId, status: { in: ["fetching", "verifying"] },
-        leaseTokenHash: dependencyFetchLeaseTokenHash(input.leaseToken) },
+        leaseTokenHash: dependencyFetchLeaseTokenHash(input.leaseToken),
+        leaseExpiresAt: { gt: now } },
       data: { status: input.status, errorCode: input.code,
         errorMessage: input.message, leaseTokenHash: null, leasedAt: null,
-        heartbeatAt: null, leaseExpiresAt: null, finishedAt: new Date() },
+        heartbeatAt: null, leaseExpiresAt: null, finishedAt: now },
     });
+    if (result.count !== 1) throw conflict();
   }
 }
 
-function persistent(input: ReserveInput) {
-  const { buildRunId: _buildRunId, ...value } = input;
-  return value;
+async function freezeBuild(tx: Pick<PrismaService, "buildRun">, input: {
+  buildRunId: string; fetchRunId: string; storeDigest: string }) {
+  const frozen = await tx.buildRun.updateMany({ where: {
+    id: input.buildRunId, status: "running", OR: [
+      { dependencyFetchRunId: null, dependencyStoreDigest: null },
+      { dependencyFetchRunId: input.fetchRunId,
+        dependencyStoreDigest: input.storeDigest }] },
+    data: { dependencyFetchRunId: input.fetchRunId,
+      dependencyStoreDigest: input.storeDigest } });
+  if (frozen.count !== 1) throw conflict();
+}
+function persistentIdentity(input: ReserveInput) {
+  const { buildRunId: _build, fetchRunId: _fetch, ...identity } = input;
+  return identity;
 }
 function assertImmutable(row: Record<string, unknown>, input: ReserveInput) {
   for (const key of ["combinationHash", "lockfileDigest", "profileId",
     "profileVersion", "profileSnapshotHash", "supplyChainDigest", "fetchImage",
     "jobImage", "pnpmVersion", "platformOs", "platformArch", "platformAbi",
-    "platformLibc", "registryPolicyDigest"] as const) {
-    if (row[key] !== input[key]) throw new ConflictException(
-      "依赖预取组合哈希与不可变输入不一致");
-  }
+    "platformLibc", "registryPolicyDigest"] as const) if (row[key] !== input[key])
+    throw new ConflictException("依赖预取组合哈希与不可变输入不一致");
 }
 function conflict() { return new ConflictException("依赖预取状态已被其他执行占用"); }

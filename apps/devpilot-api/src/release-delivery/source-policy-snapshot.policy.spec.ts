@@ -43,7 +43,7 @@ describe("source policy canonical snapshot", () => {
         sourceArchive: "git-archive-exact-commit-v1",
         sourceManifest: "path-mode-size-sha256-v1",
         networkPolicy: "none",
-        packageInstallPolicy: "locked-offline",
+        packageInstallPolicy: "lockfile-bound-dependency-store-v1",
       },
       externalRequiredChecks: 0,
       requiredIndependentApprovals: 2,

@@ -15,6 +15,7 @@ CREATE INDEX `DependencyFetch_status_lease_idx`
 
 UPDATE `ReleaseDependencyFetchRun`
 SET `status` = 'invalidated',
+    `storeDigest` = NULL,
     `errorCode` = 'dependency_identity_upgrade_required',
     `finishedAt` = CURRENT_TIMESTAMP(3)
 WHERE `status` <> 'succeeded'

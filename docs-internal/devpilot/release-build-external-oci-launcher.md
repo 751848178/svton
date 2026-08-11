@@ -88,6 +88,15 @@ disabled.
 
 The durable lease stores only a token hash plus heartbeat/expiry; the raw token
 stays in API memory and never enters a worker envelope or control directory.
-Expired fetching or verifying owners are reclaimable. A completed store and its
-BuildRun fetch/digest identity are frozen in one transaction, while a missing or
-tampered physical store is atomically quarantined and refetched.
+Expired fetching or verifying owners are reclaimable. A fresh fetch publishes a
+signed dependency-ready receipt before repository build commands; the API then
+freezes the completed store and BuildRun identity in one transaction and releases
+the lease, so the remaining build does not occupy the global dependency owner.
+
+Succeeded reuse never mutates the shared fetch row while probing. The worker
+first verifies the root-owned store and then the API transactionally freezes the
+same fetch/digest onto the BuildRun. A missing, writable or tampered store is
+atomically quarantined, the succeeded row is CAS-invalidated, and only then can
+a replacement fetch reserve the key. Historical artifact validation depends on
+the BuildRun's frozen identity plus authenticated worker evidence, not the
+shared cache row's later lifecycle.

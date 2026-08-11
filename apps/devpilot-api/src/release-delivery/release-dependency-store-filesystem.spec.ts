@@ -19,9 +19,11 @@ describe("immutable dependency store filesystem", () => {
     const owner = { uid: process.getuid!(), gid: process.getgid!() };
     if (owner.uid !== 0) await expect(verifyDependencyStore(root, manifest))
       .rejects.toThrow("invalid");
-    await expect(verifyDependencyStore(root, manifest, owner)).resolves.toEqual(manifest);
+    await expect(verifyDependencyStore(root, manifest, owner, { writable: true }))
+      .resolves.toEqual(manifest);
     await writeFile(file, "tampered");
-    await expect(verifyDependencyStore(root, manifest, owner)).rejects.toThrow("invalid");
+    await expect(verifyDependencyStore(root, manifest, owner, { writable: true }))
+      .rejects.toThrow("invalid");
   });
 
   it("rejects symlinks instead of following them", async () => {
@@ -48,7 +50,8 @@ describe("immutable dependency store filesystem", () => {
     await writeFile(join(root, "manifest.json"), JSON.stringify(manifest));
     await chmod(root, 0o770);
     await expect(verifyDependencyStore(root, manifest, {
-      uid: process.getuid!(), gid: process.getgid!() })).rejects.toThrow("invalid");
+      uid: process.getuid!(), gid: process.getgid!() }, { writable: true }))
+      .rejects.toThrow("invalid");
   });
 });
 

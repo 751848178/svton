@@ -24,6 +24,7 @@ import { createBrokerJobLayout } from "./release-build-worker-job-layout";
 import { readReleaseBuildWorkerSecret } from "./release-build-worker-secret";
 import { hashWorkerFile } from "./release-build-worker-source-archive";
 import { verifyExtractedWorkerSource } from "./release-build-worker-source-manifest";
+import { publishWorkerDependencyReady } from "./release-build-worker-dependency-ready";
 import { buildSourcePolicySnapshot,
   sourcePolicySnapshotHash } from "./source-policy-snapshot.policy";
 export type FilesystemWorkerConfig = {
@@ -58,6 +59,7 @@ export class ReleaseBuildFilesystemWorker {
         trustedRoot, config: this.config, signal });
       const scanned = prepared.scanned;
       dependencyStore = prepared.dependencyStore;
+      await publishWorkerDependencyReady({ outputDirectory, secretFile: this.config.secretFile, request, dependencyStore });
       broker = await createBrokerJobLayout({
         root: join(this.config.workRoot, "broker-jobs"),
         buildRunId: request.identity.buildRunId,

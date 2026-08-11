@@ -43,7 +43,7 @@ export class ReleaseBuildResultRepository {
     return this.prisma.$transaction(async (tx) => {
       await lockActionableReleaseOrder(tx, input);
       await tx.$queryRaw`SELECT id FROM Project WHERE id = ${input.projectId} FOR UPDATE`;
-      await assertBuildDependencyStoreSucceeded(tx, input.buildRunId);
+      await assertBuildDependencyStoreSucceeded(tx, input.buildRunId, input.gateSummary);
       const prior = await assertReproducibleArtifact(tx, input);
       const claimed = await tx.buildRun.updateMany({
         where: { id: input.buildRunId, status: "running" },

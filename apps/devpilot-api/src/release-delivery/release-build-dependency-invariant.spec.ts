@@ -1,28 +1,35 @@
 import { assertBuildDependencyStoreSucceeded } from "./release-build-dependency-invariant";
 
 describe("Build dependency-store success invariant", () => {
-  it("allows only an exact succeeded fetch digest", async () => {
+  it("allows an exact frozen BuildRun and signed worker evidence", async () => {
     const tx = fixture({ dependencyFetchRunId: "dep-1",
-      dependencyStoreDigest: "digest", dependencyFetchRun: {
-        status: "succeeded", storeDigest: "digest" } });
-    await expect(assertBuildDependencyStoreSucceeded(tx as never, "build-1"))
+      dependencyStoreDigest: "digest" });
+    await expect(assertBuildDependencyStoreSucceeded(tx as never, "build-1", gate()))
       .resolves.toBeUndefined();
   });
 
   it.each([
     null,
-    { dependencyFetchRunId: null, dependencyStoreDigest: null,
-      dependencyFetchRun: null },
-    { dependencyFetchRunId: "dep-1", dependencyStoreDigest: "digest",
-      dependencyFetchRun: { status: "fetching", storeDigest: null } },
-    { dependencyFetchRunId: "dep-1", dependencyStoreDigest: "digest",
-      dependencyFetchRun: { status: "succeeded", storeDigest: "other" } },
+    { dependencyFetchRunId: null, dependencyStoreDigest: null },
   ])("blocks artifact commit without the exact dependency store", async (row) => {
-    await expect(assertBuildDependencyStoreSucceeded(fixture(row) as never, "build-1"))
+    await expect(assertBuildDependencyStoreSucceeded(
+      fixture(row) as never, "build-1", gate()))
+      .rejects.toThrow("依赖存储尚未完成可信冻结");
+  });
+
+  it("ignores mutable shared fetch status but rejects mismatched worker evidence", async () => {
+    const tx = fixture({ dependencyFetchRunId: "dep-1",
+      dependencyStoreDigest: "digest" });
+    await expect(assertBuildDependencyStoreSucceeded(tx as never, "build-1", {
+      dependencyStore: { ...gate().dependencyStore, storeDigest: "other" } }))
       .rejects.toThrow("依赖存储尚未完成可信冻结");
   });
 });
 
 function fixture(row: unknown) {
   return { buildRun: { findUnique: jest.fn().mockResolvedValue(row) } };
+}
+function gate() {
+  return { dependencyStore: { status: "passed", fetchRunId: "dep-1",
+    storeDigest: "digest" } };
 }

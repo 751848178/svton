@@ -40,3 +40,4 @@
 - 2026-08-11: F678 架构 CR 的最终源码修复已完成：收紧迁移索引、host launcher 目录与供应证明、只读源码/可写构建副本、launcher 停机回收、legacy promotion 唯一反查和 UI 领域阻断展示。Docker、迁移应用、Browser/API/DB 运行态验收仍未执行，因此 F674/F678 保持 `in_progress`，不得视为生产签收。
 - 2026-08-12: F678 供应链源码收口：Semgrep 固定为已验证可解析的 26 个 OSS 规则子树并对不支持扩展前置 fail-closed；新增 lockfile-bound pnpm dependency-store 的签名策略、持久化 CAS、不可变逐文件证明、受信 fetcher 与离线 build 消费链。固定 npm registry 是应用层 allowlist，不冒充网络防火墙；Docker/DB/Browser 运行态仍未执行，F674/F678 继续 `in_progress`。
 - 2026-08-12: dependency-store CR 闭环移除 fetcher 普通 bridge 直出，改为每任务 internal network 与固定 registry CONNECT proxy；锁文件改为严格 YAML AST，租约只持久化 hash/expiry/heartbeat，损坏缓存隔离重取，BuildRun 与成功 store 同事务冻结且制品提交复验。Docker/DB 仍未执行，运行签收继续 fail-closed。
+- 2026-08-12: dependency-store 最终 CR 修复 cold-create ID、无状态变更的 succeeded probe、signed dependency-ready 提前释放 lease、坏缓存 quarantine+CAS invalidation、历史 BuildRun/evidence 不变量、完整 npm auth/DNS special-use 拒绝与 launcher stale network 回收。focused/typecheck/Prisma 源码验证完成；Docker/MySQL 运行态仍待签收。

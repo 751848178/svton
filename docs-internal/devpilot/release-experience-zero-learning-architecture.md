@@ -316,10 +316,12 @@ flowchart TD
   root-owned read-only store copied into its private writable work tree.
 - Dependency fetch leases persist only hashes with expiry/heartbeat and are
   reclaimable from both fetching and verifying. Exact profile/supply/image/
-  OS/architecture/ABI/libc/registry identity is immutable; completion freezes
-  the succeeded store and BuildRun digest together. Corrupt cache targets are
-  atomically quarantined before refetch, and artifact commit rechecks the exact
-  succeeded dependency invariant.
+  OS/architecture/ABI/libc/registry identity is immutable. Fresh fetches release
+  their lease at signed dependency-ready, before repository build commands.
+  Succeeded reuse is verified without changing shared status, then freezes the
+  BuildRun; corrupt cache targets are quarantined and CAS-invalidated before
+  refetch. Artifact commit checks frozen BuildRun identity against authenticated
+  worker evidence and is independent of the cache row's current status.
 - Focused policy/CAS/worker/migration tests, API type-check and Prisma schema
   validation are source evidence only. Docker fetch/build runtime, migration
   deployment and Browser/API/DB acceptance remain unexecuted and fail closed.

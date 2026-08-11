@@ -47,25 +47,30 @@ export async function verifyDependencyStore(
   root: string,
   expected: Pick<ReleaseDependencyStoreManifest, "combinationHash" | "storeDigest">,
   trustedOwner = { uid: 0, gid: 0 },
+  options: { writable?: boolean } = {},
 ) {
   const rootStat = await lstat(root);
   if (!rootStat.isDirectory() || rootStat.uid !== trustedOwner.uid ||
-    rootStat.gid !== trustedOwner.gid ||
-    (rootStat.mode & 0o022) !== 0) throw invalid();
+    rootStat.gid !== trustedOwner.gid || unsafeMode(rootStat.mode, options))
+    throw invalid();
+  const storeStat = await lstat(join(root, "store"));
+  if (!storeStat.isDirectory() || storeStat.uid !== trustedOwner.uid ||
+    storeStat.gid !== trustedOwner.gid || unsafeMode(storeStat.mode, options))
+    throw invalid();
   const handle = await open(join(root, "manifest.json"),
     constants.O_RDONLY | constants.O_NOFOLLOW);
   let manifest: ReleaseDependencyStoreManifest;
   try {
     const stat = await handle.stat();
     if (!stat.isFile() || stat.uid !== trustedOwner.uid ||
-      stat.gid !== trustedOwner.gid ||
-      (stat.mode & 0o022) !== 0 || stat.size > 10 * 1024 * 1024) throw invalid();
+      stat.gid !== trustedOwner.gid || unsafeMode(stat.mode, options) ||
+      stat.size > 10 * 1024 * 1024) throw invalid();
     manifest = JSON.parse(await handle.readFile("utf8"));
   } finally { await handle.close(); }
   if (!validDependencyStoreManifest(manifest) ||
     manifest.combinationHash !== expected.combinationHash ||
     manifest.storeDigest !== expected.storeDigest) throw invalid();
-  const files = await collectStoreFiles(join(root, "store"), trustedOwner);
+  const files = await collectStoreFiles(join(root, "store"), trustedOwner, options);
   if (canonicalJson(files) !== canonicalJson(manifest.files)) throw invalid();
   return manifest;
 }
@@ -82,7 +87,7 @@ export async function quarantineDependencyStore(root: string) {
 }
 
 async function collectStoreFiles(root: string,
-  trustedOwner?: { uid: number; gid: number }) {
+  trustedOwner?: { uid: number; gid: number }, options: { writable?: boolean } = {}) {
   const output: Array<{ path: string; sizeBytes: number; sha256: string }> = [];
   let total = 0;
   async function visit(directory: string) {
@@ -92,8 +97,7 @@ async function collectStoreFiles(root: string,
       const stat = await lstat(target);
       if (stat.isSymbolicLink()) throw invalid();
       if (trustedOwner && (stat.uid !== trustedOwner.uid ||
-        stat.gid !== trustedOwner.gid ||
-        (stat.mode & 0o022) !== 0)) throw invalid();
+        stat.gid !== trustedOwner.gid || unsafeMode(stat.mode, options))) throw invalid();
       if (stat.isDirectory()) await visit(target);
       else if (stat.isFile()) {
         total += stat.size;
@@ -108,6 +112,9 @@ async function collectStoreFiles(root: string,
   }
   await visit(root);
   return output.sort((left, right) => left.path.localeCompare(right.path));
+}
+function unsafeMode(mode: number, options: { writable?: boolean }) {
+  return (mode & (options.writable ? 0o022 : 0o222)) !== 0;
 }
 
 async function seal(root: string) {
