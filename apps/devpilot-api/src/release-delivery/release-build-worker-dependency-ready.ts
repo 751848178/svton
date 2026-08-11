@@ -5,7 +5,8 @@ import { readReleaseBuildWorkerSecret } from "./release-build-worker-secret";
 
 export async function publishWorkerDependencyReady(input: {
   outputDirectory: string; secretFile: string; request: ReleaseBuildWorkerRequest;
-  dependencyStore: { fetchRunId: string; combinationHash: string; storeDigest: string };
+  dependencyStore: { fetchRunId: string; cacheGeneration: number;
+    combinationHash: string; storeDigest: string };
 }) {
   const secret = await readReleaseBuildWorkerSecret(input.secretFile);
   await writeImmutableWorkerJson(input.outputDirectory, "dependency-ready.json",

@@ -3,7 +3,7 @@ import { assertBuildDependencyStoreSucceeded } from "./release-build-dependency-
 describe("Build dependency-store success invariant", () => {
   it("allows an exact frozen BuildRun and signed worker evidence", async () => {
     const tx = fixture({ dependencyFetchRunId: "dep-1",
-      dependencyStoreDigest: "digest" });
+      dependencyStoreDigest: "digest", dependencyStoreGeneration: 2 });
     await expect(assertBuildDependencyStoreSucceeded(tx as never, "build-1", gate()))
       .resolves.toBeUndefined();
   });
@@ -19,9 +19,12 @@ describe("Build dependency-store success invariant", () => {
 
   it("ignores mutable shared fetch status but rejects mismatched worker evidence", async () => {
     const tx = fixture({ dependencyFetchRunId: "dep-1",
-      dependencyStoreDigest: "digest" });
+      dependencyStoreDigest: "digest", dependencyStoreGeneration: 2 });
     await expect(assertBuildDependencyStoreSucceeded(tx as never, "build-1", {
       dependencyStore: { ...gate().dependencyStore, storeDigest: "other" } }))
+      .rejects.toThrow("依赖存储尚未完成可信冻结");
+    await expect(assertBuildDependencyStoreSucceeded(tx as never, "build-1", {
+      dependencyStore: { ...gate().dependencyStore, cacheGeneration: 1 } }))
       .rejects.toThrow("依赖存储尚未完成可信冻结");
   });
 });
@@ -31,5 +34,5 @@ function fixture(row: unknown) {
 }
 function gate() {
   return { dependencyStore: { status: "passed", fetchRunId: "dep-1",
-    storeDigest: "digest" } };
+    cacheGeneration: 2, storeDigest: "digest" } };
 }

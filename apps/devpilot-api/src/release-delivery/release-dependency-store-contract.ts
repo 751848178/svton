@@ -3,6 +3,7 @@ export const RELEASE_DEPENDENCY_STORE_CONTRACT =
 
 export type DependencyFetchIdentity = {
   fetchRunId: string;
+  cacheGeneration: number;
   combinationHash: string;
   lockfileDigest: string;
   profileId: string;

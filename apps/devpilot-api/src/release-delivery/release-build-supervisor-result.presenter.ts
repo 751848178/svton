@@ -3,7 +3,8 @@ export function supervisorGateSummary(
   prepared: { security: unknown; sourceSnapshot: unknown },
   supplyChainDigest: string,
   externalOci: boolean,
-  dependencyStore?: { fetchRunId: string; storeDigest: string },
+  dependencyStore?: { fetchRunId: string; cacheGeneration: number;
+    storeDigest: string },
 ) {
   return { ...value, dependencyStore: dependencyStore ? {
     status: "passed", contract: "lockfile-bound-dependency-store-v1",

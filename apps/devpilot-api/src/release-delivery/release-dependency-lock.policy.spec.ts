@@ -44,10 +44,17 @@ describe("release dependency lock policy", () => {
       `${lock()}\n\"//registry.npmjs.org/:_authToken\": secret\n`, []],
     ["dependency_auth_forbidden",
       `${lock()}\nalways-auth: true\n`, []],
-    ["dependency_auth_forbidden",
+    ["dependency_registry_url_metadata_forbidden",
       `${lock()}\nresolution:\n  tarball: https://registry.npmjs.org/pkg.tgz?token=secret\n`, []],
-    ["dependency_auth_forbidden",
+    ["dependency_registry_url_metadata_forbidden",
       `${lock()}\nresolution:\n  tarball: https://registry.npmjs.org/pkg.tgz?X-Amz-Signature=secret\n`, []],
+    ["dependency_registry_url_metadata_forbidden",
+      `${lock()}\nresolution:\n  tarball: https://registry.npmjs.org/pkg.tgz#digest\n`, []],
+    ["dependency_auth_forbidden", `${lock()}\n_password: secret\n`, []],
+    ["dependency_auth_forbidden", `${lock()}\nauthToken: secret\n`, []],
+    ["dependency_auth_forbidden", `${lock()}\napiKey: secret\n`, []],
+    ["dependency_auth_forbidden",
+      `${lock()}\n"//registry.npmjs.org/:_password": secret\n`, []],
     ["dependency_auth_forbidden",
       `${lock()}\nresolution:\n  note: \"//registry.npmjs.org/:_auth=secret\"\n`, []],
     ["lockfile_yaml_invalid",
@@ -62,6 +69,17 @@ describe("release dependency lock policy", () => {
     input.bytes = Buffer.from(`${lock()}# drift\n`);
     expect(evaluateReleaseDependencyLock(input))
       .toMatchObject({ allowed: false, detailCode: "signed_lockfile_identity_invalid" });
+  });
+
+  it.each([
+    ["lockfile_alias_forbidden",
+      `${lock()}\nshared: &shared\n  value: one\nfirst: *shared\nsecond: *shared\n`],
+    ["lockfile_alias_forbidden", `${lock()}\ncycle: &cycle [*cycle]\n`],
+    ["lockfile_complexity_limit_exceeded",
+      `${lock()}\nitems:\n${Array.from({ length: 20_001 }, () => "  - x").join("\n")}\n`],
+  ])("fails closed for bounded YAML graphs: %s", (detailCode, value) => {
+    expect(evaluateReleaseDependencyLock(fixture(value)))
+      .toMatchObject({ allowed: false, detailCode });
   });
 });
 

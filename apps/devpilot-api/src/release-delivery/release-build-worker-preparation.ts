@@ -30,6 +30,7 @@ export async function prepareWorkerBuild(input: {
   });
   return { scanned, dependency, dependencyStore: {
     fetchRunId: input.request.identity.dependency.fetchRunId,
+    cacheGeneration: input.request.identity.dependency.cacheGeneration,
     combinationHash: input.request.identity.dependency.combinationHash,
     storeDigest: dependency.manifest.storeDigest,
   } };

@@ -33,10 +33,8 @@ export type FilesystemWorkerConfig = {
   cancelGraceMs: number; brokerUid: number; brokerGid: number;
   externalOci?: { image: string; dockerExecutable: string; launcherLabel: string };
 };
-
 export class ReleaseBuildFilesystemWorker {
   constructor(private readonly config: FilesystemWorkerConfig) {}
-
   async runJob(jobId: string, shutdownSignal?: AbortSignal) {
     const inputDirectory = await workerJobDirectory(this.config.inputRoot, jobId, false);
     const request = await readImmutableWorkerJson<ReleaseBuildWorkerRequest>(
@@ -51,8 +49,8 @@ export class ReleaseBuildFilesystemWorker {
     });
     const signal = combineSignals(cancellation.signal, shutdownSignal);
     let broker: Awaited<ReturnType<typeof createBrokerJobLayout>> | undefined;
-    let dependencyStore: { fetchRunId: string; combinationHash: string;
-      storeDigest: string } | undefined;
+    let dependencyStore: { fetchRunId: string; cacheGeneration: number;
+      combinationHash: string; storeDigest: string } | undefined;
     try {
       const sourceRoot = await this.extractAndVerify(inputDirectory, trustedRoot, request);
       const prepared = await prepareWorkerBuild({ request, profile, sourceRoot,
@@ -116,6 +114,7 @@ export class ReleaseBuildFilesystemWorker {
           expectedReleaseBuildSupplyProof(profile).supplyChainDigest,
           Boolean(this.config.externalOci),
           { fetchRunId: dependencyStore.fetchRunId,
+            cacheGeneration: dependencyStore.cacheGeneration,
             storeDigest: dependencyStore.storeDigest },
         ),
       }, undefined, dependencyStore);
@@ -132,7 +131,6 @@ export class ReleaseBuildFilesystemWorker {
       await rm(trustedRoot, { recursive: true, force: true });
     }
   }
-
   private async assertRequest(request: ReleaseBuildWorkerRequest, jobId: string) {
     const secret = await readReleaseBuildWorkerSecret(this.config.secretFile);
     const profile = resolveRegisteredReleaseBuildProfile(request.identity.profileId);
@@ -159,7 +157,8 @@ export class ReleaseBuildFilesystemWorker {
 
   private async writeResult(directory: string, request: ReleaseBuildWorkerRequest,
     status: "succeeded" | "failed" | "canceled", result?: unknown, failure?: unknown,
-    dependencyStore?: { fetchRunId: string; combinationHash: string; storeDigest: string }) {
+    dependencyStore?: { fetchRunId: string; cacheGeneration: number;
+      combinationHash: string; storeDigest: string }) {
     const secret = await readReleaseBuildWorkerSecret(this.config.secretFile);
     await writeImmutableWorkerJson(directory, "result.json", signWorkerResult({
       version: 1, identity: request.identity, status,

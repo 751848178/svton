@@ -30,7 +30,7 @@ export class ReleaseDependencyApiCoordinator {
       verdict.supplyChainDigest !== input.supplyChainDigest)
       throw unavailable("dependency_profile_snapshot_mismatch");
     const policy = profile.dependencyStorePolicy;
-    const identity: DependencyFetchIdentity = {
+    const identity: Omit<DependencyFetchIdentity, "cacheGeneration"> = {
       fetchRunId: verdict.fetchRunId, combinationHash: verdict.combinationHash,
       lockfileDigest: verdict.lockfileDigest, profileId: profile.id,
       profileVersion: profile.profileVersion,
@@ -46,12 +46,15 @@ export class ReleaseDependencyApiCoordinator {
         buildRunId: input.buildRunId, ...identity });
       if (reservation.role === "blocked")
         throw unavailable(reservation.row.errorCode || "dependency_policy_blocked");
+      const generation = reservation.row.cacheGeneration;
       if (reservation.role === "reuse") return { ...identity,
+        cacheGeneration: generation,
         mode: "reuse" as const, storeDigest: reservation.row.storeDigest! };
       if (reservation.role === "owner") {
-        this.active.set(input.buildRunId, { identity,
+        const claimedIdentity = { ...identity, cacheGeneration: generation };
+        this.active.set(input.buildRunId, { identity: claimedIdentity,
           leaseToken: reservation.leaseToken });
-        return { ...identity, mode: "fetch" as const, storeDigest: null };
+        return { ...claimedIdentity, mode: "fetch" as const, storeDigest: null };
       }
       await delay(250);
     }
@@ -59,17 +62,21 @@ export class ReleaseDependencyApiCoordinator {
   }
 
   async acceptReady(buildRunId: string, dependency: WorkerDependency,
-    evidence: { fetchRunId: string; combinationHash: string; storeDigest: string }) {
+    evidence: { fetchRunId: string; cacheGeneration: number;
+      combinationHash: string; storeDigest: string }) {
     assertEvidence(dependency, evidence);
     if (dependency.mode === "reuse") {
       await this.repository.freezeReuse({ buildRunId,
-        fetchRunId: evidence.fetchRunId, storeDigest: evidence.storeDigest });
+        fetchRunId: evidence.fetchRunId, cacheGeneration: evidence.cacheGeneration,
+        storeDigest: evidence.storeDigest });
       return;
     }
     const leaseToken = this.lease(buildRunId, dependency);
-    await this.repository.markVerifying(dependency.fetchRunId, leaseToken);
+    await this.repository.markVerifying(dependency.fetchRunId,
+      dependency.cacheGeneration, leaseToken);
     await this.repository.succeed({ buildRunId, fetchRunId: dependency.fetchRunId,
-      leaseToken, storeDigest: evidence.storeDigest });
+      cacheGeneration: dependency.cacheGeneration, leaseToken,
+      storeDigest: evidence.storeDigest });
     this.active.delete(buildRunId);
   }
 
@@ -78,9 +85,12 @@ export class ReleaseDependencyApiCoordinator {
     if (dependency.mode === "reuse" &&
       result.failure?.code === "BUILD_DEPENDENCY_STORE_INVALIDATED") {
       await this.repository.invalidateSucceeded(dependency.fetchRunId,
-        dependency.storeDigest!);
+        dependency.cacheGeneration, dependency.storeDigest!);
       return "retry" as const;
     }
+    if (result.status !== "succeeded" && this.active.has(buildRunId))
+      await this.finishActive(buildRunId,
+        result.failure?.code || "dependency_fetch_worker_failed");
     if (!result.dependencyStore) {
       await this.finishActive(buildRunId, "dependency_fetch_result_missing");
       throw unavailable("dependency_fetch_result_missing");
@@ -97,17 +107,19 @@ export class ReleaseDependencyApiCoordinator {
     const active = this.active.get(buildRunId);
     if (!active) return;
     const result = await this.repository.heartbeat(active.identity.fetchRunId,
-      active.leaseToken);
+      active.identity.cacheGeneration, active.leaseToken);
     if (result.count !== 1) throw unavailable("dependency_fetch_lease_lost");
   }
 
   private async finishActive(buildRunId: string, code: string) {
     const active = this.active.get(buildRunId);
     if (!active) return;
-    await this.repository.finish({ fetchRunId: active.identity.fetchRunId,
-      leaseToken: active.leaseToken, status: "failed", code,
-      message: "依赖预取被取消或证明无效" });
-    this.active.delete(buildRunId);
+    try {
+      await this.repository.finish({ fetchRunId: active.identity.fetchRunId,
+        cacheGeneration: active.identity.cacheGeneration,
+        leaseToken: active.leaseToken, status: "failed", code,
+        message: "依赖预取被取消或证明无效" });
+    } finally { this.active.delete(buildRunId); }
   }
   private lease(buildRunId: string, dependency: DependencyFetchIdentity) {
     const active = this.active.get(buildRunId);
@@ -118,8 +130,10 @@ export class ReleaseDependencyApiCoordinator {
 }
 
 function assertEvidence(dependency: WorkerDependency, evidence: {
-  fetchRunId: string; combinationHash: string; storeDigest: string }) {
+  fetchRunId: string; cacheGeneration: number;
+  combinationHash: string; storeDigest: string }) {
   if (evidence.fetchRunId !== dependency.fetchRunId ||
+    evidence.cacheGeneration !== dependency.cacheGeneration ||
     evidence.combinationHash !== dependency.combinationHash ||
     (dependency.mode === "reuse" && evidence.storeDigest !== dependency.storeDigest))
     throw unavailable("dependency_store_evidence_mismatch");

@@ -135,7 +135,7 @@ export interface ReleaseBuildExecutionResult {
   logs: string[];
   gateSummary: Record<string, unknown>;
   dependencyStore?: { fetchRunId: string; combinationHash: string;
-    storeDigest: string };
+    cacheGeneration: number; storeDigest: string };
 }
 
 export abstract class ReleaseBuildExecutorPort {

@@ -138,7 +138,7 @@ async function waitForJob(root: string) {
 }
 
 function dependency() {
-  return { fetchRunId: `dep_${"1".repeat(64)}`,
+  return { fetchRunId: `dep_${"1".repeat(64)}`, cacheGeneration: 1,
     combinationHash: "1".repeat(64), lockfileDigest: "2".repeat(64),
     profileId: "controlled-local-acceptance-v2", profileVersion: 6,
     profileSnapshotHash: "5".repeat(64), supplyChainDigest: "6".repeat(64),

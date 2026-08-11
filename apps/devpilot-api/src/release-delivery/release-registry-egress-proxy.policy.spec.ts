@@ -9,6 +9,9 @@ describe("registry egress proxy policy", () => {
     expect(authorizeRegistryConnect({
       requestLine: "CONNECT registry.npmjs.org:443 HTTP/1.1", headers: "",
       addresses: ["2606:4700::6810:123"] })).toBe("2606:4700::6810:123");
+    expect(authorizeRegistryConnect({
+      requestLine: "CONNECT registry.npmjs.org:443 HTTP/1.1", headers: "",
+      addresses: ["3001:db8::1"] })).toBe("3001:db8::1");
   });
 
   it.each([
@@ -24,7 +27,8 @@ describe("registry egress proxy policy", () => {
   it.each(["0.0.0.0", "100.64.0.1", "169.254.1.1", "192.0.2.1",
     "198.18.0.1", "198.51.100.1", "203.0.113.1", "224.0.0.1",
     "::", "::1", "::ffff:192.0.2.1", "fc00::1", "fe80::1", "fec0::1",
-    "ff02::1", "64:ff9b::1", "100::1", "2001:db8::1", "2002::1"])
+    "ff02::1", "64:ff9b::1", "100::1", "2001:db8::1", "2002::1",
+    "fe00::1", "4000::1", "2001:20::1", "3fff::1"])
   ("blocks special-use DNS answer %s", (address) => {
     expect(() => authorizeRegistryConnect({
       requestLine: "CONNECT registry.npmjs.org:443 HTTP/1.1", headers: "",

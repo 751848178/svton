@@ -9,6 +9,9 @@ describe("release dependency store migration contract", () => {
   const leaseSql = readFileSync(join(root,
     "prisma/migrations/20260811220000_dependency_store_lease_identity/migration.sql"),
   "utf8");
+  const generationSql = readFileSync(join(root,
+    "prisma/migrations/20260811230000_dependency_store_generation/migration.sql"),
+  "utf8");
   const schema = readFileSync(join(root, "prisma/schema.prisma"), "utf8");
 
   it("persists the complete fetch state machine and immutable identity", () => {
@@ -40,5 +43,14 @@ describe("release dependency store migration contract", () => {
     expect(leaseSql).toContain("`jobImage` VARCHAR(512) NULL");
     expect(schema).toContain("fetchImage           String?  @db.VarChar(512)");
     expect(schema).toContain("jobImage             String?  @db.VarChar(512)");
+  });
+
+  it("adds a monotonic cache generation without rewriting migration 220000", () => {
+    expect(generationSql).toContain("`cacheGeneration` INTEGER NOT NULL DEFAULT 0");
+    expect(generationSql).toContain("SET `cacheGeneration` = 1");
+    expect(generationSql).toContain("`dependencyStoreGeneration` INTEGER NULL");
+    expect(schema).toContain("cacheGeneration      Int      @default(0)");
+    expect(schema).toContain("dependencyStoreGeneration Int?");
+    expect(leaseSql).not.toContain("cacheGeneration");
   });
 });

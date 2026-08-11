@@ -14,13 +14,15 @@ describe("ReleaseDependencyApiCoordinator", () => {
   afterEach(async () => rm(root, { recursive: true, force: true }));
 
   it("releases a fresh lease as soon as signed dependency evidence is ready", async () => {
-    const repository = repo({ role: "owner", row: { storeDigest: null },
+    const repository = repo({ role: "owner", row: { storeDigest: null,
+      cacheGeneration: 1 },
       leaseToken: "raw" });
     const coordinator = new ReleaseDependencyApiCoordinator(repository as never);
     const dependency = await coordinator.prepare(await input());
     expect(dependency.mode).toBe("fetch");
     await coordinator.acceptReady("build-1", dependency, evidence(dependency, "digest"));
-    expect(repository.markVerifying).toHaveBeenCalledWith(dependency.fetchRunId, "raw");
+    expect(repository.markVerifying).toHaveBeenCalledWith(
+      dependency.fetchRunId, 1, "raw");
     expect(repository.succeed).toHaveBeenCalledWith(expect.objectContaining({
       buildRunId: "build-1", storeDigest: "digest" }));
     await coordinator.heartbeat("build-1", dependency);
@@ -28,7 +30,8 @@ describe("ReleaseDependencyApiCoordinator", () => {
   });
 
   it("freezes verified reuse without reserving or mutating shared status", async () => {
-    const repository = repo({ role: "reuse", row: { storeDigest: "digest" } });
+    const repository = repo({ role: "reuse", row: { storeDigest: "digest",
+      cacheGeneration: 2 } });
     const coordinator = new ReleaseDependencyApiCoordinator(repository as never);
     const dependency = await coordinator.prepare(await input());
     await coordinator.acceptReady("build-1", dependency, evidence(dependency, "digest"));
@@ -38,14 +41,30 @@ describe("ReleaseDependencyApiCoordinator", () => {
   });
 
   it("invalidates a quarantined reuse before requesting one bounded retry", async () => {
-    const repository = repo({ role: "reuse", row: { storeDigest: "digest" } });
+    const repository = repo({ role: "reuse", row: { storeDigest: "digest",
+      cacheGeneration: 2 } });
     const coordinator = new ReleaseDependencyApiCoordinator(repository as never);
     const dependency = await coordinator.prepare(await input());
     await expect(coordinator.acceptFinal("build-1", dependency, {
       failure: { code: "BUILD_DEPENDENCY_STORE_INVALIDATED" },
     } as never)).resolves.toBe("retry");
     expect(repository.invalidateSucceeded).toHaveBeenCalledWith(
-      dependency.fetchRunId, "digest");
+      dependency.fetchRunId, 2, "digest");
+  });
+
+  it("finishes and forgets an active lease when ready publication fails", async () => {
+    const repository = repo({ role: "owner", row: { storeDigest: null,
+      cacheGeneration: 3 }, leaseToken: "raw" });
+    const coordinator = new ReleaseDependencyApiCoordinator(repository as never);
+    const dependency = await coordinator.prepare(await input());
+    await expect(coordinator.acceptFinal("build-1", dependency, {
+      status: "failed", failure: { code: "dependency_ready_publish_failed" },
+      dependencyStore: evidence(dependency, "digest"),
+    } as never)).resolves.toBe("complete");
+    expect(repository.finish).toHaveBeenCalledWith(expect.objectContaining({
+      cacheGeneration: 3, code: "dependency_ready_publish_failed" }));
+    await coordinator.heartbeat("build-1", dependency);
+    expect(repository.heartbeat).not.toHaveBeenCalled();
   });
 
   it("surfaces a permanent blocked reason instead of entering the wait loop", async () => {
@@ -74,9 +93,11 @@ describe("ReleaseDependencyApiCoordinator", () => {
   }
 });
 
-function evidence(dependency: { fetchRunId: string; combinationHash: string },
+function evidence(dependency: { fetchRunId: string; cacheGeneration: number;
+  combinationHash: string },
   storeDigest: string) {
   return { fetchRunId: dependency.fetchRunId,
+    cacheGeneration: dependency.cacheGeneration,
     combinationHash: dependency.combinationHash, storeDigest };
 }
 function repo(reservation: object) {

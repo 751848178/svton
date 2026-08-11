@@ -48,7 +48,7 @@ export type ReleaseBuildWorkerResult = {
   error?: { code: string; message: string };
   failure?: ReleaseBuildFailure;
   dependencyStore?: { fetchRunId: string; combinationHash: string;
-    storeDigest: string };
+    cacheGeneration: number; storeDigest: string };
   signature: string;
 };
 
@@ -64,7 +64,7 @@ export type ReleaseBuildWorkerDependencyReady = {
   version: 1;
   identity: ReleaseBuildWorkerIdentity;
   dependencyStore: { fetchRunId: string; combinationHash: string;
-    storeDigest: string };
+    cacheGeneration: number; storeDigest: string };
   signature: string;
 };
 

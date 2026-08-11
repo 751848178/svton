@@ -3002,6 +3002,7 @@ model BuildRun {
   repositoryIdentityRevisionId String?
   dependencyFetchRunId String?
   dependencyStoreDigest String?
+  dependencyStoreGeneration Int?
   revision       Int
   sourceBranch   String
   sourceCommitSha String
@@ -3058,6 +3059,7 @@ model ReleaseDependencyFetchRun {
   platformAbi          String?
   platformLibc         String?
   registryPolicyDigest String
+  cacheGeneration      Int      @default(0)
   status               String   @default("queued") // queued | fetching | verifying | succeeded | invalidated | failed | blocked | unavailable
   storeDigest          String?
   leaseTokenHash       String?

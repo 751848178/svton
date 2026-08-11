@@ -19,17 +19,13 @@ export function specialUseAddress(value: string) {
   if (kind !== 6) return true;
   const words = ipv6Words(value);
   if (!words) return true;
-  const [first, second, third, fourth] = words;
-  return first === 0 || first === 0xffff ||
-    (first & 0xfe00) === 0xfc00 ||
-    (first & 0xffc0) === 0xfe80 ||
-    (first & 0xffc0) === 0xfec0 ||
-    (first & 0xff00) === 0xff00 ||
-    (first === 0x0064 && second === 0xff9b && third === 0 && fourth === 0) ||
-    (first === 0x0064 && second === 0xff9b && third === 1) ||
-    (first === 0x0100 && second === 0 && third === 0 && fourth === 0) ||
-    (first === 0x2001 && second <= 0x01ff) ||
-    (first === 0x2001 && second === 0x0db8) || first === 0x2002;
+  const [first, second] = words;
+  if ((first & 0xe000) !== 0x2000) return true;
+  return (first === 0x2001 && second <= 0x01ff) ||
+    (first === 0x2001 && (second & 0xfff0) === 0x0020) ||
+    (first === 0x2001 && (second & 0xfff0) === 0x0030) ||
+    (first === 0x2001 && second === 0x0db8) || first === 0x2002 ||
+    (first === 0x3fff && (second & 0xf000) === 0);
 }
 
 function specialIpv4(value: string) {

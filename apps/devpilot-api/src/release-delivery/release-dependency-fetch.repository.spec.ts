@@ -31,6 +31,7 @@ describe("ReleaseDependencyFetchRepository", () => {
     expect(result.role).toBe("owner");
     if (result.role !== "owner") throw new Error("owner expected");
     expect(result.leaseToken).toMatch(/^[a-f0-9]{64}$/);
+    expect(result.row.cacheGeneration).toBe(2);
     expect(fixture.fetch.updateMany).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
         leaseTokenHash: dependencyFetchLeaseTokenHash(result.leaseToken),
@@ -77,7 +78,8 @@ describe("ReleaseDependencyFetchRepository", () => {
 
   it("CAS terminates a canceled lease and clears its persisted hash", async () => {
     const fixture = setup(row("fetching"), 1);
-    await repository(fixture).finish({ fetchRunId: "dep_hash", leaseToken: "raw",
+    await repository(fixture).finish({ fetchRunId: "dep_hash",
+      cacheGeneration: 1, leaseToken: "raw",
       status: "failed", code: "canceled", message: "canceled" });
     expect(fixture.fetch.updateMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({
@@ -91,7 +93,8 @@ describe("ReleaseDependencyFetchRepository", () => {
   it("rejects terminal writes after the lease expired", async () => {
     const fixture = setup(row("fetching"), 0);
     await expect(repository(fixture).finish({ fetchRunId: "dep_hash",
-      leaseToken: "raw", status: "failed", code: "late", message: "late" }))
+      cacheGeneration: 1, leaseToken: "raw", status: "failed",
+      code: "late", message: "late" }))
       .rejects.toThrow("依赖预取状态已被其他执行占用");
   });
 
@@ -99,7 +102,8 @@ describe("ReleaseDependencyFetchRepository", () => {
     const fixture = setup(row("verifying"), 1);
     const token = "raw-token";
     await repository(fixture).succeed({ buildRunId: "build-1",
-      fetchRunId: "dep_hash", leaseToken: token, storeDigest: "store-digest" });
+      fetchRunId: "dep_hash", cacheGeneration: 1,
+      leaseToken: token, storeDigest: "store-digest" });
     expect(fixture.fetch.updateMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({
         leaseTokenHash: dependencyFetchLeaseTokenHash(token) }),
@@ -107,20 +111,24 @@ describe("ReleaseDependencyFetchRepository", () => {
     }));
     expect(fixture.build.updateMany).toHaveBeenCalledWith(expect.objectContaining({
       data: { dependencyFetchRunId: "dep_hash",
-        dependencyStoreDigest: "store-digest" },
+        dependencyStoreDigest: "store-digest", dependencyStoreGeneration: 1 },
     }));
   });
 
   it("freezes verified reuse without mutating the succeeded shared row", async () => {
     const fixture = setup({ ...row("succeeded"), storeDigest: "store-digest" }, 1);
     await repository(fixture).freezeReuse({ buildRunId: "build-2",
-      fetchRunId: "dep_hash", storeDigest: "store-digest" });
+      fetchRunId: "dep_hash", cacheGeneration: 1,
+      storeDigest: "store-digest" });
     expect(fixture.fetch.findFirst).toHaveBeenCalledWith({ where: {
-      id: "dep_hash", status: "succeeded", storeDigest: "store-digest" } });
+      id: "dep_hash", cacheGeneration: 1, status: "succeeded",
+      storeDigest: "store-digest" } });
     expect(fixture.build.updateMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ OR: [
-        { dependencyFetchRunId: null, dependencyStoreDigest: null },
-        { dependencyFetchRunId: "dep_hash", dependencyStoreDigest: "store-digest" }] }),
+        { dependencyFetchRunId: null, dependencyStoreDigest: null,
+          dependencyStoreGeneration: null },
+        { dependencyFetchRunId: "dep_hash", dependencyStoreDigest: "store-digest",
+          dependencyStoreGeneration: 1 }] }),
     }));
     expect(fixture.fetch.updateMany).not.toHaveBeenCalled();
   });
@@ -129,12 +137,27 @@ describe("ReleaseDependencyFetchRepository", () => {
     const fixture = setup(row("verifying"), 1);
     fixture.build.updateMany.mockResolvedValueOnce({ count: 0 });
     await expect(repository(fixture).succeed({ buildRunId: "build-1",
-      fetchRunId: "dep_hash", leaseToken: "raw", storeDigest: "new" }))
+      fetchRunId: "dep_hash", cacheGeneration: 1,
+      leaseToken: "raw", storeDigest: "new" }))
       .rejects.toThrow("依赖预取状态已被其他执行占用");
     expect(fixture.fetch.updateMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ OR: [
         { storeDigest: null }, { storeDigest: "new" }] }),
     }));
+  });
+
+  it("makes same-generation invalidation idempotent and rejects stale ABA", async () => {
+    const same = setup({ ...row("invalidated"), cacheGeneration: 1 }, 0);
+    await expect(Promise.all([
+      repository(same).invalidateSucceeded("dep_hash", 1, "digest"),
+      repository(same).invalidateSucceeded("dep_hash", 1, "digest"),
+    ])).resolves.toEqual([undefined, undefined]);
+    const repaired = setup({ ...row("succeeded"), cacheGeneration: 2,
+      storeDigest: "digest" }, 0);
+    await expect(repository(repaired).invalidateSucceeded("dep_hash", 1, "digest"))
+      .resolves.toBeUndefined();
+    expect(repaired.fetch.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ cacheGeneration: 1 }) }));
   });
 });
 
@@ -152,6 +175,7 @@ function input() {
 }
 function row(status: string) {
   return { id: "dep_hash", ...input(), status, storeDigest: null,
+    cacheGeneration: 1,
     leaseTokenHash: "lease-hash", leasedAt: new Date(),
     leaseExpiresAt: new Date(Date.now() + 60_000), heartbeatAt: new Date(),
     errorCode: null, errorMessage: null, finishedAt: null,

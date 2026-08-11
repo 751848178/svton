@@ -52,7 +52,8 @@ describe("filesystem isolated worker contract", () => {
       requestedAt: new Date(0).toISOString(),
     }, secret);
     const ready = signWorkerDependencyReady({ version: 1, identity: identity(),
-      dependencyStore: { fetchRunId: "dep", combinationHash: "hash",
+      dependencyStore: { fetchRunId: "dep", cacheGeneration: 1,
+        combinationHash: "hash",
         storeDigest: "digest" } }, secret);
     expect(verifyWorkerRequest(request, secret)).toBe(true);
     expect(verifyWorkerResult(result, secret)).toBe(true);
@@ -119,7 +120,7 @@ function identity(): ReleaseBuildWorkerIdentity {
     sourceSnapshotDigest: "c".repeat(64), sourceArchiveDigest: "d".repeat(64),
     sourceManifestDigest: "e".repeat(64), profileId: "controlled-local-acceptance-v2",
     profileVersion: 2, profileSnapshotHash: "f".repeat(64),
-    dependency: { fetchRunId: `dep_${"1".repeat(64)}`,
+    dependency: { fetchRunId: `dep_${"1".repeat(64)}`, cacheGeneration: 1,
       combinationHash: "1".repeat(64), lockfileDigest: "2".repeat(64),
       profileId: "controlled-local-acceptance-v2", profileVersion: 2,
       profileSnapshotHash: "5".repeat(64), supplyChainDigest: "6".repeat(64),

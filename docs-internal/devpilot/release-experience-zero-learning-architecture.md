@@ -322,6 +322,12 @@ flowchart TD
   BuildRun; corrupt cache targets are quarantined and CAS-invalidated before
   refetch. Artifact commit checks frozen BuildRun identity against authenticated
   worker evidence and is independent of the cache row's current status.
+- Cache lifecycle identity also freezes a monotonic generation. Every claim
+  increments it transactionally; reuse, signed worker ready/final evidence,
+  BuildRun and artifact commit must agree on that exact generation. A late G1
+  invalidation therefore cannot invalidate repaired G2 even with the same
+  content digest. This is additive migration `230000`; runtime evidence stopped
+  at `c8f200000`, so unapplied migration `220000` remains unchanged.
 - Focused policy/CAS/worker/migration tests, API type-check and Prisma schema
   validation are source evidence only. Docker fetch/build runtime, migration
   deployment and Browser/API/DB acceptance remain unexecuted and fail closed.

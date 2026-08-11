@@ -4,42 +4,46 @@ import { createDependencyFetchLease, dependencyFetchLeaseTokenHash,
   DEPENDENCY_FETCH_LEASE_MS } from "./release-dependency-lease.policy";
 import type { DependencyFetchIdentity } from "./release-dependency-store-contract";
 
-type ReserveInput = DependencyFetchIdentity & { buildRunId: string };
+type ReserveInput = Omit<DependencyFetchIdentity, "cacheGeneration"> & {
+  buildRunId: string };
 
 @Injectable()
 export class ReleaseDependencyFetchRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async reserve(input: ReserveInput) {
-    const row = await this.prisma.releaseDependencyFetchRun.upsert({
-      where: { combinationHash: input.combinationHash },
-      create: { id: input.fetchRunId, ...persistentIdentity(input) }, update: {},
+    return this.prisma.$transaction(async (tx) => {
+      const row = await tx.releaseDependencyFetchRun.upsert({
+        where: { combinationHash: input.combinationHash },
+        create: { id: input.fetchRunId, ...persistentIdentity(input) }, update: {},
+      });
+      assertImmutable(row, input);
+      if (row.status === "succeeded" && row.storeDigest)
+        return { role: "reuse" as const, row };
+      if (row.status === "blocked") return { role: "blocked" as const, row };
+      const now = new Date();
+      const lease = createDependencyFetchLease(now);
+      const claimed = await tx.releaseDependencyFetchRun.updateMany({
+        where: { id: row.id, cacheGeneration: row.cacheGeneration, OR: [
+          { status: { in: ["queued", "failed", "unavailable", "invalidated"] } },
+          { status: { in: ["fetching", "verifying"] }, leaseExpiresAt: { lt: now } },
+        ] },
+        data: { status: "fetching", cacheGeneration: { increment: 1 },
+          leaseTokenHash: lease.tokenHash, leasedAt: now, heartbeatAt: now,
+          leaseExpiresAt: lease.expiresAt, errorCode: null, errorMessage: null,
+          finishedAt: null },
+      });
+      return claimed.count === 1
+        ? { role: "owner" as const, row: { ...row, status: "fetching",
+            cacheGeneration: row.cacheGeneration + 1 }, leaseToken: lease.token }
+        : { role: "wait" as const, row };
     });
-    assertImmutable(row, input);
-    if (row.status === "succeeded" && row.storeDigest)
-      return { role: "reuse" as const, row };
-    if (row.status === "blocked")
-      return { role: "blocked" as const, row };
-    const now = new Date();
-    const lease = createDependencyFetchLease(now);
-    const claimed = await this.prisma.releaseDependencyFetchRun.updateMany({
-      where: { id: row.id, OR: [
-        { status: { in: ["queued", "failed", "unavailable", "invalidated"] } },
-        { status: { in: ["fetching", "verifying"] }, leaseExpiresAt: { lt: now } },
-      ] },
-      data: { status: "fetching", leaseTokenHash: lease.tokenHash,
-        leasedAt: now, heartbeatAt: now, leaseExpiresAt: lease.expiresAt,
-        errorCode: null, errorMessage: null, finishedAt: null },
-    });
-    return claimed.count === 1
-      ? { role: "owner" as const, row: { ...row, status: "fetching" },
-          leaseToken: lease.token }
-      : { role: "wait" as const, row };
   }
 
-  heartbeat(fetchRunId: string, token: string, now = new Date()) {
+  heartbeat(fetchRunId: string, generation: number, token: string, now = new Date()) {
     return this.prisma.releaseDependencyFetchRun.updateMany({
-      where: { id: fetchRunId, status: { in: ["fetching", "verifying"] },
+      where: { id: fetchRunId, cacheGeneration: generation,
+        status: { in: ["fetching", "verifying"] },
         leaseTokenHash: dependencyFetchLeaseTokenHash(token),
         leaseExpiresAt: { gt: now } },
       data: { heartbeatAt: now,
@@ -47,9 +51,10 @@ export class ReleaseDependencyFetchRepository {
     });
   }
 
-  async markVerifying(fetchRunId: string, token: string, now = new Date()) {
+  async markVerifying(fetchRunId: string, generation: number, token: string,
+    now = new Date()) {
     const result = await this.prisma.releaseDependencyFetchRun.updateMany({
-      where: { id: fetchRunId, status: "fetching",
+      where: { id: fetchRunId, cacheGeneration: generation, status: "fetching",
         leaseTokenHash: dependencyFetchLeaseTokenHash(token),
         leaseExpiresAt: { gt: now } },
       data: { status: "verifying", heartbeatAt: now,
@@ -59,10 +64,12 @@ export class ReleaseDependencyFetchRepository {
   }
 
   async succeed(input: { buildRunId: string; fetchRunId: string;
-    leaseToken: string; storeDigest: string }, now = new Date()) {
+    cacheGeneration: number; leaseToken: string; storeDigest: string },
+    now = new Date()) {
     return this.prisma.$transaction(async (tx) => {
       const claimed = await tx.releaseDependencyFetchRun.updateMany({
-        where: { id: input.fetchRunId, status: "verifying",
+        where: { id: input.fetchRunId,
+          cacheGeneration: input.cacheGeneration, status: "verifying",
           leaseTokenHash: dependencyFetchLeaseTokenHash(input.leaseToken),
           leaseExpiresAt: { gt: now },
           OR: [{ storeDigest: null }, { storeDigest: input.storeDigest }] },
@@ -76,29 +83,39 @@ export class ReleaseDependencyFetchRepository {
   }
 
   async freezeReuse(input: { buildRunId: string; fetchRunId: string;
-    storeDigest: string }) {
+    cacheGeneration: number; storeDigest: string }) {
     return this.prisma.$transaction(async (tx) => {
       const row = await tx.releaseDependencyFetchRun.findFirst({ where: {
-        id: input.fetchRunId, status: "succeeded", storeDigest: input.storeDigest } });
+        id: input.fetchRunId, cacheGeneration: input.cacheGeneration,
+        status: "succeeded", storeDigest: input.storeDigest } });
       if (!row) throw conflict();
       await freezeBuild(tx, input);
     });
   }
 
-  async invalidateSucceeded(fetchRunId: string, storeDigest: string) {
+  async invalidateSucceeded(fetchRunId: string, cacheGeneration: number,
+    storeDigest: string) {
     const result = await this.prisma.releaseDependencyFetchRun.updateMany({
-      where: { id: fetchRunId, status: "succeeded", storeDigest },
+      where: { id: fetchRunId, cacheGeneration, status: "succeeded", storeDigest },
       data: { status: "invalidated", storeDigest: null,
         errorCode: "dependency_store_invalidated", finishedAt: new Date() },
     });
-    if (result.count !== 1) throw conflict();
+    if (result.count === 1) return;
+    const current = await this.prisma.releaseDependencyFetchRun.findUnique({
+      where: { id: fetchRunId }, select: { cacheGeneration: true, status: true } });
+    if (current && (current.cacheGeneration > cacheGeneration ||
+      (current.cacheGeneration === cacheGeneration && current.status === "invalidated")))
+      return;
+    throw conflict();
   }
 
   async finish(input: { fetchRunId: string; leaseToken: string;
+    cacheGeneration: number;
     status: "failed" | "blocked" | "unavailable";
     code: string; message: string }, now = new Date()) {
     const result = await this.prisma.releaseDependencyFetchRun.updateMany({
-      where: { id: input.fetchRunId, status: { in: ["fetching", "verifying"] },
+      where: { id: input.fetchRunId, cacheGeneration: input.cacheGeneration,
+        status: { in: ["fetching", "verifying"] },
         leaseTokenHash: dependencyFetchLeaseTokenHash(input.leaseToken),
         leaseExpiresAt: { gt: now } },
       data: { status: input.status, errorCode: input.code,
@@ -110,14 +127,18 @@ export class ReleaseDependencyFetchRepository {
 }
 
 async function freezeBuild(tx: Pick<PrismaService, "buildRun">, input: {
-  buildRunId: string; fetchRunId: string; storeDigest: string }) {
+  buildRunId: string; fetchRunId: string; cacheGeneration: number;
+  storeDigest: string }) {
   const frozen = await tx.buildRun.updateMany({ where: {
     id: input.buildRunId, status: "running", OR: [
-      { dependencyFetchRunId: null, dependencyStoreDigest: null },
+      { dependencyFetchRunId: null, dependencyStoreDigest: null,
+        dependencyStoreGeneration: null },
       { dependencyFetchRunId: input.fetchRunId,
-        dependencyStoreDigest: input.storeDigest }] },
+        dependencyStoreDigest: input.storeDigest,
+        dependencyStoreGeneration: input.cacheGeneration }] },
     data: { dependencyFetchRunId: input.fetchRunId,
-      dependencyStoreDigest: input.storeDigest } });
+      dependencyStoreDigest: input.storeDigest,
+      dependencyStoreGeneration: input.cacheGeneration } });
   if (frozen.count !== 1) throw conflict();
 }
 function persistentIdentity(input: ReserveInput) {
