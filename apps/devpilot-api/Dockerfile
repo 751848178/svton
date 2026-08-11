@@ -23,7 +23,9 @@ COPY apps/devpilot-api ./apps/devpilot-api
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     "$PNPM_EXECUTABLE" install --frozen-lockfile --store-dir=/pnpm/store --ignore-scripts \
       --filter @svton/devpilot-api...
-RUN "$PNPM_EXECUTABLE" rebuild --filter @svton/devpilot-api...
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    "$PNPM_EXECUTABLE" rebuild --store-dir=/pnpm/store \
+      --filter @svton/devpilot-api...
 
 # ---- api: NestJS backend ----
 # dist/ is compiled on the host (turbo build) and already present in the build

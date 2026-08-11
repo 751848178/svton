@@ -31,4 +31,15 @@ describe("controlled acceptance pnpm supply", () => {
     expect(dockerfile).toContain('"$PNPM_EXECUTABLE" install --offline --frozen-lockfile');
     expect(dockerfile).toContain("--dir=/tmp/pnpm-offline-proof");
   });
+
+  it("uses the same mounted store for dependency install and rebuild", () => {
+    const storeMount = "--mount=type=cache,id=pnpm-store,target=/pnpm/store";
+    expect(dockerfile.match(new RegExp(storeMount, "g"))).toHaveLength(2);
+    expect(dockerfile).toContain(
+      'install --frozen-lockfile --store-dir=/pnpm/store --ignore-scripts',
+    );
+    expect(dockerfile).toContain(
+      'rebuild --store-dir=/pnpm/store',
+    );
+  });
 });
