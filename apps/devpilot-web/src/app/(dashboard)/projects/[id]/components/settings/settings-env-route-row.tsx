@@ -38,7 +38,9 @@ export function SettingsEnvRouteRow({
         <td className="px-3 py-2 text-xs">
           <ProbeStatusLabel state={row.tls.state} label={tlsLabel} />
           <span className="ml-1.5 text-[10px] text-muted-foreground">
-            {t(row.tlsMode === 'existing_cert_asset' ? 'envRoutesTlsExisting' : 'envRoutesTlsManaged')}
+            {t(row.tlsMode === 'none' ? 'envRoutesTlsNone'
+              : row.tlsMode === 'existing_cert_asset'
+                ? 'envRoutesTlsExisting' : 'envRoutesTlsManaged')}
           </span>
         </td>
         <td className="px-3 py-2 text-xs"><ProbeStatusLabel state={row.dns.state} label={dnsLabel} /></td>

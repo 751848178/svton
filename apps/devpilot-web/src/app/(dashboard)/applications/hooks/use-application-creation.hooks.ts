@@ -11,7 +11,7 @@ import { usePersistFn } from '@svton/hooks';
 import { apiRequest } from '@/lib/api-client';
 import { feedback } from '@/components/ui/feedback/feedback';
 import type { ApplicationItem, AppForm, ServiceForm } from '../types';
-import { compactObject } from '../utils';
+import { mergeServiceDeploymentConfig } from '../utils/deployment-lifecycle-config.utils';
 
 interface UseApplicationCreationArgs {
   reload: () => Promise<void>;
@@ -46,16 +46,10 @@ export function useApplicationCreation({ reload }: UseApplicationCreationArgs) {
 
   const createService = usePersistFn(
     async (applicationId: string, input: ServiceInput): Promise<void> => {
-      const deployConfig = compactObject({
+      const deployConfig = {
         targetType: input.kind === 'external' ? 'external-ci' : 'server',
-        workingDirectory: input.workingDirectory,
-        buildCommand: input.buildCommand,
-        preStartCheckCommand: input.preStartCheckCommand,
-        migrationCommand: input.migrationCommand,
-        initializationCommand: input.initializationCommand,
-        deployCommand: input.deployCommand,
-        healthCheckUrl: input.healthCheckUrl,
-      });
+        ...mergeServiceDeploymentConfig({}, input),
+      };
       await apiRequest(`POST:/applications/${applicationId}/services`, {
         environmentId: input.environmentId,
         name: input.name.trim(),

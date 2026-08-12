@@ -1219,6 +1219,7 @@ model EnvironmentConfigRevision {
   resourceReferences Json?
   routeSnapshot      Json?
   policyReferences   Json?
+  observabilitySnapshot Json?
   displayName        String?
   displayDescription String?   @db.Text
   changeSummary      String?   @db.Text
@@ -1237,6 +1238,59 @@ model EnvironmentConfigRevision {
   @@index([projectId])
   @@index([createdById])
   @@index([snapshotHash])
+}
+
+model ServerCapacitySnapshot {
+  id                  String   @id @default(cuid())
+  teamId              String
+  projectId           String
+  environmentId       String
+  configRevisionId    String
+  buildRunId          String
+  manifestId          String
+  providerKey         String   @db.VarChar(128)
+  bindingId           String
+  deploymentInputHash String   @db.VarChar(128)
+  workloadInputHash   String   @db.VarChar(128)
+  requirementHash     String   @db.VarChar(128)
+  sampledBucket       DateTime
+  measurementHash     String
+  status              String
+  requirements        Json
+  measurement         Json
+  reasonCode          String?
+  sampledAt           DateTime
+  expiresAt           DateTime
+  createdAt           DateTime @default(now())
+
+  @@index([teamId, projectId, environmentId], map: "SrvCapacity_scope_idx")
+  @@index([workloadInputHash, sampledAt], map: "SrvCapacity_workload_sample_idx")
+  @@unique([deploymentInputHash, workloadInputHash, requirementHash, providerKey, bindingId, sampledBucket], map: "SrvCapacity_subject_bucket_uq")
+}
+
+model SiteDnsProbeReceipt {
+  id                  String   @id @default(cuid())
+  teamId              String
+  projectId           String
+  environmentId       String
+  configRevisionId    String
+  providerKey         String   @db.VarChar(128)
+  providerProfile     String
+  routeHash           String   @db.VarChar(128)
+  deploymentInputHash String   @db.VarChar(128)
+  workloadInputHash   String   @db.VarChar(128)
+  sampledBucket       DateTime
+  status              String
+  resultHash          String
+  result              Json
+  probedAt            DateTime
+  expiresAt           DateTime
+  createdAt           DateTime @default(now())
+
+  @@index([teamId, projectId, environmentId], map: "DnsProbeReceipt_scope_idx")
+  @@index([routeHash, probedAt], map: "DnsProbeReceipt_route_probe_idx")
+  @@index([deploymentInputHash, workloadInputHash], map: "DnsProbeReceipt_input_idx")
+  @@unique([deploymentInputHash, workloadInputHash, routeHash, providerKey, sampledBucket], map: "DnsProbeReceipt_subject_bucket_uq")
 }
 
 // 控制面访问策略：项目/环境/动作级 RBAC
@@ -3144,6 +3198,7 @@ model ReleaseRun {
   resourceSnapshot      Json?
   routeSnapshot         Json?
   policySnapshot        Json?
+  observabilitySnapshot Json?
   inputHash             String
   idempotencyKey        String
   errorCode             String?

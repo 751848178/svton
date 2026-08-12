@@ -35,36 +35,10 @@ export class ReleaseGateEvaluationService {
     checkpoint?: ReleaseGateCheckpoint,
     actionIdentity?: ReleaseGateActionIdentity,
   ) {
-    const order = await this.evidence.load(
-      scope.teamId,
-      scope.projectId,
-      scope.releaseOrderId,
-      target?.buildRunId,
-    );
-    if (!order) throw new NotFoundException("发布单不存在或不属于当前项目");
-    const context: ReleaseGateEvidenceContext = {
-      ...order,
-      decisionTarget: target,
-      decisionCheckpoint: checkpoint,
-      deploy: await this.deployEvidence.load(
-        scope.teamId,
-        scope.projectId,
-        scope.releaseOrderId,
-        target?.manifestId,
-        target?.environmentId,
-        target?.configRevisionId,
-        target?.deploymentRunId,
-      ),
-      promote: await this.promoteEvidence.load(
-        scope.teamId,
-        scope.projectId,
-        scope.releaseOrderId,
-        target?.releaseRunId,
-      ),
-    };
-    const now = new Date();
-    const evaluated = RELEASE_GATE_DEFINITIONS.map((definition) =>
-      this.capabilities.evaluate(definition, context, now),
+    const { order, context, evaluated } = await this.evaluateTransient(
+      scope,
+      target,
+      checkpoint,
     );
     const checks = await this.evaluations.persist(
       {
@@ -87,6 +61,52 @@ export class ReleaseGateEvaluationService {
     return {
       order,
       checks,
+      capabilities: this.capabilities.list(context),
+    };
+  }
+
+  async evaluateTransient(
+    scope: EvaluationScope,
+    target?: ReleaseGateDecisionTarget,
+    checkpoint?: ReleaseGateCheckpoint,
+  ) {
+    const order = await this.evidence.load(
+      scope.teamId,
+      scope.projectId,
+      scope.releaseOrderId,
+      target?.buildRunId,
+    );
+    if (!order) throw new NotFoundException("发布单不存在或不属于当前项目");
+    const context: ReleaseGateEvidenceContext = {
+      ...order,
+      decisionTarget: target,
+      decisionCheckpoint: checkpoint,
+      deploy: await this.deployEvidence.load(
+        scope.teamId,
+        scope.projectId,
+        scope.releaseOrderId,
+        target?.manifestId,
+        target?.environmentId,
+        target?.configRevisionId,
+        target?.deploymentRunId,
+        target?.capacitySnapshotId,
+      ),
+      promote: await this.promoteEvidence.load(
+        scope.teamId,
+        scope.projectId,
+        scope.releaseOrderId,
+        target?.releaseRunId,
+        target?.dnsProbeReceiptId,
+      ),
+    };
+    const now = new Date();
+    const evaluated = RELEASE_GATE_DEFINITIONS.map((definition) =>
+      this.capabilities.evaluate(definition, context, now),
+    );
+    return {
+      order,
+      context,
+      evaluated,
       capabilities: this.capabilities.list(context),
     };
   }

@@ -9,6 +9,7 @@ import type {
 } from "./release-staging-workload.types";
 import { assertSafeReleaseWorkloadCommand } from "./release-workload-command-policy";
 import { applicationServicePorts } from "../project-environment/application-service-port.utils";
+import { releaseWorkloadResourceRequirement } from "./release-workload-resource.policy";
 
 const TARGET_LOCAL_HEALTH_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 
@@ -103,6 +104,7 @@ function workload(
       )
     : undefined;
   const healthCheck = health(config);
+  const resources = releaseWorkloadResourceRequirement(config.resourceRequirements);
   const base = {
     serviceId: service.id,
     applicationId: service.applicationId,
@@ -118,6 +120,7 @@ function workload(
     ...(failureCleanupCommand ? { failureCleanupCommand } : {}),
     startTimeoutMs: bounded(config.startTimeoutMs, 120_000, 1_000, 600_000),
     statusTimeoutMs: bounded(config.statusTimeoutMs, 10_000, 500, 60_000),
+    ...(resources ? { resources } : {}),
     ...(healthCheck ? { health: healthCheck } : {}),
   };
   return { ...base, stateHash: hashCanonicalReleaseValue(base) };

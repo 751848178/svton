@@ -13,6 +13,7 @@ import {
 import { evaluateIngressRoute } from "./release-gate-ingress-route.policy";
 import { releaseGateIngressObservation } from "./release-gate-ingress-observation";
 import { evaluateIngressTls } from "./release-gate-ingress-tls.policy";
+import { hashCanonicalReleaseValue } from "./release-canonical-hash.utils";
 
 const INGRESS_TTL_MS = 60 * 60 * 1000;
 
@@ -41,6 +42,8 @@ export class ReleaseGateIngressCapabilityProvider implements ReleaseGateCapabili
   }
 
   private dns(context: ReleaseGateEvidenceContext, now: Date) {
+    const localReceipt = this.localAcceptanceReceipt(context, now);
+    if (localReceipt) return localReceipt;
     const environment = context.promote?.environment;
     const observation = releaseGateIngressObservation(context);
     const site = observation.site;
@@ -82,6 +85,23 @@ export class ReleaseGateIngressCapabilityProvider implements ReleaseGateCapabili
     }
     const dns = record(site.dns);
     const checkedAt = dns.checkedAt;
+    if (Object.keys(dns).length === 0) {
+      return unavailable(
+        "dns_probe_missing",
+        "没有新鲜的 Production DNS 真实探测结果",
+        "No fresh real Production DNS probe result",
+      );
+    }
+    const probeHostname = typeof dns.hostname === "string"
+      ? dns.hostname.toLowerCase() : "";
+    if (!observation.route?.domains.some((domain) =>
+      domain.toLowerCase() === probeHostname)) {
+      return unavailable(
+        "dns_probe_scope_mismatch",
+        "DNS 探测域名与冻结路由不一致",
+        "The DNS probe hostname does not match the frozen route",
+      );
+    }
     if (
       typeof checkedAt !== "string" ||
       stale(checkedAt, now, INGRESS_TTL_MS)
@@ -102,6 +122,13 @@ export class ReleaseGateIngressCapabilityProvider implements ReleaseGateCapabili
         checkedAt: new Date(checkedAt),
         ttlMs: INGRESS_TTL_MS,
         now,
+        evidenceIdentity: {
+          siteId: site.id, environmentId: environment.id,
+          hostname: probeHostname,
+          routeHash: hashCanonicalReleaseValue(record(
+            environment.currentConfigRevision?.routeSnapshot,
+          )),
+        },
       });
     }
     return unavailable(
@@ -109,6 +136,57 @@ export class ReleaseGateIngressCapabilityProvider implements ReleaseGateCapabili
       "Production DNS 真实探测未完成（域名不可解析或网络不可用），不视为通过",
       "Production real DNS probe is unavailable (domain not resolvable or network down); not counted as a pass",
     );
+  }
+
+  private localAcceptanceReceipt(
+    context: ReleaseGateEvidenceContext,
+    now: Date,
+  ) {
+    const target = context.decisionTarget;
+    const revision = context.deploy?.environment?.currentConfigRevision;
+    const routeHash = revision
+      ? hashCanonicalReleaseValue(record(revision.routeSnapshot))
+      : null;
+    const receipt = context.promote?.dnsReceipts?.find(
+      (item) => item.id === target?.dnsProbeReceiptId,
+    );
+    if (!receipt) return null;
+    const exact = target?.dnsProbeResultHash === receipt.resultHash &&
+      receipt.providerKey === target?.providerKey &&
+      receipt.providerProfile === "parity-hosts-v1" &&
+      receipt.configRevisionId === target.configRevisionId &&
+      receipt.deploymentInputHash === target.deploymentInputHash &&
+      receipt.workloadInputHash === target.workloadInputHash &&
+      receipt.routeHash === routeHash;
+    if (!exact) {
+      return unavailable(
+        "dns_acceptance_receipt_scope_mismatch",
+        "本地验收 DNS receipt 与当前冻结动作不一致",
+        "The local-acceptance DNS receipt does not match the frozen action",
+      );
+    }
+    return evaluated({
+      status: receipt.status === "resolved" ? "checked" : "blocked",
+      reasonCode: receipt.status === "resolved"
+        ? "local_resolver_acceptance_only"
+        : "dns_unavailable_local_acceptance",
+      zh: receipt.status === "resolved"
+        ? "本地验收 DNS 探测通过（不代表外部 Production Ready）"
+        : "本地验收 DNS 探测失败",
+      en: receipt.status === "resolved"
+        ? "Local-acceptance DNS probe passed; this is not external Production Ready"
+        : "The local-acceptance DNS probe failed",
+      evidenceRef: `site-dns-probe-receipt:${receipt.id}`,
+      checkedAt: receipt.probedAt,
+      ttlMs: Math.max(1, receipt.expiresAt.getTime() - receipt.probedAt.getTime()),
+      now,
+      evidenceIdentity: {
+        receiptId: receipt.id,
+        resultHash: receipt.resultHash,
+        routeHash: receipt.routeHash,
+        profile: receipt.providerProfile,
+      },
+    });
   }
 
 }

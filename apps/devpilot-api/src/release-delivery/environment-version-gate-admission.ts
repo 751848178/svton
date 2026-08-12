@@ -18,6 +18,10 @@ export type EnvironmentVersionGateContext = {
   workloadInputHash?: string;
   workloadServiceCount?: number;
   workloadHealthConfigured?: boolean;
+  capacitySnapshotId?: string;
+  capacitySnapshotHash?: string;
+  dnsProbeReceiptId?: string;
+  dnsProbeResultHash?: string;
   idempotencyKey?: string;
 };
 
@@ -43,6 +47,17 @@ export function admitEnvironmentVersion(
       providerKey: context.providerKey ?? null,
       bindingId: context.bindingId ?? null,
       deploymentInputHash: context.deploymentInputHash ?? null,
+      workloadInputHash: context.workloadInputHash ?? null,
+      workloadServiceCount: context.workloadServiceCount === undefined
+        ? null
+        : String(context.workloadServiceCount),
+      workloadHealthConfigured: context.workloadHealthConfigured === undefined
+        ? null
+        : String(context.workloadHealthConfigured),
+      capacitySnapshotId: context.capacitySnapshotId ?? null,
+      capacitySnapshotHash: context.capacitySnapshotHash ?? null,
+      dnsProbeReceiptId: context.dnsProbeReceiptId ?? null,
+      dnsProbeResultHash: context.dnsProbeResultHash ?? null,
       idempotencyKey: context.idempotencyKey ?? null,
     },
     requestKey: `pre:${stage}:${context.idempotencyKey ?? context.releaseRunId ?? context.manifestId}`,
@@ -68,6 +83,13 @@ export function finalEnvironmentVersionDecision(
       providerKey: context.providerKey ?? null,
       bindingId: context.bindingId ?? null,
       deploymentInputHash: context.deploymentInputHash ?? null,
+      workloadInputHash: context.workloadInputHash ?? null,
+      workloadServiceCount: context.workloadServiceCount === undefined
+        ? null
+        : String(context.workloadServiceCount),
+      workloadHealthConfigured: context.workloadHealthConfigured === undefined
+        ? null
+        : String(context.workloadHealthConfigured),
       candidateHash: context.candidateHash ?? null,
       idempotencyKey: context.idempotencyKey ?? null,
     },
@@ -147,5 +169,9 @@ function target(context: EnvironmentVersionGateContext) {
     workloadInputHash: context.workloadInputHash,
     workloadServiceCount: context.workloadServiceCount,
     workloadHealthConfigured: context.workloadHealthConfigured,
+    capacitySnapshotId: context.capacitySnapshotId,
+    capacitySnapshotHash: context.capacitySnapshotHash,
+    dnsProbeReceiptId: context.dnsProbeReceiptId,
+    dnsProbeResultHash: context.dnsProbeResultHash,
   };
 }

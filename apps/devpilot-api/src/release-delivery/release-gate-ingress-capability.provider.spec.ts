@@ -148,6 +148,7 @@ describe("ReleaseGateIngressCapabilityProvider D14/D15 honesty", () => {
           expiresAt: "2026-09-07T00:00:00.000Z",
           probe: {
             status: "invalid",
+            host: "demo.f437.example", servername: "demo.f437.example",
             cert: { expired: true },
             checkedAt: new Date(NOW.getTime() - 60_000).toISOString(),
           },
@@ -157,6 +158,19 @@ describe("ReleaseGateIngressCapabilityProvider D14/D15 honesty", () => {
     );
     expect(check.status).toBe("blocked");
     expect(check.reasonCode).toBe("tls_certificate_invalid");
+  });
+
+  it("binds a valid TLS probe to its exact site, environment and route", () => {
+    const check = provider.evaluate(d15, context({ tls: {
+      status: "valid", expiresAt: "2026-09-07T00:00:00.000Z",
+      probe: { status: "valid", host: "demo.f437.example",
+        servername: "demo.f437.example", checkedAt: NOW.toISOString() },
+    } }), NOW);
+    expect(check).toMatchObject({ status: "checked", evidenceIdentity: {
+      siteId: "site-1", environmentId: "prod-env",
+      hostname: "demo.f437.example",
+    } });
+    expect(check.evidenceIdentity?.routeHash).toEqual(expect.any(String));
   });
 
   it("blocks DNS and TLS when two active Sites own the frozen domain", () => {
@@ -190,6 +204,7 @@ describe("ReleaseGateIngressCapabilityProvider D14/D15 honesty", () => {
           expiresAt: "2026-09-07T00:00:00.000Z",
           probe: {
             status: "unavailable",
+            host: "demo.f437.example", servername: "demo.f437.example",
             error: { code: "ENOTFOUND", message: "unreachable" },
             checkedAt: new Date(NOW.getTime() - 60_000).toISOString(),
           },
@@ -201,7 +216,7 @@ describe("ReleaseGateIngressCapabilityProvider D14/D15 honesty", () => {
     expect(check.reasonCode).toBe("tls_probe_unavailable");
   });
 
-  it("checks D15 for a valid, non-expired certificate", () => {
+  it("does not accept client-configured TLS status without a server handshake probe", () => {
     const check = provider.evaluate(
       d15,
       context({
@@ -209,7 +224,22 @@ describe("ReleaseGateIngressCapabilityProvider D14/D15 honesty", () => {
       }),
       NOW,
     );
-    expect(check.status).toBe("checked");
-    expect(check.reasonCode).toBe("tls_certificate_valid");
+    expect(check.status).toBe("unavailable");
+    expect(check.reasonCode).toBe("tls_certificate_unverified");
+  });
+
+  it("rejects old DNS and TLS probes after the frozen route domain changes", () => {
+    const value = context({
+      dns: { status: "resolved", hostname: "old.example",
+        checkedAt: NOW.toISOString() },
+      tls: { probe: { status: "valid", host: "old.example",
+        servername: "old.example", checkedAt: NOW.toISOString() } },
+    });
+    expect(provider.evaluate(d14, value, NOW)).toMatchObject({
+      status: "unavailable", reasonCode: "dns_probe_scope_mismatch",
+    });
+    expect(provider.evaluate(d15, value, NOW)).toMatchObject({
+      status: "unavailable", reasonCode: "tls_probe_scope_mismatch",
+    });
   });
 });

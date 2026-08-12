@@ -23,13 +23,18 @@ export class ReleaseGateManualConfirmationService {
     }
     const definition = manualDefinition(row.gateId);
     if (definition.phase === "deploy" || definition.phase === "promote") {
-      const identity = record(record(row.summary).decisionIdentity);
+      const summary = record(row.summary);
+      const identity = record(summary.decisionIdentity);
+      const evidence = record(summary.evidenceIdentity);
       if (
         !row.releaseRunId ||
         (definition.phase === "promote" && (
           typeof identity.deploymentRunId !== "string" ||
           typeof identity.candidateHash !== "string" ||
-          !/^[a-f0-9]{64}$/.test(identity.candidateHash)
+          !/^[a-f0-9]{64}$/.test(identity.candidateHash) ||
+          evidence.releaseRunId !== row.releaseRunId ||
+          evidence.deploymentRunId !== identity.deploymentRunId ||
+          evidence.candidateHash !== identity.candidateHash
         ))
       ) {
         throw new UnprocessableEntityException(

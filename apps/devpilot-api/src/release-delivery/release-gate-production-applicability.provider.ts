@@ -4,6 +4,8 @@ import type { ReleaseGateEvidenceContext } from "./release-gate-evidence.reposit
 import { isMigrationNotApplicable } from "./release-gate-migration-applicability.evaluator";
 import { evaluated, record, unavailable } from "./release-gate-provider.types";
 import { evaluateCandidatePromotionGate } from "./release-gate-candidate-promotion.policy";
+import { evaluateProductionNotApplicable } from "./release-gate-production-na.policy";
+import { evaluateExactCapacity } from "./release-gate-capacity.policy";
 
 const STANDARD_NA_GATES = new Set(["P07", "P08"]);
 
@@ -17,6 +19,13 @@ export class ReleaseGateProductionApplicabilityProvider {
     now: Date,
   ) {
     if (!context.decisionCheckpoint?.startsWith("production_")) return null;
+    const notApplicable = evaluateProductionNotApplicable(
+      definition.id,
+      context,
+      now,
+    );
+    if (notApplicable) return notApplicable;
+    if (definition.id === "D05") return evaluateExactCapacity(context, now);
     const candidate = evaluateCandidatePromotionGate(definition.id, context, now);
     if (candidate) return candidate;
     if (definition.id === "D06") return this.standard(definition.id, context, now);

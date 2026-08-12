@@ -61,7 +61,9 @@ describe("GateEvaluationRepository C03 independent approval", () => {
   });
 
   function prismaDouble() {
-    return {
+    const prisma = {
+      $queryRaw: jest.fn().mockResolvedValue([{ id: row.id }]),
+      $transaction: jest.fn(),
       gateEvaluation: {
         findFirst: jest.fn().mockResolvedValue(row),
         findUniqueOrThrow: jest.fn().mockResolvedValue({
@@ -82,6 +84,8 @@ describe("GateEvaluationRepository C03 independent approval", () => {
       },
       buildRun: { findUnique: jest.fn() },
     };
+    prisma.$transaction.mockImplementation(async (action) => action(prisma));
+    return prisma;
   }
 
   function input(actorId: string) {

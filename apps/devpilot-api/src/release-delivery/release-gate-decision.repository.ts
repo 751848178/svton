@@ -154,5 +154,6 @@ function presentDecision(
     id: row.id,
     inputHash: row.inputHash,
     decidedAt: row.createdAt.toISOString(),
+    evaluations: snapshot.evaluations,
   };
 }

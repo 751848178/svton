@@ -17,7 +17,8 @@ import { ProductionPromotionLeaseLostError, ProductionPromotionRecoveryPendingEr
 import { ProductionPromotionObservationRepository } from "./production-promotion-observation.repository";
 import { ReleaseGateBlockedException } from "./release-gate-decision.service";
 import type { ReleaseGateDecisionReference } from "./release-gate-decision.types";
-
+import { promotionBlockedResult } from "./production-promotion-blocker.presenter";
+import { ProductionPromotionEvidenceRefreshService } from "./production-promotion-evidence-refresh.service";
 @Injectable()
 export class ProductionPromotionService {
   constructor(
@@ -29,8 +30,8 @@ export class ProductionPromotionService {
     private readonly siteProbe: SiteProbePort,
     private readonly observations: ProductionPromotionObservationRepository,
     private readonly completion: EnvironmentVersionCompletionRepository,
+    private readonly evidenceRefresh: ProductionPromotionEvidenceRefreshService,
   ) {}
-
   async resume(input: ProductionPromotionResumeInput) {
     const reservation = await this.commands.reserve(input);
     if (!reservation.shouldExecute || !reservation.lease) return reservation.command;
@@ -43,6 +44,8 @@ export class ProductionPromotionService {
       let pre: ReleaseGateDecisionReference | null = decision(reservation.command, "pre");
       let post: ReleaseGateDecisionReference | null = decision(reservation.command, "post");
       if (phase === "reserved") {
+        await this.withLease(reservation, lease,
+          () => this.evidenceRefresh.refresh(reservation.candidate));
         const value = await this.withLease(reservation, lease, async () => {
           const gate = await this.gates.promote({ ...context,
             promotionCommandId: reservation.command.id });
@@ -123,12 +126,10 @@ export class ProductionPromotionService {
       return this.fail(reservation, input, lease, request, error);
     }
   }
-
   private withLease<T>(r: ReservedProductionPromotionCommand, lease: ProductionPromotionLease, action: () => Promise<T>) {
     return withProductionPromotionHeartbeat({ commands: this.commands,
       commandId: r.command.id, lease, action });
   }
-
   private complete(r: ReservedProductionPromotionCommand, input: ProductionPromotionResumeInput,
     lease: ProductionPromotionLease, request: SiteRouteSwitchInput,
     attempt: SiteRouteSwitchAttemptPersistence, pre: ReleaseGateDecisionReference,
@@ -147,7 +148,6 @@ export class ProductionPromotionService {
       promotionCommand: { id: r.command.id, candidateHash: input.candidateHash,
         result: { routeSwitchOperationId: request.operationId } } });
   }
-
   private async fail(r: ReservedProductionPromotionCommand, input: ProductionPromotionResumeInput,
     lease: ProductionPromotionLease, request: SiteRouteSwitchInput | undefined, error: unknown) {
     const blocked = error instanceof ReleaseGateBlockedException;
@@ -159,10 +159,12 @@ export class ProductionPromotionService {
     if (!request) {
       await this.commands.finish({ commandId: r.command.id, lease,
         status: blocked ? "blocked" : "failed",
+        result: blocked ? promotionBlockedResult(error.decision) : undefined,
         errorCode: detail.code, errorMessage: detail.message });
       return { ...r.command, status: blocked ? "blocked" : "failed",
         awaitingValidation: true, errorCode: detail.code, errorMessage: detail.message,
-        gateDecision: gateDecisionReference(blocked ? error.decision : undefined) };
+        gateDecision: gateDecisionReference(blocked ? error.decision : undefined),
+        ...(blocked ? promotionBlockedResult(error.decision) : {}) };
     }
     const compensation = await this.withLease(r, lease, () => this.routeSaga.compensate(request.operationId, error));
     const status = compensation === "compensation_required" ? "blocked" : "failed";

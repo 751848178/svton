@@ -133,6 +133,7 @@ function snapshotEvaluation(check: PersistedReleaseGateEvaluation) {
     status: check.status,
     providerKey: check.providerKey,
     reasonCode: check.reasonCode,
+    reason: check.reason,
     evidenceRef: check.evidenceRef,
     checkedAt: check.checkedAt,
     expiresAt: check.expiresAt,

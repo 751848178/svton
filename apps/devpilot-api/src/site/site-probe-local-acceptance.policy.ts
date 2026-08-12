@@ -29,6 +29,12 @@ export class SiteProbeLocalAcceptancePolicy {
     return `http://${acceptance.hostname}:${acceptance.port}/`;
   }
 
+  profile(primaryDomain: string | null, tlsRequired?: boolean | null) {
+    return this.finalUrl(primaryDomain, tlsRequired)
+      ? "parity-hosts-v1" as const
+      : null;
+  }
+
   allows(target: SiteProbeTarget, addresses: readonly SiteProbeAddress[]) {
     const acceptance = this.acceptance();
     return Boolean(

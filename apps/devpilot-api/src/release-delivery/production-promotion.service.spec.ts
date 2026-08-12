@@ -11,7 +11,9 @@ describe("Production promotion resume", () => {
 
     expect(result).toMatchObject({ status: "blocked", awaitingValidation: true,
       errorCode: "RELEASE_GATE_BLOCKED",
-      errorMessage: "production 门禁未满足，服务端已拒绝执行" });
+      errorMessage: "production 门禁未满足，服务端已拒绝执行",
+      checkpoint: "production_promote_pre_route",
+      manualChecks: [{ gateId: "P03", evaluationId: "evaluation-p03" }] });
     expect(deps.gates.promote).toHaveBeenCalledWith(
       expect.objectContaining({
         releaseRunId: "release-1",
@@ -22,7 +24,14 @@ describe("Production promotion resume", () => {
     );
     expect(deps.commands.finish).toHaveBeenCalledWith(
       expect.objectContaining({ status: "blocked", errorCode: "RELEASE_GATE_BLOCKED",
-        errorMessage: "production 门禁未满足，服务端已拒绝执行" }),
+        errorMessage: "production 门禁未满足，服务端已拒绝执行",
+        result: expect.objectContaining({
+          checkpoint: "production_promote_pre_route",
+          manualChecks: [{ gateId: "P03", evaluationId: "evaluation-p03",
+            status: "manual", reasonCode: "critical_business_validation_required",
+            reason: { zh: "需要独立验证", en: "Independent validation required" },
+            providerKey: "manual_confirmation" }],
+        }) }),
     );
     expect(deps.routeSaga.apply).not.toHaveBeenCalled();
     expect(deps.completion.complete).not.toHaveBeenCalled();
@@ -32,6 +41,8 @@ describe("Production promotion resume", () => {
     const deps = fixture();
     await deps.service.resume(input());
 
+    expect(deps.evidenceRefresh.refresh.mock.invocationCallOrder[0])
+      .toBeLessThan(deps.gates.promote.mock.invocationCallOrder[0]);
     expect(deps.gates.promote.mock.invocationCallOrder[0])
       .toBeLessThan(deps.routeSaga.apply.mock.invocationCallOrder[0]);
     expect(deps.observations.record).toHaveBeenCalledWith(
@@ -45,6 +56,17 @@ describe("Production promotion resume", () => {
         status: "completed",
         promotionCommand: expect.objectContaining({ id: "command-1" }),
       }),
+    );
+  });
+
+  it("fails closed before promotion gates when candidate refresh fails", async () => {
+    const deps = fixture();
+    deps.evidenceRefresh.refresh.mockRejectedValue(new Error("probe failed"));
+    await deps.service.resume(input());
+    expect(deps.gates.promote).not.toHaveBeenCalled();
+    expect(deps.routeSaga.apply).not.toHaveBeenCalled();
+    expect(deps.commands.finish).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "failed" }),
     );
   });
 
@@ -120,12 +142,14 @@ function fixture() {
   const completion = {
     complete: jest.fn((value) => Promise.resolve(value)),
   };
+  const evidenceRefresh = { refresh: jest.fn().mockResolvedValue(undefined) };
   return {
     commands, gates, routeSaga, routeReadback, siteProbe, observations, completion,
+    evidenceRefresh,
     service: new ProductionPromotionService(
       commands as never, gates as never, routeActivation as never,
       routeSaga as never, routeReadback as never, siteProbe as never, observations as never,
-      completion as never,
+      completion as never, evidenceRefresh as never,
     ),
   };
 }
@@ -209,7 +233,16 @@ function probe() {
 function decision(allowed: boolean, id = "manual") {
   return {
     id: `decision-${id}`, stage: "production", inputHash: id.repeat(8), allowed,
+    checkpoint: "production_promote_pre_route", phase: "promote",
     actionInputHash: `${id}-action`,
     blockerGateIds: [], manualGateIds: allowed ? [] : ["P03"],
+    evaluations: allowed ? [] : [{
+      gateId: "P03", evaluationId: "evaluation-p03",
+      evaluationInputHash: "evaluation-input", status: "manual",
+      providerKey: "manual_confirmation", reasonCode: "critical_business_validation_required",
+      reason: { zh: "需要独立验证", en: "Independent validation required" },
+      evidenceRef: null, checkedAt: null, expiresAt: null, fresh: null,
+      waiver: null, waiverExpiresAt: null, manualApprovals: [],
+    }],
   };
 }

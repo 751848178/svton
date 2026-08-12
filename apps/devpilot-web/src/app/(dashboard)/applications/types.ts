@@ -122,6 +122,9 @@ export interface ServiceDeploymentForm {
   initializationCommand: string;
   deployCommand: string;
   healthCheckUrl: string;
+  cpuMillicores: string;
+  memoryBytes: string;
+  diskBytes: string;
 }
 
 export interface ServiceForm extends ServiceDeploymentForm {

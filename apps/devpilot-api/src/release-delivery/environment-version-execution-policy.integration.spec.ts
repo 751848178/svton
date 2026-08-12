@@ -21,6 +21,8 @@ import { SiteRouteSwitchSagaOrchestrator } from "../site/site-route-switch-saga.
 import { SiteRouteSwitchSagaRepository } from "../site/site-route-switch-saga.repository";
 import { siteRouteSwitchTestDouble } from "../site/site-route-switch.spec-utils";
 import { EnvironmentVersionCompletionRepository } from "./environment-version-completion.repository";
+import { ReleaseProductionWorkloadService } from "./release-production-workload.service";
+import { ReleaseStagingWorkloadStateRepository } from "./release-staging-workload-state.repository";
 
 const describeIntegration =
   process.env.RUN_ENVIRONMENT_VERSION_INTEGRATION === "1"
@@ -54,7 +56,9 @@ describeIntegration("EnvironmentVersion execute-after-approval policy", () => {
       environmentVersionInputTestDouble() as never,
       {} as never,
       productionWorkloadTestDouble() as never,
-      productionWorkloadTestDouble() as never,
+      new ReleaseProductionWorkloadService(
+        new ReleaseStagingWorkloadStateRepository(fixture.prisma as never),
+      ),
       new SiteRouteActivationService(fixture.prisma as never),
       routeSwitch,
       new SiteRouteSwitchSagaOrchestrator(routeSagaRepository, routeSwitch),
@@ -137,6 +141,34 @@ describeIntegration("EnvironmentVersion execute-after-approval policy", () => {
     await f.prisma.releaseRun.update({
       where: { id: run.id },
       data: { status: "failed" },
+    });
+  });
+
+  it("rejects approved workload drift before creating a DeploymentRun", async () => {
+    const f = fixture;
+    const run = await confirmRun(f, "workload-drift");
+    await approve(f, run.operationApproval!.id);
+    const serviceRow = await f.prisma.applicationService.findFirstOrThrow({
+      where: { environmentId: f.productionEnvironmentId, status: "active" },
+    });
+    await f.prisma.applicationService.update({
+      where: { id: serviceRow.id },
+      data: { deployConfig: {
+        ...(serviceRow.deployConfig as Record<string, unknown>),
+        healthCheckUrl: "http://127.0.0.1:3001/health",
+      } },
+    });
+
+    await expect(execute(service, f, run.id)).rejects.toThrow("工作负载已在审批后漂移");
+    await expect(f.prisma.deploymentRun.count({
+      where: { releaseRunId: run.id },
+    })).resolves.toBe(0);
+    await f.prisma.applicationService.update({
+      where: { id: serviceRow.id },
+      data: { deployConfig: serviceRow.deployConfig as never },
+    });
+    await f.prisma.releaseRun.update({
+      where: { id: run.id }, data: { status: "failed" },
     });
   });
 

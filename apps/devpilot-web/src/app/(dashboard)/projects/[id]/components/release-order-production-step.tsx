@@ -1,5 +1,4 @@
 'use client';
-
 import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useReleaseBuilds } from '../hooks/use-release-builds';
@@ -18,23 +17,13 @@ import { ReleaseProductionOperationErrors } from './release-production-operation
 import { ReleaseProductionPrimaryAction } from './release-production-primary-action';
 import { releaseProductionCurrentRun } from './release-production-current-run.model';
 import { ReleaseProductionPromotionProgress } from './release-production-promotion-progress';
-import {
-  productionStageCopy,
-  ReleaseProductionStageCard,
-} from './release-production-stage-card';
+import { productionStageCopy, ReleaseProductionStageCard } from './release-production-stage-card';
+import { useProductionPreflightView } from '../hooks/use-production-preflight-view';
 interface Props {
-  projectId: string;
-  releaseOrderId: string;
-  releaseVersion: string;
-  productionArtifactFrozen: boolean;
-  onChanged: () => Promise<unknown>;
-  evidence: ReleaseOrderEvidenceHook;
-  focusedReleaseRunId?: string;
-  focusedDeploymentRunId?: string;
-  recoveryHref: string;
-  onFocus: (releaseRunId: string, deploymentRunId?: string) => void;
-  onOpenLog: (releaseRunId: string, deploymentRunId: string) => void;
-  onCloseLog: () => void;
+  projectId: string; releaseOrderId: string; releaseVersion: string; productionArtifactFrozen: boolean; onChanged: () => Promise<unknown>;
+  evidence: ReleaseOrderEvidenceHook; recoveryHref: string; focusedReleaseRunId?: string;
+  focusedDeploymentRunId?: string; onFocus: (releaseRunId: string, deploymentRunId?: string) => void;
+  onOpenLog: (releaseRunId: string, deploymentRunId: string) => void; onCloseLog: () => void;
 }
 export function ReleaseOrderProductionStep(props: Props) {
   const t = useTranslations('projects');
@@ -67,13 +56,12 @@ export function ReleaseOrderProductionStep(props: Props) {
     !props.productionArtifactFrozen,
   );
   const snapshot = production.preview?.snapshot;
+  const preflight = useProductionPreflightView(production.preview?.preflight);
   const stagingErrorKey = useMemo(
     () => (staging.error ? releaseProductionErrorLabelKey(staging.error) : null),
     [staging.error],
   );
-  const productionErrorKey = production.error
-    ? releaseProductionErrorLabelKey(production.error)
-    : null;
+  const productionErrorKey = production.error ? releaseProductionErrorLabelKey(production.error) : null;
   const releaseRuns = evidence?.productionReleaseRuns.items || [];
   const current = useMemo(
     () => releaseProductionCurrentRun(
@@ -94,13 +82,11 @@ export function ReleaseOrderProductionStep(props: Props) {
     approvalRun?.environmentId || '',
     props.onChanged,
   );
-  const focusedRun = releaseRuns.find((run) =>
-      run.deploymentRuns.some((deployment) => deployment.id === props.focusedDeploymentRunId),
-    ) || null;
-  const focusedDeployment =
-    focusedRun?.deploymentRuns.find(
-      (deployment) => deployment.id === props.focusedDeploymentRunId,
-    ) || null;
+  const focusedRun = releaseRuns.find((run) => run.deploymentRuns.some(
+    (deployment) => deployment.id === props.focusedDeploymentRunId,
+  )) || null;
+  const focusedDeployment = focusedRun?.deploymentRuns.find((deployment) =>
+    deployment.id === props.focusedDeploymentRunId) || null;
   useReleaseProductionFocusNormalizer({
     requestedRunId: props.focusedDeploymentRunId,
     found: Boolean(focusedDeployment),
@@ -108,9 +94,9 @@ export function ReleaseOrderProductionStep(props: Props) {
     error: props.evidence.error,
     onClose: props.onCloseLog,
   });
-
-  const stageCopy = productionStageCopy(approvalRun, current.succeededOnline);
-
+  const acceptanceOnly = preflight.value?.acceptanceOnly === true ||
+    approvalRun?.acceptanceMode === 'technical_acceptance';
+  const stageCopy = productionStageCopy(approvalRun, current.currentProductionOnline, approvalRun?.acceptanceMode);
   const primaryAction = (
     <ReleaseProductionPrimaryAction
       frozen={props.productionArtifactFrozen}
@@ -124,22 +110,32 @@ export function ReleaseOrderProductionStep(props: Props) {
       awaitingValidationReady={Boolean(current.awaitingResume)}
       resuming={promotion.resuming}
       snapshotReady={Boolean(snapshot)}
+      preflightReady={preflight.value?.decision.preApprovalAllowed === true}
+      preflightReason={preflight.reason}
       confirming={production.confirming}
-      onRequest={() => setDialogOpen(true)}
+      refreshing={production.refreshing}
+      onRequest={() => {
+        void production.refreshPreflight().then((refreshed) => {
+          if (refreshed?.preflight?.decision.preApprovalAllowed) {
+            setDialogOpen(true);
+          }
+        });
+      }}
       onResume={() => {
         if (current.awaitingResume) void promotion.resume(current.awaitingResume.input);
       }}
       onReconcile={(commandId) => { void reconciliation.reconcile(commandId); }}
     />
   );
-
   return (
     <div className="space-y-4">
       <ReleaseProductionStageCard
         currentOnline={current.currentOnline}
+        technicalAcceptance={current.currentTechnicalAcceptance}
+        technicalDigest={current.currentTechnicalDigest}
         releaseVersion={props.releaseVersion}
         pendingApprovals={current.pendingApprovals}
-        online={current.succeededOnline}
+        online={current.currentProductionOnline}
         titleKey={stageCopy.titleKey}
         descriptionKey={stageCopy.descriptionKey}
         primaryAction={primaryAction}
@@ -151,7 +147,10 @@ export function ReleaseOrderProductionStep(props: Props) {
           setDialogOpen(false);
         }}
         frozenManifest={approvalRun?.manifest.digest || (snapshot?.manifest.digest ?? '')}
-        preflightReady={manifestId ? provenManifestIds.has(manifestId) : false}
+        preflightReady={preflight.value?.decision.preApprovalAllowed === true}
+        acceptanceOnly={acceptanceOnly}
+        repairHref={preflight.value?.repairHref}
+        preflight={preflight.value}
         dialog={<ReleaseProductionConfirmDialog
           open={dialogOpen}
           onClose={() => setDialogOpen(false)}
@@ -161,7 +160,8 @@ export function ReleaseOrderProductionStep(props: Props) {
           onConfirm={production.confirm}
         />}
       />
-      <ReleaseProductionPromotionProgress run={approvalRun} />
+      <ReleaseProductionPromotionProgress run={approvalRun} projectId={props.projectId}
+        releaseOrderId={props.releaseOrderId} onChanged={props.onChanged} />
       {current.legacyRecovery ? (
         <ReleaseProductionLegacyRecoveryAlert recovery={current.legacyRecovery} />
       ) : null}

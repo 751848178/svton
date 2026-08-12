@@ -51,6 +51,31 @@ describe('releaseProductionCurrentRun', () => {
     expect(state.awaitingResume).toBeNull();
     expect(state.legacyRecovery).toEqual(fixture.legacyPromotionRecovery);
   });
+
+  it('never classifies terminal technical acceptance as Production online', () => {
+    const fixture = run();
+    fixture.status = 'succeeded';
+    fixture.acceptanceMode = 'technical_acceptance';
+    const state = releaseProductionCurrentRun([fixture], undefined, 'order-1');
+    expect(state).toMatchObject({
+      currentTechnicalAcceptance: true,
+      currentTechnicalDigest: 'sha256:exact',
+      currentProductionOnline: false,
+      currentOnline: '',
+    });
+  });
+
+  it('classifies only a terminal production-mode run as online', () => {
+    const fixture = run();
+    fixture.status = 'succeeded';
+    fixture.acceptanceMode = 'production';
+    const state = releaseProductionCurrentRun([fixture], undefined, 'order-1');
+    expect(state).toMatchObject({
+      currentTechnicalAcceptance: false,
+      currentProductionOnline: true,
+      currentOnline: 'sha256:exact',
+    });
+  });
 });
 
 function run(): ReleaseEvidenceProductionRun {

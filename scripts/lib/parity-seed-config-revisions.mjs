@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
+import { seedParityReleaseServiceRequirements } from "./parity-seed-release-services.mjs";
 
 export async function seedParityConfigRevisions({ prisma, ids, runtime }) {
+  await seedParityReleaseServiceRequirements({ prisma, ids });
   const staging = parityConfigRevisionData(ids, runtime, "staging");
   const production = parityConfigRevisionData(ids, runtime, "production");
   await Promise.all([
@@ -23,7 +25,10 @@ export function parityConfigRevisionData(ids, runtime, role) {
   const staging = role === "staging";
   const environmentId = staging ? ids.envStaging : ids.envProduction;
   const snapshot = {
-    plainVariables: { HTTP_PLAIN_PARITY: role },
+    plainVariables: {
+      HTTP_PLAIN_PARITY: role,
+      ...(!staging ? { PORT: "4301" } : {}),
+    },
     secretReferences: [
       { id: ids.secret, name: "parity-api-key", type: "api_key" },
     ],
@@ -33,6 +38,19 @@ export function parityConfigRevisionData(ids, runtime, role) {
         staging ? "staging.parity.example.test" : "parity.example.test",
       ],
       proxyTarget: runtime.routeProxyTarget,
+      tlsRequired: false,
+      entries: [{
+        domain: staging ? "staging.parity.example.test" : "parity.example.test",
+        path: "/", component: "web", port: 80, tlsMode: "none",
+      }],
+    },
+    observabilitySnapshot: {
+      version: 1,
+      profile: "local_acceptance_v1",
+      logs: "local-runtime-logs-v1",
+      metrics: "local-health-probe-v1",
+      traces: "not-applicable-single-host-v1",
+      alerts: "not-applicable-local-acceptance-v1",
     },
     policyReferences: [],
   };
@@ -56,6 +74,9 @@ function resourceReferences(ids, environmentId, role) {
     sharedEnvironmentIds: [environmentId],
     risk: "medium",
     impact: `${role} release target`,
+    stateful: true,
+    resourceTypeKey: "parity-target-http",
+    resourceTypeCategory: "compute",
   };
   if (role === "staging") return [target];
   return [
@@ -66,6 +87,9 @@ function resourceReferences(ids, environmentId, role) {
       sharedEnvironmentIds: [environmentId],
       risk: "medium",
       impact: "production connectivity, capacity and restore-point evidence",
+      stateful: true,
+      resourceTypeKey: "parity-target-http",
+      resourceTypeCategory: "compute",
     },
   ];
 }
@@ -96,6 +120,7 @@ async function upsertRevision(prisma, data) {
       secretReferences: data.secretReferences,
       resourceReferences: data.resourceReferences,
       routeSnapshot: data.routeSnapshot,
+      observabilitySnapshot: data.observabilitySnapshot,
       policyReferences: data.policyReferences,
       source: data.source,
     },

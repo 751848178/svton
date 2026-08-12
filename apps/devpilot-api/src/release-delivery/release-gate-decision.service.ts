@@ -1,5 +1,6 @@
 import { Injectable, UnprocessableEntityException } from "@nestjs/common";
 import { buildReleaseGateDecision } from "./release-gate-decision.model";
+import { buildReleaseGatePreviewDecision } from "./release-gate-preview.model";
 import { defaultCheckpointForStage } from "./release-gate-checkpoint.policy";
 import { ReleaseGateDecisionRepository } from "./release-gate-decision.repository";
 import {
@@ -53,7 +54,7 @@ export class ReleaseGateDecisionService {
       buildIdentity,
     );
     const entries = await Promise.all(
-      RELEASE_GATE_DECISION_STAGES.map(
+      RELEASE_GATE_DECISION_STAGES.filter((stage) => stage !== "production").map(
         async (stage) => {
           const checkpoint = defaultCheckpointForStage(stage);
           const actionInput = stage === "build"
@@ -76,7 +77,33 @@ export class ReleaseGateDecisionService {
         },
       ),
     );
-    return { evaluation, decisions: Object.fromEntries(entries) };
+    return { evaluation, decisions: {
+      ...Object.fromEntries(entries),
+      production: null,
+    } };
+  }
+
+  async preview(input: DecisionScope & {
+    checkpoint: ReleaseGateCheckpoint;
+    target?: ReleaseGateDecisionTarget;
+    actionInput?: Record<string, string | null>;
+    requestKey?: string;
+  }) {
+    const { checkpoint, target, actionInput, requestKey, ...scope } = input;
+    const actionIdentity = releaseGateActionIdentity({ checkpoint, actionInput,
+      requesterActorId: scope.actorId });
+    void requestKey;
+    const evaluation = await this.evaluator.evaluateTransient(
+      scope,
+      target,
+      checkpoint,
+    );
+    const decision = buildReleaseGatePreviewDecision({
+      checkpoint,
+      checks: evaluation.evaluated,
+      actionIdentity,
+    });
+    return { decision, checks: evaluation.evaluated };
   }
 
   async assertAllowed(

@@ -31,6 +31,8 @@ export function buildReleaseDeploymentInputSnapshot(
       }),
     },
     routeTargets: frozenRouteTargets(state.revision.routeSnapshot),
+    observabilitySnapshot: record(state.revision.observabilitySnapshot),
+    routeSnapshot: record(state.revision.routeSnapshot),
     plainVariableKeys: Object.keys(
       record(state.revision.plainVariables),
     ).sort(),

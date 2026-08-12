@@ -1,6 +1,7 @@
 import { UnprocessableEntityException } from "@nestjs/common";
-import type { PrismaService } from "../prisma/prisma.service";
+import type { Prisma } from "@prisma/client";
 import { assertIndependentCodeApproval } from "./gate-evaluation-independent-approval.repository";
+import { assertIndependentProductionApproval } from "./gate-manual-production-independence.repository";
 
 type ApprovalEvaluation = {
   id: string;
@@ -8,6 +9,7 @@ type ApprovalEvaluation = {
   projectId: string;
   releaseOrderId: string;
   buildRunId: string | null;
+  releaseRunId: string | null;
   gateId: string;
   inputHash: string;
   summary: unknown;
@@ -15,7 +17,7 @@ type ApprovalEvaluation = {
 };
 
 export async function persistGateManualApproval(
-  prisma: PrismaService,
+  prisma: Prisma.TransactionClient,
   row: ApprovalEvaluation,
   input: { actorId: string; reason: string },
 ) {
@@ -34,6 +36,9 @@ export async function persistGateManualApproval(
   const source = row.gateId === "C03"
     ? await assertIndependentCodeApproval(prisma, row, input.actorId)
     : null;
+  if (row.gateId === "P03") {
+    await assertIndependentProductionApproval(prisma, row, input.actorId);
+  }
   try {
     return await prisma.gateManualApproval.create({
       data: {

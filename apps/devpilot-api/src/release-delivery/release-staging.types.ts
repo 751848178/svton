@@ -31,6 +31,10 @@ export abstract class ReleaseStagingExecutorPort {
   abstract readonly providerKey: string;
   abstract readonly providerTargetRef: string;
   abstract deploy(input: StagingArtifactInput): Promise<StagingArtifactResult>;
+  abstract refreshPromotionEvidence(input: {
+    projectId: string; environmentId: string; deploymentRunId: string;
+    workload: ReleaseStagingWorkloadSnapshot;
+  }): Promise<Record<string, unknown> | undefined>;
 }
 
 export class ReleaseStagingExecutionError extends Error {

@@ -39,10 +39,12 @@ implements ReleaseGateCapabilityProvider {
   private healthConfig(context: ReleaseGateEvidenceContext, now: Date) {
     if (context.decisionCheckpoint === "production_pre_execution") {
       const target = context.decisionTarget;
+      const revision = context.deploy?.environment?.currentConfigRevision;
       if (
         !target?.workloadInputHash ||
         !target.workloadServiceCount ||
-        target.workloadHealthConfigured !== true
+        target.workloadHealthConfigured !== true ||
+        !revision || revision.id !== target.configRevisionId
       ) {
         return unavailable(
           "production_workload_probe_config_missing",
@@ -55,9 +57,16 @@ implements ReleaseGateCapabilityProvider {
         reasonCode: "production_workload_probe_configured",
         zh: "冻结工作负载的启动与健康探针配置完整",
         en: "The frozen workload has complete startup and health-probe configuration",
-        evidenceRef: `workload-snapshot:${target.workloadInputHash}`,
-        checkedAt: now,
+        evidenceRef: `config-revision:${revision.id};workload-snapshot:${target.workloadInputHash}`,
+        checkedAt: revision.createdAt,
         now,
+        evidenceIdentity: {
+          configRevisionId: revision.id,
+          configSnapshotHash: revision.snapshotHash,
+          deploymentInputHash: target.deploymentInputHash ?? null,
+          workloadInputHash: target.workloadInputHash,
+          workloadServiceCount: target.workloadServiceCount,
+        },
       });
     }
     const deployment = exactDeployment(context);
@@ -146,8 +155,10 @@ implements ReleaseGateCapabilityProvider {
   }
 
   private businessValidation(context: ReleaseGateEvidenceContext, now: Date) {
-    const deployment = context.promote?.releaseRun?.deploymentRuns[0];
-    if (!deployment) {
+    const deployment = exactDeployment(context);
+    const releaseRunId = context.promote?.releaseRun?.id;
+    const candidateHash = context.decisionTarget?.candidateHash;
+    if (!deployment || !releaseRunId || !candidateHash) {
       return unavailable("business_validation_target_missing", "没有可验证的 Production 工作负载", "No Production workload exists for business validation");
     }
     return evaluated({
@@ -158,6 +169,11 @@ implements ReleaseGateCapabilityProvider {
       evidenceRef: `deployment-run:${deployment.id}#business-validation`,
       checkedAt: deployment.finishedAt ?? deployment.createdAt,
       now,
+      evidenceIdentity: {
+        releaseRunId,
+        deploymentRunId: deployment.id,
+        candidateHash,
+      },
     });
   }
 

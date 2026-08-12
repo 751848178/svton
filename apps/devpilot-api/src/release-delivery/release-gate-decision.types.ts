@@ -73,6 +73,13 @@ export type ReleaseGateDecisionTarget = {
   workloadInputHash?: string;
   workloadServiceCount?: number;
   workloadHealthConfigured?: boolean;
+  releaseStrategy?: "standard";
+  requireProductionApproval?: boolean;
+  previewInputHash?: string;
+  capacitySnapshotId?: string;
+  capacitySnapshotHash?: string;
+  dnsProbeReceiptId?: string;
+  dnsProbeResultHash?: string;
 };
 
 export type ReleaseGateDecisionInput = {
@@ -104,6 +111,7 @@ export type ReleaseGateDecisionSnapshot = {
     status: string;
     providerKey: string | null;
     reasonCode: string;
+    reason: { zh: string; en: string };
     evidenceRef: string | null;
     checkedAt: string | null;
     expiresAt: string | null;
@@ -136,4 +144,22 @@ export type ReleaseGateDecision = Omit<ReleaseGateDecisionDraft, "snapshot"> & {
   id: string;
   inputHash: string;
   decidedAt: string;
+  evaluations?: ReleaseGateDecisionSnapshot["evaluations"];
+};
+
+export type ReleaseGatePreviewDecision = {
+  previewOnly: true;
+  stage: ReleaseGateDecisionStage;
+  checkpoint: ReleaseGateCheckpoint;
+  phase: ReleaseGatePhase;
+  approvalSubjectHash: string;
+  actionInputHash: string;
+  allowed: boolean;
+  preApprovalAllowed: boolean;
+  preApprovalBlockerGateIds: string[];
+  preApprovalManualGateIds: string[];
+  blockerGateIds: string[];
+  manualGateIds: string[];
+  warningGateIds: string[];
+  integrityErrors: string[];
 };

@@ -147,6 +147,23 @@ export interface ReleaseEvidenceProductionRun {
     expiresAt: string | null;
   };
   legacyPromotionRecovery: LegacyPromotionRecovery | null;
+  acceptanceMode?: 'technical_acceptance' | 'production';
+  promotionBlocker?: null | {
+    commandId: string;
+    errorCode: string | null;
+    errorMessage: string | null;
+    checkpoint: string | null;
+    decisionId: string | null;
+    manualChecks: Array<{
+      gateId: string;
+      evaluationId: string;
+      status: string;
+      reasonCode: string;
+      reason: { zh: string; en: string };
+      providerKey?: string | null;
+      confirmed?: boolean;
+    }>;
+  };
   stagingProof: {
     deploymentRunId: string;
     environmentId: string;

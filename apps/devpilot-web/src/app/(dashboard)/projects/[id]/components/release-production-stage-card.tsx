@@ -4,12 +4,16 @@ import type { ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import type { ReleaseBuildItem } from '../types/release-order.types';
 import type { ReleaseEvidenceProductionRun } from '../types/release-order-evidence.types';
+import type { ProductionReleasePreview } from '../types/release-order.types';
+import { ReleaseProductionPreflightList } from './release-production-preflight-list';
 
 export function ReleaseProductionStageCard(props: {
   currentOnline: string;
   releaseVersion: string;
   pendingApprovals: number;
   online: boolean;
+  technicalAcceptance: boolean;
+  technicalDigest: string;
   titleKey: string;
   descriptionKey: string;
   primaryAction: ReactNode;
@@ -19,6 +23,9 @@ export function ReleaseProductionStageCard(props: {
   onManifestChange: (manifestId: string) => void;
   frozenManifest: string;
   preflightReady: boolean;
+  acceptanceOnly: boolean;
+  repairHref?: string;
+  preflight?: ProductionReleasePreview['preflight'];
   dialog: ReactNode;
 }) {
   const t = useTranslations('projects');
@@ -58,6 +65,17 @@ export function ReleaseProductionStageCard(props: {
         </label>
       </section>
       <StageSummary {...props} />
+      {props.preflight ? <ReleaseProductionPreflightList checks={props.preflight.checks} /> : null}
+      {props.acceptanceOnly ? (
+        <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900" role="status">
+          {t('releaseProductionTechnicalAcceptanceOnly')}
+        </p>
+      ) : null}
+      {!props.preflightReady && props.repairHref ? (
+        <a className="inline-flex min-h-11 items-center text-sm font-medium text-primary underline" href={props.repairHref}>
+          {t('releaseProductionRepairPreflight')}
+        </a>
+      ) : null}
       {props.dialog}
     </>
   );
@@ -69,12 +87,16 @@ function ContextStrip(props: {
   orderStatus: string;
   pendingApprovals: number;
   online: boolean;
+  technicalAcceptance: boolean;
+  technicalDigest: string;
 }) {
   const t = useTranslations('projects');
   const values = [
     [t('releaseContextCurrentOnline'), props.online && props.currentOnline
       ? `${shortDigest(props.currentOnline)} · ${t('releaseContextRunningNormally')}`
-      : t('releaseContextNotOnline')],
+      : props.technicalAcceptance
+        ? `${shortDigest(props.technicalDigest)} · ${t('releaseContextTechnicalAcceptance')}`
+        : t('releaseContextNotOnline')],
     [t('releaseContextDelivering'), `${props.releaseVersion} · ${props.orderStatus}`],
     [t('releaseContextTodos'), t('releaseContextTodoCount', { count: props.pendingApprovals })],
     [t('releaseContextReleaseOrder'), `${t('releaseContextStagingFirst')} → ${t('releaseContextProductionLast')}`],
@@ -91,18 +113,29 @@ function StageSummary(props: {
   frozenManifest: string;
   online: boolean;
   preflightReady: boolean;
+  acceptanceOnly: boolean;
+  technicalAcceptance: boolean;
+  technicalDigest: string;
 }) {
   const t = useTranslations('projects');
   return (
     <section className="grid gap-3 sm:grid-cols-3" data-stage-summary="true">
       <SummaryCard label={t('releaseStageSummaryCurrentOnline')} value={
-        props.online && props.currentOnline ? shortDigest(props.currentOnline) : t('releaseStageSummaryNotOnline')
+        props.online && props.currentOnline
+          ? shortDigest(props.currentOnline)
+          : props.technicalAcceptance
+            ? t('releaseStageSummaryTechnicalAcceptance')
+            : t('releaseStageSummaryNotOnline')
       } />
       <SummaryCard label={t('releaseStageSummaryArtifact')} value={
         props.frozenManifest ? shortDigest(props.frozenManifest) : t('releaseStageSummaryNotFrozen')
       } />
       <SummaryCard label={t('releaseStageSummaryPrerequisite')} value={
-        props.preflightReady ? t('releaseStageSummaryPrerequisiteReady') : t('releaseStageSummaryPrerequisitePending')
+        props.preflightReady
+          ? props.acceptanceOnly
+            ? t('releaseProductionTechnicalAcceptanceState')
+            : t('releaseStageSummaryPrerequisiteReady')
+          : t('releaseStageSummaryPrerequisitePending')
       } />
     </section>
   );
@@ -120,7 +153,11 @@ function shortDigest(value: string) {
   return value.length > 19 ? `${value.slice(0, 19)}…` : value;
 }
 
-export function productionStageCopy(run: ReleaseEvidenceProductionRun | null, online: boolean) {
+export function productionStageCopy(
+  run: ReleaseEvidenceProductionRun | null,
+  online: boolean,
+  acceptanceMode: ReleaseEvidenceProductionRun['acceptanceMode'] | undefined,
+) {
   if (!run) return copy('releaseStageCalloutProduction', 'releaseProductionDescription');
   const status = run.status.toLowerCase();
   if (status === 'awaiting_validation') {
@@ -131,6 +168,12 @@ export function productionStageCopy(run: ReleaseEvidenceProductionRun | null, on
   }
   if (status === 'running') return copy('releaseStageCalloutRunning', 'releaseProductionDescription');
   if (['succeeded', 'completed'].includes(status)) {
+    if (acceptanceMode === 'technical_acceptance') {
+      return copy(
+        'releaseStageCalloutTechnicalAcceptance',
+        'releaseStageCalloutTechnicalAcceptanceDetail',
+      );
+    }
     return copy('releaseStageCalloutOnlineHealthy', 'releaseStageCalloutOnlineHealthyDetail');
   }
   if (online) return copy('releaseStageCalloutHistoricalOnline', 'releaseStageCalloutHistoricalOnlineDetail');

@@ -82,11 +82,6 @@ export function EditSiteModal({
         aliases: splitCsv(data.aliases),
         runtimeType: data.runtimeType,
         runtimeConfig: buildRuntimeConfig(data),
-        tls: {
-          enabled: data.tlsEnabled,
-          type: data.tlsEnabled ? data.tlsType : 'none',
-          email: data.tlsEmail || undefined,
-        },
         accessPolicy: {
           allowedCidrs: splitCsv(data.allowedCidrs),
           basicAuth: data.basicAuth,

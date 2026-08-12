@@ -16,7 +16,10 @@ interface Props {
   awaitingValidationReady: boolean;
   resuming: boolean;
   snapshotReady: boolean;
+  preflightReady: boolean;
+  preflightReason?: string;
   confirming: boolean;
+  refreshing: boolean;
   onRequest: () => void;
   onResume: () => void;
   onReconcile: (promotionCommandId: string) => void;
@@ -100,17 +103,20 @@ export function ReleaseProductionPrimaryAction(props: Props) {
       data-primary="true"
       className="min-h-11"
       onClick={props.onRequest}
-      disabled={!props.snapshotReady || props.confirming}
+      loading={props.refreshing}
+      disabled={!props.snapshotReady || props.confirming || props.refreshing}
     >
       {t('requestProductionApproval')}
     </Button>
   );
-  if (props.snapshotReady) return request;
+  if (props.snapshotReady && props.preflightReady) return request;
   return (
     <div className="max-w-xs text-right">
       {request}
       <p className="mt-1 text-xs text-muted-foreground" role="status">
-        {t('releaseProductionSnapshotUnavailable')}
+        {props.snapshotReady && props.preflightReason
+          ? props.preflightReason
+          : t('releaseProductionSnapshotUnavailable')}
       </p>
     </div>
   );

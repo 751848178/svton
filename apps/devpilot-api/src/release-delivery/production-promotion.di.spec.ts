@@ -6,6 +6,7 @@ import { EnvironmentVersionCompletionRepository } from "./environment-version-co
 import { EnvironmentVersionProductionGateService } from "./environment-version-production-gate.service";
 import { ProductionPromotionCommandRepository } from "./production-promotion-command.repository";
 import { ProductionPromotionObservationRepository } from "./production-promotion-observation.repository";
+import { ProductionPromotionEvidenceRefreshService } from "./production-promotion-evidence-refresh.service";
 import { ProductionPromotionService } from "./production-promotion.service";
 
 describe("ProductionPromotionService Nest injection", () => {
@@ -19,6 +20,7 @@ describe("ProductionPromotionService Nest injection", () => {
       SiteProbePort,
       ProductionPromotionObservationRepository,
       EnvironmentVersionCompletionRepository,
+      ProductionPromotionEvidenceRefreshService,
     ];
     const module = await Test.createTestingModule({
       providers: [

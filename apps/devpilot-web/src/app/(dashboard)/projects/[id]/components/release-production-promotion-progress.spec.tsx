@@ -5,12 +5,15 @@ import type { ReleaseEvidenceProductionRun } from '../types/release-order-eviden
 import { ReleaseProductionPromotionProgress } from './release-production-promotion-progress';
 
 (globalThis as typeof globalThis & { React: typeof React }).React = React;
-vi.mock('next-intl', () => ({ useTranslations: () => (key: string) => key }));
+vi.mock('next-intl', () => ({
+  useLocale: () => 'en',
+  useTranslations: () => (key: string) => key,
+}));
 
 describe('ReleaseProductionPromotionProgress', () => {
   it('shows candidate, manual validation and promote observation in order', () => {
     const html = renderToStaticMarkup(
-      <ReleaseProductionPromotionProgress run={run('awaiting_validation', 'awaiting_validation')} />,
+      progress(run('awaiting_validation', 'awaiting_validation')),
     );
     expect(html.indexOf('releaseProductionProgressCandidate')).toBeLessThan(
       html.indexOf('releaseProductionProgressManual'),
@@ -25,23 +28,28 @@ describe('ReleaseProductionPromotionProgress', () => {
 
   it('marks all three server-owned phases complete only after release success', () => {
     const html = renderToStaticMarkup(
-      <ReleaseProductionPromotionProgress run={run('succeeded', 'completed')} />,
+      progress(run('succeeded', 'completed')),
     );
     expect(html.match(/releaseProductionProgressStatus_done/g)).toHaveLength(3);
   });
 
   it('marks promotion progress blocked for blocked runs and legacy recovery', () => {
     const blocked = run('blocked', 'awaiting_validation');
-    expect(renderToStaticMarkup(<ReleaseProductionPromotionProgress run={blocked} />))
+    expect(renderToStaticMarkup(progress(blocked)))
       .toContain('releaseProductionProgressStatus_blocked');
     const legacy = run('succeeded', 'completed');
     legacy.legacyPromotionRecovery = { status: 'required', commandIds: ['command-1'],
       phase: 'legacy_reconcile_required', reason: 'unknown',
       reasonCode: 'legacy_promotion_reconciliation_required' };
-    expect(renderToStaticMarkup(<ReleaseProductionPromotionProgress run={legacy} />))
+    expect(renderToStaticMarkup(progress(legacy)))
       .toContain('releaseProductionProgressStatus_blocked');
   });
 });
+
+function progress(value: ReleaseEvidenceProductionRun) {
+  return <ReleaseProductionPromotionProgress run={value} projectId="project-1"
+    releaseOrderId="order-1" onChanged={async () => undefined} />;
+}
 
 function run(releaseStatus: string, deploymentStatus: string) {
   return {

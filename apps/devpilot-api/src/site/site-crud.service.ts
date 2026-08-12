@@ -52,7 +52,6 @@ export class SiteCrudService {
         runtimeConfig: dto.runtimeConfig
           ? this.toJsonValue(dto.runtimeConfig)
           : undefined,
-        tls: dto.tls ? this.toJsonValue(dto.tls) : undefined,
         accessPolicy: dto.accessPolicy
           ? this.toJsonValue(dto.accessPolicy)
           : undefined,
@@ -97,10 +96,18 @@ export class SiteCrudService {
   async updateSite(teamId: string, id: string, dto: UpdateSiteDto) {
     const existing = await this.getSite(teamId, id);
     await this.assertBindings(teamId, dto, existing.projectId);
-
+    const domainChanged = dto.primaryDomain !== undefined &&
+      dto.primaryDomain !== existing.primaryDomain;
+    const aliasesChanged = dto.aliases !== undefined &&
+      JSON.stringify(this.cleanAliases(dto.aliases)) !==
+        JSON.stringify(array(existing.aliases));
     return this.prisma.site.update({
       where: { id },
-      data: this.toUpdateData(dto),
+      data: { ...this.toUpdateData(dto),
+        ...(domainChanged || aliasesChanged
+          ? { dns: Prisma.DbNull, tls: Prisma.DbNull, lastSyncAt: null,
+            status: "pending" }
+          : {}) },
       include: SITE_INCLUDE,
     });
   }
@@ -118,7 +125,6 @@ export class SiteCrudService {
       status: "pending",
       syncError: null,
     };
-    if (dto.tls !== undefined) data.tls = this.toJsonValue(dto.tls);
     if (dto.accessPolicy !== undefined) {
       data.accessPolicy = this.toJsonValue(dto.accessPolicy);
     }
@@ -153,7 +159,6 @@ export class SiteCrudService {
     if (dto.runtimeType !== undefined) data.runtimeType = dto.runtimeType;
     if (dto.runtimeConfig !== undefined)
       data.runtimeConfig = this.toJsonValue(dto.runtimeConfig);
-    if (dto.tls !== undefined) data.tls = this.toJsonValue(dto.tls);
     if (dto.accessPolicy !== undefined)
       data.accessPolicy = this.toJsonValue(dto.accessPolicy);
     if (dto.projectId !== undefined) data.projectId = dto.projectId || null;
@@ -162,7 +167,7 @@ export class SiteCrudService {
     if (dto.serverId !== undefined) data.serverId = dto.serverId || null;
     if (dto.proxyConfigId !== undefined)
       data.proxyConfigId = dto.proxyConfigId || null;
-    data.status = dto.status || "pending";
+    data.status = "pending";
     return data;
   }
 
@@ -173,4 +178,9 @@ export class SiteCrudService {
   private toJsonValue(value: unknown): Prisma.InputJsonValue {
     return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
   }
+}
+
+function array(value: unknown) {
+  return Array.isArray(value) ? value.filter((item): item is string =>
+    typeof item === "string") : [];
 }

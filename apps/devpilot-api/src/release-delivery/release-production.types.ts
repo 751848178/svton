@@ -27,6 +27,7 @@ export interface ProductionReleaseSnapshot {
     resourceSnapshot: unknown;
     routeSnapshot: unknown;
     policySnapshot: unknown;
+    observabilitySnapshot: unknown;
   };
   releasePolicy: {
     revisionId: string | null;
@@ -36,9 +37,30 @@ export interface ProductionReleaseSnapshot {
     snapshotHash: string;
     synthetic: boolean;
   };
+  workload: {
+    inputHash: string;
+    services: Array<{
+      serviceId: string;
+      componentKey: string;
+      stateHash: string;
+    }>;
+  };
 }
 
 export interface ProductionReleasePreview {
   inputHash: string;
   snapshot: ProductionReleaseSnapshot;
+  preflight?: {
+    decision: import("./release-gate-decision.types").ReleaseGatePreviewDecision;
+    checks: import("./release-gate-catalog.types").ReleaseGateEvaluation[];
+    acceptanceOnly: boolean;
+    readiness: "technical_acceptance" | "production_ready" | "blocked";
+    repairHref: string;
+    frozen: {
+      deploymentInputHash: string;
+      workloadInputHash: string;
+      workloadServiceCount: number;
+      workloadHealthConfigured: boolean;
+    };
+  };
 }

@@ -1,4 +1,4 @@
-import { assertRecoveryReservationAvailable } from "./environment-version-recovery.repository";
+import { assertRecoveryReservationAvailable } from "./environment-version-recovery-reservation.repository";
 
 describe("Production recovery reservation guard", () => {
   it("rejects compensation_required before ReleaseRun or approval side effects", async () => {

@@ -13,6 +13,8 @@ export interface ReleaseDeploymentInputSnapshot {
     component: string;
     port: number;
   }>;
+  observabilitySnapshot: Record<string, unknown>;
+  routeSnapshot: Record<string, unknown>;
   plainVariableKeys: string[];
   secretReferences: Array<{
     id: string;
@@ -89,6 +91,7 @@ export interface ReleaseDeploymentInputState {
     secretReferences: unknown;
     resourceReferences: unknown;
     routeSnapshot?: unknown;
+    observabilitySnapshot?: unknown;
   };
   secrets: Array<{
     id: string;

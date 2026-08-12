@@ -1,0 +1,55 @@
+CREATE TABLE `ServerCapacitySnapshot` (
+  `id` VARCHAR(191) NOT NULL,
+  `teamId` VARCHAR(191) NOT NULL,
+  `projectId` VARCHAR(191) NOT NULL,
+  `environmentId` VARCHAR(191) NOT NULL,
+  `configRevisionId` VARCHAR(191) NOT NULL,
+  `providerKey` VARCHAR(128) NOT NULL,
+  `buildRunId` VARCHAR(191) NOT NULL,
+  `manifestId` VARCHAR(191) NOT NULL,
+  `bindingId` VARCHAR(191) NOT NULL,
+  `deploymentInputHash` VARCHAR(128) NOT NULL,
+  `workloadInputHash` VARCHAR(128) NOT NULL,
+  `requirementHash` VARCHAR(128) NOT NULL,
+  `sampledBucket` DATETIME(3) NOT NULL,
+  `measurementHash` VARCHAR(191) NOT NULL,
+  `status` VARCHAR(191) NOT NULL,
+  `requirements` JSON NOT NULL,
+  `measurement` JSON NOT NULL,
+  `reasonCode` VARCHAR(191) NULL,
+  `sampledAt` DATETIME(3) NOT NULL,
+  `expiresAt` DATETIME(3) NOT NULL,
+  `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  INDEX `SrvCapacity_scope_idx` (`teamId`, `projectId`, `environmentId`),
+  INDEX `SrvCapacity_workload_sample_idx` (`workloadInputHash`, `sampledAt`),
+  UNIQUE INDEX `SrvCapacity_subject_bucket_uq` (`deploymentInputHash`, `workloadInputHash`, `requirementHash`, `providerKey`, `bindingId`, `sampledBucket`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+ALTER TABLE `EnvironmentConfigRevision` ADD COLUMN `observabilitySnapshot` JSON NULL;
+ALTER TABLE `ReleaseRun` ADD COLUMN `observabilitySnapshot` JSON NULL;
+
+CREATE TABLE `SiteDnsProbeReceipt` (
+  `id` VARCHAR(191) NOT NULL,
+  `teamId` VARCHAR(191) NOT NULL,
+  `projectId` VARCHAR(191) NOT NULL,
+  `environmentId` VARCHAR(191) NOT NULL,
+  `configRevisionId` VARCHAR(191) NOT NULL,
+  `providerKey` VARCHAR(128) NOT NULL,
+  `providerProfile` VARCHAR(191) NOT NULL,
+  `routeHash` VARCHAR(128) NOT NULL,
+  `deploymentInputHash` VARCHAR(128) NOT NULL,
+  `workloadInputHash` VARCHAR(128) NOT NULL,
+  `sampledBucket` DATETIME(3) NOT NULL,
+  `status` VARCHAR(191) NOT NULL,
+  `resultHash` VARCHAR(191) NOT NULL,
+  `result` JSON NOT NULL,
+  `probedAt` DATETIME(3) NOT NULL,
+  `expiresAt` DATETIME(3) NOT NULL,
+  `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`),
+  INDEX `DnsProbeReceipt_scope_idx` (`teamId`, `projectId`, `environmentId`),
+  INDEX `DnsProbeReceipt_route_probe_idx` (`routeHash`, `probedAt`),
+  INDEX `DnsProbeReceipt_input_idx` (`deploymentInputHash`, `workloadInputHash`),
+  UNIQUE INDEX `DnsProbeReceipt_subject_bucket_uq` (`deploymentInputHash`, `workloadInputHash`, `routeHash`, `providerKey`, `sampledBucket`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

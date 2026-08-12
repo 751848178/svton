@@ -50,6 +50,7 @@ export async function loadReleaseDeploymentInputState(
           secretReferences: true,
           resourceReferences: true,
           routeSnapshot: true,
+          observabilitySnapshot: true,
         },
       },
       serverBindings: {

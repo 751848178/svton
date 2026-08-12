@@ -23,8 +23,8 @@ import { ReleaseStagingService } from "./release-staging.service";
 import { ReleaseStagingExecutorPort } from "./release-staging.types";
 import { ReleaseStagingWorkloadService } from "./release-staging-workload.service";
 import { ReleaseStagingWorkloadStateRepository } from "./release-staging-workload-state.repository";
-import { ReleaseProductionWorkloadService } from "./release-production-workload.service";
-import { ReleaseProductionRepository } from "./release-production.repository";
+import { releaseProductionProviders } from "./release-production.providers";
+import { ReleaseProductionPreflightController } from "./release-production-preflight.controller";
 import { ReleaseProductionService } from "./release-production.service";
 import { ReleaseOrderAccessService } from "./release-order-access.service";
 import { ReleaseOrderController } from "./release-order.controller";
@@ -74,6 +74,7 @@ import { ReleaseGateDecisionRepository } from "./release-gate-decision.repositor
 import { ReleaseGateDecisionService } from "./release-gate-decision.service";
 import { ReleaseGateEvaluationService } from "./release-gate-evaluation.service";
 import { ReleaseGateManualConfirmationService } from "./release-gate-manual-confirmation.service";
+import { ProductionPromotionEvidenceRefreshService } from "./production-promotion-evidence-refresh.service";
 import { ProjectDeliverySummaryController } from "./project-delivery-summary.controller";
 import { ProjectDeliverySummaryRepository } from "./project-delivery-summary.repository";
 import { ProjectDeliverySummaryService } from "./project-delivery-summary.service";
@@ -96,6 +97,7 @@ import { SourcePolicyRevisionRepository } from "./source-policy-revision.reposit
   ],
   controllers: [
     ReleaseOrderController,
+    ReleaseProductionPreflightController,
     ReleaseOrderEvidenceController,
     ReleaseBuildCancellationController,
     ReleaseBuildDetailController,
@@ -134,9 +136,7 @@ import { SourcePolicyRevisionRepository } from "./source-policy-revision.reposit
     ReleaseStagingService,
     ReleaseStagingWorkloadService,
     ReleaseStagingWorkloadStateRepository,
-    ReleaseProductionWorkloadService,
-    ReleaseProductionRepository,
-    ReleaseProductionService,
+    ...releaseProductionProviders,
     ReleasePolicyRepository,
     ReleasePolicyService,
     ReleaseStrategyCapabilityService,
@@ -168,6 +168,7 @@ import { SourcePolicyRevisionRepository } from "./source-policy-revision.reposit
     ReleaseGateDecisionService,
     ReleaseGateEvaluationService,
     ReleaseGateManualConfirmationService,
+    ProductionPromotionEvidenceRefreshService,
     ProjectDeliverySummaryRepository,
     ProjectDeliverySummaryService,
     LocalReleaseEvidenceArtifactService,
@@ -191,5 +192,4 @@ import { SourcePolicyRevisionRepository } from "./source-policy-revision.reposit
     ReleaseStagingService,
     ReleaseProductionService,
   ],
-})
-export class ReleaseDeliveryModule {}
+}) export class ReleaseDeliveryModule {}

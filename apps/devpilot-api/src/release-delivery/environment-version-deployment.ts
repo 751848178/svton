@@ -7,6 +7,8 @@ import {
   finalizeDeployedEnvironment,
   type EnvironmentVersionFinalizationDependencies,
 } from "./environment-version-production-finalization";
+import { localAcceptanceObservabilityEvidence } from "./release-local-observability-evidence";
+import { localAcceptancePromotionEvidence } from "./release-local-promotion-evidence";
 
 interface Dependencies extends EnvironmentVersionFinalizationDependencies {
   executor: ReleaseStagingExecutorPort;
@@ -36,13 +38,41 @@ export async function runEnvironmentDeployment(
       workload: context.frozenInput.workload,
     });
     const logs = sanitizeBuildLogs(result.logs);
-    const evidence = {
-      ...result.evidence,
+    const providerEvidence = { ...result.evidence };
+    const observability = deps.executor.providerKey === "local-filesystem-v1"
+      ? localAcceptanceObservabilityEvidence({
+      providerKey: deps.executor.providerKey,
+      configSnapshotHash:
+        context.frozenInput.deploymentInput.snapshot.configRevision.snapshotHash,
+      deploymentInputHash:
+        context.frozenInput.deploymentInput.snapshot.inputHash,
+      workloadInputHash: context.frozenInput.workload.inputHash,
+      snapshot:
+        context.frozenInput.deploymentInput.snapshot.observabilitySnapshot,
+      evidence: providerEvidence,
+      logs,
+      })
+      : undefined;
+    const runtimeEvidence = {
+      ...providerEvidence,
+      ...(observability ? { observability } : {}),
       deploymentUri: result.deploymentUri,
       manifestId: context.manifest.id,
       manifestDigest: context.manifest.digest,
       sourceVersionId: context.selection.sourceVersionId,
     };
+    const promotion = context.environment.baselineRole === "production"
+      ? localAcceptancePromotionEvidence({
+          providerKey: deps.executor.providerKey,
+          observedAt: new Date(),
+          manifest: context.manifest,
+          deploymentInputHash:
+            context.frozenInput.deploymentInput.snapshot.inputHash,
+          workloadInputHash: context.frozenInput.workload.inputHash,
+          evidence: runtimeEvidence,
+        })
+      : undefined;
+    const evidence = { ...runtimeEvidence, ...(promotion ?? {}) };
     await deps.gateEvidence.record({
       deploymentRunId: context.run.id,
       logs,

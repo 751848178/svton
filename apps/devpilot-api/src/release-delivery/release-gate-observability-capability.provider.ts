@@ -10,6 +10,7 @@ import {
   type ReleaseGateCapabilityProvider,
   unavailable,
 } from "./release-gate-provider.types";
+import { evaluateFrozenObservabilityConfig } from "./release-gate-observability-config.policy";
 
 const OBSERVABILITY_TTL_MS = 15 * 60 * 1000;
 const PROMOTION_METRIC_TTL_MS = 5 * 60 * 1000;
@@ -24,9 +25,13 @@ implements ReleaseGateCapabilityProvider {
     _capabilityId: ReleaseGateCapabilityId,
     context: ReleaseGateEvidenceContext,
   ) {
+    const deployment = exactDeployment(context);
+    const result = record(deployment?.result);
     return Boolean(context.promote?.logRuns.length
       || context.promote?.metrics.length
-      || context.promote?.alerts.length);
+      || context.promote?.alerts.length
+      || Object.keys(record(result.observability)).length
+      || Object.keys(record(result.promotionMetrics)).length);
   }
 
   evaluate(
@@ -41,11 +46,7 @@ implements ReleaseGateCapabilityProvider {
 
   private coverage(context: ReleaseGateEvidenceContext, now: Date) {
     if (context.decisionCheckpoint === "production_pre_execution") {
-      return unavailable(
-        "observability_config_not_frozen",
-        "Production 配置修订尚未冻结日志、指标、Trace 与告警 Provider 配置",
-        "The Production config revision has no frozen logs, metrics, trace, and alert provider configuration",
-      );
+      return evaluateFrozenObservabilityConfig(context, now);
     }
     if (context.decisionCheckpoint === "production_post_deploy") {
       const deployment = exactDeployment(context);
@@ -57,13 +58,20 @@ implements ReleaseGateCapabilityProvider {
           "The exact Production candidate has no runtime logs, metrics, trace, and alert evidence",
         );
       }
-      const complete = evidence.logs === true && evidence.metrics === true &&
-        evidence.traces === true && evidence.alerts === true;
+      const localAcceptance = evidence.profile === "local_acceptance_v1" &&
+        evidence.acceptanceOnly === true &&
+        evidence.applicabilityPolicy === "local-single-host-acceptance-v1";
+      const complete = evidence.logs === "observed" &&
+        evidence.metrics === "observed" &&
+        evidence.traces === "not_applicable" &&
+        evidence.alerts === "not_applicable" && localAcceptance &&
+        evidence.deploymentInputHash === context.decisionTarget?.deploymentInputHash &&
+        evidence.workloadInputHash === context.decisionTarget?.workloadInputHash;
       return evaluated({
         status: complete ? "checked" : "blocked",
-        reasonCode: complete ? "candidate_observability_complete" : "candidate_observability_incomplete",
-        zh: complete ? "精确候选的运行时可观测证据完整" : "精确候选的运行时可观测证据不完整",
-        en: complete ? "Runtime observability evidence is complete for the exact candidate" : "Runtime observability evidence is incomplete for the exact candidate",
+        reasonCode: complete ? "candidate_observability_local_acceptance_only" : "candidate_observability_incomplete",
+        zh: complete ? "精确候选具备本地验收证据（不代表外部 Production Ready）" : "精确候选的运行时可观测证据不完整",
+        en: complete ? "The exact candidate has local-acceptance evidence only; this is not external Production Ready" : "Runtime observability evidence is incomplete for the exact candidate",
         evidenceRef: `deployment-run:${deployment.id}#observability`,
         checkedAt: deployment.finishedAt ?? deployment.createdAt,
         ttlMs: OBSERVABILITY_TTL_MS,
@@ -95,6 +103,7 @@ implements ReleaseGateCapabilityProvider {
       now,
     });
   }
+
 
   private promotionMetrics(context: ReleaseGateEvidenceContext, now: Date) {
     if (context.decisionCheckpoint === "production_promote_pre_route") {
@@ -151,17 +160,25 @@ function metricEvaluation(
   fallback: Date,
   now: Date,
 ) {
+  const localAcceptance = evidence.status === "technical_only" &&
+    evidence.profile === "local_acceptance_v1" &&
+    evidence.acceptanceOnly === true &&
+    evidence.applicabilityPolicy === "local-single-host-acceptance-v1";
   const status = evidence.status === "stable" ? "checked"
-    : evidence.status === "failed" ? "blocked" : "unchecked";
+    : localAcceptance ? "checked"
+      : evidence.status === "failed" ? "blocked" : "unchecked";
   const parsed = typeof evidence.observedAt === "string"
     ? new Date(evidence.observedAt) : fallback;
   return evaluated({
     status,
-    reasonCode: status === "checked" ? "candidate_promotion_metrics_stable"
+    reasonCode: localAcceptance ? "candidate_promotion_metrics_local_acceptance_only"
+      : status === "checked" ? "candidate_promotion_metrics_stable"
       : status === "blocked" ? "candidate_promotion_metrics_failed" : "candidate_promotion_metrics_inconclusive",
-    zh: status === "checked" ? "精确候选的错误率、延迟与业务指标稳定"
+    zh: localAcceptance ? "精确候选仅具备本地技术信号，不代表外部 Production 指标达标"
+      : status === "checked" ? "精确候选的错误率、延迟与业务指标稳定"
       : status === "blocked" ? "精确候选指标超过发布阈值" : "精确候选指标分析无结论",
-    en: status === "checked" ? "Error rate, latency, and business metrics are stable for the exact candidate"
+    en: localAcceptance ? "The exact candidate has local technical signals only; external Production metrics are not proven"
+      : status === "checked" ? "Error rate, latency, and business metrics are stable for the exact candidate"
       : status === "blocked" ? "The exact candidate exceeded metric thresholds" : "The exact candidate metric analysis is inconclusive",
     evidenceRef: `deployment-run:${deploymentRunId}#promotion-metrics`,
     checkedAt: Number.isNaN(parsed.getTime()) ? fallback : parsed,

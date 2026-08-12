@@ -14,7 +14,7 @@ import type {
   EnvironmentConfigSecretReference,
 } from '../../types/environment-config-revision.types';
 import type { SettingsEnvTab } from '../../utils/project-route.utils';
-import type { SettingsRouteDraft } from './settings-env.model';
+import type { SettingsObservabilityDraft, SettingsRouteDraft } from './settings-env.model';
 import { EnvProtectionTab } from './settings-env-protection-tab';
 import { EnvResourcesTab } from './settings-env-resources-tab';
 import { EnvRoutesTab } from './settings-env-routes-tab';
@@ -37,6 +37,8 @@ export interface EnvTabContext {
   setResources: (next: EnvironmentConfigResourceReference[]) => void;
   route: SettingsRouteDraft;
   setRoute: (next: SettingsRouteDraft) => void;
+  observability: SettingsObservabilityDraft['profile'];
+  setObservability: (next: SettingsObservabilityDraft['profile']) => void;
   /** 当前不可变修订（资源绑定子区用于展示冻结修订号）。 */
   revision: EnvironmentConfigRevision | null;
   /** 全部不可变修订（变量与密钥子区展示修订历史）。 */
@@ -91,6 +93,8 @@ export function renderEnvTab(envTab: SettingsEnvTab, ctx: EnvTabContext) {
           policies={ctx.policies}
           policyIds={ctx.policyIds}
           onPolicyIdsChange={ctx.setPolicyIds}
+          observability={ctx.observability}
+          onObservabilityChange={ctx.setObservability}
         />
       );
   }

@@ -84,18 +84,29 @@ export function normalizeRouteSnapshot(value: unknown) {
     throw new BadRequestException("tlsRequired 必须是布尔值");
   }
   const normalizedDomains = [...new Set(domains.map((item) => item.trim()).filter(Boolean))].sort();
+  const entries = route.entries === undefined
+    ? undefined
+    : normalizeRouteEntries(route.entries);
+  const structuredTlsRequired = entries?.length
+    ? entries.some((entry) => entry.tlsMode !== "none")
+    : undefined;
+  if (
+    structuredTlsRequired !== undefined &&
+    route.tlsRequired !== undefined &&
+    route.tlsRequired !== structuredTlsRequired
+  ) {
+    throw new BadRequestException("tlsRequired 与入口 TLS 模式不一致");
+  }
   return {
     domains: normalizedDomains,
     dnsProvider: route.dnsProvider ?? null,
-    tlsRequired: route.tlsRequired ?? false,
+    tlsRequired: structuredTlsRequired ?? route.tlsRequired ?? false,
     proxyTarget: route.proxyTarget ?? null,
-    ...(route.entries === undefined
-      ? {}
-      : { entries: normalizeRouteEntries(route.entries) }),
+    ...(entries === undefined ? {} : { entries }),
   };
 }
 
-const ROUTE_ENTRY_TLS_MODES = new Set(["managed_cert", "existing_cert_asset"]);
+const ROUTE_ENTRY_TLS_MODES = new Set(["none", "managed_cert", "existing_cert_asset"]);
 
 function normalizeRouteEntries(value: unknown) {
   if (!Array.isArray(value)) {
@@ -139,7 +150,7 @@ function normalizeRouteEntry(entry: unknown, index: number) {
     serviceId: typeof serviceId === "string" ? serviceId.trim() : null,
     component: typeof item.component === "string" ? item.component.trim() : "",
     port,
-    tlsMode: tlsMode as "managed_cert" | "existing_cert_asset",
+    tlsMode: tlsMode as "none" | "managed_cert" | "existing_cert_asset",
   };
 }
 

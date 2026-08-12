@@ -25,6 +25,11 @@ export interface ReleaseStagingWorkload {
   failureCleanupCommand?: string;
   startTimeoutMs: number;
   statusTimeoutMs: number;
+  resources?: {
+    cpuMillicores: number;
+    memoryBytes: number;
+    diskBytes: number;
+  };
   health?: ReleaseStagingWorkloadHealth;
   stateHash: string;
 }

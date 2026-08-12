@@ -124,4 +124,19 @@ describe('settings-env.model F448 route entries round-trip', () => {
     ]);
     expect(EMPTY_SETTINGS_ENVIRONMENT_DRAFT.route.entries).toEqual([]);
   });
+
+  it('derives flat TLS truth from every structured route entry', () => {
+    const draft = settingsDraftFromRevision(revision({ domains: [] }))!;
+    draft.route.tlsRequired = true;
+    draft.route.entries = [{
+      domain: 'plain.example.com', path: '/', serviceId: null,
+      component: 'web', port: 80, tlsMode: 'none',
+    }];
+    expect(toConfigRevisionDraft(draft).routeSnapshot.tlsRequired).toBe(false);
+    draft.route.entries.push({
+      domain: 'secure.example.com', path: '/', serviceId: null,
+      component: 'web', port: 443, tlsMode: 'managed_cert',
+    });
+    expect(toConfigRevisionDraft(draft).routeSnapshot.tlsRequired).toBe(true);
+  });
 });

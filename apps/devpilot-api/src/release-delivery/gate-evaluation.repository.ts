@@ -109,15 +109,16 @@ export class GateEvaluationRepository {
     actorId: string;
     reason: string;
   }) {
-    const row = await this.prisma.gateEvaluation.findFirst({
-      where: {
-        id: input.evaluationId,
-        teamId: input.teamId,
-        projectId: input.projectId,
-        releaseOrderId: input.releaseOrderId,
-        gateId: input.gateId,
-      },
-    });
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM GateEvaluation
+        WHERE id = ${input.evaluationId} FOR UPDATE`;
+      const row = await tx.gateEvaluation.findFirst({
+        where: {
+          id: input.evaluationId, teamId: input.teamId,
+          projectId: input.projectId, releaseOrderId: input.releaseOrderId,
+          gateId: input.gateId,
+        },
+      });
     if (!row) throw new NotFoundException("门禁结论不存在或不属于当前发布单");
     if (row.status !== "needs_human" || !row.providerKey) {
       throw new UnprocessableEntityException(
@@ -127,10 +128,11 @@ export class GateEvaluationRepository {
     if (row.expiresAt && row.expiresAt.getTime() < Date.now()) {
       throw new UnprocessableEntityException("门禁证据已过期，必须重新检查");
     }
-    await persistGateManualApproval(this.prisma, row, input);
-    return this.prisma.gateEvaluation.findUniqueOrThrow({
+    await persistGateManualApproval(tx as never, row, input);
+    return tx.gateEvaluation.findUniqueOrThrow({
       where: { id: row.id },
       include: { manualApprovals: true },
+    });
     });
   }
 

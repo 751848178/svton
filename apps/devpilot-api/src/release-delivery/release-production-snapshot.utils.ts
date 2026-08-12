@@ -7,6 +7,9 @@ import type {
   ProductionReleasePreview,
   ProductionReleaseSnapshot,
 } from "./release-production.types";
+import { buildReleaseStagingWorkloadSnapshot } from "./release-staging-workload-snapshot.utils";
+import { approvedWorkloadIdentity } from "./release-approved-workload.policy";
+import { assertReleaseArtifactManifestIntegrity } from "./release-artifact-manifest-integrity.policy";
 
 export function productionPreview(context: any): ProductionReleasePreview {
   if (!context.order) {
@@ -30,14 +33,6 @@ export function productionPreview(context: any): ProductionReleasePreview {
       "Production 只能使用成功 BuildRun 的 Manifest",
     );
   }
-  const bundle = manifest.items.find(
-    (item: any) => item.componentKey === "project-bundle",
-  );
-  if (!bundle || bundle.digest !== manifest.digest) {
-    throw new UnprocessableEntityException(
-      "Manifest Digest 未知或与项目制品不一致",
-    );
-  }
   const proof = context.stagingProof;
   const result = objectValue(proof?.result);
   if (
@@ -52,6 +47,14 @@ export function productionPreview(context: any): ProductionReleasePreview {
   }
   const revision = environment.currentConfigRevision;
   const releasePolicy = resolveReleasePolicy(context);
+  const workload = buildReleaseStagingWorkloadSnapshot({
+    environment,
+    manifest,
+  }, "Production");
+  assertReleaseArtifactManifestIntegrity({
+    manifest,
+    stagingParams: proof.params,
+  });
   const snapshot: ProductionReleaseSnapshot = {
     version: 2,
     projectId: context.order.projectId,
@@ -84,8 +87,10 @@ export function productionPreview(context: any): ProductionReleasePreview {
       resourceSnapshot: revision.resourceReferences ?? [],
       routeSnapshot: revision.routeSnapshot ?? {},
       policySnapshot: revision.policyReferences ?? [],
+      observabilitySnapshot: revision.observabilitySnapshot ?? {},
     },
     releasePolicy,
+    workload: approvedWorkloadIdentity(workload),
   };
   return {
     snapshot,

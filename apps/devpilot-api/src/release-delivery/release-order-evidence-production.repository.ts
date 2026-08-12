@@ -53,6 +53,7 @@ export async function loadProductionEvidence(
       startedAt: true,
       finishedAt: true,
       createdAt: true,
+      policySnapshot: true,
       environment: { select: releaseEvidenceEnvironmentSelect },
       artifactManifest: { select: releaseEvidenceManifestSelect },
       operationApproval: {
@@ -82,10 +83,23 @@ export async function loadProductionEvidence(
         },
       },
       productionPromotionCommands: {
-        where: { legacyReconcileRequired: true, status: "running" },
+        where: { OR: [
+          { legacyReconcileRequired: true, status: "running" },
+          { status: "blocked", errorCode: "RELEASE_GATE_BLOCKED" },
+        ] },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         select: {
-          id: true, phase: true, legacyReconcileReason: true,
+          id: true, phase: true, status: true, legacyReconcileRequired: true,
+          legacyReconcileReason: true, result: true,
+          errorCode: true, errorMessage: true,
+        },
+      },
+      gateEvaluations: {
+        where: { gateId: "P03", status: "needs_human" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: {
+          id: true,
+          manualApprovals: { select: { id: true }, take: 1 },
         },
       },
       deploymentRuns: {

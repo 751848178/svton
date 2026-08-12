@@ -16,7 +16,7 @@ export function environmentVersionExecutorTestDouble() {
   };
 }
 
-export function environmentVersionInputTestDouble() {
+export function environmentVersionInputTestDouble(providerKey = "provider-test-v1") {
   return {
     prepare: jest.fn(async () => ({
       snapshot: {
@@ -33,14 +33,20 @@ export function environmentVersionInputTestDouble() {
         target: {
           bindingId: "frozen-binding",
           serverId: "frozen-server",
-          providerKey: "provider-test-v1",
+          providerKey,
           targetRef: "provider-test-target",
           versionHash: "frozen-target",
         },
         runtimeEnvironmentKeys: [],
+        globalEnvironmentKeys: [],
+        componentEnvironmentKeys: {},
+        routeTargets: [],
+        routeSnapshot: {},
+        observabilitySnapshot: {},
         inputHash: "frozen-input-hash",
       },
-      runtimeEnvironment: {},
+      globalEnvironment: {},
+      componentEnvironments: {},
       targetConnection: undefined,
     })),
   };

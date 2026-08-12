@@ -41,11 +41,17 @@ function observationWindow(context: ReleaseGateEvidenceContext, now: Date) {
   const minimumSamples = number(observation.minimumSampleCount);
   const sufficient = windowSeconds >= minimumWindow && minimumWindow > 0 &&
     sampleCount >= minimumSamples && minimumSamples > 0;
+  const localAcceptance = observation.profile === "local_acceptance_v1" &&
+    observation.acceptanceOnly === true &&
+    observation.applicabilityPolicy === "local-single-host-acceptance-v1";
   return evaluated({
     status: sufficient ? "checked" : "blocked",
-    reasonCode: sufficient ? "candidate_observation_sufficient" : "candidate_observation_insufficient",
-    zh: sufficient ? "精确候选的观察时长与样本量达到冻结阈值" : "精确候选的观察时长或样本量不足",
-    en: sufficient ? "The exact candidate meets the frozen observation thresholds" : "The exact candidate lacks sufficient observation time or samples",
+    reasonCode: sufficient && localAcceptance ? "candidate_observation_local_acceptance_only"
+      : sufficient ? "candidate_observation_sufficient" : "candidate_observation_insufficient",
+    zh: sufficient && localAcceptance ? "精确候选仅完成本地技术观察，不代表外部 Production 观察期"
+      : sufficient ? "精确候选的观察时长与样本量达到冻结阈值" : "精确候选的观察时长或样本量不足",
+    en: sufficient && localAcceptance ? "The exact candidate completed local technical observation only, not an external Production observation window"
+      : sufficient ? "The exact candidate meets the frozen observation thresholds" : "The exact candidate lacks sufficient observation time or samples",
     evidenceRef: `deployment-run:${scoped.deployment.id}#promotion-observation`,
     checkedAt: observedAt(observation, scoped.deployment.createdAt),
     ttlMs: OBSERVATION_TTL_MS,
@@ -63,12 +69,18 @@ function metricConclusion(context: ReleaseGateEvidenceContext, now: Date) {
       "The exact Production candidate has no metric-data conclusion",
     );
   }
-  const conclusive = metrics.status === "stable" || metrics.status === "failed";
+  const localAcceptance = metrics.status === "technical_only" &&
+    metrics.profile === "local_acceptance_v1" && metrics.acceptanceOnly === true &&
+    metrics.applicabilityPolicy === "local-single-host-acceptance-v1";
+  const conclusive = metrics.status === "stable" || metrics.status === "failed" || localAcceptance;
   return evaluated({
     status: conclusive ? "checked" : "manual",
-    reasonCode: conclusive ? "candidate_metric_conclusion_available" : "candidate_metric_conclusion_inconclusive",
-    zh: conclusive ? "精确候选的指标数据已有明确结论" : "精确候选的指标数据无结论，需要人工处置",
-    en: conclusive ? "The exact candidate has a conclusive metric result" : "The exact candidate metrics are inconclusive and need manual disposition",
+    reasonCode: localAcceptance ? "candidate_metric_conclusion_local_acceptance_only"
+      : conclusive ? "candidate_metric_conclusion_available" : "candidate_metric_conclusion_inconclusive",
+    zh: localAcceptance ? "精确候选仅有本地技术信号结论，不代表外部 Production 业务指标"
+      : conclusive ? "精确候选的指标数据已有明确结论" : "精确候选的指标数据无结论，需要人工处置",
+    en: localAcceptance ? "The exact candidate has a local technical conclusion only, not external Production business metrics"
+      : conclusive ? "The exact candidate has a conclusive metric result" : "The exact candidate metrics are inconclusive and need manual disposition",
     evidenceRef: `deployment-run:${scoped.deployment.id}#promotion-metrics`,
     checkedAt: observedAt(metrics, scoped.deployment.createdAt),
     ttlMs: OBSERVATION_TTL_MS,

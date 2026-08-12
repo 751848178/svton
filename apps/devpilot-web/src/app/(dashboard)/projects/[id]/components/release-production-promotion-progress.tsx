@@ -2,11 +2,15 @@
 
 import { useTranslations } from 'next-intl';
 import type { ReleaseEvidenceProductionRun } from '../types/release-order-evidence.types';
+import { ReleaseProductionPromotionManualGate } from './release-production-promotion-manual-gate';
 
 export function ReleaseProductionPromotionProgress({
-  run,
+  run, projectId, releaseOrderId, onChanged,
 }: {
   run: ReleaseEvidenceProductionRun | null;
+  projectId: string;
+  releaseOrderId: string;
+  onChanged: () => Promise<unknown>;
 }) {
   const t = useTranslations('projects');
   if (!run) return null;
@@ -49,6 +53,12 @@ export function ReleaseProductionPromotionProgress({
           </li>
         ))}
       </ol>
+      <ReleaseProductionPromotionManualGate
+        projectId={projectId}
+        releaseOrderId={releaseOrderId}
+        blocker={run.promotionBlocker}
+        onChanged={onChanged}
+      />
     </section>
   );
 }

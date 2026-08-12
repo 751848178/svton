@@ -9,7 +9,11 @@ export function releaseProductionCurrentRun(
 ) {
   const approvalRun =
     runs.find((run) => run.id === focusedReleaseRunId) || runs[0] || null;
-  const succeeded = runs.find((run) => terminal(run.status));
+  const succeeded = runs.filter((run) => terminal(run.status));
+  const productionOnline = succeeded.find((run) =>
+    run.acceptanceMode !== 'technical_acceptance');
+  const technicalAcceptance = succeeded.find((run) =>
+    run.acceptanceMode === 'technical_acceptance');
   const active = Boolean(
     approvalRun &&
       (['awaiting_approval', 'approved', 'running', 'awaiting_validation'].includes(
@@ -18,8 +22,10 @@ export function releaseProductionCurrentRun(
   );
   return {
     approvalRun,
-    succeededOnline: Boolean(succeeded),
-    currentOnline: succeeded?.verifiedDigest || '',
+    currentProductionOnline: Boolean(productionOnline),
+    currentOnline: productionOnline?.verifiedDigest || '',
+    currentTechnicalAcceptance: Boolean(technicalAcceptance),
+    currentTechnicalDigest: technicalAcceptance?.verifiedDigest || '',
     pendingApprovals: runs.filter((run) => run.operationApproval.status === 'pending').length,
     active,
     needsRecovery: Boolean(

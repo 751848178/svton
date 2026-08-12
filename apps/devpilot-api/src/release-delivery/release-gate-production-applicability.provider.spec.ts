@@ -74,6 +74,82 @@ describe("ReleaseGateProductionApplicabilityProvider", () => {
       reasonCode: "recovery_compatibility_provider_missing",
     });
   });
+
+  it("uses exact frozen facts for D08, D12 and HTTP-only D15", () => {
+    const value = context("production_pre_execution");
+    Object.assign(value.decisionTarget!, {
+      configRevisionId: "revision-1",
+      buildRunId: "build-1",
+      manifestId: "manifest-1",
+      deploymentInputHash: "deployment-hash",
+      workloadInputHash: "workload-hash",
+    });
+    value.deploy!.environment!.currentConfigRevision = {
+      id: "revision-1",
+      snapshotHash: "config-hash",
+      resourceReferences: [],
+      routeSnapshot: {
+        tlsRequired: false,
+        entries: [{ tlsMode: "none" }],
+      },
+      createdAt: new Date("2026-08-11T03:00:00.000Z"),
+    };
+    expect(provider.evaluate(gate("D08"), value, now)).toMatchObject({
+      status: "checked",
+      reasonCode: "resource_connectivity_not_applicable_zero_resources",
+    });
+    expect(provider.evaluate(gate("D12"), value, now)).toMatchObject({
+      status: "checked",
+      reasonCode: "backup_not_applicable_stateless_without_resources",
+    });
+    expect(provider.evaluate(gate("D15"), value, now)).toMatchObject({
+      status: "checked",
+      reasonCode: "tls_not_applicable_frozen_http_route",
+      evidenceIdentity: {
+        deploymentInputHash: "deployment-hash",
+        workloadInputHash: "workload-hash",
+      },
+    });
+    value.decisionTarget!.workloadInputHash = undefined;
+    expect(provider.evaluate(gate("D08"), value, now)).toMatchObject({
+      status: "unavailable",
+      reasonCode: "production_applicability_frozen_fact_missing",
+    });
+  });
+
+  it("does not mark stateful resource instances or managed TLS routes N/A", () => {
+    const value = context("production_pre_execution");
+    Object.assign(value.decisionTarget!, {
+      configRevisionId: "revision-1",
+      deploymentInputHash: "deployment-hash",
+      workloadInputHash: "workload-hash",
+    });
+    value.deploy!.environment!.currentConfigRevision = {
+      id: "revision-1",
+      snapshotHash: "config-hash",
+      resourceReferences: [{
+        id: "db-1",
+        kind: "resource_instance",
+        resourceTypeKey: "mysql",
+        resourceTypeCategory: "database",
+        stateful: true,
+      }],
+      routeSnapshot: {
+        tlsRequired: true,
+        entries: [{ tlsMode: "managed_cert" }],
+      },
+      createdAt: new Date("2026-08-11T03:00:00.000Z"),
+    };
+    expect(provider.evaluate(gate("D08"), value, now)).toBeNull();
+    expect(provider.evaluate(gate("D12"), value, now)).toBeNull();
+    expect(provider.evaluate(gate("D15"), value, now)).toBeNull();
+
+    delete value.deploy!.environment!.currentConfigRevision.resourceReferences[0].stateful;
+    expect(provider.evaluate(gate("D12"), value, now)).toMatchObject({
+      status: "unavailable",
+      reasonCode: "resource_reference_snapshot_invalid",
+    });
+  });
 });
 
 function gate(id: string) {

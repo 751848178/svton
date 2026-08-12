@@ -25,6 +25,8 @@ import { ProductionPromotionAwaitingRepository } from "./production-promotion-aw
 import { ProductionPromotionService } from "./production-promotion.service";
 import type { ProductionPromotionResumeInput } from "./production-promotion-command.types";
 import { presentLegacyPromotionRecovery } from "./production-promotion-legacy-recovery.presenter";
+import { ReleaseServerCapacityService } from "./release-server-capacity.service";
+import { ReleaseProductionDnsProbeService } from "./release-production-dns-probe.service";
 
 @Injectable()
 export class EnvironmentVersionService {
@@ -47,6 +49,8 @@ export class EnvironmentVersionService {
     private readonly siteProbe: SiteProbePort,
     private readonly promotionAwaiting?: ProductionPromotionAwaitingRepository,
     private readonly promotion?: ProductionPromotionService,
+    private readonly capacity?: ReleaseServerCapacityService,
+    private readonly dns?: ReleaseProductionDnsProbeService,
   ) {}
 
   async list(teamId: string, projectId: string) {
@@ -89,6 +93,8 @@ export class EnvironmentVersionService {
         inputs: this.inputs,
         stagingWorkloads: this.stagingWorkloads,
         productionWorkloads: this.productionWorkloads,
+        capacity: this.capacity,
+        dns: this.dns,
         routeSwitch: this.routeSwitch,
         routeSagaGuard: this.routeSagaGuard,
         run: (context) =>

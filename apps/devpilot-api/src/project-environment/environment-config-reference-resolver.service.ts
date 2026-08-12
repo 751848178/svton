@@ -19,6 +19,7 @@ import {
   findEnvironmentVariableCollisions,
   type EnvironmentVariableOwner,
 } from "./environment-variable-ownership.model";
+import { normalizeEnvironmentObservabilitySnapshot } from "./environment-observability-snapshot.policy";
 
 type EnvironmentScope = {
   id: string;
@@ -33,6 +34,7 @@ type PreviousRevision = {
   resourceReferences: unknown;
   routeSnapshot: unknown;
   policyReferences: unknown;
+  observabilitySnapshot?: unknown;
 } | null;
 
 @Injectable()
@@ -64,6 +66,11 @@ export class EnvironmentConfigReferenceResolverService {
       resourceReferences: resources.references,
       routeSnapshot,
       policyReferences: await this.resolvePolicies(tx, environment, policyIds),
+      observabilitySnapshot: normalizeEnvironmentObservabilitySnapshot(
+        dto.observabilitySnapshot === undefined
+          ? previous?.observabilitySnapshot
+          : dto.observabilitySnapshot,
+      ),
     };
   }
 

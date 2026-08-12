@@ -59,6 +59,10 @@ import { SiteRouteSwitchSagaOrchestrator } from "../site/site-route-switch-saga.
 import { SiteRouteSwitchSagaRepository } from "../site/site-route-switch-saga.repository";
 import { siteRouteSwitchTestDouble } from "../site/site-route-switch.spec-utils";
 import { EnvironmentVersionCompletionRepository } from "./environment-version-completion.repository";
+import {
+  managedCommandWorkloadConfig,
+  stagingArtifactProofParams,
+} from "./release-workload.integration-fixtures";
 
 export interface ProductionRealGateFixture {
   prisma: PrismaClient;
@@ -143,13 +147,7 @@ export async function createProductionRealGateFixture(
       environmentId: production.id,
       name: "api",
       kind: "static",
-      deployConfig: {
-        workingDirectory: ".",
-        workloadExecutionMode: "managed-command-v1",
-        deployCommand: "test -f dist/app.txt",
-        statusCommand: "test -f dist/app.txt",
-        failureCleanupCommand: "true",
-      },
+      deployConfig: managedCommandWorkloadConfig(),
     },
   });
   const server = await prisma.server.create({
@@ -386,6 +384,7 @@ export async function createProductionRealGateFixture(
       dryRun: false,
       status: "completed",
       finishedAt: now,
+      params: stagingArtifactProofParams(manifest),
       result: {
         artifactVerified: true,
         manifestId: manifest.id,

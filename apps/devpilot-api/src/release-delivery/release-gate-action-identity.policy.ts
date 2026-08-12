@@ -11,7 +11,7 @@ const SUBJECT_KEYS: Record<ReleaseGateCheckpoint, readonly string[]> = {
   build_pre_execution: ["repositoryIdentityRevisionId", "sourceBranch", "sourceCommitSha", "sourceResolution"],
   build_post_execution: ["buildRunId", "inputHash", "sourceCommitSha"],
   staging_pre_execution: ["buildRunId", "manifestId", "manifestDigest", "environmentId", "configRevisionId"],
-  production_pre_execution: ["environmentId", "configRevisionId", "manifestId", "buildRunId", "releaseRunId", "providerKey", "bindingId", "deploymentInputHash"],
+  production_pre_execution: ["environmentId", "configRevisionId", "manifestId", "buildRunId", "releaseRunId", "providerKey", "bindingId", "deploymentInputHash", "workloadInputHash", "workloadServiceCount", "workloadHealthConfigured", "previewInputHash"],
   production_post_deploy: ["deploymentRunId", "environmentId", "configRevisionId", "buildRunId", "manifestId", "releaseRunId", "providerKey", "bindingId", "deploymentInputHash", "candidateHash"],
   production_promote: ["releaseRunId", "deploymentRunId", "manifestId", "candidateHash"],
   production_promote_pre_route: ["deploymentRunId", "releaseRunId", "manifestId", "deploymentInputHash", "candidateHash"],

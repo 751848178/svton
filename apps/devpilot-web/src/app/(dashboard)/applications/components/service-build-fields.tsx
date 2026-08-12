@@ -9,6 +9,7 @@
 import { useTranslations } from 'next-intl';
 import { Input } from '@/components/ui';
 import type { ServiceDeploymentForm } from '../types';
+import { resourceRequirementsError } from '../utils/deployment-lifecycle-config.utils';
 import { ServiceLifecycleFields } from './service-lifecycle-fields.component';
 
 interface ServiceBuildFieldsProps {
@@ -18,6 +19,7 @@ interface ServiceBuildFieldsProps {
 
 export function ServiceBuildFields({ form, onChange }: ServiceBuildFieldsProps) {
   const t = useTranslations('applications');
+  const resourcesInvalid = resourceRequirementsError(form);
 
   return (
     <section className="space-y-3">
@@ -50,6 +52,26 @@ export function ServiceBuildFields({ form, onChange }: ServiceBuildFieldsProps) 
         onChange={(e) => onChange({ healthCheckUrl: e.target.value })}
         placeholder={t('healthCheckUrlPlaceholder')}
       />
+      <fieldset className="grid gap-2 rounded-md border p-3 sm:grid-cols-3">
+        <legend className="px-1 text-xs font-medium">{t('resourceRequirementsTitle')}</legend>
+        {(['cpuMillicores', 'memoryBytes', 'diskBytes'] as const).map((key) => (
+          <label key={key} className="space-y-1 text-xs">
+            <span>{t(`${key}Label`)}</span>
+            <Input
+              type="number"
+              min={1}
+              aria-invalid={resourcesInvalid}
+              value={form[key]}
+              onChange={(event) => onChange({ [key]: event.target.value })}
+            />
+          </label>
+        ))}
+      </fieldset>
+      {resourcesInvalid ? (
+        <p className="text-xs text-destructive" role="alert">
+          {t('resourceRequirementsIncomplete')}
+        </p>
+      ) : null}
     </section>
   );
 }

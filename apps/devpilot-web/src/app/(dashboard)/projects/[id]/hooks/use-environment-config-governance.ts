@@ -23,6 +23,7 @@ export type ConfigRevisionDraft = {
   secretReferences: EnvironmentConfigSecretReference[];
   resourceReferences: EnvironmentConfigResourceReference[];
   routeSnapshot: Record<string, unknown>;
+  observabilitySnapshot?: Record<string, unknown>;
   policyReferenceIds: string[];
   changeSummary?: string;
 };

@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import type { ReleaseStrategy } from "./release-strategy-capability.types";
+import { WORKLOAD_SERVICE_SELECT } from "./release-staging-workload-state.repository";
 
 type Client = Prisma.TransactionClient | PrismaService;
 
@@ -52,8 +53,10 @@ export async function loadProductionReleaseContext(
           resourceReferences: true,
           routeSnapshot: true,
           policyReferences: true,
+          observabilitySnapshot: true,
         },
       },
+      applicationServices: WORKLOAD_SERVICE_SELECT,
     },
   });
   const manifest = await client.artifactManifest.findFirst({
@@ -80,7 +83,9 @@ export async function loadProductionReleaseContext(
       status: "completed",
       projectEnvironment: { baselineRole: "staging" },
     },
-    select: { id: true, environmentId: true, result: true, finishedAt: true },
+    select: {
+      id: true, environmentId: true, result: true, params: true, finishedAt: true,
+    },
     orderBy: [{ finishedAt: "desc" }, { id: "desc" }],
   });
   return {

@@ -11,6 +11,9 @@ import type {
 } from '../../types/environment-config-revision.types';
 import type { EnvironmentConfigRevision } from '../../types/environment-config-revision.types';
 import { defaultSecretTargetKey } from './settings-variable-binding.model';
+import { observabilitySnapshot } from './settings-observability.model';
+import type { SettingsObservabilityDraft } from './settings-observability.model';
+export type { SettingsObservabilityDraft } from './settings-observability.model';
 
 export type SettingsRouteEntryDraft = {
   domain: string;
@@ -18,7 +21,7 @@ export type SettingsRouteEntryDraft = {
   serviceId?: string | null;
   component: string;
   port: number | null;
-  tlsMode: 'managed_cert' | 'existing_cert_asset';
+  tlsMode: 'none' | 'managed_cert' | 'existing_cert_asset';
 };
 
 export type SettingsRouteDraft = {
@@ -34,6 +37,7 @@ export type SettingsEnvironmentDraft = {
   policyIds: string[];
   resources: EnvironmentConfigResourceReference[];
   route: SettingsRouteDraft;
+  observability: SettingsObservabilityDraft;
   summary: string;
 };
 
@@ -48,6 +52,7 @@ export const EMPTY_SETTINGS_ENVIRONMENT_DRAFT: SettingsEnvironmentDraft = {
     proxyTarget: '',
     entries: [],
   },
+  observability: { profile: '' },
   summary: '',
 };
 
@@ -68,6 +73,10 @@ export function settingsDraftFromRevision(
       tlsRequired: revision.routeSnapshot?.tlsRequired ?? false,
       proxyTarget: revision.routeSnapshot?.proxyTarget ?? '',
       entries: routeEntriesFromRevision(revision),
+    },
+    observability: {
+      profile: revision.observabilitySnapshot?.profile === 'local_acceptance_v1'
+        ? 'local_acceptance_v1' : '',
     },
     summary: '',
   };
@@ -122,6 +131,7 @@ export function toConfigRevisionDraft(
   secretReferences: EnvironmentConfigSecretReference[];
   resourceReferences: EnvironmentConfigResourceReference[];
   routeSnapshot: Record<string, unknown>;
+  observabilitySnapshot: Record<string, unknown>;
   policyReferenceIds: string[];
   changeSummary?: string;
 } {
@@ -141,10 +151,11 @@ export function toConfigRevisionDraft(
     routeSnapshot: {
       domains: [...new Set(entries.map((entry) => entry.domain))].sort(),
       dnsProvider: draft.route.dnsProvider.trim() || undefined,
-      tlsRequired: draft.route.tlsRequired,
+      tlsRequired: entries.some((entry) => entry.tlsMode !== 'none'),
       proxyTarget: draft.route.proxyTarget.trim() || undefined,
       entries,
     },
+    observabilitySnapshot: observabilitySnapshot(draft.observability.profile),
     policyReferenceIds: draft.policyIds,
     changeSummary: draft.summary.trim() || undefined,
   };

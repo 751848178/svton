@@ -117,4 +117,18 @@ export type ReleaseGatePromoteEvidence = {
     promotionObservation: unknown;
     updatedAt: Date;
   }>;
+  dnsReceipts: Array<{
+    id: string;
+    configRevisionId: string;
+    providerKey: string;
+    providerProfile: string;
+    routeHash: string;
+    deploymentInputHash: string;
+    workloadInputHash: string;
+    status: string;
+    resultHash: string;
+    result: unknown;
+    probedAt: Date;
+    expiresAt: Date;
+  }>;
 };

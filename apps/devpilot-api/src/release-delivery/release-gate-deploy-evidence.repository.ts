@@ -24,6 +24,7 @@ export class ReleaseGateDeployEvidenceRepository {
     environmentId?: string,
     configRevisionId?: string | null,
     deploymentRunId?: string,
+    capacitySnapshotId?: string,
   ): Promise<ReleaseGateDeployEvidence> {
     const environment = await this.prisma.projectEnvironment.findFirst({
       where: {
@@ -51,6 +52,7 @@ export class ReleaseGateDeployEvidenceRepository {
             resourceReferences: true,
             routeSnapshot: true,
             policyReferences: true,
+            observabilitySnapshot: true,
             createdAt: true,
           },
         },
@@ -105,19 +107,16 @@ export class ReleaseGateDeployEvidenceRepository {
     const references = resourceReferences(
       frozenRevision?.resourceReferences,
     );
-    const managedIds = references
-      .filter((item) => item.kind === "managed_resource")
-      .map((item) => item.id);
-    const [resourceEvidence, operationEvidence] = await Promise.all([
-      this.resources.load({
-        teamId,
-        projectId,
-        environmentId: environment.id,
-        secretIds: referenceIds(
-          frozenRevision?.secretReferences,
-        ),
-        references,
-      }),
+    const resourceEvidence = await this.resources.load({
+      teamId, projectId, environmentId: environment.id,
+      secretIds: referenceIds(frozenRevision?.secretReferences), references,
+    });
+    const managedIds = resourceEvidence.resources.flatMap((resource) =>
+      resource.kind === "managed_resource"
+        ? [resource.id]
+        : resource.mappedManagedResourceIds ?? [],
+    );
+    const [operationEvidence, capacities] = await Promise.all([
       this.operations.load({
         teamId,
         projectId,
@@ -128,11 +127,29 @@ export class ReleaseGateDeployEvidenceRepository {
         skipDeployments: Boolean(environmentId && !deploymentRunId),
         managedResourceIds: managedIds,
       }),
+      this.prisma.serverCapacitySnapshot.findMany({
+        where: {
+          teamId,
+          projectId,
+          environmentId: environment.id,
+          id: capacitySnapshotId ?? "__missing_capacity_receipt__",
+          ...(configRevisionId ? { configRevisionId } : {}),
+        },
+        select: {
+          id: true, configRevisionId: true, buildRunId: true, manifestId: true,
+          providerKey: true, bindingId: true, deploymentInputHash: true,
+          workloadInputHash: true, requirementHash: true, measurementHash: true,
+          status: true, reasonCode: true, sampledAt: true, expiresAt: true,
+        },
+        orderBy: [{ sampledAt: "desc" }, { id: "desc" }],
+        take: 1,
+      }),
     ]);
     return {
       environment: scopedEnvironment,
       ...resourceEvidence,
       ...operationEvidence,
+      capacities,
     };
   }
 }
@@ -148,6 +165,7 @@ const environmentConfigRevisionSelect = {
   resourceReferences: true,
   routeSnapshot: true,
   policyReferences: true,
+  observabilitySnapshot: true,
   createdAt: true,
 } as const;
 
@@ -160,5 +178,6 @@ function emptyDeployEvidence(): ReleaseGateDeployEvidence {
     connections: [],
     metrics: [],
     backups: [],
+    capacities: [],
   };
 }

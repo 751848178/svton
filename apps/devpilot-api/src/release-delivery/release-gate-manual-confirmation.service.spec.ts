@@ -64,7 +64,8 @@ describe("ReleaseGateManualConfirmationService", () => {
       id: "evaluation-1", gateId: "P03", buildRunId: "build-1",
       releaseRunId: "release-1", summary: { decisionIdentity: {
         deploymentRunId: "deployment-1", candidateHash: "a".repeat(64),
-      } },
+      }, evidenceIdentity: { releaseRunId: "release-1",
+        deploymentRunId: "deployment-1", candidateHash: "a".repeat(64) } },
     });
     await expect(service.resolve({ ...input, gateId: "P03" }))
       .resolves.toEqual({ permission: "production" });

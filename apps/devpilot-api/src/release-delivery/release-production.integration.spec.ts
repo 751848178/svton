@@ -1,5 +1,9 @@
 import "reflect-metadata";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { ReleasePolicyRepository } from "./release-policy.repository";
+import { releaseGateCheckpointPolicy } from "./release-gate-checkpoint.policy";
+import { loadReleaseDeploymentInputState } from "./release-deployment-input-state.repository";
+import { buildReleaseDeploymentInputSnapshot } from "./release-deployment-input-snapshot.utils";
 import {
   cleanupProductionFixture,
   createProductionFixture,
@@ -107,20 +111,38 @@ describeIntegration("ReleaseProduction integration", () => {
     }
   });
 
-  it("rejects cross-project lookup and an unknown Digest", async () => {
+  it("rejects cross-project lookup and every tampered artifact Digest", async () => {
     const f = fixture;
     await expect(
       f.repository.preview(f.teamId, "other-project", f.orderId, f.manifestId),
     ).rejects.toThrow();
     await f.prisma.artifactManifestItem.update({
-      where: { id: f.itemId },
+      where: { id: f.componentItemId },
       data: { digest: "sha256:unknown" },
     });
     await expect(
       f.repository.preview(f.teamId, f.projectId, f.orderId, f.manifestId),
     ).rejects.toThrow("Manifest Digest 未知");
     await f.prisma.artifactManifestItem.update({
-      where: { id: f.itemId },
+      where: { id: f.componentItemId },
+      data: { digest: `sha256:${"d".repeat(64)}` },
+    });
+    await expect(
+      f.repository.preview(f.teamId, f.projectId, f.orderId, f.manifestId),
+    ).rejects.toThrow("Staging 验证制品不一致");
+    await f.prisma.artifactManifestItem.update({
+      where: { id: f.componentItemId },
+      data: { digest: `sha256:${"c".repeat(64)}` },
+    });
+    await f.prisma.artifactManifestItem.update({
+      where: { id: f.bundleItemId },
+      data: { digest: `sha256:${"e".repeat(64)}` },
+    });
+    await expect(
+      f.repository.preview(f.teamId, f.projectId, f.orderId, f.manifestId),
+    ).rejects.toThrow("Manifest Digest");
+    await f.prisma.artifactManifestItem.update({
+      where: { id: f.bundleItemId },
       data: { digest: `sha256:${"b".repeat(64)}` },
     });
   });
@@ -162,6 +184,88 @@ describeIntegration("ReleaseProduction integration", () => {
     ).rejects.toThrow("已变化");
   });
 });
+
+describeIntegration("ReleaseProduction serializable input barrier", () => {
+  let fixture: ProductionFixture;
+  beforeAll(async () => { fixture = await createProductionFixture(); });
+  afterAll(async () => cleanupProductionFixture(fixture));
+
+  it("rejects a server drift committed while confirm waits for its exact row lock", async () => {
+    const f = fixture;
+    const server = await f.prisma.server.create({ data: {
+      teamId: f.teamId, createdById: f.userId, name: "locked-production",
+      host: "10.0.0.10", port: 22, username: "deploy", authType: "key",
+      credentials: "encrypted", status: "online",
+    } });
+    await f.prisma.projectEnvironmentServer.create({ data: {
+      teamId: f.teamId, projectId: f.projectId,
+      environmentId: f.productionEnvironmentId, serverId: server.id,
+      metadata: { releaseDeployment: { providerKey: "ssh-v1", root: "/srv/app" } },
+    } });
+    const preview = await f.repository.preview(
+      f.teamId, f.projectId, f.orderId, f.manifestId,
+    );
+    const state = await loadReleaseDeploymentInputState(f.prisma as never, {
+      teamId: f.teamId, projectId: f.projectId,
+      environmentId: f.productionEnvironmentId, label: "Production",
+    });
+    const deployment = buildReleaseDeploymentInputSnapshot(state, "ssh-v1", []);
+    const admissionProof = proofFor(preview, deployment.snapshot);
+    const mutator = new PrismaClient();
+    const locked = deferred();
+    const release = deferred();
+    const mutation = mutator.$transaction(async (tx) => {
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM Server
+        WHERE id = ${server.id} FOR UPDATE`);
+      locked.resolve();
+      await release.promise;
+      await tx.server.update({ where: { id: server.id },
+        data: { host: "10.0.0.11" } });
+    });
+    await locked.promise;
+    const confirmation = f.repository.confirm({
+      teamId: f.teamId, projectId: f.projectId,
+      releaseOrderId: f.orderId, manifestId: f.manifestId,
+      actorId: f.userId, expectedInputHash: preview.inputHash,
+      idempotencyKey: `server-drift-${f.suffix}`, providerKey: "ssh-v1",
+      admissionProof,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    release.resolve();
+    await mutation;
+    await expect(confirmation).rejects.toThrow("前置检查已过期或漂移");
+    await expect(f.prisma.releaseRun.count({ where: {
+      releaseOrderId: f.orderId,
+    } })).resolves.toBe(0);
+    await expect(f.prisma.operationApproval.count({ where: {
+      projectId: f.projectId, targetType: "release_run",
+    } })).resolves.toBe(0);
+    await mutator.$disconnect();
+  }, 30_000);
+});
+
+function proofFor(preview: any, deploymentSnapshot: any) {
+  return {
+    preApprovalAllowed: true, previewInputHash: preview.inputHash,
+    deploymentInputHash: deploymentSnapshot.inputHash,
+    workloadInputHash: preview.snapshot.workload.inputHash,
+    deploymentSnapshot,
+    checks: releaseGateCheckpointPolicy("production_pre_execution")
+      .requiredGateIds.map((id) => ({
+        id, status: id === "D13" ? "manual" : "checked",
+        fresh: true, expiresAt: "2099-01-01T00:00:00.000Z",
+        evidenceIdentity: ["D14", "D15"].includes(id)
+          ? { configRevisionId: deploymentSnapshot.configRevision.id }
+          : undefined,
+      })),
+  };
+}
+
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => { resolve = done; });
+  return { promise, resolve };
+}
 
 describeIntegration("ReleaseProduction per-environment concurrency guard", () => {
   let fixture: ProductionFixture;

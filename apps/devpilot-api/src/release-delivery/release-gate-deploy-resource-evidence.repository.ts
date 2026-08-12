@@ -54,6 +54,7 @@ export class ReleaseGateDeployResourceEvidenceRepository {
           environmentId: true,
           status: true,
           kind: true,
+          resourceInstanceId: true,
           lastSyncAt: true,
         },
       }),
@@ -69,6 +70,15 @@ export class ReleaseGateDeployResourceEvidenceRepository {
           environmentId: true,
           status: true,
           updatedAt: true,
+          managedResources: {
+            where: {
+              teamId: input.teamId,
+              projectId: input.projectId,
+              environmentId: input.environmentId,
+              status: "active",
+            },
+            select: { id: true },
+          },
         },
       }),
       this.prisma.site.findMany({
@@ -110,6 +120,7 @@ export class ReleaseGateDeployResourceEvidenceRepository {
       ...instances.map((item) => ({
         ...item,
         kind: "resource_instance",
+        mappedManagedResourceIds: item.managedResources.map(({ id }) => id),
         observedAt: item.updatedAt,
       })),
       ...sites.map((item) => ({

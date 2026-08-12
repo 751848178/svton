@@ -1,9 +1,9 @@
 import { UnprocessableEntityException } from "@nestjs/common";
-import type { PrismaService } from "../prisma/prisma.service";
+import type { Prisma } from "@prisma/client";
 import { independentApprovalBlocker } from "./release-gate-independent-approval.policy";
 
 export async function assertIndependentCodeApproval(
-  prisma: PrismaService,
+  prisma: Prisma.TransactionClient,
   row: {
     projectId: string;
     buildRunId: string | null;

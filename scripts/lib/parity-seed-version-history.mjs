@@ -16,6 +16,10 @@ export async function seedParityVersionHistory({
   digestB,
   capturedAt,
 }) {
+  await prisma.managedResource.update({
+    where: { id: ids.managedResource },
+    data: { resourceInstanceId: ids.resourceInstance },
+  });
   const scope = { teamId: ids.team, projectId: ids.project };
   const records = buildParityVersionHistoryRecords({
     ids,
