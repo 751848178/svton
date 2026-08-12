@@ -31,6 +31,23 @@ describe("release component key migration", () => {
     );
   });
 
+  it("pins the temporary identity table to the persistent schema collation", () => {
+    const temporaryTable = sql.slice(
+      sql.indexOf("CREATE TEMPORARY TABLE `ReleaseComponentKeyBackfill`"),
+      sql.indexOf("INSERT INTO `ReleaseComponentKeyBackfill`"),
+    );
+    expect(temporaryTable).toContain(
+      ") DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;",
+    );
+    expect(temporaryTable.match(/VARCHAR\(191\)/g)).toHaveLength(4);
+    expect(sql).toContain("backfill.`projectId` = service.`projectId`");
+    expect(sql).toContain("backfill.`applicationId` = service.`applicationId`");
+    expect(sql).toContain(
+      "backfill.`normalizedName` = LOWER(TRIM(service.`name`))",
+    );
+    expect(sql).not.toMatch(/SET\s+(?:GLOBAL|SESSION)|collation_connection/i);
+  });
+
   it("keeps the exact two-role fixture semantics inside the grouped subquery", () => {
     const grouped = sql.slice(sql.indexOf("FROM ("), sql.indexOf(") AS grouped"));
     expect(grouped).toContain("environment.`status` = 'active'");

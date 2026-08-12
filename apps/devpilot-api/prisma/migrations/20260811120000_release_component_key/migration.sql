@@ -7,7 +7,7 @@ CREATE TEMPORARY TABLE `ReleaseComponentKeyBackfill` (
   `normalizedName` VARCHAR(191) NOT NULL,
   `releaseComponentKey` VARCHAR(191) NOT NULL,
   PRIMARY KEY (`projectId`, `applicationId`, `normalizedName`)
-);
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 INSERT INTO `ReleaseComponentKeyBackfill`
   (`projectId`, `applicationId`, `normalizedName`, `releaseComponentKey`)
