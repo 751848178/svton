@@ -78,6 +78,52 @@ describe("production admission transaction proof", () => {
     await expect(assertProductionAdmissionProof(client as never, proof(), expected()))
       .rejects.toThrow("Production 前置检查已过期或漂移");
   });
+
+  it("rejects when first-release history appears after preflight", async () => {
+    const client = tx();
+    client.environmentVersion.count.mockResolvedValue(1);
+    await expect(assertProductionAdmissionProof(client as never, proof(), expected()))
+      .rejects.toThrow("Production 前置检查已过期或漂移");
+  });
+
+  it("rejects checked D19 evidence with missing identity fields", async () => {
+    const value = proof();
+    value.checks.find((check) => check.id === "D19")!.evidenceIdentity = {
+      environmentId: "production-1",
+    };
+    await expect(assertProductionAdmissionProof(tx() as never, value, expected()))
+      .rejects.toThrow("Production 前置检查已过期或漂移");
+  });
+
+  it("rechecks the exact current version, run, Manifest, and items", async () => {
+    const client = tx();
+    const value = proof();
+    value.checks.find((check) => check.id === "D19")!.evidenceIdentity = {
+      environmentId: "production-1", currentVersionId: "version-1",
+      versionId: "version-1", deploymentRunId: "deployment-1",
+      deploymentStatus: "completed", deploymentDryRun: "false",
+      manifestId: "manifest-1", manifestDigest: `sha256:${"a".repeat(64)}`,
+      manifestItemCount: 2,
+    };
+    const state = deploymentState();
+    client.projectEnvironment.findFirst.mockImplementation((input: any) =>
+      input.select?.currentEnvironmentVersionId
+        ? { id: "production-1", currentEnvironmentVersionId: "version-1" }
+        : { id: state.environmentId, currentConfigRevision: state.revision,
+            serverBindings: state.bindings });
+    const current = { id: "version-1",
+      deploymentRun: { id: "deployment-1", status: "completed" as string,
+        dryRun: false },
+      artifactManifest: { id: "manifest-1", digest: `sha256:${"a".repeat(64)}`,
+        _count: { items: 2 } } };
+    client.environmentVersion.findFirst.mockResolvedValue(current);
+    await expect(assertProductionAdmissionProof(client as never, value, expected()))
+      .resolves.toBeUndefined();
+    current.deploymentRun.status = "failed";
+    await expect(assertProductionAdmissionProof(client as never, value, expected()))
+      .rejects.toThrow("Production 前置检查已过期或漂移");
+    expect(client.$queryRaw).toHaveBeenCalledTimes(4);
+  });
 });
 
 function proof(): ProductionAdmissionProof {
@@ -95,7 +141,9 @@ function proof(): ProductionAdmissionProof {
     checks: releaseGateCheckpointPolicy("production_pre_execution")
       .requiredGateIds.map((id) => ({ id, status: id === "D13" ? "manual" : "checked",
         fresh: true, expiresAt: "2099-01-01T00:00:00.000Z",
-        evidenceIdentity: ["D14", "D15"].includes(id) ? exactIdentity : undefined })),
+        evidenceIdentity: ["D14", "D15"].includes(id) ? exactIdentity
+          : id === "D19" ? { environmentId: "production-1",
+              currentVersionId: null, historyCount: 0 } : undefined })),
   };
 }
 
@@ -108,6 +156,7 @@ function expected() {
 function tx() {
   const state = deploymentState();
   return {
+    $queryRaw: jest.fn().mockResolvedValue([]),
     serverCapacitySnapshot: { findFirst: jest.fn().mockResolvedValue({ status: "fit" }) },
     siteDnsProbeReceipt: { findFirst: jest.fn().mockResolvedValue({ id: "dns-1" }) },
     resourceConnectionRun: { findFirst: jest.fn().mockResolvedValue(null) },
@@ -117,8 +166,10 @@ function tx() {
       currentConfigRevision: { routeSnapshot: {} },
     }), findFirst: jest.fn().mockResolvedValue({
       id: state.environmentId, currentConfigRevision: state.revision,
-      serverBindings: state.bindings,
+      serverBindings: state.bindings, currentEnvironmentVersionId: null,
     }), findMany: jest.fn().mockResolvedValue([]) },
+    environmentVersion: { count: jest.fn().mockResolvedValue(0),
+      findFirst: jest.fn() },
     environmentConfigRevision: { findFirst: jest.fn().mockResolvedValue(state.revision) },
     secretKey: { findMany: jest.fn().mockResolvedValue([]) },
     resourceInstance: { findFirst: jest.fn() },

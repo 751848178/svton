@@ -28,6 +28,9 @@ export async function productionMutableEvidenceCurrent(
     ["succeeded", "completed"])) return false;
   const backup = identity(byId.get("D12"));
   if (!await latestRunsCurrent(tx.backupRun, backup, ["completed"])) return false;
+  if (!await productionHistoryCurrent(tx, identity(byId.get("D19")), scope)) {
+    return false;
+  }
   for (const gateId of ["D14", "D15"]) {
     const evidence = identity(byId.get(gateId));
     if (Object.keys(evidence).length === 0) return false;
@@ -53,6 +56,55 @@ export async function productionMutableEvidenceCurrent(
     }
   }
   return true;
+}
+
+async function productionHistoryCurrent(
+  tx: Prisma.TransactionClient,
+  evidence: Record<string, string | number | null>,
+  scope: { teamId: string; projectId: string; environmentId: string },
+) {
+  if (evidence.environmentId !== scope.environmentId ||
+    !Object.prototype.hasOwnProperty.call(evidence, "currentVersionId")) {
+    return false;
+  }
+  const environment = await tx.projectEnvironment.findFirst({ where: {
+    id: scope.environmentId, teamId: scope.teamId, projectId: scope.projectId,
+  }, select: { currentEnvironmentVersionId: true } });
+  if (!environment || environment.currentEnvironmentVersionId !==
+    evidence.currentVersionId) return false;
+  if (evidence.currentVersionId === null) {
+    if (!Object.prototype.hasOwnProperty.call(evidence, "historyCount") ||
+      evidence.historyCount !== 0) return false;
+    return await tx.environmentVersion.count({ where: {
+      teamId: scope.teamId, projectId: scope.projectId,
+      environmentId: scope.environmentId,
+    } }) === 0;
+  }
+  const fields = ["versionId", "deploymentRunId", "deploymentStatus",
+    "deploymentDryRun", "manifestId", "manifestDigest", "manifestItemCount"];
+  if (!fields.every((key) => Object.prototype.hasOwnProperty.call(evidence, key))) {
+    return false;
+  }
+  await tx.$queryRaw`SELECT ev.id FROM EnvironmentVersion ev
+    INNER JOIN DeploymentRun dr ON dr.id = ev.deploymentRunId
+    INNER JOIN ArtifactManifest am ON am.id = ev.artifactManifestId
+    WHERE ev.id = ${String(evidence.currentVersionId)} FOR UPDATE`;
+  await tx.$queryRaw`SELECT ami.id FROM ArtifactManifestItem ami
+    WHERE ami.manifestId = ${String(evidence.manifestId)} FOR UPDATE`;
+  const version = await tx.environmentVersion.findFirst({ where: {
+    id: String(evidence.currentVersionId),
+    teamId: scope.teamId, projectId: scope.projectId,
+    environmentId: scope.environmentId,
+  }, select: { id: true, deploymentRun: { select: { id: true, status: true,
+    dryRun: true } }, artifactManifest: { select: { id: true, digest: true,
+    _count: { select: { items: true } } } } } });
+  return Boolean(version && version.id === evidence.versionId &&
+    version.deploymentRun.id === evidence.deploymentRunId &&
+    version.deploymentRun.status === evidence.deploymentStatus &&
+    String(version.deploymentRun.dryRun) === evidence.deploymentDryRun &&
+    version.artifactManifest.id === evidence.manifestId &&
+    version.artifactManifest.digest === evidence.manifestDigest &&
+    version.artifactManifest._count.items === evidence.manifestItemCount);
 }
 
 async function latestRunsCurrent(

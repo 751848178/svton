@@ -1,7 +1,10 @@
 import { PrismaClient } from "@prisma/client";
 import { ConfigService } from "@nestjs/config";
 import { randomUUID } from "node:crypto";
-import { mkdtemp, rm } from "node:fs/promises";
+import { once } from "node:events";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createTestCryptoService } from "../common/crypto/crypto.test-helpers";
@@ -43,7 +46,18 @@ import { ReleaseGateRecoveryStrategyProvider } from "./release-gate-recovery-str
 import { ReleaseGateRuntimeCapabilityProvider } from "./release-gate-runtime-capability.provider";
 import { ReleaseGateSourceCapabilityProvider } from "./release-gate-source-capability.provider";
 import { ReleaseProductionRepository } from "./release-production.repository";
+import { ReleaseProductionService } from "./release-production.service";
+import { ReleaseProductionPreflightService } from "./release-production-preflight.service";
+import { ReleaseProductionDnsProbeService } from "./release-production-dns-probe.service";
+import { ProductionPromotionAwaitingRepository } from "./production-promotion-awaiting.repository";
+import { ProductionPromotionService } from "./production-promotion.service";
+import { ProductionPromotionCommandRepository } from "./production-promotion-command.repository";
+import { ProductionPromotionObservationRepository } from "./production-promotion-observation.repository";
+import { ProductionPromotionEvidenceRefreshService } from "./production-promotion-evidence-refresh.service";
 import { ReleaseProductionWorkloadService } from "./release-production-workload.service";
+import { ReleaseServerCapacityRepository } from "./release-server-capacity.repository";
+import { ReleaseServerCapacityService } from "./release-server-capacity.service";
+import { ReleaseStrategyCapabilityService } from "./release-strategy-capability.service";
 import { ReleaseStagingWorkloadService } from "./release-staging-workload.service";
 import { ReleaseStagingExecutorPort } from "./release-staging.types";
 import { ReleaseStagingWorkloadStateRepository } from "./release-staging-workload-state.repository";
@@ -54,9 +68,12 @@ import {
 } from "./release-staging-provider.integration-utils";
 import { SiteRouteActivationService } from "../site/site-route-activation.service";
 import { SiteFinalProbeService } from "../site/site-final-probe.service";
+import { SiteProbeLocalAcceptancePolicy } from "../site/site-probe-local-acceptance.policy";
+import { SiteProbeResolverService } from "../site/site-probe-resolver.service";
 import type { SiteProbePort } from "../site/site-route-activation.types";
 import { SiteRouteSwitchSagaOrchestrator } from "../site/site-route-switch-saga.orchestrator";
 import { SiteRouteSwitchSagaRepository } from "../site/site-route-switch-saga.repository";
+import { SiteRouteSwitchSagaReadbackService } from "../site/site-route-switch-saga-readback.service";
 import { siteRouteSwitchTestDouble } from "../site/site-route-switch.spec-utils";
 import { EnvironmentVersionCompletionRepository } from "./environment-version-completion.repository";
 import {
@@ -67,6 +84,7 @@ import {
 export interface ProductionRealGateFixture {
   prisma: PrismaClient;
   userId: string;
+  reviewerId: string;
   teamId: string;
   projectId: string;
   orderId: string;
@@ -77,28 +95,49 @@ export interface ProductionRealGateFixture {
   siteId: string;
   serviceId: string;
   managedResourceId: string;
+  healthCheckUrl: string;
   scope: string;
   repository: ReleaseProductionRepository;
+  production: ReleaseProductionService;
   service: EnvironmentVersionService;
+  gates: ReleaseGateDecisionService;
+  gateEvaluations: GateEvaluationRepository;
+  siteProbe: SiteProbePort;
   stop: () => Promise<void>;
 }
 
 export async function createProductionRealGateFixture(
-  siteProbe: SiteProbePort = new SiteFinalProbeService(),
+  siteProbe?: SiteProbePort,
+  options: { firstRelease?: boolean } = {},
 ): Promise<ProductionRealGateFixture> {
   const prisma = new PrismaClient();
   const suffix = randomUUID();
   const userId = `f437-user-${suffix}`;
+  const reviewerId = `f437-reviewer-${suffix}`;
   const teamId = `f437-team-${suffix}`;
   const projectId = `f437-project-${suffix}`;
   const serviceId = `f437-service-${suffix}`;
   const commitSha = "c".repeat(40);
   const manifestDigest = `sha256:${"f".repeat(64)}`;
   const scope = await mkdtemp(join(tmpdir(), "f437-production-real-gate-"));
+  const ingress = createServer((_request, response) =>
+    response.end("F437 local technical acceptance"),
+  );
+  ingress.listen(0, "127.0.0.1");
+  await once(ingress, "listening");
+  const ingressPort = (ingress.address() as AddressInfo).port;
+  const healthCheckUrl = `http://127.0.0.1:${ingressPort}/health`;
   const now = new Date();
 
   const created = await prisma.user.create({
     data: { id: userId, email: `${suffix}@f437.example`, role: "user" },
+  });
+  await prisma.user.create({
+    data: {
+      id: reviewerId,
+      email: `reviewer-${suffix}@f437.example`,
+      role: "user",
+    },
   });
   const team = await prisma.team.create({
     data: { id: teamId, name: "F437 Team" },
@@ -147,7 +186,8 @@ export async function createProductionRealGateFixture(
       environmentId: production.id,
       name: "api",
       kind: "static",
-      deployConfig: managedCommandWorkloadConfig(),
+      ports: [8080],
+      deployConfig: managedCommandWorkloadConfig({ healthCheckUrl }),
     },
   });
   const server = await prisma.server.create({
@@ -205,17 +245,39 @@ export async function createProductionRealGateFixture(
         {
           id: managedResource.id,
           kind: "managed_resource",
+          componentKey: serviceId,
           name: managedResource.name,
+          stateful: true,
+          resourceTypeKey: "mysql",
+          resourceTypeCategory: "database",
           sharedEnvironmentIds: [production.id],
           risk: "medium",
           impact: "f437 production runtime database",
         },
       ],
       routeSnapshot: {
-        domains: ["demo.f437.example"],
-        proxyTarget: "http://127.0.0.1:8080",
+        domains: ["parity.example.test"],
+        tlsRequired: false,
+        entries: [
+          {
+            domain: "parity.example.test",
+            path: "/",
+            serviceId,
+            component: "api",
+            port: 8080,
+            tlsMode: "none",
+          },
+        ],
       },
       policyReferences: [],
+      observabilitySnapshot: {
+        version: 1,
+        profile: "local_acceptance_v1",
+        logs: "local-runtime-logs-v1",
+        metrics: "local-health-probe-v1",
+        traces: "not-applicable-single-host-v1",
+        alerts: "not-applicable-local-acceptance-v1",
+      },
     },
   });
   await prisma.projectEnvironment.update({
@@ -294,6 +356,12 @@ export async function createProductionRealGateFixture(
       idempotencyKey: `f437-analysis-${suffix}`,
       result: {
         migrationEvidence: {
+          providerKey: "repository_inventory_v1",
+          applicable: false,
+          reasonCode: "no_schema_or_migration_surface",
+          detectedFiles: [],
+          commandServices: [],
+          databaseKinds: [],
           schemaDrift: false,
           orderValid: true,
           destructiveChanges: [],
@@ -327,7 +395,20 @@ export async function createProductionRealGateFixture(
   });
   const checkout = join(scope, "checkout");
   await writeReleaseStagingFixture(checkout);
-  const config = releaseStagingProviderConfig(scope);
+  const config = localAcceptanceConfig(
+    releaseStagingProviderConfig(scope),
+    ingressPort,
+  );
+  const localAcceptance = new SiteProbeLocalAcceptancePolicy(config);
+  const finalSiteProbe =
+    siteProbe ??
+    new SiteFinalProbeService(
+      new SiteProbeResolverService(
+        async () => [{ address: "127.0.0.1", family: 4 }],
+        localAcceptance,
+      ),
+      localAcceptance,
+    );
   const artifacts = new ReleaseBuildArtifactService(config);
   const artifact = await artifacts.package({
     checkoutRoot: checkout,
@@ -392,7 +473,7 @@ export async function createProductionRealGateFixture(
       },
     },
   });
-  for (const id of ["version-a", "version-b"]) {
+  for (const id of options.firstRelease ? [] : ["version-a", "version-b"]) {
     const priorRun = await prisma.deploymentRun.create({
       data: {
         teamId,
@@ -431,13 +512,15 @@ export async function createProductionRealGateFixture(
       },
     });
   }
-  const versionA = await prisma.environmentVersion.findUniqueOrThrow({
-    where: { id: `f437-version-version-a-${suffix}` },
-  });
-  await prisma.projectEnvironment.update({
-    where: { id: production.id },
-    data: { currentEnvironmentVersionId: versionA.id },
-  });
+  if (!options.firstRelease) {
+    const versionA = await prisma.environmentVersion.findUniqueOrThrow({
+      where: { id: `f437-version-version-a-${suffix}` },
+    });
+    await prisma.projectEnvironment.update({
+      where: { id: production.id },
+      data: { currentEnvironmentVersionId: versionA.id },
+    });
+  }
   const site = await prisma.site.create({
     data: {
       teamId,
@@ -445,10 +528,21 @@ export async function createProductionRealGateFixture(
       projectId,
       environmentId: production.id,
       name: "F437 demo site",
-      primaryDomain: "demo.f437.example",
+      primaryDomain: "parity.example.test",
+      dns: {
+        status: "resolved",
+        hostname: "parity.example.test",
+        records: ["127.0.0.1"],
+        checkedAt: now.toISOString(),
+      },
       tls: {
-        status: "valid",
-        expiresAt: new Date(now.getTime() + 86400_000).toISOString(),
+        status: "not_required",
+        probe: {
+          status: "not_required",
+          host: "parity.example.test",
+          servername: null,
+          checkedAt: now.toISOString(),
+        },
       },
       status: "active",
       lastSyncAt: now,
@@ -502,6 +596,7 @@ export async function createProductionRealGateFixture(
     new ReleaseGateRecoveryStrategyProvider(),
     new ReleaseGateProductionApplicabilityProvider(),
   );
+  const gateEvaluations = new GateEvaluationRepository(db);
   const gateEvaluator = new ReleaseGateEvaluationService(
     new ReleaseGateEvidenceRepository(db),
     new ReleaseGateDeployEvidenceRepository(
@@ -511,45 +606,101 @@ export async function createProductionRealGateFixture(
     ),
     new ReleaseGatePromoteEvidenceRepository(db),
     capabilityRegistry,
-    new GateEvaluationRepository(db),
+    gateEvaluations,
   );
   const gateService = new ReleaseGateDecisionService(
     gateEvaluator,
     new ReleaseGateDecisionRepository(db),
   );
-  const routeSagaGuard = { assertClear: jest.fn().mockResolvedValue(undefined) };
+  jest.spyOn(gateService, "assertAllowed");
+  const routeSagaGuard = {
+    assertClear: jest.fn().mockResolvedValue(undefined),
+  };
   const repository = new EnvironmentVersionRepository(db);
+  const deploymentInputs = new ReleaseDeploymentInputService(db, crypto);
+  const productionWorkloads = new ReleaseProductionWorkloadService(
+    new ReleaseStagingWorkloadStateRepository(db),
+  );
   const routeSwitch = siteRouteSwitchTestDouble();
   const routeSagaRepository = new SiteRouteSwitchSagaRepository(db);
+  const completion = new EnvironmentVersionCompletionRepository(
+    db,
+    routeSagaRepository,
+  );
+  const productionGates = new EnvironmentVersionProductionGateService(
+    gateService,
+    routeSagaGuard as never,
+  );
+  const routeActivation = new SiteRouteActivationService(db);
+  const routeSaga = new SiteRouteSwitchSagaOrchestrator(
+    routeSagaRepository,
+    routeSwitch,
+  );
+  await mkdir(join(scope, "deployments"), { recursive: true });
+  const capacity = new ReleaseServerCapacityService(
+    config,
+    new ReleaseServerCapacityRepository(db),
+    {} as never,
+  );
+  const dns = new ReleaseProductionDnsProbeService(
+    db,
+    finalSiteProbe as SiteFinalProbeService,
+    localAcceptance,
+  );
+  jest.spyOn(finalSiteProbe, "probe");
+  const promotion = new ProductionPromotionService(
+    new ProductionPromotionCommandRepository(db),
+    productionGates,
+    routeActivation,
+    routeSaga,
+    new SiteRouteSwitchSagaReadbackService(routeSagaRepository, routeSwitch),
+    finalSiteProbe,
+    new ProductionPromotionObservationRepository(db),
+    completion,
+    new ProductionPromotionEvidenceRefreshService(db, executor),
+  );
   const service = new EnvironmentVersionService(
     repository,
-    new EnvironmentVersionCompletionRepository(db, routeSagaRepository),
+    completion,
     new EnvironmentVersionReadRepository(db),
     new EnvironmentVersionPolicyService(repository),
     executor as ReleaseStagingExecutorPort,
-    new EnvironmentVersionProductionGateService(
-      gateService,
-      routeSagaGuard as never,
-    ),
+    productionGates,
     new EnvironmentVersionGateEvidenceRepository(db),
-    new ReleaseDeploymentInputService(db, crypto),
+    deploymentInputs,
     {} as never,
     new ReleaseStagingWorkloadService(
       new ReleaseStagingWorkloadStateRepository(db),
     ),
-    new ReleaseProductionWorkloadService(
-      new ReleaseStagingWorkloadStateRepository(db),
-    ),
-    new SiteRouteActivationService(db),
+    productionWorkloads,
+    routeActivation,
     routeSwitch,
-    new SiteRouteSwitchSagaOrchestrator(routeSagaRepository, routeSwitch),
+    routeSaga,
     routeSagaGuard as never,
-    siteProbe,
+    finalSiteProbe,
+    new ProductionPromotionAwaitingRepository(db),
+    promotion,
+    capacity,
+    dns,
+  );
+  const productionRepository = new ReleaseProductionRepository(db);
+  const productionService = new ReleaseProductionService(
+    productionRepository,
+    new ReleaseStrategyCapabilityService(),
+    new ReleaseProductionPreflightService(
+      deploymentInputs,
+      productionWorkloads,
+      gateService,
+      executor,
+      capacity,
+      dns,
+    ),
   );
 
   return {
     prisma,
     userId,
+    reviewerId,
     teamId,
     projectId,
     orderId: order.id,
@@ -560,16 +711,24 @@ export async function createProductionRealGateFixture(
     siteId: site.id,
     serviceId: applicationService.id,
     managedResourceId: managedResource.id,
+    healthCheckUrl,
     scope,
-    repository: new ReleaseProductionRepository(db),
+    repository: productionRepository,
+    production: productionService,
     service,
+    gates: gateService,
+    gateEvaluations,
+    siteProbe: finalSiteProbe,
     stop: async () => {
       await prisma.gateEvaluation.deleteMany({ where: { teamId } });
       await prisma.releaseGateDecision.deleteMany({ where: { teamId } });
       await prisma.environmentVersion.deleteMany({ where: { teamId } });
+      await prisma.productionPromotionCommand.deleteMany({ where: { teamId } });
       await prisma.deploymentRun.deleteMany({ where: { teamId } });
       await prisma.operationApproval.deleteMany({ where: { teamId } });
       await prisma.releaseRun.deleteMany({ where: { teamId } });
+      await prisma.siteDnsProbeReceipt.deleteMany({ where: { teamId } });
+      await prisma.serverCapacitySnapshot.deleteMany({ where: { teamId } });
       await prisma.logCollectionRun.deleteMany({ where: { teamId } });
       await prisma.logStream.deleteMany({ where: { teamId } });
       await prisma.siteRouteSwitchRun.deleteMany({ where: { teamId } });
@@ -592,8 +751,11 @@ export async function createProductionRealGateFixture(
       await prisma.project.delete({ where: { id: projectId } });
       await prisma.team.delete({ where: { id: teamId } });
       await prisma.user.delete({ where: { id: userId } });
+      await prisma.user.delete({ where: { id: reviewerId } });
       await prisma.$disconnect();
       await rm(scope, { recursive: true, force: true });
+      ingress.close();
+      await once(ingress, "close");
     },
   };
 }
@@ -625,13 +787,28 @@ export async function confirmProductionRun(
   fixture: ProductionRealGateFixture,
   idempotencyKey: string,
 ) {
-  const preview = await fixture.repository.preview(
+  const refreshed = await fixture.production.refreshPreflight(
     fixture.teamId,
     fixture.projectId,
     fixture.orderId,
     fixture.manifestId,
+    fixture.userId,
   );
-  return fixture.repository.confirm({
+  if (refreshed.preflight.decision.preApprovalAllowed !== true) {
+    const blockers = refreshed.preflight.checks
+      .filter((check) => check.status !== "checked")
+      .map((check) => `${check.id}:${check.status}:${check.reasonCode}`);
+    throw new Error(`F437 Production refresh blocked: ${blockers.join(", ")}`);
+  }
+  const preview = await fixture.production.preview(
+    fixture.teamId,
+    fixture.projectId,
+    fixture.orderId,
+    fixture.manifestId,
+    "standard",
+    fixture.userId,
+  );
+  return fixture.production.confirm({
     teamId: fixture.teamId,
     projectId: fixture.projectId,
     releaseOrderId: fixture.orderId,
@@ -640,4 +817,19 @@ export async function confirmProductionRun(
     expectedInputHash: preview.inputHash,
     idempotencyKey,
   });
+}
+
+function localAcceptanceConfig(base: ConfigService, port: number) {
+  const values: Record<string, string> = {
+    SITE_PROBE_LOCAL_ACCEPTANCE_PROFILE: "parity-hosts-v1",
+    SITE_PROBE_LOCAL_ACCEPTANCE_HOSTNAME: "parity.example.test",
+    SITE_PROBE_LOCAL_ACCEPTANCE_PORT: String(port),
+    PARITY_GOAL_ID: "devpilot-v13-opencode-acceptance",
+    PARITY_REQUIRE_VERIFIED_RUNTIME: "1",
+    PARITY_RUNTIME_ID: `c5-${"a".repeat(8)}-${"b".repeat(32)}`,
+    PARITY_SOURCE_REVISION: "c".repeat(40),
+  };
+  return {
+    get: (key: string) => values[key] ?? base.get(key),
+  } as ConfigService;
 }

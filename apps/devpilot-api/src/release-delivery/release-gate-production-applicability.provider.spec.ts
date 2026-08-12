@@ -28,6 +28,50 @@ describe("ReleaseGateProductionApplicabilityProvider", () => {
     });
   });
 
+  it("ignores a stale fallback run and uses the exact frozen first-release preview", () => {
+    const value = context("production_pre_execution");
+    delete value.decisionTarget!.releaseRunId;
+    expect(provider.evaluate(gate("D06"), value, now)).toMatchObject({
+      status: "checked",
+      reasonCode: "d06_not_applicable_standard_strategy",
+      evidenceIdentity: {
+        releaseRunId: null,
+        previewInputHash: "preview-hash",
+        environmentId: "environment-1",
+        providerKey: "ssh-v1",
+        bindingId: "binding-1",
+      },
+    });
+    expect(provider.evaluate(gate("D19"), value, now)).toMatchObject({
+      status: "checked",
+      reasonCode: "rollback_not_applicable_first_release",
+      evidenceIdentity: { currentVersionId: null, historyCount: 0,
+        releaseRunId: null },
+    });
+    value.decisionTarget!.releaseRunId = "different-release";
+    expect(provider.evaluate(gate("D06"), value, now)).toMatchObject({
+      status: "unavailable", reasonCode: "standard_strategy_fact_missing",
+    });
+    expect(provider.evaluate(gate("D19"), value, now)).toMatchObject({
+      status: "unavailable", reasonCode: "first_release_fact_missing",
+    });
+    delete value.decisionTarget!.releaseRunId;
+    value.decisionCheckpoint = "production_post_deploy";
+    expect(provider.evaluate(gate("D06"), value, now)).toMatchObject({
+      status: "unavailable",
+      reasonCode: "standard_strategy_fact_missing",
+    });
+    expect(provider.evaluate(gate("D19"), value, now)).toMatchObject({
+      status: "unavailable",
+      reasonCode: "first_release_fact_missing",
+    });
+    value.decisionTarget!.releaseRunId = "different-release";
+    expect(provider.evaluate(gate("D06"), value, now)).toMatchObject({
+      status: "unavailable",
+      reasonCode: "standard_strategy_fact_missing",
+    });
+  });
+
   it("accepts only an exact known single-host binding for D09", () => {
     const value = context("production_pre_execution");
     expect(provider.evaluate(gate("D09"), value, now)).toMatchObject({
@@ -59,6 +103,11 @@ describe("ReleaseGateProductionApplicabilityProvider", () => {
     expect(provider.evaluate(gate("D19"), first, now)).toMatchObject({
       status: "checked",
       reasonCode: "current_stable_artifact_recoverable",
+      evidenceIdentity: {
+        versionId: "version-1", deploymentRunId: "deployment-1",
+        deploymentStatus: "completed", deploymentDryRun: "false",
+        manifestId: "manifest-1", manifestItemCount: 1,
+      },
     });
   });
 
@@ -164,8 +213,13 @@ function context(checkpoint?: "production_pre_execution") {
     releaseVersion: "1.0.0",
     decisionCheckpoint: checkpoint,
     decisionTarget: {
+      environmentId: "environment-1",
       providerKey: "ssh-v1",
       bindingId: "binding-1",
+      releaseStrategy: "standard",
+      requireProductionApproval: true,
+      previewInputHash: "preview-hash",
+      releaseRunId: "release-1",
     },
     project: {
       repositoryConnection: null,

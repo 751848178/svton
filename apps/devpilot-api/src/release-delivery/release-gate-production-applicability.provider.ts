@@ -6,6 +6,7 @@ import { evaluated, record, unavailable } from "./release-gate-provider.types";
 import { evaluateCandidatePromotionGate } from "./release-gate-candidate-promotion.policy";
 import { evaluateProductionNotApplicable } from "./release-gate-production-na.policy";
 import { evaluateExactCapacity } from "./release-gate-capacity.policy";
+import { exactStandardStrategyFact } from "./release-gate-standard-strategy.policy";
 
 const STANDARD_NA_GATES = new Set(["P07", "P08"]);
 
@@ -40,13 +41,12 @@ export class ReleaseGateProductionApplicabilityProvider {
 
 
   private standard(id: string, context: ReleaseGateEvidenceContext, now: Date) {
-    const run = context.promote?.releaseRun;
-    const policy = record(record(run?.policySnapshot).releasePolicy);
-    if (!run || policy.strategy !== "standard" || policy.requireProductionApproval !== true) {
+    const standard = exactStandardStrategyFact(context);
+    if (!standard) {
       return unavailable(
         "standard_strategy_fact_missing",
-        "缺少绑定本次 ReleaseRun 的标准发布策略事实",
-        "The exact ReleaseRun has no standard-strategy fact",
+        "缺少绑定本次动作的标准发布策略事实",
+        "The exact action has no standard-strategy fact",
       );
     }
     const target = context.decisionTarget;
@@ -69,8 +69,9 @@ export class ReleaseGateProductionApplicabilityProvider {
       reasonCode: `${id.toLowerCase()}_not_applicable_standard_strategy`,
       zh: "标准单主机发布不使用高级流量或渐进观测策略（已按冻结策略判定）",
       en: "Advanced traffic or progressive-observation strategy is not applicable to the frozen standard single-host release",
-      evidenceRef: `release-run:${run.id}#standard-strategy`,
-      checkedAt: run.createdAt,
+      evidenceRef: standard.evidenceRef,
+      checkedAt: standard.checkedAt,
+      evidenceIdentity: standard.identity,
       now,
     });
   }
@@ -104,16 +105,16 @@ export class ReleaseGateProductionApplicabilityProvider {
     if (!environment) return unavailable("production_environment_missing", "Production 环境不存在", "Production environment is missing");
     const current = environment.currentEnvironmentVersion;
     if (!current && environment.environmentVersions.length === 0) {
-      const run = context.promote?.releaseRun;
-      if (!run) return unavailable("first_release_fact_missing", "首次发布事实缺失", "First-release fact is missing");
-      return evaluated({ status: "checked", reasonCode: "rollback_not_applicable_first_release", zh: "首次 Production 发布没有上一稳定版本（已判定不适用）", en: "No previous stable version exists for the first Production release", evidenceRef: `environment:${environment.id}#first-release`, checkedAt: run.createdAt, now });
+      const standard = exactStandardStrategyFact(context);
+      if (!standard) return unavailable("first_release_fact_missing", "首次发布事实缺失", "First-release fact is missing");
+      return evaluated({ status: "checked", reasonCode: "rollback_not_applicable_first_release", zh: "首次 Production 发布没有上一稳定版本（已判定不适用）", en: "No previous stable version exists for the first Production release", evidenceRef: `environment:${environment.id}#first-release;${standard.evidenceRef}`, checkedAt: standard.checkedAt, evidenceIdentity: { ...standard.identity, environmentId: environment.id, currentVersionId: null, historyCount: 0 }, now });
     }
     const candidate = current
       ? environment.environmentVersions.find((item) => item.id === current.id)
       : undefined;
     if (!candidate) return unavailable("current_version_integrity_invalid", "Production 当前版本指针与历史不一致", "Production current-version pointer is inconsistent with history");
     const valid = candidate.deploymentRun.status === "completed" && !candidate.deploymentRun.dryRun && /^sha256:[a-f0-9]{64}$/i.test(candidate.artifactManifest.digest) && candidate.artifactManifest.items.length > 0;
-    return evaluated({ status: valid ? "checked" : "blocked", reasonCode: valid ? "current_stable_artifact_recoverable" : "current_stable_artifact_invalid", zh: valid ? "发布前当前稳定版本可用于 recovery" : "发布前当前版本不可恢复", en: valid ? "The pre-release current stable version is recoverable" : "The pre-release current version is not recoverable", evidenceRef: `environment-version:${candidate.id};artifact-manifest:${candidate.artifactManifest.id}`, checkedAt: candidate.effectiveAt, now });
+    return evaluated({ status: valid ? "checked" : "blocked", reasonCode: valid ? "current_stable_artifact_recoverable" : "current_stable_artifact_invalid", zh: valid ? "发布前当前稳定版本可用于 recovery" : "发布前当前版本不可恢复", en: valid ? "The pre-release current stable version is recoverable" : "The pre-release current version is not recoverable", evidenceRef: `environment-version:${candidate.id};artifact-manifest:${candidate.artifactManifest.id}`, checkedAt: candidate.effectiveAt, evidenceIdentity: { environmentId: environment.id, currentVersionId: candidate.id, versionId: candidate.id, deploymentRunId: candidate.deploymentRun.id, deploymentStatus: candidate.deploymentRun.status, deploymentDryRun: String(candidate.deploymentRun.dryRun), manifestId: candidate.artifactManifest.id, manifestDigest: candidate.artifactManifest.digest, manifestItemCount: candidate.artifactManifest.items.length }, now });
   }
 
   private recoveryCompatibility(context: ReleaseGateEvidenceContext, now: Date) {

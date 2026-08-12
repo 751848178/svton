@@ -254,11 +254,18 @@ function proofFor(preview: any, deploymentSnapshot: any) {
       .requiredGateIds.map((id) => ({
         id, status: id === "D13" ? "manual" : "checked",
         fresh: true, expiresAt: "2099-01-01T00:00:00.000Z",
-        evidenceIdentity: ["D14", "D15"].includes(id)
-          ? { configRevisionId: deploymentSnapshot.configRevision.id }
-          : undefined,
+        evidenceIdentity: admissionIdentity(id, preview, deploymentSnapshot),
       })),
   };
+}
+
+function admissionIdentity(id: string, preview: any, deployment: any):
+Record<string, string | number | null> | undefined {
+  if (["D14", "D15"].includes(id)) {
+    return { configRevisionId: deployment.configRevision.id };
+  }
+  return id === "D19" ? { environmentId: preview.snapshot.environment.id,
+    currentVersionId: null, historyCount: 0 } : undefined;
 }
 
 function deferred() {
