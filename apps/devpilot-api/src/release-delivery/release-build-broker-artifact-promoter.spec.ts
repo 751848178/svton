@@ -14,12 +14,39 @@ describe("broker artifact supervisor promotion", () => {
     await promoteBrokerArtifacts(fixture.input);
     await expect(readFile(join(fixture.final, "project-1/order-1/build-1/bundle.zip"), "utf8"))
       .resolves.toBe("bundle");
-    await expect(readFile(join(fixture.final,
-      "evidence/project-1/order-1/build-1/scanner.json"), "utf8"))
-      .resolves.toBe("scanner");
+    for (const scanner of ["secrets", "sast", "vulnerability"])
+      await expect(readFile(join(fixture.final,
+        `evidence/project-1/order-1/build-1/${scanner}.json`), "utf8"))
+        .resolves.toBe(scanner);
     await expect(readFile(join(fixture.final,
       "evidence/project-1/order-1/build-1/package.json"), "utf8"))
       .resolves.toBe("package");
+    await expect(readFile(join(fixture.final,
+      "project-1/order-1/build-1/ArtifactManifest.json"), "utf8"))
+      .resolves.toBe("manifest");
+  });
+
+  it("is idempotent for retry and concurrent identical publication", async () => {
+    const retry = await setup();
+    await promoteBrokerArtifacts(retry.input);
+    await expect(promoteBrokerArtifacts(retry.input)).resolves.toBeUndefined();
+
+    const concurrent = await setup();
+    await expect(Promise.all([
+      promoteBrokerArtifacts(concurrent.input),
+      promoteBrokerArtifacts(concurrent.input),
+    ])).resolves.toEqual([undefined, undefined]);
+  });
+
+  it("detects evidence conflict before publishing bundle or manifest", async () => {
+    const fixture = await setup();
+    const finalEvidence = join(fixture.final, "evidence/project-1/order-1/build-1");
+    await mkdir(finalEvidence, { recursive: true });
+    await writeFile(join(finalEvidence, "sast.json"), "different");
+    await expect(promoteBrokerArtifacts(fixture.input)).rejects
+      .toMatchObject({ detail: { code: "ARTIFACT_ALREADY_EXISTS" } });
+    await expect(access(join(fixture.final, "project-1/order-1/build-1")))
+      .rejects.toBeDefined();
   });
 
   it("rejects digest drift and symlinks before final publication", async () => {
@@ -51,7 +78,9 @@ describe("broker artifact supervisor promotion", () => {
     const component = join(build, "components/api.zip");
     await Promise.all([
       writeFile(bundle, "bundle"), writeFile(component, "component"),
-      writeFile(join(trustedEvidence, "scanner.json"), "scanner"),
+      writeFile(join(build, "ArtifactManifest.json"), "manifest"),
+      ...["secrets", "sast", "vulnerability"].map((scanner) =>
+        writeFile(join(trustedEvidence, `${scanner}.json`), scanner)),
       writeFile(join(rawEvidence, "package.json"), "package"),
     ]);
     const result = {

@@ -23,12 +23,21 @@ describe("supervisor evidence promotion", () => {
     await expect(promoteSupervisorEvidence({ trustedRoot, outputRoot,
       projectId: "project-1", releaseOrderId: "order-1", buildRunId: "build-1" }))
       .resolves.toBe(1);
+    await expect(Promise.all([1, 2].map(() => promoteSupervisorEvidence({
+      trustedRoot, outputRoot, projectId: "project-1",
+      releaseOrderId: "order-1", buildRunId: "build-1",
+    })))).resolves.toEqual([1, 1]);
     const target = join(outputRoot, "artifacts", "evidence", "project-1",
       "order-1", "build-1", name);
     expect(await readFile(target)).toEqual(report);
     expect(`release-evidence://build-1/${name}`).toMatch(/^release-evidence:\/\/build-1\//);
     expect(await readdir(join(outputRoot, "artifacts"))).toEqual(["evidence"]);
     expect(JSON.parse((await readFile(target)).toString()).result.status).toBe("failed");
+    await expect(promoteSupervisorEvidence({ trustedRoot, outputRoot,
+      projectId: "project-1", releaseOrderId: "order-1", buildRunId: "build-1" }))
+      .resolves.toBe(1);
+    await expect(readdir(join(outputRoot, "artifacts")))
+      .resolves.toEqual(["evidence"]);
   });
 
   it("fails closed on a digest or build identity mismatch", async () => {

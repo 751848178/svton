@@ -2,6 +2,7 @@ import { constants } from "node:fs";
 import { createHash, randomUUID } from "node:crypto";
 import { link, lstat, mkdir, open, readdir, realpath, rm } from "node:fs/promises";
 import { isAbsolute, join, relative } from "node:path";
+import { withReleaseBuildPublicationLock } from "./release-build-artifact-set-publisher";
 
 export async function promoteSupervisorEvidence(input: {
   trustedRoot: string;
@@ -22,13 +23,16 @@ export async function promoteSupervisorEvidence(input: {
     throw error;
   });
   if (!names.length) return 0;
-  await safeDirectory(targetBase, ids);
-  await Promise.all([assertDirectory(sourceBase), assertDirectory(source),
-    assertDirectory(targetBase), assertDirectory(target)]);
+  await Promise.all([assertDirectory(sourceBase), assertDirectory(source)]);
   await assertConfined(sourceBase, source);
-  await assertConfined(targetBase, target);
-  for (const name of names) await promoteFile(source, target, name, input.buildRunId);
-  return names.length;
+  const lockTarget = join(input.outputRoot, ".publish-locks", ...ids);
+  return withReleaseBuildPublicationLock(lockTarget, async () => {
+    await safeDirectory(targetBase, ids);
+    await Promise.all([assertDirectory(targetBase), assertDirectory(target)]);
+    await assertConfined(targetBase, target);
+    for (const name of names) await promoteFile(source, target, name, input.buildRunId);
+    return names.length;
+  });
 }
 
 async function promoteFile(source: string, target: string, name: string,

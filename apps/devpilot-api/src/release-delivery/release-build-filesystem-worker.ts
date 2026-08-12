@@ -51,7 +51,7 @@ export class ReleaseBuildFilesystemWorker {
       inputDirectory, secretFile: this.config.secretFile, request,
     });
     const signal = combineSignals(cancellation.signal, shutdownSignal);
-    let evidencePromoted = false;
+    let artifactsPromoted = false;
     let assigned: AssignedReleaseBuildWorkerRequest | undefined;
     let dependencyStore: { fetchRunId: string; cacheGeneration: number;
       combinationHash: string; storeDigest: string } | undefined;
@@ -62,8 +62,6 @@ export class ReleaseBuildFilesystemWorker {
         cancelGraceMs: this.config.cancelGraceMs });
       const scanned = await prepareWorkerScan({ request, profile, sourceRoot,
         trustedRoot, config: this.config, signal });
-      await this.promoteEvidence(trustedRoot, request);
-      evidencePromoted = true;
       await publishWorkerScanReady({ outputDirectory,
         secretFile: this.config.secretFile, request,
         security: scanned.prepared.security });
@@ -92,6 +90,7 @@ export class ReleaseBuildFilesystemWorker {
       const buildResult = await executeAssignedWorkerBuild({ request: assigned,
         profile, scanned, dependency: preparedDependency, dependencyStore,
         config: this.config, signal });
+      artifactsPromoted = true;
       await this.writeResult(outputDirectory, assigned.identity, "succeeded", {
         ...buildResult,
         gateSummary: supervisorGateSummary(
@@ -106,7 +105,7 @@ export class ReleaseBuildFilesystemWorker {
       }, undefined, dependencyStore);
     } catch (error) {
       let failureSource = error;
-      if (!evidencePromoted) {
+      if (!artifactsPromoted) {
         try { await this.promoteEvidence(trustedRoot, request); }
         catch (promotionError) { failureSource = promotionError; }
       }
