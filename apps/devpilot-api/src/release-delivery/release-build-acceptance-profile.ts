@@ -67,8 +67,8 @@ const SEMGREP_CONFIG_ARGV = SEMGREP_RULE_PATHS.flatMap((path) => [
 
 const PROFILE: RegisteredReleaseBuildProfile = {
   id: "controlled-local-acceptance-v2",
-  profileVersion: 6,
-  runnerVersion: "release-build-runner-v6",
+  profileVersion: 7,
+  runnerVersion: "release-build-runner-v7",
   externalRequiredChecks: 0,
   requiredIndependentApprovals: 1,
   highRiskPathPrefixes: HIGH_RISK_PATHS,
@@ -96,7 +96,7 @@ const PROFILE: RegisteredReleaseBuildProfile = {
       "scan", ...SEMGREP_CONFIG_ARGV,
       "--metrics", "off", "--disable-version-check",
       "--json", "--output", "{reportPath}", "{checkoutRoot}",
-    ], "fd7c589911672528ba190da81f9d0777343bb5c2c8678e8810268afa5d97aca3"),
+    ], "96558544296879afb10ecb63fb1dc70c9cada2e48c68461560d949ab30a859e9"),
     scanner("vulnerabilities", "/usr/local/bin/trivy", "0.73.0", [
       "fs", "--format", "json", "--output", "{reportPath}",
       "--cache-dir", "/opt/devpilot/security/trivy-cache",
@@ -120,7 +120,7 @@ const PROFILE: RegisteredReleaseBuildProfile = {
       pnpmPathExecutable: "sha256:4dc93970ff042377f241cd53d3ca8cb0b28939b878757526956ae95bbfdc0977",
       semgrepRequirements: "sha256:278aedc50045986f04e0eb268e5e42883bed7bdf6bff64d08cc2ef455f0b334c",
       semgrepRules: "sha256:b7e483abf001c405a3e908251ff66cb198a26702aff5fe4c5f0c4b2fffec4919",
-      semgrepRuleManifest: "sha256:50f2b21179f82f6c7248122df5a141974c14c3657965cfe9d7465eb0841179ae",
+      semgrepRuleManifest: "sha256:3b7b9fdb4c6c89de38b73f79eae32dcf2511c39d05743ee1adfa605a9dcc85e9",
       trivyDatabase: "sha256:e5c54b277db94d2973c2d4fdf68c94be8729a3d5fc2e48e7da04b6dacdf0bb71",
       trivyDatabaseLayer: "sha256:4cdc607a113f80be2873b1dd3ebf08bc6f3d171e491dbee48dd2debe837aa848",
       gitleaksAmd64: "sha256:551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb",

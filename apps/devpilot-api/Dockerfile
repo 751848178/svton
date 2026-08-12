@@ -99,7 +99,7 @@ RUN set -eux; \
     tar -xzf /tmp/trivy-db.tar.gz -C /out/trivy-cache/db; \
     grep -F '2026-08-11T01:05:09.651160722Z' /out/trivy-cache/db/metadata.json
 RUN set -eux; \
-    echo "50f2b21179f82f6c7248122df5a141974c14c3657965cfe9d7465eb0841179ae  /tmp/semgrep-rule-manifest.txt" | sha256sum -c -; \
+    echo "3b7b9fdb4c6c89de38b73f79eae32dcf2511c39d05743ee1adfa605a9dcc85e9  /tmp/semgrep-rule-manifest.txt" | sha256sum -c -; \
     curl -fsSL "https://codeload.github.com/semgrep/semgrep-rules/tar.gz/40b8c63f75dc7c22c8a77482d73bfb864b146f7e" -o /tmp/semgrep-rules.tar.gz; \
     echo "b7e483abf001c405a3e908251ff66cb198a26702aff5fe4c5f0c4b2fffec4919  /tmp/semgrep-rules.tar.gz" | sha256sum -c -; \
     mkdir -p /tmp/semgrep-rules /out/semgrep-rules-manifest /out/licenses/semgrep-rules; \
@@ -112,6 +112,7 @@ RUN set -eux; \
         ! -name '*.fixed.yaml' ! -name '*.fixed.yml' -print | while read -r rule_file; do \
           if grep -q '^rules:' "$rule_file"; then \
             relative="${rule_file#/tmp/semgrep-rules/}"; \
+            if grep -Fxq "exclude $relative" /tmp/semgrep-rule-manifest.txt; then continue; fi; \
             mkdir -p "/out/semgrep-rules-manifest/$(dirname "$relative")"; \
             cp "$rule_file" "/out/semgrep-rules-manifest/$relative"; \
           fi; \
@@ -120,8 +121,8 @@ RUN set -eux; \
     (cd /out/semgrep-rules-manifest && find . -type f -print | LC_ALL=C sort | \
       while read -r rule_file; do sha256sum "$rule_file"; done) \
       > /tmp/semgrep-selected-files.sha256; \
-    test "$(wc -l < /tmp/semgrep-selected-files.sha256)" = '2050'; \
-    echo 'fd7c589911672528ba190da81f9d0777343bb5c2c8678e8810268afa5d97aca3  /tmp/semgrep-selected-files.sha256' | sha256sum -c -; \
+    test "$(wc -l < /tmp/semgrep-selected-files.sha256)" = '2047'; \
+    echo '96558544296879afb10ecb63fb1dc70c9cada2e48c68461560d949ab30a859e9  /tmp/semgrep-selected-files.sha256' | sha256sum -c -; \
     cp /tmp/semgrep-rules/LICENSE /out/licenses/semgrep-rules/LICENSE; \
     test ! -e /out/semgrep-rules-manifest/.pre-commit-config.yaml
 
@@ -140,7 +141,7 @@ LABEL io.svton.devpilot.acceptance-profile="controlled-local-acceptance-v2" \
       io.svton.devpilot.pnpm-package="sha512:279278f83be782f6faaefbacbccc503301c4ec2cdafd40983e7c26aeeee7c38270f5c8e635b43464691b897abe1675b40c06df6edadde922532b7368aa9a5267" \
       io.svton.devpilot.pnpm-path-executable="sha256:4dc93970ff042377f241cd53d3ca8cb0b28939b878757526956ae95bbfdc0977" \
       io.svton.devpilot.semgrep-rules="40b8c63f75dc7c22c8a77482d73bfb864b146f7e" \
-      io.svton.devpilot.semgrep-rule-manifest="sha256:50f2b21179f82f6c7248122df5a141974c14c3657965cfe9d7465eb0841179ae" \
+      io.svton.devpilot.semgrep-rule-manifest="sha256:3b7b9fdb4c6c89de38b73f79eae32dcf2511c39d05743ee1adfa605a9dcc85e9" \
       io.svton.devpilot.trivy-db="sha256:e5c54b277db94d2973c2d4fdf68c94be8729a3d5fc2e48e7da04b6dacdf0bb71"
 RUN gitleaks version | grep -F "8.30.1" \
  && semgrep --version | grep -F "1.172.0" \

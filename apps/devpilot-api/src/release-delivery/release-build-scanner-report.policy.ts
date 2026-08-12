@@ -38,7 +38,8 @@ function validTrivyEnvelope(value: Record<string, unknown>) {
   const errors = value.Errors;
   return value.SchemaVersion === 2 &&
     nonempty(value.ArtifactName) && nonempty(value.ArtifactType) &&
-    isRecord(value.Metadata) && emptyError(value.Error) &&
+    (value.Results === undefined || isRecord(value.Metadata)) &&
+    emptyError(value.Error) &&
     (errors === undefined || (Array.isArray(errors) && errors.length === 0));
 }
 

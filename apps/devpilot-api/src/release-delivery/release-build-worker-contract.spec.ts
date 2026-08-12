@@ -22,6 +22,10 @@ import {
   verifyWorkerResult,
   type ReleaseBuildWorkerIdentity,
 } from "./release-build-worker-envelope.policy";
+import { signWorkerDependencyAssignment, signWorkerDependencyStage,
+  signWorkerScanReady, verifyWorkerDependencyAssignment,
+  verifyWorkerDependencyStage, verifyWorkerScanReady,
+} from "./release-build-worker-stage-envelope.policy";
 import {
   readImmutableWorkerJson,
   workerJobDirectory,
@@ -39,8 +43,9 @@ describe("filesystem isolated worker contract", () => {
   afterEach(async () => rm(scope, { recursive: true, force: true }));
 
   it("derives role-separated HMACs and detects tampering", () => {
+    const requestIdentity = baseIdentity();
     const request = signWorkerRequest({
-      version: 1, identity: identity(), components: [],
+      version: 1, identity: requestIdentity, components: [],
       sourceManifest: { version: 1, entries: [], digest: "manifest" },
     }, secret);
     const result = signWorkerResult({
@@ -48,7 +53,7 @@ describe("filesystem isolated worker contract", () => {
       error: { code: "fixture", message: "fixture" },
     }, secret);
     const cancel = signWorkerCancellation({
-      version: 1, identity: identity(), reason: "canceled",
+      version: 1, identity: requestIdentity, reason: "canceled",
       requestedAt: new Date(0).toISOString(),
     }, secret);
     const ready = signWorkerDependencyReady({ version: 1, identity: identity(),
@@ -56,6 +61,7 @@ describe("filesystem isolated worker contract", () => {
         combinationHash: "hash",
         storeDigest: "digest" } }, secret);
     expect(verifyWorkerRequest(request, secret)).toBe(true);
+    expect(request.identity).not.toHaveProperty("dependency");
     expect(verifyWorkerResult(result, secret)).toBe(true);
     expect(verifyWorkerCancellation(cancel, secret)).toBe(true);
     expect(verifyWorkerDependencyReady(ready, secret)).toBe(true);
@@ -64,6 +70,25 @@ describe("filesystem isolated worker contract", () => {
     expect(JSON.stringify(request)).not.toContain("leaseToken");
     expect(verifyWorkerRequest({ ...request, components: [{ key: "tampered" }] as never }, secret))
       .toBe(false);
+  });
+
+  it("binds scan, assignment and fetch authorization to exact identities and roles", () => {
+    const base = baseIdentity();
+    const assigned = identity();
+    const scan = signWorkerScanReady({ version: 1, identity: base,
+      security: {} }, secret);
+    const assignment = signWorkerDependencyAssignment({ version: 1,
+      identity: assigned }, secret);
+    const starting = signWorkerDependencyStage({ version: 1,
+      identity: assigned, stage: "fetch-starting" }, secret);
+    expect(verifyWorkerScanReady(scan, secret, base)).toBe(true);
+    expect(verifyWorkerDependencyAssignment(assignment, secret, base)).toBe(true);
+    expect(verifyWorkerDependencyStage(starting, secret, assigned, "fetch-starting"))
+      .toBe(true);
+    expect(verifyWorkerDependencyStage(starting, secret, assigned, "fetch-authorized"))
+      .toBe(false);
+    expect(verifyWorkerDependencyAssignment({ ...assignment,
+      identity: { ...assigned, jobId: "replay-job" } }, secret, base)).toBe(false);
   });
 
   it("uses bounded no-follow atomic files with shared-group permissions", async () => {
@@ -114,12 +139,7 @@ describe("filesystem isolated worker contract", () => {
 
 function identity(): ReleaseBuildWorkerIdentity {
   return {
-    contract: "external-oci-launcher-v1", jobId: "job-12345678",
-    projectId: "project-1", releaseOrderId: "order-1", buildRunId: "build-1",
-    sourceCommitSha: "a".repeat(40), sourceTreeHash: "b".repeat(40),
-    sourceSnapshotDigest: "c".repeat(64), sourceArchiveDigest: "d".repeat(64),
-    sourceManifestDigest: "e".repeat(64), profileId: "controlled-local-acceptance-v2",
-    profileVersion: 2, profileSnapshotHash: "f".repeat(64),
+    ...baseIdentity(),
     dependency: { fetchRunId: `dep_${"1".repeat(64)}`, cacheGeneration: 1,
       combinationHash: "1".repeat(64), lockfileDigest: "2".repeat(64),
       profileId: "controlled-local-acceptance-v2", profileVersion: 2,
@@ -132,6 +152,17 @@ function identity(): ReleaseBuildWorkerIdentity {
       dependencyNetworkMode: "direct-public-dns-v1",
       engineEvidenceDigest: "4".repeat(64), mode: "reuse",
       storeDigest: "4".repeat(64) },
+  };
+}
+
+function baseIdentity() {
+  return {
+    contract: "external-oci-launcher-v1" as const, jobId: "job-12345678",
+    projectId: "project-1", releaseOrderId: "order-1", buildRunId: "build-1",
+    sourceCommitSha: "a".repeat(40), sourceTreeHash: "b".repeat(40),
+    sourceSnapshotDigest: "c".repeat(64), sourceArchiveDigest: "d".repeat(64),
+    sourceManifestDigest: "e".repeat(64), profileId: "controlled-local-acceptance-v2",
+    profileVersion: 2, profileSnapshotHash: "f".repeat(64),
     deadline: "2099-01-01T00:00:00.000Z",
   };
 }

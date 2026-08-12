@@ -8,13 +8,13 @@ import { releaseBuildFailureDetail } from "./release-build-failure.utils";
 import { ReleaseBuildPackageEvidenceService } from "./release-build-package-evidence.service";
 import { ReleaseBuildRuntimeProfileService } from "./release-build-runtime-profile.service";
 import type { ReleaseBuildExecutionResult } from "./release-build.types";
-import type { ReleaseBuildWorkerRequest } from "./release-build-worker-envelope.policy";
+import type { AssignedReleaseBuildWorkerRequest } from "./release-build-worker-stage-envelope.policy";
 import { createWritableBrokerWorkspace } from "./release-build-broker-workspace";
 import { verifyDependencyStore } from "./release-dependency-store-filesystem";
 
 export type ReleaseBuildBrokerInput = {
   version: 1;
-  request: Omit<ReleaseBuildWorkerRequest, "signature">;
+  request: Omit<AssignedReleaseBuildWorkerRequest, "signature">;
   jobRoot: string;
   workRoot: string;
   buildRoot: string;

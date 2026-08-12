@@ -63,8 +63,8 @@ describe("ReleaseBuildRuntimeProfileService", () => {
     expect(() => runtime.assertAvailable()).not.toThrow();
     expect(runtime.descriptor()).toEqual(expect.objectContaining({
       profile: "controlled-local-acceptance-v2",
-        profileVersion: 6,
-        runnerVersion: "release-build-runner-v6",
+        profileVersion: 7,
+        runnerVersion: "release-build-runner-v7",
       runTimeoutMs: 180_000,
       commandTimeoutMs: 120_000,
       cancelGraceMs: 5_000,

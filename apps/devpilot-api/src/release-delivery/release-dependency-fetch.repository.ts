@@ -25,16 +25,18 @@ export class ReleaseDependencyFetchRepository {
       const lease = createDependencyFetchLease(now);
       const claimed = await tx.releaseDependencyFetchRun.updateMany({
         where: { id: row.id, cacheGeneration: row.cacheGeneration, OR: [
-          { status: { in: ["queued", "failed", "unavailable", "invalidated"] } },
+          { status: "queued", OR: [
+            { leaseExpiresAt: null }, { leaseExpiresAt: { lt: now } }] },
+          { status: { in: ["failed", "unavailable", "invalidated"] } },
           { status: { in: ["fetching", "verifying"] }, leaseExpiresAt: { lt: now } },
         ] },
-        data: { status: "fetching", cacheGeneration: { increment: 1 },
+        data: { status: "queued", cacheGeneration: { increment: 1 },
           leaseTokenHash: lease.tokenHash, leasedAt: now, heartbeatAt: now,
           leaseExpiresAt: lease.expiresAt, errorCode: null, errorMessage: null,
           finishedAt: null },
       });
       return claimed.count === 1
-        ? { role: "owner" as const, row: { ...row, status: "fetching",
+        ? { role: "owner" as const, row: { ...row, status: "queued",
             cacheGeneration: row.cacheGeneration + 1 }, leaseToken: lease.token }
         : { role: "wait" as const, row };
     });
@@ -43,12 +45,24 @@ export class ReleaseDependencyFetchRepository {
   heartbeat(fetchRunId: string, generation: number, token: string, now = new Date()) {
     return this.prisma.releaseDependencyFetchRun.updateMany({
       where: { id: fetchRunId, cacheGeneration: generation,
-        status: { in: ["fetching", "verifying"] },
+        status: { in: ["queued", "fetching", "verifying"] },
         leaseTokenHash: dependencyFetchLeaseTokenHash(token),
         leaseExpiresAt: { gt: now } },
       data: { heartbeatAt: now,
         leaseExpiresAt: new Date(now.getTime() + DEPENDENCY_FETCH_LEASE_MS) },
     });
+  }
+
+  async markFetching(fetchRunId: string, generation: number, token: string,
+    now = new Date()) {
+    const result = await this.prisma.releaseDependencyFetchRun.updateMany({
+      where: { id: fetchRunId, cacheGeneration: generation, status: "queued",
+        leaseTokenHash: dependencyFetchLeaseTokenHash(token),
+        leaseExpiresAt: { gt: now } },
+      data: { status: "fetching", heartbeatAt: now,
+        leaseExpiresAt: new Date(now.getTime() + DEPENDENCY_FETCH_LEASE_MS) },
+    });
+    if (result.count !== 1) throw conflict();
   }
 
   async markVerifying(fetchRunId: string, generation: number, token: string,
@@ -115,7 +129,7 @@ export class ReleaseDependencyFetchRepository {
     code: string; message: string }, now = new Date()) {
     const result = await this.prisma.releaseDependencyFetchRun.updateMany({
       where: { id: input.fetchRunId, cacheGeneration: input.cacheGeneration,
-        status: { in: ["fetching", "verifying"] },
+        status: { in: ["queued", "fetching", "verifying"] },
         leaseTokenHash: dependencyFetchLeaseTokenHash(input.leaseToken),
         leaseExpiresAt: { gt: now } },
       data: { status: input.status, errorCode: input.code,
@@ -127,7 +141,7 @@ export class ReleaseDependencyFetchRepository {
       where: { id: input.fetchRunId },
       select: { cacheGeneration: true, status: true } });
     if (current && (current.cacheGeneration > input.cacheGeneration ||
-      !["fetching", "verifying"].includes(current.status))) return;
+      !["queued", "fetching", "verifying"].includes(current.status))) return;
     throw conflict();
   }
 }

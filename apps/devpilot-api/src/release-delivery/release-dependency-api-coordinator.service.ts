@@ -87,6 +87,13 @@ export class ReleaseDependencyApiCoordinator {
     this.active.delete(buildRunId);
   }
 
+  async startFetch(buildRunId: string, dependency: WorkerDependency) {
+    if (dependency.mode !== "fetch") return;
+    const leaseToken = this.lease(buildRunId, dependency);
+    await this.repository.markFetching(dependency.fetchRunId,
+      dependency.cacheGeneration, leaseToken);
+  }
+
   async acceptFinal(buildRunId: string, dependency: WorkerDependency,
     result: ReleaseBuildWorkerResult) {
     if (dependency.mode === "reuse" &&

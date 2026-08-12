@@ -1,14 +1,13 @@
 import { Injectable } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { ReleaseBuildExecutionError } from "./release-build-execution.error";
+import { coordinateWorkerDependency } from "./release-build-api-stage-coordinator";
 import { releaseBuildExecutionFailure } from "./release-build-execution-failure";
 import { resolveRegisteredReleaseBuildProfile } from "./release-build-acceptance-profile";
 import { ReleaseBuildRuntimeProfileService } from "./release-build-runtime-profile.service";
 import { ReleaseBuildSourceSnapshotService } from "./release-build-source-snapshot.service";
-import type {
-  ReleaseBuildExecutionInput,
-  ReleaseBuildExecutionResult,
-} from "./release-build.types";
+import type { ReleaseBuildExecutionInput,
+  ReleaseBuildExecutionResult } from "./release-build.types";
 import { ReleaseBuildExecutorPort } from "./release-build.types";
 import { ReleaseDependencyApiCoordinator } from "./release-dependency-api-coordinator.service";
 import {
@@ -17,6 +16,7 @@ import {
   verifyWorkerDependencyReady,
   verifyWorkerResult,
   type ReleaseBuildWorkerIdentity,
+  type ReleaseBuildWorkerRequestIdentity,
 } from "./release-build-worker-envelope.policy";
 import {
   workerJobDirectory,
@@ -36,7 +36,8 @@ import { isolatedWorkerFailure as workerFailure, publishIsolatedWorkerCancel,
 @Injectable()
 export class FilesystemIsolatedReleaseBuildExecutorService
   extends ReleaseBuildExecutorPort {
-  private readonly jobs = new Map<string, ReleaseBuildWorkerIdentity>();
+  private readonly jobs = new Map<string,
+    ReleaseBuildWorkerRequestIdentity | ReleaseBuildWorkerIdentity>();
   constructor(
     private readonly runtime: ReleaseBuildRuntimeProfileService,
     private readonly snapshots: ReleaseBuildSourceSnapshotService,
@@ -88,15 +89,7 @@ export class FilesystemIsolatedReleaseBuildExecutorService
     const profileSnapshotHash = sourcePolicySnapshotHash(profileSnapshot);
     const supplyChainDigest = expectedReleaseBuildSupplyProof(profile).supplyChainDigest;
     const dependencyNetwork = this.runtime.dependencyNetworkEvidence();
-    const preparedDependency = await this.dependencies.prepare({
-      buildRunId: input.buildRunId, checkoutRoot: input.checkoutRoot,
-      manifest: archive.manifest, profileId: profile.id, deadline,
-      profileSnapshotHash, supplyChainDigest,
-      jobImage: this.runtime.workerJobImage!,
-      ...dependencyNetwork,
-    });
-    const dependency = preparedDependency;
-    const identity: ReleaseBuildWorkerIdentity = {
+    const requestIdentity: ReleaseBuildWorkerRequestIdentity = {
       contract: "external-oci-launcher-v1",
       jobId,
       projectId: input.projectId,
@@ -110,17 +103,24 @@ export class FilesystemIsolatedReleaseBuildExecutorService
       profileId: profile.id,
       profileVersion: profile.profileVersion,
       profileSnapshotHash,
-      dependency,
       deadline: deadline.toISOString(),
     };
-    this.jobs.set(input.buildRunId, identity);
+    this.jobs.set(input.buildRunId, requestIdentity);
     await writeImmutableWorkerJson(inputDirectory, "request.json", signWorkerRequest({
       version: 1,
-      identity,
+      identity: requestIdentity,
       components: input.components,
       sourceManifest: archive.manifest,
     }, secret), this.runtime.workerSharedGid);
-    try { return await this.awaitResult(identity, secret, signal); }
+    try {
+      const identity = await coordinateWorkerDependency({ runtime: this.runtime,
+        dependencies: this.dependencies, request: input, identity: requestIdentity,
+        manifest: archive.manifest, secret, signal,
+        jobImage: this.runtime.workerJobImage!, supplyChainDigest,
+        ...dependencyNetwork });
+      this.jobs.set(input.buildRunId, identity);
+      return await this.awaitResult(identity, secret, signal);
+    }
     catch (error) {
       if (error instanceof DependencyStoreRetryError) {
         if (dependencyRepairAttempt >= 1) throw workerFailure("DEPENDENCY_STORE_REPAIR_RETRY_EXHAUSTED");
@@ -135,8 +135,9 @@ export class FilesystemIsolatedReleaseBuildExecutorService
     if (!identity) return;
     const secret = await readReleaseBuildWorkerSecret(this.runtime.workerSecretFile);
     await publishIsolatedWorkerCancel(this.runtime, identity, secret, "canceled");
-    await this.dependencies.cancel(identity.buildRunId, identity.dependency,
-      "dependency_fetch_canceled");
+    if ("dependency" in identity)
+      await this.dependencies.cancel(identity.buildRunId, identity.dependency,
+        "dependency_fetch_canceled");
   }
 
   private async awaitResult(
@@ -195,5 +196,4 @@ export class FilesystemIsolatedReleaseBuildExecutorService
       "dependency_fetch_timeout");
     throw workerFailure("UNTRUSTED_WORKER_TIMEOUT");
   }
-
 }

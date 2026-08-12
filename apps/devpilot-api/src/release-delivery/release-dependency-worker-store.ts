@@ -5,11 +5,11 @@ import { evaluateReleaseDependencyLock } from "./release-dependency-lock.policy"
 import { readSignedPnpmLock } from "./release-dependency-lock.reader";
 import { quarantineDependencyStore,
   verifyDependencyStore } from "./release-dependency-store-filesystem";
-import type { ReleaseBuildWorkerRequest } from "./release-build-worker-envelope.policy";
+import type { AssignedReleaseBuildWorkerRequest } from "./release-build-worker-stage-envelope.policy";
 import { releaseBuildExecutionFailure } from "./release-build-execution-failure";
 
 export async function prepareWorkerDependencyStore(input: {
-  request: ReleaseBuildWorkerRequest; profile: RegisteredReleaseBuildProfile;
+  request: AssignedReleaseBuildWorkerRequest; profile: RegisteredReleaseBuildProfile;
   sourceRoot: string; cacheRoot: string; jobRoot: string;
   externalOci?: { image: string; dockerExecutable: string; launcherLabel: string;
     dependencyNetworkMode: "docker-desktop-engine-proxy-v1" | "direct-public-dns-v1";

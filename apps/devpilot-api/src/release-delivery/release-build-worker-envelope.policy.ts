@@ -11,7 +11,7 @@ import type { DependencyFetchIdentity } from "./release-dependency-store-contrac
 export const RELEASE_BUILD_WORKER_CONTRACT =
   "external-oci-launcher-v1" as const;
 
-export type ReleaseBuildWorkerIdentity = {
+export type ReleaseBuildWorkerRequestIdentity = {
   contract: typeof RELEASE_BUILD_WORKER_CONTRACT;
   jobId: string;
   projectId: string;
@@ -25,16 +25,19 @@ export type ReleaseBuildWorkerIdentity = {
   profileId: string;
   profileVersion: number;
   profileSnapshotHash: string;
+  deadline: string;
+};
+
+export type ReleaseBuildWorkerIdentity = ReleaseBuildWorkerRequestIdentity & {
   dependency: DependencyFetchIdentity & {
     mode: "fetch" | "reuse";
     storeDigest: string | null;
   };
-  deadline: string;
 };
 
 export type ReleaseBuildWorkerRequest = {
   version: 1;
-  identity: ReleaseBuildWorkerIdentity;
+  identity: ReleaseBuildWorkerRequestIdentity;
   components: ReleaseBuildExecutionInput["components"];
   sourceManifest: WorkerSourceManifest;
   signature: string;
@@ -42,7 +45,7 @@ export type ReleaseBuildWorkerRequest = {
 
 export type ReleaseBuildWorkerResult = {
   version: 1;
-  identity: ReleaseBuildWorkerIdentity;
+  identity: ReleaseBuildWorkerRequestIdentity | ReleaseBuildWorkerIdentity;
   status: "succeeded" | "failed" | "canceled";
   result?: ReleaseBuildExecutionResult;
   error?: { code: string; message: string };
@@ -54,7 +57,7 @@ export type ReleaseBuildWorkerResult = {
 
 export type ReleaseBuildWorkerCancellation = {
   version: 1;
-  identity: ReleaseBuildWorkerIdentity;
+  identity: ReleaseBuildWorkerRequestIdentity;
   reason: "canceled" | "timeout";
   requestedAt: string;
   signature: string;
@@ -72,28 +75,28 @@ export function signWorkerRequest(
   unsigned: Omit<ReleaseBuildWorkerRequest, "signature">,
   secret: string,
 ): ReleaseBuildWorkerRequest {
-  return { ...unsigned, signature: sign("request", unsigned, secret) };
+  return { ...unsigned, signature: signWorkerEnvelope("request", unsigned, secret) };
 }
 
 export function signWorkerResult(
   unsigned: Omit<ReleaseBuildWorkerResult, "signature">,
   secret: string,
 ): ReleaseBuildWorkerResult {
-  return { ...unsigned, signature: sign("result", unsigned, secret) };
+  return { ...unsigned, signature: signWorkerEnvelope("result", unsigned, secret) };
 }
 
 export function signWorkerCancellation(
   unsigned: Omit<ReleaseBuildWorkerCancellation, "signature">,
   secret: string,
 ): ReleaseBuildWorkerCancellation {
-  return { ...unsigned, signature: sign("cancel", unsigned, secret) };
+  return { ...unsigned, signature: signWorkerEnvelope("cancel", unsigned, secret) };
 }
 
 export function signWorkerDependencyReady(
   unsigned: Omit<ReleaseBuildWorkerDependencyReady, "signature">,
   secret: string,
 ): ReleaseBuildWorkerDependencyReady {
-  return { ...unsigned, signature: sign("dependency-ready", unsigned, secret) };
+  return { ...unsigned, signature: signWorkerEnvelope("dependency-ready", unsigned, secret) };
 }
 
 export function verifyWorkerRequest(
@@ -101,7 +104,7 @@ export function verifyWorkerRequest(
   secret: string,
 ) {
   const { signature, ...unsigned } = envelope;
-  return verify(signature, sign("request", unsigned, secret));
+  return verifyWorkerEnvelope(signature, signWorkerEnvelope("request", unsigned, secret));
 }
 
 export function verifyWorkerResult(
@@ -109,7 +112,7 @@ export function verifyWorkerResult(
   secret: string,
 ) {
   const { signature, ...unsigned } = envelope;
-  return verify(signature, sign("result", unsigned, secret));
+  return verifyWorkerEnvelope(signature, signWorkerEnvelope("result", unsigned, secret));
 }
 
 export function verifyWorkerCancellation(
@@ -117,7 +120,7 @@ export function verifyWorkerCancellation(
   secret: string,
 ) {
   const { signature, ...unsigned } = envelope;
-  return verify(signature, sign("cancel", unsigned, secret));
+  return verifyWorkerEnvelope(signature, signWorkerEnvelope("cancel", unsigned, secret));
 }
 
 export function verifyWorkerDependencyReady(
@@ -125,17 +128,18 @@ export function verifyWorkerDependencyReady(
   secret: string,
 ) {
   const { signature, ...unsigned } = envelope;
-  return verify(signature, sign("dependency-ready", unsigned, secret));
+  return verifyWorkerEnvelope(signature,
+    signWorkerEnvelope("dependency-ready", unsigned, secret));
 }
 
 export function sameWorkerIdentity(
-  left: ReleaseBuildWorkerIdentity,
-  right: ReleaseBuildWorkerIdentity,
+  left: ReleaseBuildWorkerRequestIdentity | ReleaseBuildWorkerIdentity,
+  right: ReleaseBuildWorkerRequestIdentity | ReleaseBuildWorkerIdentity,
 ) {
   return canonicalJson(left) === canonicalJson(right);
 }
 
-function sign(role: string, value: unknown, secret: string) {
+export function signWorkerEnvelope(role: string, value: unknown, secret: string) {
   const key = hkdfSync(
     "sha256",
     Buffer.from(secret),
@@ -149,7 +153,7 @@ function sign(role: string, value: unknown, secret: string) {
     .digest("hex");
 }
 
-function verify(actual: string, expected: string) {
+export function verifyWorkerEnvelope(actual: string, expected: string) {
   if (!/^[a-f0-9]{64}$/.test(actual)) return false;
   return timingSafeEqual(Buffer.from(actual, "hex"), Buffer.from(expected, "hex"));
 }

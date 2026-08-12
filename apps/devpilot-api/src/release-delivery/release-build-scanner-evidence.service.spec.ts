@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { RegisteredReleaseBuildProfile } from "./release-build-acceptance-profile";
 import { RELEASE_DEPENDENCY_STORE_POLICY } from "./release-dependency-store-profile";
 import { ReleaseBuildScannerEvidenceService } from "./release-build-scanner-evidence.service";
+import { promoteSupervisorEvidence } from "./release-build-supervisor-evidence-promoter";
 import { LocalReleaseEvidenceArtifactService } from "./local-release-evidence-artifact.service";
 
 describe("ReleaseBuildScannerEvidenceService", () => {
@@ -26,7 +27,7 @@ describe("ReleaseBuildScannerEvidenceService", () => {
     ]);
     await chmod(executable, 0o700);
     const artifacts = new LocalReleaseEvidenceArtifactService(
-      new ConfigService({ RELEASE_BUILD_ARTIFACT_ROOT: join(scope, "artifacts") }),
+      new ConfigService({ RELEASE_BUILD_ARTIFACT_ROOT: join(scope, "trusted/artifacts") }),
     );
     service = new ReleaseBuildScannerEvidenceService(artifacts);
   });
@@ -53,11 +54,16 @@ describe("ReleaseBuildScannerEvidenceService", () => {
     expect(result.secretScan.status).toBe("failed");
     const filename = result.secretScan.evidenceRef!.split("/").at(-1)!;
     const stored = await readFile(
-      join(scope, "artifacts/evidence/project-1/order-1/build-1", filename),
+      join(scope, "trusted/artifacts/evidence/project-1/order-1/build-1", filename),
       "utf8",
     );
     expect(stored).not.toContain("raw-secret");
     expect(stored).toContain("[REDACTED]");
+    await expect(promoteSupervisorEvidence({ trustedRoot: join(scope, "trusted"),
+      outputRoot: join(scope, "output"), projectId: "project-1",
+      releaseOrderId: "order-1", buildRunId: "build-1" })).resolves.toBe(3);
+    await expect(readFile(join(scope, "output/artifacts/evidence/project-1/order-1/build-1",
+      filename), "utf8")).resolves.toBe(stored);
   });
 
   it("refuses a scanner report symlink instead of following it", async () => {

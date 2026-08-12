@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { controlledBuildEnvironment } from "./release-build-command-policy";
 import { releaseBuildExecutionFailure } from "./release-build-execution-failure";
 import { signWorkerCancellation, type ReleaseBuildWorkerIdentity,
+  type ReleaseBuildWorkerRequestIdentity,
   type ReleaseBuildWorkerDependencyReady,
   type ReleaseBuildWorkerResult } from "./release-build-worker-envelope.policy";
 import { readImmutableWorkerJson, workerJobDirectory,
@@ -23,7 +24,7 @@ export function isolatedWorkerFailure(code: string) {
     "检查 Worker 状态后重试。");
 }
 export async function readIsolatedWorkerResult(
-  runtime: WorkerRoots, identity: ReleaseBuildWorkerIdentity,
+  runtime: WorkerRoots, identity: ReleaseBuildWorkerRequestIdentity,
 ) {
   const directory = await workerJobDirectory(runtime.workerOutputRoot,
     identity.jobId, false, runtime.workerSharedGid);
@@ -38,7 +39,7 @@ export async function readWorkerDependencyReady(
     join(directory, "dependency-ready.json"));
 }
 export async function publishIsolatedWorkerCancel(
-  runtime: WorkerRoots, identity: ReleaseBuildWorkerIdentity, secret: string,
+  runtime: WorkerRoots, identity: ReleaseBuildWorkerRequestIdentity, secret: string,
   reason: "canceled" | "timeout",
 ) {
   const directory = await workerJobDirectory(runtime.workerInputRoot,

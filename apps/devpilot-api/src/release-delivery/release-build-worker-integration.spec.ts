@@ -88,14 +88,16 @@ describe("filesystem isolated build worker exchange", () => {
       RELEASE_BUILD_COMMAND_TIMEOUT_MS: 5_000,
       RELEASE_BUILD_COMMAND_PATH: process.env.PATH,
     }));
+    const dependencies = { prepare: jest.fn().mockResolvedValue(dependency()),
+      startFetch: jest.fn(),
+      acceptReady: jest.fn().mockResolvedValue(undefined),
+      acceptFinal: jest.fn().mockResolvedValue("complete"),
+      heartbeat: jest.fn().mockResolvedValue(undefined),
+      cancel: jest.fn().mockResolvedValue(undefined) };
     const adapter = new FilesystemIsolatedReleaseBuildExecutorService(
       runtime,
       new ReleaseBuildSourceSnapshotService(),
-      { prepare: jest.fn().mockResolvedValue(dependency()),
-        acceptReady: jest.fn().mockResolvedValue(undefined),
-        acceptFinal: jest.fn().mockResolvedValue("complete"),
-        heartbeat: jest.fn().mockResolvedValue(undefined),
-        cancel: jest.fn().mockResolvedValue(undefined) } as never,
+      dependencies as never,
     );
     const execution = adapter.execute({
       buildRunId: "build-integration-1",
@@ -130,6 +132,9 @@ describe("filesystem isolated build worker exchange", () => {
     );
     expect(verifyWorkerResult(result, secret)).toBe(true);
     expect(result.status).toBe("failed");
+    expect(dependencies.prepare).not.toHaveBeenCalled();
+    expect(dependencies.startFetch).not.toHaveBeenCalled();
+    await expect(access(join(outputRoot, "artifacts"))).rejects.toThrow();
   }, 30_000);
 });
 

@@ -19,8 +19,9 @@ describe("release scanner report policy", () => {
   });
 
   it("accepts the real Trivy 0.73 repository shape with omitted Results", () => {
-    expect(validateReleaseScannerReport("vulnerabilities", envelope())).toEqual({
-      valid: true, findings: 0, report: envelope(),
+    const report = envelope(false);
+    expect(validateReleaseScannerReport("vulnerabilities", report)).toEqual({
+      valid: true, findings: 0, report,
     });
   });
 
@@ -36,7 +37,8 @@ describe("release scanner report policy", () => {
     { ...envelope(), SchemaVersion: "2" },
     { ...envelope(), SchemaVersion: 3 },
     { ...envelope(), ArtifactName: "" },
-    { ...envelope(), Metadata: [] },
+    { ...envelope(), Results: [], Metadata: undefined },
+    { ...envelope(), Results: [], Metadata: [] },
     { ...envelope(), Error: "database failure" },
     { ...envelope(), Errors: [{ message: "failure" }] },
     { ...envelope(), Results: {} },
@@ -50,7 +52,7 @@ describe("release scanner report policy", () => {
   });
 });
 
-function envelope() {
+function envelope(metadata = true) {
   return { SchemaVersion: 2, ArtifactName: "/workspace", ArtifactType: "repository",
-    Metadata: { Branch: "main", Commit: "a".repeat(40) } };
+    ...(metadata ? { Metadata: { Branch: "main", Commit: "a".repeat(40) } } : {}) };
 }

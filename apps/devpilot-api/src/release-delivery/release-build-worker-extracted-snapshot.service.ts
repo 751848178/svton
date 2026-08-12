@@ -1,4 +1,4 @@
-import type { ReleaseBuildWorkerIdentity } from "./release-build-worker-envelope.policy";
+import type { ReleaseBuildWorkerRequestIdentity } from "./release-build-worker-envelope.policy";
 import {
   verifyExtractedWorkerSource,
   type WorkerSourceManifest,
@@ -6,7 +6,7 @@ import {
 
 export class ReleaseBuildWorkerExtractedSnapshotService {
   constructor(
-    private readonly identity: ReleaseBuildWorkerIdentity,
+    private readonly identity: ReleaseBuildWorkerRequestIdentity,
     private readonly manifest: WorkerSourceManifest,
   ) {}
 

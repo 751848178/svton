@@ -32,14 +32,26 @@ describe("ReleaseDependencyFetchRepository", () => {
     if (result.role !== "owner") throw new Error("owner expected");
     expect(result.leaseToken).toMatch(/^[a-f0-9]{64}$/);
     expect(result.row.cacheGeneration).toBe(2);
+    expect(result.row.status).toBe("queued");
     expect(fixture.fetch.updateMany).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
+        status: "queued",
         leaseTokenHash: dependencyFetchLeaseTokenHash(result.leaseToken),
         leaseExpiresAt: expect.any(Date), heartbeatAt: expect.any(Date),
       }),
     }));
     expect(JSON.stringify(fixture.fetch.updateMany.mock.calls))
       .not.toContain(result.leaseToken);
+  });
+
+  it("marks fetching only after the worker starts the assigned fetch", async () => {
+    const fixture = setup(row("queued"), 1);
+    await repository(fixture).markFetching("dep_hash", 1, "raw");
+    expect(fixture.fetch.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ status: "queued",
+        leaseTokenHash: dependencyFetchLeaseTokenHash("raw") }),
+      data: expect.objectContaining({ status: "fetching" }),
+    }));
   });
 
   it.each(["fetching", "verifying"])("reclaims an expired %s lease", async (status) => {

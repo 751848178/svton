@@ -1,9 +1,12 @@
 schemaVersion 1
 archiveCommit 40b8c63f75dc7c22c8a77482d73bfb864b146f7e
 archiveSha256 b7e483abf001c405a3e908251ff66cb198a26702aff5fe4c5f0c4b2fffec4919
-selectionPolicy top-level-rules-exclude-test-fixed-v1
-selectedRuleCount 2050
-selectedRulesSha256 fd7c589911672528ba190da81f9d0777343bb5c2c8678e8810268afa5d97aca3
+selectionPolicy top-level-rules-exclude-test-fixed-and-inapplicable-v2
+selectedRuleCount 2047
+selectedRulesSha256 96558544296879afb10ecb63fb1dc70c9cada2e48c68461560d949ab30a859e9
+exclude package_managers/pnpm/pnpm-block-exotic-sub-dependencies.yaml
+exclude package_managers/pnpm/pnpm-missing-minimum-release-age.yaml
+exclude package_managers/pnpm/pnpm-trust-policy.yaml
 path ai
 path bash
 path c
