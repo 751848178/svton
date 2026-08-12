@@ -5,7 +5,8 @@ import {
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
-import { assertNoActiveProductionRouteSaga } from "../site/production-route-saga.guard";
+import { assertNoActiveProductionRouteSaga, routeSagaScope,
+} from "../site/production-route-saga.guard";
 import { loadProductionReleaseContext } from "./release-production-context.repository";
 import { productionPreview } from "./release-production-snapshot.utils";
 import { lockActionableReleaseOrder } from "./release-order-action-boundary";
@@ -181,6 +182,6 @@ export async function assertRecoveryReservationAvailable(
   scope: { teamId: string; projectId: string; environmentId: string },
 ) {
   await lockProductionEnvironmentForRelease(tx, scope);
-  await assertNoActiveProductionRouteSaga(tx, scope);
+  await assertNoActiveProductionRouteSaga(tx, routeSagaScope(scope));
   await assertNoActiveReleaseRunForEnvironment(tx, scope);
 }

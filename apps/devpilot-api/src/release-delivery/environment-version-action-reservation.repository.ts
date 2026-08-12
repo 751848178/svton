@@ -5,7 +5,8 @@ import { startProductionReleaseExecution } from "./environment-version-productio
 import { lockActionableReleaseOrder } from "./release-order-action-boundary";
 import { claimReleaseGateDecision } from "./release-gate-decision.repository";
 import type { ReleaseGateDecisionReference } from "./release-gate-decision.types";
-import { lockAndAssertNoActiveProductionRouteSaga } from "../site/production-route-saga.guard";
+import { lockAndAssertNoActiveProductionRouteSaga, routeSagaScope,
+} from "../site/production-route-saga.guard";
 
 export type EnvironmentVersionActionReservationInput = {
   teamId: string;
@@ -63,7 +64,7 @@ async function reserveResolvedEnvironmentVersionAction(
   if (!input.providerKey) {
     throw new ConflictException("环境部署缺少 Deployment Provider");
   }
-  await lockAndAssertNoActiveProductionRouteSaga(tx, input);
+  await lockAndAssertNoActiveProductionRouteSaga(tx, routeSagaScope(input));
   if (input.releaseRunId) await claimProduction(tx, input);
   const data = {
     teamId: input.teamId,

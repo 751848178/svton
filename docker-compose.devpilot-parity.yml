@@ -38,6 +38,9 @@ volumes:
   devpilot-parity-deploy-target-data:
     name: ${PARITY_COMPOSE_PROJECT:-devpilot-parity}-deploy-target-data
     labels: *runtime-labels
+  devpilot-parity-route-control:
+    name: ${PARITY_COMPOSE_PROJECT:-devpilot-parity}-route-control
+    labels: *runtime-labels
 
 networks:
   default:
@@ -202,6 +205,9 @@ services:
     environment:
       PORT: ${PARITY_ROUTE_CONTROL_PORT:-43993}
       ROUTE_CONTROL_TOKEN: ${PARITY_ROUTE_CONTROL_TOKEN:-devpilot-parity-route-control-token-0001}
+      ROUTE_CONTROL_STATE_FILE: /var/lib/route-control/state.json
+    volumes:
+      - devpilot-parity-route-control:/var/lib/route-control
     command: ["node", "/app/parity-route-control-provider.mjs"]
     networks:
       default:

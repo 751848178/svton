@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { createServer, request } from "node:http";
 import { once } from "node:events";
+import { mkdtemp, rm } from "node:fs/promises";
+import { join } from "node:path";
 import { createRouteControlServer } from "../parity-route-control-provider.mjs";
 
 const token = "route-control-self-test-token-0000000000000000";
@@ -14,7 +16,9 @@ const target = createServer((request, response) => {
 await listen(target);
 
 const targetPort = target.address().port;
-const provider = createRouteControlServer({ token });
+const stateRoot = await mkdtemp(join(process.cwd(), ".route-control-self-test-"));
+const stateFile = join(stateRoot, "state.json");
+const provider = createRouteControlServer({ token, stateFile });
 await listen(provider);
 const providerPort = provider.address().port;
 
@@ -33,8 +37,18 @@ try {
     proxyTarget: `http://127.0.0.1:${targetPort}/`,
     targetRef: "filesystem-release-target",
     routeHash: "a".repeat(64),
+    expectedCurrent: null,
+    entries: [],
   };
   const routeUrl = `http://127.0.0.1:${providerPort}/v1/routes/${encodeURIComponent(input.operationId)}`;
+  const capabilities = await fetch(`http://127.0.0.1:${providerPort}/v1/capabilities`,
+    { headers: authorizationHeaders() });
+  assert.equal(capabilities.status, 200);
+  const currentUrl = `http://127.0.0.1:${providerPort}/v1/routes/current?${new URLSearchParams({
+    teamId: input.teamId, projectId: input.projectId,
+    environmentId: input.environmentId, siteId: input.siteId })}`;
+  assert.equal((await (await fetch(currentUrl, { headers: authorizationHeaders() })).json()).route,
+    null);
   assert.equal((await fetch(routeUrl, { method: "GET" })).status, 401);
   assert.equal(
     (
@@ -56,6 +70,13 @@ try {
     routeHash: input.routeHash,
   });
   assert.ok(Number.isFinite(Date.parse(readback.observedAt)));
+  assert.equal((await (await fetch(currentUrl, { headers: authorizationHeaders() })).json())
+    .route.operationId, input.operationId);
+  const stale = { ...input, operationId: `site-route:stale:${"d".repeat(64)}`,
+    expectedCurrent: null };
+  assert.equal((await fetch(`http://127.0.0.1:${providerPort}/v1/routes/${encodeURIComponent(
+    stale.operationId)}`, { method: "PUT", headers: authorizationHeaders(),
+    body: JSON.stringify(stale) })).status, 409);
 
   const domainLive = await requestDomain(
     providerPort,
@@ -122,6 +143,8 @@ try {
     operationId: `site-route:failed:${"b".repeat(64)}`,
     siteId: "failed-site",
     deploymentRunId: "failed-deployment",
+    primaryDomain: "failed.parity.example.test",
+    domains: ["failed.parity.example.test"],
     proxyTarget: "http://127.0.0.1:1/",
     routeHash: "b".repeat(64),
   };
@@ -139,7 +162,7 @@ try {
   const failedLive = await fetch(
     `http://127.0.0.1:${providerPort}/sites/failed-site/`,
   );
-  assert.equal(failedLive.status, 400);
+  assert.equal(failedLive.status, 502);
   assert.equal(
     (
       await fetch(rejectedUrl, {
@@ -151,6 +174,7 @@ try {
 } finally {
   provider.close();
   target.close();
+  await rm(stateRoot, { recursive: true, force: true });
 }
 
 function authorizationHeaders() {

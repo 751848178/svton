@@ -21,10 +21,13 @@ describe("ProductionRouteSagaGuard", () => {
     };
 
     await expect(
-      assertNoActiveProductionRouteSaga(client as never, scope),
+      assertNoActiveProductionRouteSaga(client as never, {
+        ...scope, kind: "upgrade",
+      } as never),
     ).rejects.toThrow("compensation_required");
     expect(client.siteRouteSwitchRun.findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining(scope) }),
+      { where: { ...scope, status: { in: expect.any(Array) } },
+        select: { operationId: true, status: true } },
     );
   });
 

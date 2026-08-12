@@ -10,7 +10,8 @@ import {
   lockProductionEnvironmentForRelease,
 } from "./release-run-concurrency.utils";
 import { releaseOperationApprovalSelect } from "./release-operation-approval.select";
-import { assertNoActiveProductionRouteSaga } from "../site/production-route-saga.guard";
+import { assertNoActiveProductionRouteSaga, routeSagaScope,
+} from "../site/production-route-saga.guard";
 
 const releaseRunInclude = {
   operationApproval: {
@@ -108,11 +109,11 @@ export class ReleaseProductionRepository {
         projectId: input.projectId,
         environmentId: snapshot.environment.id,
       });
-      await assertNoActiveProductionRouteSaga(tx, {
+      await assertNoActiveProductionRouteSaga(tx, routeSagaScope({
         teamId: input.teamId,
         projectId: input.projectId,
         environmentId: snapshot.environment.id,
-      });
+      }));
       await assertNoActiveReleaseRunForEnvironment(tx, {
         teamId: input.teamId,
         projectId: input.projectId,
