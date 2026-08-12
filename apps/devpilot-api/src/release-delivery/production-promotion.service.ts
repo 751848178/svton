@@ -1,20 +1,20 @@
 import { Injectable } from "@nestjs/common";
-import type { SiteProbePort, SiteRouteActivationPort } from "../site/site-route-activation.types";
+import { SiteProbePort, SiteRouteActivationPort } from "../site/site-route-activation.types";
 import { createSiteRouteSwitchInput } from "../site/site-route-switch-receipt.policy";
 import type { SiteRouteSwitchAttemptPersistence, SiteRouteSwitchInput } from "../site/site-route-switch.types";
-import type { SiteRouteSwitchSagaOrchestrator } from "../site/site-route-switch-saga.orchestrator";
-import type { SiteRouteSwitchSagaReadbackService } from "../site/site-route-switch-saga-readback.service";
+import { SiteRouteSwitchSagaOrchestrator } from "../site/site-route-switch-saga.orchestrator";
+import { SiteRouteSwitchSagaReadbackService } from "../site/site-route-switch-saga-readback.service";
 import { assertSiteProbeAcceptable } from "../site/site-probe-policy";
-import type { EnvironmentVersionCompletionRepository } from "./environment-version-completion.repository";
+import { EnvironmentVersionCompletionRepository } from "./environment-version-completion.repository";
 import { environmentDeploymentFailureDetail } from "./environment-version-failure.utils";
 import type { EnvironmentVersionGateContext } from "./environment-version-gate-admission";
-import { gateDecisionReference, type EnvironmentVersionProductionGateService } from "./environment-version-production-gate.service";
+import { EnvironmentVersionProductionGateService, gateDecisionReference } from "./environment-version-production-gate.service";
 import { routeBooleanValue, routeSnapshotRecord } from "./environment-version-route-switch-evidence";
-import type { ProductionPromotionCommandRepository } from "./production-promotion-command.repository";
+import { ProductionPromotionCommandRepository } from "./production-promotion-command.repository";
 import type { ProductionPromotionResumeInput, ReservedProductionPromotionCommand } from "./production-promotion-command.types";
 import { withProductionPromotionHeartbeat } from "./production-promotion-heartbeat";
 import { ProductionPromotionLeaseLostError, ProductionPromotionRecoveryPendingError, type ProductionPromotionLease } from "./production-promotion-lease.policy";
-import type { ProductionPromotionObservationRepository } from "./production-promotion-observation.repository";
+import { ProductionPromotionObservationRepository } from "./production-promotion-observation.repository";
 import { ReleaseGateBlockedException } from "./release-gate-decision.service";
 import type { ReleaseGateDecisionReference } from "./release-gate-decision.types";
 
