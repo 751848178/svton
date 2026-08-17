@@ -10,7 +10,11 @@
  */
 import type { AgentMessage } from '@earendil-works/pi-agent-core';
 import type { AssistantMessage, Message, ToolResultMessage } from '@earendil-works/pi-ai';
+import { isRuntimeSkillContextMessage } from '@svton/agent-core';
 import type { ContentBlock, DisplayMessage, DisplayToolCall } from '../types';
+import { migrateLegacyMessageTimeline } from '../timeline/legacy-compatibility';
+import { toSecretSafeDisplayResult } from './chat-user-input-result.utils';
+import { reconcileCheckpointUsage } from './checkpoint-usage-reconciliation';
 
 function restoredId(role: string, timestamp: number, index: number): string {
   return `restored-${role}-${timestamp}-${index}`;
@@ -59,6 +63,7 @@ export function piMessagesToDisplay(messages: AgentMessage[]): DisplayMessage[] 
 
   for (const [index, m] of messages.entries()) {
     if (m.role === 'user') {
+      if (isRuntimeSkillContextMessage(m)) continue;
       out.push({
         id: restoredId('user', m.timestamp, index),
         role: 'user',
@@ -76,10 +81,13 @@ export function piMessagesToDisplay(messages: AgentMessage[]): DisplayMessage[] 
       if (toolCalls) {
         for (const tc of toolCalls) {
           const result = toolResults.get(tc.id);
-          if (result) tc.result = toDisplayToolResult(result);
+          if (result) {
+            tc.result = toSecretSafeDisplayResult(tc.name, toDisplayToolResult(result));
+            tc.status = result.isError ? 'error' : 'completed';
+          }
         }
       }
-      out.push({
+      const display: DisplayMessage = {
         id: restoredId('assistant', m.timestamp, index),
         role: 'assistant',
         content: contentToText(m.content),
@@ -89,10 +97,12 @@ export function piMessagesToDisplay(messages: AgentMessage[]): DisplayMessage[] 
         blocks: toDisplayBlocks(m.content, toolCalls),
         metadata: assistantMetadata(m),
         timestamp: m.timestamp,
-      });
+      };
+      display.timeline = migrateLegacyMessageTimeline(display, 'runtime');
+      out.push(display);
     }
   }
-  return out;
+  return reconcileCheckpointUsage(out);
 }
 
 function toDisplayBlocks(

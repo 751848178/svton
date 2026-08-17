@@ -27,6 +27,7 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .manage(state)
         .manage(ws_state_for_setup.clone())
         .setup(move |app| {
@@ -70,9 +71,12 @@ pub fn run() {
             // Dialog
             dialog_open_folder,
             dialog_open_file,
+            dialog_save_file,
             // Path
             path_resolve,
             path_relative,
+            artifact_open_path,
+            artifact_open_url,
             // Computer Use
             screenshot_display,
             mouse_click,

@@ -8,7 +8,11 @@
  * `ToolExecutionService` (so the no-bypass execution path is covered).
  */
 import { describe, it, expect } from 'vitest';
-import { redactSecrets, createSecretRedactor } from '../src/agent/secret-redactor.utils';
+import {
+  createSecretRedactor,
+  redactPublicArguments,
+  redactSecrets,
+} from '../src/agent/secret-redactor.utils';
 import { ToolExecutionService } from '../src/agent/tool-executor';
 import { ToolRegistry, PermissionManager } from '@svton/agent-core';
 import { buildAgentTools, type ToolEventSink } from '../src/agent/pi-tool-adapter';
@@ -109,6 +113,57 @@ describe('createSecretRedactor — ToolResult contract', () => {
     expect(out.callId).toBe('c1');
     expect(out.isError).toBe(false);
     expect(out.metadata).toEqual({ k: 1 });
+  });
+
+  it('preserves control metadata while recursively scrubbing patterned values', () => {
+    const token = `ghp_${'z'.repeat(36)}`;
+    const out = redactor(call('t'), {
+      ...base,
+      metadata: {
+        secretQuestionIds: ['token'], tokenCount: 2, totalTokens: 3,
+        nested: { stdout: token },
+      },
+    });
+    expect(out.metadata).toMatchObject({
+      secretQuestionIds: ['token'], tokenCount: 2, totalTokens: 3,
+      nested: { stdout: '[REDACTED:github-token]' },
+    });
+  });
+});
+
+describe('public tool argument redaction', () => {
+  it('uses key-aware recursion without redacting ids or count telemetry', () => {
+    const value = redactPublicArguments({
+      password: 'short-password',
+      nested: {
+        accessToken: 'short-token', tokenCount: 2, totalTokens: 3,
+        secretQuestionIds: ['token'],
+      },
+      command: 'curl --api-key short-cli-key',
+    });
+    expect(JSON.stringify(value)).not.toContain('short-password');
+    expect(JSON.stringify(value)).not.toContain('short-token');
+    expect(JSON.stringify(value)).not.toContain('short-cli-key');
+    expect(value).toMatchObject({
+      password: '[REDACTED:field]',
+      nested: { tokenCount: 2, totalTokens: 3, secretQuestionIds: ['token'] },
+    });
+  });
+
+  it('terminalizes cyclic branches while preserving non-cyclic shared values', () => {
+    const shared = { tokenCount: 2 };
+    const cyclic: Record<string, unknown> = {
+      apiKey: 'raw-api-key', first: shared, second: shared,
+    };
+    cyclic.self = cyclic;
+
+    const value = redactPublicArguments(cyclic);
+
+    expect(value).toMatchObject({
+      apiKey: '[REDACTED:field]', first: { tokenCount: 2 }, second: { tokenCount: 2 },
+      self: '[circular]',
+    });
+    expect(() => JSON.stringify(value)).not.toThrow();
   });
 });
 

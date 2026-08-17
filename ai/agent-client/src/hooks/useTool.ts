@@ -1,45 +1,29 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useEffect, useState } from 'react';
+import type { ToolApprovalDecision } from '@svton/agent-core';
 import { useAgentContext } from '../service/provider';
-import type { DisplayToolCall } from '../service/chat.service';
-import {
-  getVisiblePendingToolCalls,
-  mergeRuntimePendingToolCalls,
-} from './use-tool-approval.utils';
 
-/**
- * Tool approval hook.
- * Subscribes to messages observable to reactively derive pending tool calls.
- */
+/** Typed active-session selector for the session-owned live approval queue. */
 export function useToolApproval() {
   const { chatService, chatInternal } = useAgentContext();
-
-  // Subscribe to messages so pendingCalls updates reactively
-  const [messages, setMessages] = useState(() => chatInternal.getState('messages'));
-  const [pendingApprovalVersion, setPendingApprovalVersion] = useState(
-    () => chatInternal.getState('pendingApprovalVersion'),
-  );
+  const [, refresh] = useState(0);
 
   useEffect(() => {
-    const unsub = chatInternal.subscribe('messages', () => {
-      setMessages(chatInternal.getState('messages'));
-    });
-    const unsubPending = chatInternal.subscribe('pendingApprovalVersion', () => {
-      setPendingApprovalVersion(chatInternal.getState('pendingApprovalVersion'));
-    });
+    const update = () => refresh((version) => version + 1);
+    const unsubVersion = chatInternal.subscribe('pendingApprovalVersion', update);
+    const unsubSession = chatInternal.subscribe('activeSessionId', update);
     return () => {
-      unsub();
-      unsubPending();
+      unsubVersion();
+      unsubSession();
     };
   }, [chatInternal]);
 
-  const pendingCalls: DisplayToolCall[] = useMemo(() => {
-    const visible = getVisiblePendingToolCalls(messages);
-    return mergeRuntimePendingToolCalls(visible, chatService.getPendingToolCalls());
-  }, [messages, chatService, pendingApprovalVersion]);
-
+  const request = chatService.getPendingApproval();
   return {
-    pendingCalls,
-    hasPending: pendingCalls.length > 0,
+    request,
+    pendingCalls: chatService.getPendingToolCalls(),
+    hasPending: request !== null,
+    settle: (requestId: string, decision: ToolApprovalDecision) =>
+      chatService.settleToolApproval(requestId, decision),
     approve: (callId: string) => chatService.approveToolCall(callId),
     reject: (callId: string) => chatService.rejectToolCall(callId),
   };

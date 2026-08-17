@@ -14,6 +14,7 @@ describe('ActivityIndicator', () => {
   it('shows "正在使用 <skill>" when activeSkills provided', () => {
     render(<ActivityIndicator activeSkills={['code-review']} />);
     expect(screen.getByText(/code-review/)).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
   it('joins multiple skills with comma', () => {
@@ -24,6 +25,7 @@ describe('ActivityIndicator', () => {
   it('explicit text overrides derived label', () => {
     render(<ActivityIndicator text="custom status" />);
     expect(screen.getByText('custom status')).toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
   it('applies shimmer + cursor-pointer classes (clickable, animated)', () => {
@@ -33,10 +35,11 @@ describe('ActivityIndicator', () => {
     // shimmer text uses bg-clip-text
     expect(el.innerHTML).toContain('bg-clip-text');
     expect(el.innerHTML).toContain('animate-[shimmer');
+    expect(el.innerHTML).toContain('motion-reduce:animate-none');
   });
 
-  it('uses the ✦ leading glyph', () => {
-    render(<ActivityIndicator />);
-    expect(screen.getByText('✦')).toBeInTheDocument();
+  it('uses a decorative shared line icon', () => {
+    const { container } = render(<ActivityIndicator />);
+    expect(container.querySelector('.lucide-sparkles')).toHaveAttribute('aria-hidden', 'true');
   });
 });

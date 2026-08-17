@@ -22,6 +22,9 @@
       }
     ],
     "paths": {
+      "svton-web-locale-host": [
+        "./src/lib/locale/web-locale-host.ts"
+      ],
       "@/*": [
         "./src/*"
       ]

@@ -31,7 +31,7 @@ describe('ChatMessage complex mixed content', () => {
     // Conclusion text is always visible
     expect(screen.getByText('Here is the answer.')).toBeInTheDocument();
     // "已处理" toggle visible (process summary)
-    expect(screen.getByText('已处理')).toBeInTheDocument();
+    expect(screen.getByText(/已处理|Processed/)).toBeInTheDocument();
   });
 
   it('renders text before tool_call before text in correct order', () => {
@@ -55,20 +55,21 @@ describe('ChatMessage complex mixed content', () => {
     expect(screen.getByText('Final answer.')).toBeInTheDocument();
   });
 
-  it('renders error blocks distinctly (process, collapsed)', () => {
+  it('keeps error details visible while process details remain collapsed', () => {
     render(
       <ChatMessage
         id="m1" role="assistant" content=""
         blocks={[
+          { type: 'thinking', text: 'Inspecting the failure.' },
           { type: 'error', text: 'Tool execution failed: timeout' },
           { type: 'text', text: 'I encountered an error.' },
         ]}
       />,
     );
-    // Error is process → collapsed by default
-    expect(screen.queryByText('Tool execution failed: timeout')).not.toBeInTheDocument();
-    // Conclusion visible
+    expect(screen.queryByText('Inspecting the failure.')).not.toBeInTheDocument();
+    expect(screen.getByTestId('message-error')).toHaveTextContent('Tool execution failed: timeout');
     expect(screen.getByText('I encountered an error.')).toBeInTheDocument();
+    expect(screen.getByText(/已处理|Processed/)).toBeInTheDocument();
   });
 
   it('renders warning blocks as process content', () => {
@@ -94,12 +95,12 @@ describe('ChatMessage complex mixed content', () => {
         ]}
       />,
     );
-    // Streaming → process COLLAPSED → shimmer indicator visible (✦ glyph)
-    expect(screen.getByText('✦')).toBeInTheDocument();
+    // Streaming remains visible; the centralized top announcer owns live semantics.
+    expect(document.querySelector('[data-transcript-state="running"]')).toBeInTheDocument();
     // Thinking content hidden (collapsed)
     expect(screen.queryByText('thinking...')).not.toBeInTheDocument();
     // "已处理" only shows when done (not streaming)
-    expect(screen.queryByText('已处理')).not.toBeInTheDocument();
+    expect(screen.queryByText(/已处理|Processed/)).not.toBeInTheDocument();
   });
 
   it('expands process blocks on click, showing tool calls (ThinkingBlock has its own toggle)', () => {
@@ -119,7 +120,7 @@ describe('ChatMessage complex mixed content', () => {
     // Tool call hidden when process collapsed
     expect(screen.queryByText('file_read')).not.toBeInTheDocument();
     // Click "已处理" to expand
-    fireEvent.click(screen.getByText('已处理'));
+    fireEvent.click(screen.getByText(/已处理|Processed/));
     // Tool call now visible (header always shows)
     expect(screen.getByText('file_read')).toBeInTheDocument();
   });

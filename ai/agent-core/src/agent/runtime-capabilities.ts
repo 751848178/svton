@@ -22,6 +22,7 @@ import type { AutoReviewerManager } from '../auto-reviewer/manager';
 import type { SessionResumeManager } from '../checkpoint/manager';
 import { createToolExecOptions } from './tool-exec-options.utils';
 import { resolveSkillDynamicContext } from './skill-dynamic-context.utils';
+import { createRuntimeSkillContextMessage } from './runtime-skill-context-message';
 
 /** Inputs shared with the runtime for capability preparation. */
 export interface CapabilityContext {
@@ -111,11 +112,7 @@ export async function injectSkillContext(
     if (effective) block += `\n\n**Tools available for this skill:** ${effective.join(', ')}`;
     blocks.push(block);
   }
-  const contextMessage: UserMessage = {
-    role: 'user',
-    content: `[Skill Context Activated]\nThe following skills are relevant to your request:\n\n${blocks.join('\n\n')}`,
-    timestamp: Date.now(),
-  };
+  const contextMessage = createRuntimeSkillContextMessage(blocks);
   return { skills: usable, contextMessage };
 }
 

@@ -1,26 +1,15 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { cn } from '@svton/ui';
 import { MarkdownRenderer } from './MarkdownRenderer';
-import { sanitizeHtml } from '../../lib/sanitize';
-
-export type SplitScreenContent =
-  | { type: 'document'; title: string; content: string }
-  | { type: 'code'; title: string; code: string; language?: string }
-  | { type: 'pdf'; title: string; images: string[]; currentPage?: number }
-  | { type: 'image'; title: string; src: string; alt?: string }
-  | { type: 'preview_images'; title: string; images: string[] };
-
-export interface SplitScreenPanelProps {
-  content: SplitScreenContent | null;
-  onClose: () => void;
-  className?: string;
-}
+import { SplitScreenHeader } from './SplitScreenHeader';
+import type { SplitScreenPanelProps } from './split-screen.types';
+export type { SplitScreenContent, SplitScreenPanelProps } from './split-screen.types';
 
 /**
  * Right-side split-screen panel — Doubao pattern.
  * Shows document preview or code preview alongside the chat.
  */
-export function SplitScreenPanel({ content, onClose, className }: SplitScreenPanelProps) {
+export function SplitScreenPanel({ content, onClose, className, readOnly = false }: SplitScreenPanelProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [mode, setMode] = useState<'preview' | 'edit'>('preview');
   const [editContent, setEditContent] = useState('');
@@ -35,7 +24,7 @@ export function SplitScreenPanel({ content, onClose, className }: SplitScreenPan
       setEditContent('');
     }
     setMode('preview');
-  }, [content]);
+  }, [content, readOnly]);
 
   // Write code to iframe for code preview
   useEffect(() => {
@@ -46,9 +35,9 @@ export function SplitScreenPanel({ content, onClose, className }: SplitScreenPan
     const lang = content.language?.toLowerCase() ?? '';
     let html: string;
     if (lang === 'html' || lang === 'jsx' || lang === 'tsx') {
-      html = content.code;
+      html = editContent;
     } else if (lang === 'css') {
-      html = `<!DOCTYPE html><html><head><style>${content.code}</style></head><body><div class="preview" style="padding:20px;font-family:sans-serif;color:#ccc;background:#1c1c1c">CSS Preview</div></body></html>`;
+      html = `<!DOCTYPE html><html><head><style>${editContent}</style></head><body><div class="preview" style="padding:20px;font-family:sans-serif;color:#ccc;background:#1c1c1c">CSS Preview</div></body></html>`;
     } else {
       html = `<!DOCTYPE html><html><head><style>body{font-family:monospace;font-size:13px;padding:16px;color:#ccc;background:#1c1c1c}.log{padding:4px 0;border-bottom:1px solid #2a2a2a}.err{color:#ef4444}.warn{color:#f59e0b}</style></head><body><script>
 (function(){var _l=console.log,_e=console.error,_w=console.warn;
@@ -56,18 +45,18 @@ function a(t,c){var d=document.createElement('div');d.className='log';d.style.co
 console.log=function(){for(var i=0;i<arguments.length;i++)a(arguments[i],'#ccc');_l.apply(console,arguments)};
 console.error=function(){for(var i=0;i<arguments.length;i++)a(arguments[i],'#ef4444');_e.apply(console,arguments)};
 console.warn=function(){for(var i=0;i<arguments.length;i++)a(arguments[i],'#f59e0b');_w.apply(console,arguments)};
-try{${content.code}}catch(e){a('Error: '+e.message,'#ef4444')}})();
+try{${editContent}}catch(e){a('Error: '+e.message,'#ef4444')}})();
 </script></body></html>`;
     }
     doc.open();
     doc.write(html);
     doc.close();
-  }, [content, mode]);
+  }, [content, editContent, mode]);
 
   const handleExport = useCallback(() => {
     if (!content) return;
     if (content.type !== 'document' && content.type !== 'code') return;
-    const text = content.type === 'document' ? content.content : content.code;
+    const text = editContent;
     const ext = content.type === 'code' ? (content.language === 'html' ? 'html' : content.language === 'css' ? 'css' : 'js') : 'md';
     const mimeType = 'text/plain';
     const blob = new Blob([text], { type: mimeType });
@@ -77,7 +66,7 @@ try{${content.code}}catch(e){a('Error: '+e.message,'#ef4444')}})();
     a.download = `${content.title.replace(/[^a-zA-Z0-9\u4e00-\u9fff]/g, '_')}.${ext}`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [content]);
+  }, [content, editContent]);
 
   if (!content) return null;
 
@@ -86,68 +75,7 @@ try{${content.code}}catch(e){a('Error: '+e.message,'#ef4444')}})();
       'flex flex-col h-full bg-[#2a2a2a] border-l border-[#383838] shadow-lg',
       className,
     )}>
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[#383838]">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-sm font-medium text-gray-200 truncate">
-            {content.title}
-          </span>
-          <span className="flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#2a2a2a] text-gray-500 uppercase">
-            {content.type === 'code' ? (content.language || 'CODE') : content.type === 'pdf' ? 'PDF' : content.type === 'image' ? 'IMG' : content.type === 'preview_images' ? 'PREVIEW' : 'MD'}
-          </span>
-        </div>
-        <div className="flex items-center gap-1 flex-shrink-0">
-          {/* Mode toggle — only for document/code */}
-          {(content.type === 'document' || content.type === 'code') && (
-          <div className="flex items-center bg-[#2a2a2a] rounded-lg p-0.5">
-            <button
-              onClick={() => setMode('preview')}
-              className={cn(
-                'px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors',
-                mode === 'preview' ? 'bg-[#333] text-gray-200' : 'text-gray-500 hover:text-gray-300',
-              )}
-            >
-              Preview
-            </button>
-            <button
-              onClick={() => setMode('edit')}
-              className={cn(
-                'px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors',
-                mode === 'edit' ? 'bg-[#333] text-gray-200' : 'text-gray-500 hover:text-gray-300',
-              )}
-            >
-              Edit
-            </button>
-          </div>
-          )}
-
-          {/* Export — only for text-based content */}
-          {(content.type === 'document' || content.type === 'code') && (
-          <button
-            onClick={handleExport}
-            className="p-1.5 rounded-lg text-gray-500 hover:text-gray-300 hover:bg-[#2a2a2a] transition-colors"
-            title="Export"
-          >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M2 10v3a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-3" />
-              <polyline points="5 6 8 9 11 6" />
-              <line x1="8" y1="2" x2="8" y2="9" />
-            </svg>
-          </button>
-          )}
-
-          {/* Close */}
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-gray-500 hover:text-gray-300 hover:bg-[#2a2a2a] transition-colors"
-            aria-label="Close panel"
-          >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-              <path d="M4 4l8 8M12 4l-8 8" />
-            </svg>
-          </button>
-        </div>
-      </div>
+      <SplitScreenHeader content={content} mode={mode} readOnly={readOnly} onModeChange={setMode} onExport={handleExport} onClose={onClose} />
 
       {/* Content */}
       <div className="flex-1 overflow-auto">
@@ -157,7 +85,7 @@ try{${content.code}}catch(e){a('Error: '+e.message,'#ef4444')}})();
           </div>
         )}
 
-        {content.type === 'document' && mode === 'edit' && (
+        {content.type === 'document' && mode === 'edit' && !readOnly && (
           <div className="h-full flex flex-col">
             <textarea
               value={editContent}
@@ -180,7 +108,7 @@ try{${content.code}}catch(e){a('Error: '+e.message,'#ef4444')}})();
           />
         )}
 
-        {content.type === 'code' && mode === 'edit' && (
+        {content.type === 'code' && mode === 'edit' && !readOnly && (
           <div className="h-full flex flex-col">
             <textarea
               value={editContent}

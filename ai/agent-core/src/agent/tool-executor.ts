@@ -16,6 +16,7 @@ import { noopToolResultSink, type ToolResultSink } from './tool-context-result.u
 import { runPostToolUseHook, runPreToolUseHook } from './tool-hook-lifecycle.utils';
 import { runPermissionAndApprovalGate } from './tool-policy-gates';
 import { createSecretRedactor } from './secret-redactor.utils';
+import type { UserInputBroker } from './user-input-broker';
 
 /**
  * Additional options for tool execution pipeline.
@@ -69,24 +70,19 @@ export class ToolExecutionService {
     private readonly hookManager: HookManager | null,
     private readonly pendingApprovals: PendingApprovalMap,
     private readonly toolResultSink: ToolResultSink = noopToolResultSink,
+    private readonly userInputBroker?: UserInputBroker,
   ) {}
 
-  /** Set additional execution options (auto-reviewer, sandbox, session ID). */
+  /** Set additional execution options. */
   setExecOptions(options: Partial<ToolExecOptions>): void {
     this.execOptions = { ...this.execOptions, ...options };
   }
 
-  /** Set the currently active skills (called by SvtonAgentRuntime after skill injection). */
   setActiveSkills(skills: SkillDefinition[]): void {
     this.activeSkills = skills;
   }
 
-  /**
-   * Override the result redactor (Architecture §5.3). The default scrubs common
-   * secret shapes (API keys, bearer tokens, AWS/GitHub/Stripe keys, PEM blocks,
-   * JWTs) — see `secret-redactor.utils`. Tests or stricter pipelines may install
-   * their own; pass the identity redactor `(c, r) => r` to disable scrubbing.
-   */
+  /** Override the default secret-scrubbing result redactor. */
   setRedactor(redactor: Redactor): void {
     this.redactor = redactor;
   }
@@ -153,6 +149,12 @@ export class ToolExecutionService {
       sandboxRequired: this.execOptions.sandboxRequired,
       signal: this.execOptions.signal,
       onProgress,
+      requestUserInput: this.userInputBroker
+        ? (requestId, questions, autoResolutionMs) => this.userInputBroker!.request(
+          this.execOptions.sessionId ?? 'default', requestId, questions,
+          autoResolutionMs, this.execOptions.signal,
+        )
+        : undefined,
     };
 
     const executed = withAutoReviewMetadata(

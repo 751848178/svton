@@ -65,6 +65,9 @@ const SECRET_PATTERNS: readonly SecretPattern[] = [
   { kind: 'private-key', regex: /-----BEGIN (?:RSA |EC |OPENSSH |PGP |DSA )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |OPENSSH |PGP |DSA )?PRIVATE KEY-----/g },
   // Generic api_key / apikey / access_token / secret assignment with a long value.
   { kind: 'api-key', regex: /\b(api[_-]?key|apikey|access[_-]?token|client[_-]?secret|private[_-]?key)["'\s:=]+([A-Za-z0-9_\-]{20,})\b/g, valueGroup: 2 },
+  // Explicit credential labels and CLI flags also protect short fixture/user values.
+  { kind: 'credential', regex: /\b(password|passwd|token|secret|api[_-]?key|authorization|auth|credential)\s*[:=]\s*["']?(?!\[REDACTED|Bearer\b)([^\s"',}]+)/gi, valueGroup: 2 },
+  { kind: 'credential', regex: /(--?(?:password|passwd|token|secret|api[_-]?key|authorization|auth|credential)(?:=|\s+))(?!\[REDACTED)([^\s"']+)/gi, valueGroup: 2 },
 ];
 
 /**
@@ -97,9 +100,58 @@ export function redactSecrets(text: string): string {
 export function createSecretRedactor(): Redactor {
   return (_call: ToolCall, result: ToolResult): ToolResult => {
     const scrubbed = redactSecrets(result.output);
-    if (scrubbed === result.output) return result;
-    return { ...result, output: scrubbed };
+    const metadata = result.metadata ? redactSecretRecord(result.metadata) : undefined;
+    if (scrubbed === result.output && metadata === result.metadata) return result;
+    return { ...result, output: scrubbed, ...(metadata ? { metadata } : {}) };
   };
+}
+
+export function redactSecretRecord(value: Record<string, unknown>): Record<string, unknown> {
+  return redactUnknown(value, false) as Record<string, unknown>;
+}
+
+export function redactPublicArguments(value: Record<string, unknown>): Record<string, unknown> {
+  return redactUnknown(value, true) as Record<string, unknown>;
+}
+
+function redactUnknown(value: unknown, keyAware: boolean, key?: string): unknown {
+  return redactUnknownWithAncestors(value, keyAware, key, new WeakSet());
+}
+
+function redactUnknownWithAncestors(
+  value: unknown,
+  keyAware: boolean,
+  key: string | undefined,
+  ancestors: WeakSet<object>,
+): unknown {
+  if (keyAware && key && isSensitiveKey(key)) return '[REDACTED:field]';
+  if (typeof value === 'string') return redactSecrets(value);
+  if (!value || typeof value !== 'object') return value;
+  if (ancestors.has(value)) return '[circular]';
+  ancestors.add(value);
+  if (Array.isArray(value)) {
+    const next = value.map((item) => redactUnknownWithAncestors(
+      item, keyAware, undefined, ancestors,
+    ));
+    ancestors.delete(value);
+    return next.every((item, index) => item === value[index]) ? value : next;
+  }
+  const entries = Object.entries(value as Record<string, unknown>);
+  const next = Object.fromEntries(entries.map(([entryKey, item]) => [
+    entryKey,
+    redactUnknownWithAncestors(item, keyAware, entryKey, ancestors),
+  ]));
+  ancestors.delete(value);
+  return entries.every(([key, item]) => next[key] === item) ? value : next;
+}
+
+export function isSensitiveKey(key: string): boolean {
+  const normalized = key.replace(/[^a-z0-9]/gi, '').toLowerCase();
+  if (/(?:id|ids|count|counts|name|names)$/.test(normalized)) return false;
+  return normalized === 'auth'
+    || normalized === 'authorization'
+    || normalized === 'credentials'
+    || /(password|passwd|token|secret|apikey|credential)$/.test(normalized);
 }
 
 export { REDACTED as _redactedSentinel };

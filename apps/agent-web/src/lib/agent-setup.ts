@@ -6,7 +6,14 @@ import {
 } from '@svton/agent-app';
 import type { AgentConfig } from '@svton/agent-core';
 import type { BrowserPlatform } from '@svton/agent-platform';
-import { getE2eModelsOverride, getE2eReasoningEffort } from './e2e-provider';
+import {
+  getE2eModelsOverride,
+  getE2eReasoningEffort,
+  isE2eMemoryDisabled,
+  getE2ePostTurnMemoryTimeoutMs,
+} from './e2e-provider';
+import { registerE2eTimelineTool } from './e2e-timeline-tool';
+import { installE2eTimelineSkill } from './e2e-timeline-skill';
 import {
   LS_SEARCH_ENDPOINT,
   loadSettings,
@@ -99,6 +106,7 @@ export async function initAgentConfig(
 ): Promise<AgentConfig> {
   if (!platform) throw new Error('Platform instance is required');
   const e2eModels = getE2eModelsOverride();
+  if (e2eModels) await installE2eTimelineSkill(platform);
   const config = await createAgentConfig({
     providers: loadWebProviders(),
     model: model || '',
@@ -114,7 +122,23 @@ export async function initAgentConfig(
     },
     storageNamespace: 'agent-web',
     piProvider: e2eModels?.piProvider,
+    ...(e2eModels && isE2eMemoryDisabled() ? { features: { memory: false } } : {}),
   });
   const reasoningEffort = getE2eReasoningEffort();
-  return reasoningEffort ? { ...config, reasoningEffort } : config;
+  if (e2eModels) {
+    registerE2eTimelineTool(config.toolRegistry);
+    config.capabilities?.permissionManager?.addRule({ tool: 'e2e_command', effect: 'allow' });
+    config.capabilities?.permissionManager?.addRule({ tool: 'file_edit', effect: 'allow' });
+    config.capabilities?.permissionManager?.addRule({ tool: 'file_read', effect: 'allow' });
+    config.capabilities?.permissionManager?.addRule({ tool: 'list_files', effect: 'allow' });
+    config.capabilities?.permissionManager?.addRule({
+      tool: 'e2e_approval', effect: 'ask', sessionScopeKey: 'e2e.approval',
+    });
+  }
+  const postTurnMemoryTimeoutMs = getE2ePostTurnMemoryTimeoutMs();
+  return {
+    ...config,
+    ...(reasoningEffort ? { reasoningEffort } : {}),
+    ...(postTurnMemoryTimeoutMs !== undefined ? { postTurnMemoryTimeoutMs } : {}),
+  };
 }

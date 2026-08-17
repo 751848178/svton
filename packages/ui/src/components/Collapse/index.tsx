@@ -1,5 +1,6 @@
 import React, { useState, useId, useRef, useEffect, ReactNode, useCallback } from 'react';
 import { cn } from '../../lib/utils';
+import { ChevronIcon } from '../../icons';
 
 export interface CollapseItemProps {
   title: ReactNode;
@@ -66,23 +67,16 @@ export function CollapseItem(props: CollapseItemProps) {
           }
         }}
         className={cn(
-          'flex items-center justify-between px-4 py-3 select-none outline-none focus-visible:ring-2 focus-visible:ring-blue-400 focus-visible:ring-offset-1 rounded',
+          'flex items-center justify-between px-4 py-3 select-none outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 rounded',
           disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
         )}
       >
         <div className="flex items-center gap-2">
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
+          <ChevronIcon
+            size={12}
             aria-hidden="true"
             className={cn('transition-transform duration-200', open && 'rotate-90')}
-          >
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
+          />
           <span className="font-medium">{title}</span>
         </div>
         {extra}

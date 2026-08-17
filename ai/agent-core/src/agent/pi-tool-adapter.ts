@@ -35,6 +35,7 @@ import { settleToolExecution } from './tool-execution-settlement.utils';
 import type { ToolCall } from '../tool/types';
 import { toPiToolResultContent } from './pi-tool-result-content.utils';
 import type { SvtonToolResultDetails } from './pi-tool-result-details.utils';
+import { redactSecrets } from './secret-redactor.utils';
 
 /** Callback the runtime installs so tool-execution events reach consumers. */
 export type ToolEventSink = (event: SvtonCapabilityEvent) => void;
@@ -103,7 +104,7 @@ function makeOnProgress(
   return (message) => {
     try {
       onUpdate({
-        content: [{ type: 'text', text: message }],
+        content: [{ type: 'text', text: redactSecrets(message) }],
         details: { callId, toolName, isError: false },
       });
     } catch {

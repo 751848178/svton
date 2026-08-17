@@ -1,10 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import {
-  PermissionManager,
-  SessionResumeManager,
-  SvtonAgentRuntime,
-  ToolRegistry,
-} from '@svton/agent-core';
+import { PermissionManager } from '../src/permission/manager';
+import { SessionResumeManager } from '../src/checkpoint/manager';
+import { SvtonAgentRuntime } from '../src/agent/svton-agent-runtime';
+import { ToolRegistry } from '../src/tool/registry';
 import type { IToolExecutor, ToolCall } from '../src/tool/types';
 import {
   MemoryStorage,
@@ -87,7 +85,7 @@ describe('runtime cancellation and settlement', () => {
         throw new Error(`Active run ended before approval: ${JSON.stringify(runtime.getMessages().at(-1))}`);
       }
       if (step.value?.type === 'tool_approval_needed') {
-        approvalCallId = step.value.call.id;
+        approvalCallId = step.value.request.itemId;
       }
     }
     runtime.approveToolCall(approvalCallId);

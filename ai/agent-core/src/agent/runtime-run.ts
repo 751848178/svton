@@ -25,6 +25,7 @@ import { createToolExecOptions } from './tool-exec-options.utils';
 import { isAbortSignalAborted } from './abort-signal.utils';
 import { buildPromptMessages, injectSkillContext } from './runtime-capabilities';
 import { RuntimeEventMultiplexer } from './runtime-event-multiplexer';
+import { publishRuntimeEventAfterSettlement } from './runtime-terminal-publication';
 
 /** Internal handles the runtime passes to `runOnce`. */
 export interface RunDeps {
@@ -42,7 +43,11 @@ export interface RunDeps {
   refreshTools: (sink: ToolEventSink) => () => void;
   cancelRun: (signal: AbortSignal) => void;
   /** Post-turn lifecycle hooks (memory extraction + checkpoint). PI006. */
-  postTurn: (stopReason: string, sessionId: string) => Promise<void>;
+  postTurn: (
+    stopReason: string,
+    sessionId: string,
+    runRevision?: number,
+  ) => Promise<void>;
 }
 
 /** Execute one user turn, yielding native Pi and Svton capability events. */
@@ -102,7 +107,6 @@ export async function* runOnce(
   let stopReason = 'stop';
   const maxIterations = options?.maxIterations ?? deps.maxIterations;
   const unsubscribe = deps.agent.subscribe(async (event, eventSignal) => {
-    multiplexer.push(event);
     if (event.type === 'agent_start' && isAbortSignalAborted(options?.signal)) {
       deps.cancelRun(eventSignal);
     }
@@ -121,12 +125,15 @@ export async function* runOnce(
         deps.agent.abort();
       }
     }
-    if (event.type === 'agent_end') {
-      await deps.postTurn(
+    await publishRuntimeEventAfterSettlement(
+      event,
+      () => deps.postTurn(
         hitMaxIterations ? 'max_iterations' : stopReason,
         options?.sessionId ?? 'default',
-      );
-    }
+        options?.runRevision,
+      ),
+      (settled) => multiplexer.push(settled),
+    );
   });
 
   const externalSignal = options?.signal;

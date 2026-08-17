@@ -1,5 +1,8 @@
 import 'reflect-metadata';
 import type { Metadata } from 'next';
+import { LocaleProvider } from '@svton/ui';
+import { localeToLanguageTag } from '@svton/ui/i18n';
+import { resolveWebLocale } from 'svton-web-locale-host';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -10,18 +13,19 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const locale = await resolveWebLocale();
   return (
-    <html lang="en" className="dark">
+    <html lang={localeToLanguageTag(locale)} className="dark">
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </head>
       <body className="antialiased">
-        {children}
+        <LocaleProvider locale={locale}>{children}</LocaleProvider>
       </body>
     </html>
   );

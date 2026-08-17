@@ -13,9 +13,14 @@ import { useSession } from '../src/hooks/useSession';
 import { useToolApproval } from '../src/hooks/useTool';
 import { useAgent } from '../src/hooks/useAgent';
 import { AgentProvider } from '../src/service/provider';
-import type { AgentConfig } from '@svton/agent-core';
+import type { AgentConfig, PublicRuntimeEvent, SvtonAgentRuntime } from '@svton/agent-core';
 import type { IPlatform } from '@svton/agent-platform';
-import { buildPiAgentConfig, makeBrowserPlatform } from './helpers/pi-test-utils';
+import {
+  buildPiAgentConfig,
+  makeBrowserPlatform,
+  nativeAgentEnd,
+  nativeTextDelta,
+} from './helpers/pi-test-utils';
 
 function makeConfig(): AgentConfig {
   return buildPiAgentConfig().config;
@@ -49,6 +54,20 @@ type ChatAgentState = {
   chat: ReturnType<typeof useChat>;
   agent: ReturnType<typeof useAgent>;
 };
+
+let seededRunSequence = 0;
+
+function seedSessionRun(
+  chatService: SessionAgentState['agent']['chatService'],
+  sessionId: string,
+  approvalRequestId?: string,
+): void {
+  const runs = (chatService as any).runs;
+  const address = { sessionId, runId: `test-run-${++seededRunSequence}` };
+  runs.start(address, Date.now());
+  (chatService as any).runOwnership.begin(address, `test-assistant-${seededRunSequence}`);
+  if (approvalRequestId) runs.requestApproval(address, approvalRequestId);
+}
 
 function SessionAgentProbe({ onState }: { onState: (s: SessionAgentState) => void }) {
   const session = useSession();
@@ -150,6 +169,52 @@ describe('useChat', () => {
 // useSession
 // ============================================================
 describe('useSession', () => {
+  it('makes completed B sendable after switching away from a new live A turn', async () => {
+    let state: SessionAgentState | null = null;
+    const { unmount } = render(
+      <AgentProvider platform={makePlatform()} config={makeConfig()}>
+        <SessionAgentProbe onState={(next) => { state = next; }} />
+      </AgentProvider>,
+    );
+    await waitFor(() => expect(state?.session.currentSessionId).toBeTruthy());
+    const chat = state!.agent.chatService;
+    const registry = (chat as any).runtimeRegistry as {
+      get: (owner: string) => SvtonAgentRuntime;
+    };
+    const sessionA = state!.session.currentSessionId!;
+    await waitFor(() => expect(registry.get(sessionA)).toBeTruthy());
+    const runtimeA = registry.get(sessionA);
+    vi.spyOn(runtimeA, 'run').mockImplementation(async function* () {
+      yield nativeTextDelta('A ready') as PublicRuntimeEvent;
+      yield nativeAgentEnd() as PublicRuntimeEvent;
+    });
+    await chat.sendMessage('prepare A');
+    await act(async () => { await state!.session.create('B'); });
+    const sessionB = state!.session.currentSessionId!;
+    const runtimeB = registry.get(sessionB);
+    vi.spyOn(runtimeB, 'run').mockImplementation(async function* () {
+      yield nativeTextDelta('B ready') as PublicRuntimeEvent;
+      yield nativeAgentEnd() as PublicRuntimeEvent;
+    });
+    await chat.sendMessage('prepare B');
+
+    await act(async () => { await state!.session.switchTo(sessionA); });
+    let releaseA!: () => void;
+    vi.mocked(runtimeA.run).mockImplementation(async function* () {
+      await new Promise<void>((resolve) => { releaseA = resolve; });
+      yield nativeAgentEnd() as PublicRuntimeEvent;
+    });
+    const liveA = chat.sendMessage('hold A');
+    await waitFor(() => expect(chat.isSessionStreaming(sessionA)).toBe(true));
+    await act(async () => { await state!.session.switchTo(sessionB); });
+
+    expect(chat.status).toBe('idle');
+    expect(chat.canSend).toBe(true);
+    releaseA();
+    await liveA;
+    unmount();
+  });
+
   it('exposes sessions list + currentSessionId', async () => {
     const { state, unmount } = await renderWith(() => useSession());
     expect(Array.isArray(state.sessions)).toBe(true);
@@ -173,6 +238,44 @@ describe('useSession', () => {
     unmount();
   });
 
+  it('durably saves a pending timeline when status enters waiting approval', async () => {
+    let state: SessionAgentState | null = null;
+    const { unmount } = render(
+      <AgentProvider platform={makePlatform()} config={makeConfig()}>
+        <SessionAgentProbe onState={(s) => { state = s; }} />
+      </AgentProvider>,
+    );
+
+    await waitFor(() => expect(state?.session.currentSessionId).toBeTruthy());
+    const sessionId = state!.session.currentSessionId!;
+    state!.agent.chatService.messages = [{
+      id: 'approval-turn', role: 'assistant', content: '', isStreaming: true, timestamp: 1,
+      timeline: {
+        version: 1, sessionId, turnId: 'approval-turn', status: 'running', revision: 1,
+        items: [{
+          id: 'approval-request', requestId: 'approval-request', itemId: 'tool-call',
+          sessionId, turnId: 'approval-turn', kind: 'approvalDecision',
+          lane: 'decision', status: 'awaitingApproval', title: 'Approve memory_save?',
+          revision: 0, toolName: 'memory_save', arguments: {},
+          decisions: ['accept', 'decline', 'cancel'],
+        }],
+      },
+    }];
+
+    act(() => { state!.agent.chatService.status = 'waiting_approval'; });
+
+    await waitFor(async () => {
+      const saved = await state!.agent.sessionService.loadSession(sessionId);
+      expect((saved?.messages[0] as any)?.timeline?.items).toHaveLength(1);
+    });
+    const saved = await state!.agent.sessionService.loadSession(sessionId);
+    expect((saved!.messages[0] as any).timeline).toMatchObject({
+      status: 'running',
+      items: [{ lane: 'decision', status: 'awaitingApproval' }],
+    });
+    unmount();
+  });
+
   it('aborts a deleted background streaming session', async () => {
     let state: SessionAgentState | null = null;
     const { unmount } = render(
@@ -187,9 +290,8 @@ describe('useSession', () => {
       { id: 'u1', role: 'user', content: 'keep running', timestamp: 1 },
       { id: 'a1', role: 'assistant', content: 'partial', isStreaming: true, timestamp: 2 },
     ];
-    (state!.agent.chatService as any).status = 'running';
-    (state!.agent.chatService as any).backgroundSessionId = firstId;
-    const abortSpy = vi.spyOn(state!.agent.chatService, 'abort');
+    seedSessionRun(state!.agent.chatService, firstId);
+    const abortSpy = vi.spyOn(state!.agent.chatService, 'abortSession');
 
     await act(async () => {
       await state!.session.create('next');
@@ -200,7 +302,7 @@ describe('useSession', () => {
       await state!.session.delete(firstId);
     });
 
-    expect(abortSpy).toHaveBeenCalledTimes(1);
+    expect(abortSpy).toHaveBeenCalledWith(firstId);
     expect(state!.agent.chatService.isSessionStreaming(firstId)).toBe(false);
     expect(await state!.agent.sessionService.loadSession(firstId)).toBeNull();
     unmount();
@@ -268,12 +370,12 @@ describe('useSession', () => {
         timestamp: 1,
       },
     ];
-    (state!.agent.chatService as any).status = 'waiting_approval';
-    (state!.agent.chatService as any).backgroundSessionId = firstId;
     (state!.agent.chatService as any).pendingToolCalls.set('tc-bg', {
+      sessionId: firstId,
       call: { id: 'tc-bg', name: 'test_tool', arguments: {} },
       resolve: vi.fn(),
     });
+    seedSessionRun(state!.agent.chatService, firstId, 'legacy:tc-bg');
 
     await act(async () => {
       await state!.session.create('next');
@@ -284,7 +386,7 @@ describe('useSession', () => {
     unmount();
   });
 
-  it('restores waiting status after creating away from a visible-only pending session', async () => {
+  it('does not revive waiting status from visible-only pending history after create', async () => {
     let state: SessionAgentState | null = null;
     const { unmount } = render(
       <AgentProvider platform={makePlatform()} config={makeConfig()}>
@@ -310,18 +412,17 @@ describe('useSession', () => {
       isStreaming: true,
       timestamp: 1,
     }];
-    (state!.agent.chatService as any).status = 'waiting_approval';
-    (state!.agent.chatService as any).backgroundSessionId = firstId;
+    seedSessionRun(state!.agent.chatService, firstId);
 
     await act(async () => { await state!.session.create('next'); });
     expect(state!.session.currentSessionId).not.toBe(firstId);
     expect(state!.agent.chatService.isSessionStreaming(firstId)).toBe(true);
 
     await act(async () => { await state!.session.switchTo(firstId); });
-    expect(state!.agent.chatService.status).toBe('waiting_approval');
+    expect(state!.agent.chatService.status).toBe('running');
     expect(state!.agent.chatService.messages[0].blocks?.[0]).toMatchObject({
       type: 'tool_call',
-      call: { id: 'tc-visible-create', status: 'pending_approval' },
+      call: { id: 'tc-visible-create', status: 'error' },
     });
     unmount();
   });
@@ -348,24 +449,41 @@ describe('useSession', () => {
       isStreaming: true,
       timestamp: 1,
     }];
-    (state!.agent.chatService as any).status = 'waiting_approval';
-    (state!.agent.chatService as any).backgroundSessionId = firstId;
     (state!.agent.chatService as any).pendingToolCalls.set('tc-bg', {
+      sessionId: firstId,
       call: { id: 'tc-bg', name: 'test_tool', arguments: {} },
       resolve: vi.fn(),
     });
+    seedSessionRun(state!.agent.chatService, firstId, 'legacy:tc-bg');
 
     await act(async () => { await state!.session.switchTo(secondId); });
 
     expect(state!.agent.chatService.hasPendingApprovals).toBe(true);
     expect(state!.agent.chatService.isSessionStreaming(firstId)).toBe(true);
+    expect(state!.agent.chatService.status).toBe('idle');
+    expect(state!.agent.chatService.isStreaming).toBe(false);
+    expect(state!.agent.chatService.canSend).toBe(true);
+    expect((state!.agent.chatService as any).runs.pendingDecision(secondId)).toBeNull();
+    expect((state!.agent.chatService as any).runs.pendingDecision(firstId)).toMatchObject({
+      kind: 'approval', requestId: 'legacy:tc-bg', count: 1,
+    });
 
     await act(async () => { await state!.session.switchTo(firstId); });
     expect(state!.agent.chatService.status).toBe('waiting_approval');
+    expect(state!.agent.chatService.isStreaming).toBe(true);
+    expect((state!.agent.chatService as any).runs.pendingDecision(firstId)).toMatchObject({
+      kind: 'approval', requestId: 'legacy:tc-bg', count: 1,
+    });
+    await act(async () => { await state!.session.switchTo(secondId); });
+    expect(state!.agent.chatService.status).toBe('idle');
+    expect(state!.agent.chatService.isStreaming).toBe(false);
+    await act(async () => { await state!.session.switchTo(firstId); });
+    expect(state!.agent.chatService.status).toBe('waiting_approval');
+    expect(state!.agent.chatService.isStreaming).toBe(true);
     unmount();
   });
 
-  it('restores waiting status for visible-only pending approvals when switching back', async () => {
+  it('does not revive waiting status from visible-only history when switching back', async () => {
     let state: SessionAgentState | null = null;
     const { unmount } = render(
       <AgentProvider platform={makePlatform()} config={makeConfig()}>
@@ -395,17 +513,16 @@ describe('useSession', () => {
       isStreaming: true,
       timestamp: 1,
     }];
-    (state!.agent.chatService as any).status = 'waiting_approval';
-    (state!.agent.chatService as any).backgroundSessionId = firstId;
+    seedSessionRun(state!.agent.chatService, firstId);
 
     await act(async () => { await state!.session.switchTo(secondId); });
     expect(state!.agent.chatService.isSessionStreaming(firstId)).toBe(true);
 
     await act(async () => { await state!.session.switchTo(firstId); });
-    expect(state!.agent.chatService.status).toBe('waiting_approval');
+    expect(state!.agent.chatService.status).toBe('running');
     expect(state!.agent.chatService.messages[0].blocks?.[0]).toMatchObject({
       type: 'tool_call',
-      call: { id: 'tc-visible-bg', status: 'pending_approval' },
+      call: { id: 'tc-visible-bg', status: 'error' },
     });
     unmount();
   });
@@ -427,8 +544,7 @@ describe('useSession', () => {
     state!.agent.chatService.messages = [
       { id: 'a1', role: 'assistant', content: 'partial', isStreaming: true, timestamp: 1 },
     ];
-    (state!.agent.chatService as any).status = 'running';
-    (state!.agent.chatService as any).backgroundSessionId = firstId;
+    seedSessionRun(state!.agent.chatService, firstId);
 
     await act(async () => { await state!.session.switchTo(secondId); });
     expect(state!.agent.chatService.status).toBe('idle');
@@ -452,8 +568,7 @@ describe('useSession', () => {
       { id: 'u1', role: 'user', content: 'background question', timestamp: 1 },
       { id: 'a1', role: 'assistant', content: 'partial answer', isStreaming: true, timestamp: 2 },
     ];
-    (state!.agent.chatService as any).status = 'running';
-    (state!.agent.chatService as any).backgroundSessionId = firstId;
+    seedSessionRun(state!.agent.chatService, firstId);
 
     await act(async () => {
       await state!.session.create('active second');
@@ -487,11 +602,12 @@ describe('useSession', () => {
     const firstId = state!.session.currentSessionId!;
     await act(async () => { await state!.session.create('second'); });
 
-    (state!.agent.chatService as any).backgroundSessionId = firstId;
     (state!.agent.chatService as any).pendingToolCalls.set('tc-bg', {
+      sessionId: firstId,
       call: { id: 'tc-bg', name: 'test_tool', arguments: {} },
       resolve: vi.fn(),
     });
+    seedSessionRun(state!.agent.chatService, firstId, 'legacy:tc-bg');
 
     await act(async () => { await state!.session.create('third'); });
 
@@ -516,11 +632,12 @@ describe('useSession', () => {
     const thirdId = state!.session.currentSessionId!;
     await act(async () => { await state!.session.switchTo(secondId); });
 
-    (state!.agent.chatService as any).backgroundSessionId = firstId;
     (state!.agent.chatService as any).pendingToolCalls.set('tc-bg', {
+      sessionId: firstId,
       call: { id: 'tc-bg', name: 'test_tool', arguments: {} },
       resolve: vi.fn(),
     });
+    seedSessionRun(state!.agent.chatService, firstId, 'legacy:tc-bg');
 
     await act(async () => { await state!.session.switchTo(thirdId); });
 
@@ -565,7 +682,7 @@ describe('useToolApproval', () => {
     unmount();
   });
 
-  it('lists visible block-based pending approvals', async () => {
+  it('does not invent approvals from visible block history', async () => {
     let state: ToolAgentState | null = null;
     const { unmount } = render(
       <AgentProvider platform={makePlatform()} config={makeConfig()}>
@@ -592,19 +709,12 @@ describe('useToolApproval', () => {
       }];
     });
 
-    await waitFor(() => expect(state!.tool.pendingCalls).toEqual([
-      {
-        id: 'tc-block',
-        name: 'write_file',
-        arguments: { path: '/tmp/out.txt' },
-        status: 'pending_approval',
-      },
-    ]));
-    expect(state!.tool.hasPending).toBe(true);
+    await waitFor(() => expect(state!.tool.pendingCalls).toEqual([]));
+    expect(state!.tool.hasPending).toBe(false);
     unmount();
   });
 
-  it('prefers block pending approval metadata over stale legacy toolCalls', async () => {
+  it('ignores block pending metadata without a live request', async () => {
     let state: ToolAgentState | null = null;
     const { unmount } = render(
       <AgentProvider platform={makePlatform()} config={makeConfig()}>
@@ -643,24 +753,11 @@ describe('useToolApproval', () => {
       }];
     });
 
-    await waitFor(() => expect(state!.tool.pendingCalls).toEqual([
-      {
-        id: 'tc-shared',
-        name: 'write_file',
-        arguments: { path: '/tmp/out.txt' },
-        metadata: {
-          autoReviewVerdict: {
-            verdict: 'ask_user',
-            reason: 'No matching rule',
-          },
-        },
-        status: 'pending_approval',
-      },
-    ]));
+    await waitFor(() => expect(state!.tool.pendingCalls).toEqual([]));
     unmount();
   });
 
-  it('prefers block pending approval metadata over stale message-level toolCalls', async () => {
+  it('ignores cross-message pending history without a live request', async () => {
     let state: ToolAgentState | null = null;
     const { unmount } = render(
       <AgentProvider platform={makePlatform()} config={makeConfig()}>
@@ -707,24 +804,11 @@ describe('useToolApproval', () => {
       ];
     });
 
-    await waitFor(() => expect(state!.tool.pendingCalls).toEqual([
-      {
-        id: 'tc-cross-message',
-        name: 'write_file',
-        arguments: { path: '/tmp/out.txt' },
-        metadata: {
-          autoReviewVerdict: {
-            verdict: 'ask_user',
-            reason: 'No matching rule',
-          },
-        },
-        status: 'pending_approval',
-      },
-    ]));
+    await waitFor(() => expect(state!.tool.pendingCalls).toEqual([]));
     unmount();
   });
 
-  it('dedupes visible block approvals against runtime pending calls', async () => {
+  it('uses the runtime request instead of a conflicting visible block', async () => {
     let state: ToolAgentState | null = null;
     const { unmount } = render(
       <AgentProvider platform={makePlatform()} config={makeConfig()}>
@@ -759,8 +843,8 @@ describe('useToolApproval', () => {
     await waitFor(() => expect(state!.tool.pendingCalls).toEqual([
       {
         id: 'tc-shared',
-        name: 'visible_tool',
-        arguments: { visible: true },
+        name: 'runtime_tool',
+        arguments: { runtime: true },
         status: 'pending_approval',
       },
     ]));
@@ -844,7 +928,7 @@ describe('useToolApproval', () => {
     unmount();
   });
 
-  it('clears visible-only pending approval state after approving or rejecting', async () => {
+  it('does not settle visible-only pending history through legacy actions', async () => {
     let state: ToolAgentState | null = null;
     const { unmount } = render(
       <AgentProvider platform={makePlatform()} config={makeConfig()}>
@@ -871,7 +955,7 @@ describe('useToolApproval', () => {
       }];
     });
 
-    await waitFor(() => expect(state!.tool.pendingCalls).toHaveLength(1));
+    await waitFor(() => expect(state!.tool.pendingCalls).toHaveLength(0));
     act(() => {
       state!.tool.approve('tc-visible-approve');
     });
@@ -879,7 +963,7 @@ describe('useToolApproval', () => {
     await waitFor(() => expect(state!.tool.pendingCalls).toHaveLength(0));
     expect(state!.agent.chatService.messages[0].blocks?.[0]).toMatchObject({
       type: 'tool_call',
-      call: { id: 'tc-visible-approve', status: 'running' },
+      call: { id: 'tc-visible-approve', status: 'pending_approval' },
     });
 
     act(() => {
@@ -900,7 +984,7 @@ describe('useToolApproval', () => {
       }];
     });
 
-    await waitFor(() => expect(state!.tool.pendingCalls).toHaveLength(1));
+    await waitFor(() => expect(state!.tool.pendingCalls).toHaveLength(0));
     act(() => {
       state!.tool.reject('tc-visible-reject');
     });
@@ -908,7 +992,7 @@ describe('useToolApproval', () => {
     await waitFor(() => expect(state!.tool.pendingCalls).toHaveLength(0));
     expect(state!.agent.chatService.messages[0].blocks?.[0]).toMatchObject({
       type: 'tool_call',
-      call: { id: 'tc-visible-reject', status: 'error' },
+      call: { id: 'tc-visible-reject', status: 'pending_approval' },
     });
     unmount();
   });
@@ -952,7 +1036,7 @@ describe('useAgent', () => {
     rendered.unmount();
   });
 
-  it('keeps isConnected true for visible-only pending approvals', async () => {
+  it('does not report connected from visible-only pending history', async () => {
     const rendered = await renderWith(() => useAgent());
     expect(rendered.state.isConnected).toBe(false);
 
@@ -974,7 +1058,7 @@ describe('useAgent', () => {
       }];
     });
 
-    await waitFor(() => expect(rendered.state.isConnected).toBe(true));
+    await waitFor(() => expect(rendered.state.isConnected).toBe(false));
     act(() => {
       rendered.state.chatService.approveToolCall('tc-visible-agent');
     });

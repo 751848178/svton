@@ -1,4 +1,4 @@
-import { t } from '@svton/ui';
+import type { TranslationKey, Translator } from '@svton/ui/i18n';
 
 /** Legacy static names for tools not yet migrated to i18n */
 const TOOL_DISPLAY_NAMES: Record<string, string> = {
@@ -11,7 +11,7 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
 };
 
 /** i18n keys for Computer Use + Chrome CDP tools */
-const I18N_TOOL_KEYS: Record<string, string> = {
+const I18N_TOOL_KEYS: Record<string, TranslationKey> = {
   screenshot: 'tool.screenshot',
   mouse_click: 'tool.mouse_click',
   mouse_double_click: 'tool.mouse_double_click',
@@ -30,7 +30,7 @@ const I18N_TOOL_KEYS: Record<string, string> = {
   chrome_get_content: 'tool.chrome_get_content',
 };
 
-export function getToolDisplayName(name: string): string {
+export function getToolDisplayName(name: string, translate: Translator): string {
   // MCP tools use the Codex-standard mcp__<server>__<tool> namespace.
   // Display as "<server>/<tool>" so the source is visible at a glance.
   if (name.startsWith('mcp__')) {
@@ -42,7 +42,7 @@ export function getToolDisplayName(name: string): string {
     }
   }
   const i18nKey = I18N_TOOL_KEYS[name];
-  if (i18nKey) return t(i18nKey);
+  if (i18nKey) return translate(i18nKey);
   return TOOL_DISPLAY_NAMES[name] || name;
 }
 

@@ -1,12 +1,19 @@
 // Chat Components
 export { ChatPanel } from './components/chat/ChatPanel';
 export type { ChatPanelProps, ChatPanelMessage, PresetItem } from './components/chat/ChatPanel';
+export { UserInputForm } from './components/chat/UserInputForm';
+export type { UserInputAnswerPayload, UserInputQuestionView, UserInputRequestView } from './components/chat/user-input.types';
+export type { ApprovalDecisionView, ApprovalRequestView } from './components/chat/approval.types';
 
 export { ChatMessage } from './components/chat/ChatMessage';
 export type { ChatMessageProps, ContentBlock } from './components/chat/ChatMessage';
+export { TimelineSection } from './components/timeline/TimelineSection';
+export type * from './components/timeline/timeline.types';
 
 export { ChatInput } from './components/chat/ChatInput';
-export type { ChatInputProps, SlashCommand, ImageAttachment, MentionItem } from './components/chat/ChatInput';
+export type { ChatInputProps, ImageAttachment } from './components/chat/ChatInput';
+export type * from './components/chat/composer.types';
+export { MAX_COMPOSER_FILE_BYTES, MAX_COMPOSER_FILE_CODEPOINTS, MAX_COMPOSER_IMAGE_BYTES, MAX_COMPOSER_IMAGES } from './components/chat/composer.types';
 
 export { StreamingText } from './components/chat/StreamingText';
 export type { StreamingTextProps } from './components/chat/StreamingText';
@@ -18,6 +25,7 @@ export { ToolCallCard } from './components/chat/ToolCallCard';
 export type { ToolCallCardProps, ToolCallInfo } from './components/chat/ToolCallCard';
 
 export { ToolApprovalModal } from './components/chat/ToolApprovalModal';
+export type { ToolApprovalModalProps } from './components/chat/ToolApprovalModal';
 
 export { PlanPanel } from './components/chat/PlanPanel';
 export type { PlanInfo, PlanStepInfo } from './components/chat/PlanPanel';
@@ -27,6 +35,19 @@ export type { DocumentCardProps, DocumentKind } from './components/chat/Document
 
 export { SplitScreenPanel } from './components/chat/SplitScreenPanel';
 export type { SplitScreenPanelProps, SplitScreenContent } from './components/chat/SplitScreenPanel';
+export { ArtifactPanel } from './components/artifacts/ArtifactPanel';
+export { ArtifactHostStatus } from './components/artifacts/ArtifactHostStatus';
+export { ResponsiveArtifactHost } from './components/artifacts/ResponsiveArtifactHost';
+export type { ResponsiveArtifactHostProps } from './components/artifacts/ResponsiveArtifactHost';
+export {
+  MIN_ARTIFACT_PANE_WIDTH,
+  MIN_ARTIFACT_SPLIT_WIDTH,
+  MIN_CHAT_PANE_WIDTH,
+} from './components/artifacts/use-measured-artifact-layout';
+export { isEditableArtifact } from './components/artifacts/artifact.types';
+export type * from './components/artifacts/artifact.types';
+export { ModelSelector } from './components/models/ModelSelector';
+export type * from './components/models/model-selection.types';
 
 export { MarkdownRenderer } from './components/chat/MarkdownRenderer';
 export type { MarkdownRendererProps } from './components/chat/MarkdownRenderer';
@@ -87,6 +108,11 @@ export type { AgentPickerProps, AgentDefinitionOption } from './components/chat/
 
 export { ReasoningEffortSelector } from './components/chat/ReasoningEffortSelector';
 export type { ReasoningEffortSelectorProps, ReasoningEffort } from './components/chat/ReasoningEffortSelector';
+export { SessionSettingsControls, EXECUTION_PROFILES } from './components/chat/SessionSettingsControls';
+export type {
+  ExecutionProfile, ExecutionProfileControl, ReasoningControl,
+  SessionSettingPhase, SessionSettingsControlsProps,
+} from './components/chat/SessionSettingsControls';
 
 export { SandboxSettings } from './components/settings/SandboxSettings';
 export type { SandboxSettingsProps } from './components/settings/SandboxSettings';
@@ -99,10 +125,38 @@ export type { IntegrationsPanelProps, IntegrationCardData, IntegrationAuthField 
 
 export { AgentEditorPanel } from './components/settings/AgentEditorPanel';
 export type { AgentEditorPanelProps } from './components/settings/AgentEditorPanel';
+export { SettingsSwitch } from './components/settings/SettingsSwitch';
+export type { SettingsSwitchProps } from './components/settings/SettingsSwitch';
+export { SettingsFieldGrid } from './components/settings/SettingsFieldGrid';
+export { SettingsNav } from './components/settings/SettingsNav';
+export { SettingsShell } from './components/settings/SettingsShell';
 
 // Layout Components
+export { ResponsiveAgentFrame } from './components/layout/ResponsiveAgentFrame';
+export type { ResponsiveAgentFrameProps } from './components/layout/ResponsiveAgentFrame';
+export {
+  ResponsiveSidebarSurface,
+  ResponsiveSidebarTrigger,
+  useResponsiveSidebarSurface,
+} from './components/layout/ResponsiveSidebarSurface';
+export { useResponsiveBand } from './components/layout/use-responsive-band';
+export type { ResponsiveBand } from './components/layout/use-responsive-band';
 export { Sidebar } from './components/layout/Sidebar';
 export type { SidebarProps, SidebarItem, SidebarConfig } from './components/layout/Sidebar';
+export { SessionActivityIndicator } from './components/layout/SessionActivityIndicator';
+export type { SessionActivityIndicatorModel } from './components/layout/SessionActivityIndicator';
+export { SessionManagementMenu } from './components/layout/SessionManagementMenu';
+export { SessionSearchControls } from './components/layout/SessionSearchControls';
+export { SidebarSessionList } from './components/layout/SidebarSessionList';
+export { useDialogFocus } from './components/use-dialog-focus';
+export type {
+  SessionManagementActions,
+  SessionManagementModel,
+  SessionSearchModel,
+  SidebarSession,
+} from './components/layout/sidebar.types';
+export { StartupStateView } from './components/feedback/StartupStateView';
+export type { StartupStateViewProps, StartupViewState } from './components/feedback/StartupStateView';
 
 // Settings Components
 export { SettingsView } from './components/settings/SettingsView';

@@ -1,5 +1,5 @@
 import React from 'react';
-import { cn } from '@svton/ui';
+import { EyeOffIcon, cn, useI18n } from '@svton/ui';
 
 interface RedactedThinkingViewProps {
   reason?: string;
@@ -8,20 +8,20 @@ interface RedactedThinkingViewProps {
 
 /**
  * Inline redacted thinking block — placeholder for sensitive/redacted reasoning content.
- * Mirrors Claude's redacted_thinking content blocks.
  */
 export const RedactedThinkingView: React.FC<RedactedThinkingViewProps> = ({ reason, className }) => {
+  const { translate: t } = useI18n();
   return (
     <div className={cn(
-      'flex items-center gap-2 px-3 py-2 rounded-lg border border-[#383838] bg-[#181818] my-1',
+      'my-1 flex items-center gap-2 rounded-lg border border-border bg-muted px-3 py-2',
       className,
     )}>
-      <span className="text-gray-600 text-xs flex-shrink-0">🔒</span>
-      <span className="text-[11px] text-gray-600">
-        Thinking content redacted
+      <EyeOffIcon size={14} className="shrink-0 text-muted-foreground" aria-hidden="true" />
+      <span className="text-[11px] text-muted-foreground">
+        {t('block.redacted_thinking')}
       </span>
       {reason && (
-        <span className="text-[10px] text-gray-700 truncate">· {reason}</span>
+        <span className="truncate text-[10px] text-muted-foreground">· {reason}</span>
       )}
     </div>
   );

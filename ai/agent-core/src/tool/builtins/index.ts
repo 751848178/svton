@@ -28,6 +28,8 @@ export {
 } from './web';
 export type { WebSearchConfig, WebSearchProvider } from './web';
 
+export { requestUserInputDef, RequestUserInputExecutor } from './request-user-input';
+
 export {
   memorySaveDef,
   MemorySaveExecutor,

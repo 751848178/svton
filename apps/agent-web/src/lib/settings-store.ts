@@ -9,7 +9,15 @@ export interface ProviderSetting {
   type: 'openai' | 'anthropic';
   baseUrl: string;
   apiKey: string;
-  models: { id: string; name: string }[];
+  models: Array<{
+    id: string;
+    name: string;
+    hidden?: boolean;
+    reasoningEfforts?: string[];
+    defaultReasoningEffort?: string;
+    inputModalities?: string[];
+    serviceTiers?: string[];
+  }>;
 }
 
 // ── localStorage keys ──────────────────────────────────────

@@ -1,6 +1,12 @@
 import type { PermissionMode, PermissionRule, PermissionConfig, PermissionDecision } from './types';
 import type { ToolCall } from '../tool/types';
 import { matchesPermissionGlob } from './permission-glob.utils';
+import { canonicalSessionId } from '../agent/session-id';
+import { validateSessionScopeKey } from './session-scope';
+
+export interface PermissionCheckContext {
+  sessionId?: string;
+}
 
 /**
  * Manages tool call permissions.
@@ -16,6 +22,7 @@ import { matchesPermissionGlob } from './permission-glob.utils';
 export class PermissionManager {
   private mode: PermissionMode;
   private rules: PermissionRule[];
+  private readonly sessionGrants = new Set<string>();
 
   constructor(config?: Partial<PermissionConfig>) {
     this.mode = config?.mode ?? 'default';
@@ -25,7 +32,11 @@ export class PermissionManager {
   /**
    * Check if a tool call is allowed.
    */
-  check(toolCall: ToolCall): PermissionDecision {
+  check(toolCall: ToolCall, context?: PermissionCheckContext): PermissionDecision {
+    // Asking the user is a blocking interaction, not a privileged side effect.
+    if (toolCall.name === 'request_user_input') {
+      return { allowed: true, needsApproval: false };
+    }
     // Auto mode allows everything
     if (this.mode === 'auto') {
       return { allowed: true, needsApproval: false };
@@ -41,7 +52,16 @@ export class PermissionManager {
 
     const askRule = matchedRules.find((r) => r.effect === 'ask');
     if (askRule) {
-      return { allowed: true, needsApproval: true, reason: `Requires approval: ${askRule.tool}` };
+      const sessionScopeKey = validateSessionScopeKey(askRule.sessionScopeKey);
+      if (sessionScopeKey && this.hasSessionGrant(context?.sessionId, sessionScopeKey)) {
+        return { allowed: true, needsApproval: false, sessionScopeKey };
+      }
+      return {
+        allowed: true,
+        needsApproval: true,
+        reason: `Requires approval: ${askRule.tool}`,
+        ...(sessionScopeKey ? { sessionScopeKey } : {}),
+      };
     }
 
     const allowRule = matchedRules.find((r) => r.effect === 'allow');
@@ -61,12 +81,50 @@ export class PermissionManager {
     return this.mode;
   }
 
+  /** Copy durable policy into a runtime-local manager without session grants. */
+  forkForRuntime(): PermissionManager {
+    return new PermissionManager({
+      mode: this.mode,
+      rules: this.rules.map((rule) => ({ ...rule })),
+    });
+  }
+
   addRule(rule: PermissionRule): void {
     this.rules.push(rule);
   }
 
   removeRule(tool: string): void {
     this.rules = this.rules.filter((r) => r.tool !== tool);
+  }
+
+  grantForSession(sessionId: string | undefined, sessionScopeKey: unknown): boolean {
+    const scope = validateSessionScopeKey(sessionScopeKey);
+    if (!scope) return false;
+    const explicitlyConfigured = this.rules.some((rule) => (
+      rule.effect === 'ask' && validateSessionScopeKey(rule.sessionScopeKey) === scope
+    ));
+    if (!explicitlyConfigured) return false;
+    this.sessionGrants.add(this.sessionGrantKey(sessionId, scope));
+    return true;
+  }
+
+  clearSessionGrants(sessionId?: string): void {
+    if (sessionId === undefined) {
+      this.sessionGrants.clear();
+      return;
+    }
+    const prefix = `${canonicalSessionId(sessionId)}\u0000`;
+    for (const key of this.sessionGrants) {
+      if (key.startsWith(prefix)) this.sessionGrants.delete(key);
+    }
+  }
+
+  private hasSessionGrant(sessionId: string | undefined, scope: string): boolean {
+    return this.sessionGrants.has(this.sessionGrantKey(sessionId, scope));
+  }
+
+  private sessionGrantKey(sessionId: string | undefined, scope: string): string {
+    return `${canonicalSessionId(sessionId)}\u0000${scope}`;
   }
 
   private matchesRule(rule: PermissionRule, toolCall: ToolCall): boolean {

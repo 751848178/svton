@@ -1,5 +1,5 @@
 import React from 'react';
-import { cn } from '@svton/ui';
+import { cn, useI18n } from '@svton/ui';
 
 export type DocumentKind = 'document' | 'code' | 'report';
 
@@ -17,19 +17,20 @@ export interface DocumentCardProps {
   className?: string;
 }
 
-const KIND_ICON: Record<DocumentKind, { icon: string; bg: string; label: string }> = {
-  document: { icon: '📄', bg: 'bg-blue-900/30', label: 'DOC' },
-  code: { icon: '💻', bg: 'bg-purple-900/30', label: 'CODE' },
-  report: { icon: '📊', bg: 'bg-green-900/30', label: 'REPORT' },
+const KIND_META: Record<DocumentKind, { bg: string }> = {
+  document: { bg: 'bg-blue-900/30' },
+  code: { bg: 'bg-purple-900/30' },
+  report: { bg: 'bg-green-900/30' },
 };
 
 /**
- * File reference card shown in chat messages — Doubao pattern.
+ * File reference card shown in chat messages.
  * Displays as a compact clickable card with icon, title, and snippet.
  * Clicking opens the split-screen preview panel.
  */
 export function DocumentCard({ title, snippet, kind = 'document', extension, onClick, className }: DocumentCardProps) {
-  const meta = KIND_ICON[kind];
+  const { translate: t } = useI18n();
+  const meta = KIND_META[kind];
 
   return (
     <button
@@ -41,10 +42,7 @@ export function DocumentCard({ title, snippet, kind = 'document', extension, onC
         className,
       )}
     >
-      {/* Icon */}
-      <div className={cn('flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center text-lg', meta.bg)}>
-        {meta.icon}
-      </div>
+      <span className={cn('flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg text-[10px] font-medium text-gray-300', meta.bg)}>{t(documentKindKey(kind))}</span>
 
       {/* Info */}
       <div className="flex-1 min-w-0">
@@ -59,16 +57,15 @@ export function DocumentCard({ title, snippet, kind = 'document', extension, onC
         <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{snippet}</p>
       </div>
 
-      {/* Open indicator */}
-      <svg
-        width="16" height="16" viewBox="0 0 16 16" fill="none"
-        className="flex-shrink-0 text-gray-500 group-hover:text-gray-300 transition-colors mt-1"
-        stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
-      >
-        <path d="M6 4l4 4-4 4" />
-      </svg>
+      <span className="mt-1 flex-shrink-0 text-xs text-gray-500 group-hover:text-gray-300">{t('action.open')}</span>
     </button>
   );
+}
+
+function documentKindKey(kind: DocumentKind) {
+  if (kind === 'document') return 'document.kind.document' as const;
+  if (kind === 'code') return 'document.kind.code' as const;
+  return 'document.kind.report' as const;
 }
 
 /**

@@ -1,176 +1,103 @@
-import React, { useRef, useEffect, useCallback, useId, ReactNode } from 'react';
-import { cn } from '../../lib/utils';
-import { Portal } from '../Portal';
-import { useOverlay } from '../../hooks/useOverlay';
+import React, { useId, useRef } from 'react';
+import type { ReactNode, RefObject } from 'react';
+import { CloseIcon } from '../../icons';
 import { useTransitionState } from '../../hooks/useTransitionState';
+import { cn } from '../../lib/utils';
+import { DialogFocusPanel } from '../ModalLayer/DialogFocusPanel';
+import { ModalLayerRoot } from '../ModalLayer/ModalLayerRoot';
+import { Portal } from '../Portal';
 
 export interface ModalProps {
   open: boolean;
   onClose: () => void;
   children: ReactNode;
   title?: ReactNode;
+  description?: ReactNode;
   footer?: ReactNode;
   width?: number | string;
   mask?: boolean;
   maskClosable?: boolean;
+  closeOnEscape?: boolean;
+  showCloseButton?: boolean;
   centered?: boolean;
   className?: string;
+  bodyClassName?: string;
+  footerClassName?: string;
+  role?: 'dialog' | 'alertdialog';
   /** 关闭按钮的本地化 accessible name；缺省用英文 "Close"。 */
   ariaCloseLabel?: string;
-  /** 指向正文描述节点，供辅助技术在标题之后朗读。 */
+  /** 指向由调用方持有的正文描述节点。 */
   ariaDescriptionId?: string;
+  'aria-label'?: string;
+  initialFocusRef?: RefObject<HTMLElement | null>;
+  initialFocusSelector?: string;
+  restoreFocusRef?: RefObject<HTMLElement | null>;
+  restoreFocusSelector?: string;
+  testId?: string;
 }
 
 export const Modal = React.forwardRef<HTMLDivElement, ModalProps>(function Modal(props, ref) {
-  const { open, onClose, children, title, footer, width = 480, mask = true, maskClosable = true, centered = true, className, ariaCloseLabel = 'Close', ariaDescriptionId } = props;
-  const panelRef = useRef<HTMLDivElement | null>(null);
-  const previousFocusRef = useRef<HTMLElement | null>(null);
-  const focusLifecycleRef = useRef(false);
+  const {
+    open, onClose, children, title, description, footer, width = 480,
+    mask = true, maskClosable = true, closeOnEscape = true,
+    showCloseButton = true, centered = true, className, bodyClassName,
+    footerClassName, role = 'dialog', ariaCloseLabel = 'Close', ariaDescriptionId,
+    initialFocusRef, initialFocusSelector, restoreFocusRef,
+    restoreFocusSelector, testId,
+  } = props;
+  const openerRef = useRef<HTMLElement | null>(null);
+  const previousOpenRef = useRef(false);
+  if (open && !previousOpenRef.current && typeof document !== 'undefined') {
+    openerRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement : null;
+  }
+  previousOpenRef.current = open;
   const titleId = useId();
-
+  const descriptionId = useId();
   const { state, ref: transitionRef } = useTransitionState(open, 200);
-
-  const setPanelRef = useCallback((node: HTMLDivElement | null) => {
-    (panelRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
-    transitionRef(node);
-    if (typeof ref === 'function') {
-      ref(node);
-    } else if (ref) {
-      (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
-    }
-  }, [ref, transitionRef]);
-
-  const overlay = useOverlay(state === 'visible' || state === 'entering', onClose);
-
-  // Capture once per open lifecycle; topmost changes must never restore focus.
-  useEffect(() => {
-    const active = state !== 'closed';
-    if (active && !focusLifecycleRef.current) {
-      previousFocusRef.current = document.activeElement as HTMLElement;
-      focusLifecycleRef.current = true;
-    } else if (!active && focusLifecycleRef.current) {
-      focusLifecycleRef.current = false;
-      previousFocusRef.current?.focus();
-    }
-  }, [state]);
-
-  useEffect(() => () => {
-    if (focusLifecycleRef.current) previousFocusRef.current?.focus();
-  }, []);
-
-  // Only the current topmost panel receives initial focus.
-  useEffect(() => {
-    if (state !== 'visible' || !overlay.topmost) return;
-    const timer = setTimeout(() => {
-      panelRef.current?.focus();
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [overlay.topmost, state]);
-
-  // Focus trap: keep Tab within the modal
-  useEffect(() => {
-    if (state !== 'visible' || !overlay.topmost) return;
-
-    const handleTab = (e: KeyboardEvent) => {
-      if (e.key !== 'Tab' || !panelRef.current) return;
-
-      const focusable = tabbableElements(panelRef.current);
-      if (focusable.length === 0) return;
-
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-
-      if (document.activeElement === panelRef.current) {
-        e.preventDefault();
-        (e.shiftKey ? last : first).focus();
-        return;
-      }
-
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-
-    const containFocus = (event: FocusEvent) => {
-      if (panelRef.current && event.target instanceof Node &&
-        !panelRef.current.contains(event.target)) {
-        (tabbableElements(panelRef.current)[0] ?? panelRef.current).focus();
-      }
-    };
-
-    document.addEventListener('keydown', handleTab, true);
-    document.addEventListener('focusin', containFocus, true);
-    return () => {
-      document.removeEventListener('keydown', handleTab, true);
-      document.removeEventListener('focusin', containFocus, true);
-    };
-  }, [overlay.topmost, state]);
-
-  if (state === 'closed') return null;
-
-  const maskAnim = state === 'entering' ? 'anim-fade-in' : state === 'exiting' ? 'anim-fade-out' : '';
-  const panelAnim = state === 'entering' ? 'anim-scale-in' : state === 'exiting' ? 'anim-scale-out' : '';
-
+  const active = state !== 'closed';
+  if (!active) return null;
+  const maskAnim = state === 'entering' ? 'anim-fade-in'
+    : state === 'exiting' ? 'anim-fade-out' : '';
+  const panelAnim = state === 'entering' ? 'anim-scale-in'
+    : state === 'exiting' ? 'anim-scale-out' : '';
   return (
     <Portal>
-      {mask && (
-        <div
-          onClick={overlay.topmost && maskClosable ? onClose : undefined}
-          className={cn('fixed inset-0 bg-black/45 dark:bg-black/65', maskAnim)}
-          style={{ zIndex: overlay.zIndex }}
-          aria-hidden="true"
-        />
-      )}
-      <div
-        className={cn(
-          'fixed inset-0 flex justify-center pointer-events-none',
-          centered ? 'items-center' : 'items-start pt-[100px]'
-        )}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={title ? titleId : undefined}
-        aria-describedby={ariaDescriptionId}
-        aria-hidden={overlay.topmost ? undefined : true}
-        data-overlay-topmost={overlay.topmost ? 'true' : 'false'}
-        style={{ zIndex: overlay.zIndex + 1 }}
+      <ModalLayerRoot
+        kind="modal"
+        closeOnEscape={open && closeOnEscape}
+        openerRef={openerRef}
+        onClose={onClose}
+        restoreFocusRef={restoreFocusRef}
+        restoreFocusSelector={restoreFocusSelector}
       >
-        <div
-          ref={setPanelRef}
-          tabIndex={-1}
-          className={cn(
-            'max-w-[calc(100vw-32px)] max-h-[calc(100vh-64px)] bg-popover text-popover-foreground rounded-lg shadow-lg flex flex-col pointer-events-auto outline-none',
-            panelAnim,
-            className
-          )}
-          style={{ width }}
-        >
-          {title && (
-            <div className="px-6 py-4 border-b border-border flex items-center justify-between">
-              <div id={titleId} className="text-base font-medium">{title}</div>
-              <button onClick={onClose} className="inline-flex min-h-11 min-w-11 items-center justify-center text-xl text-muted-foreground hover:text-foreground leading-none" aria-label={ariaCloseLabel}>×</button>
-            </div>
-          )}
-          <div className="flex-1 p-6 overflow-auto">{children}</div>
-          {footer !== undefined && (
-            <div className="px-6 py-3 border-t border-border flex justify-end gap-2">{footer}</div>
-          )}
+        {mask && <div onClick={maskClosable ? onClose : undefined} className={cn('absolute inset-0 bg-black/45 dark:bg-black/65', maskAnim)} aria-hidden="true" />}
+        <div className={cn('absolute inset-0 flex justify-center pointer-events-none', centered ? 'items-center' : 'items-start pt-[100px]')}>
+          <DialogFocusPanel
+            ref={(node) => {
+              transitionRef(node);
+              if (typeof ref === 'function') ref(node);
+              else if (ref) ref.current = node;
+            }}
+            active={state === 'visible'}
+            initialFocusRef={initialFocusRef}
+            initialFocusSelector={initialFocusSelector}
+            tabIndex={-1}
+            role={role}
+            aria-modal="true"
+            aria-label={props['aria-label']}
+            aria-labelledby={title ? titleId : undefined}
+            aria-describedby={ariaDescriptionId ?? (description ? descriptionId : undefined)}
+            data-testid={testId}
+            className={cn('max-w-[calc(100vw-32px)] max-h-[calc(100vh-64px)] bg-popover text-popover-foreground rounded-lg shadow-lg flex flex-col pointer-events-auto outline-none', panelAnim, className)}
+            style={{ width }}
+          >
+            {title && <header className="px-6 py-4 border-b border-border flex items-start justify-between gap-4"><div><h2 id={titleId} className="text-base font-medium">{title}</h2>{description && <div id={descriptionId} className="mt-1 text-sm text-muted-foreground">{description}</div>}</div>{showCloseButton && <button type="button" onClick={onClose} className="inline-flex size-11 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring" aria-label={ariaCloseLabel}><CloseIcon size={18} aria-hidden="true" /></button>}</header>}
+            <div className={cn('flex-1 p-6 overflow-auto', bodyClassName)}>{children}</div>
+            {footer !== undefined && <footer className={cn('px-6 py-3 border-t border-border flex justify-end gap-2', footerClassName)}>{footer}</footer>}
+          </DialogFocusPanel>
         </div>
-      </div>
+      </ModalLayerRoot>
     </Portal>
   );
 });
-
-function tabbableElements(root: HTMLElement) {
-  return Array.from(root.querySelectorAll<HTMLElement>(
-    'button, [href], input, select, textarea, [tabindex]',
-  )).filter((element) => {
-    if (element.tabIndex < 0 || element.hasAttribute('disabled') ||
-      element.getAttribute('aria-hidden') === 'true' || element.closest('[inert]')) return false;
-    const style = window.getComputedStyle(element);
-    return style.display !== 'none' && style.visibility !== 'hidden';
-  });
-}

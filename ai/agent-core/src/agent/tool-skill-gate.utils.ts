@@ -5,6 +5,7 @@ export function enforceActiveSkillToolGate(
   call: ToolCall,
   activeSkills: SkillDefinition[],
 ): ToolResult | null {
+  if (call.name === 'request_user_input') return null;
   for (const skill of activeSkills) {
     if (skill.disallowedTools?.includes(call.name)) {
       return {

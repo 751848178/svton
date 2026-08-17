@@ -1,6 +1,5 @@
 import type { ToolResult } from '@svton/agent-core';
 import type { ContentBlock, DisplayToolCall } from '../types';
-import { readCodeReviewBlock } from './chat-code-review-block.utils';
 import { readCsvFanoutBlock } from './chat-csv-fanout-block.utils';
 import { readFileChangeBlock } from './chat-file-change-block.utils';
 import { readFileTreeBlock } from './chat-file-tree-block.utils';
@@ -24,7 +23,6 @@ export function appendToolResultMetadataBlocks(
     readFileTreeBlock(toolName, result),
     readImageGeneratedBlock(toolName, result, call),
     toolName === 'csv_fanout' && !result.isError ? readCsvFanoutBlock(result) : null,
-    readCodeReviewBlock(toolName, result),
     readAutoReviewBlock(toolName, result),
     readPreviewImagesBlock(toolName, result, call),
   ].filter((block): block is ContentBlock => block !== null);
@@ -39,8 +37,12 @@ function readReferenceBlock(
 ): ContentBlock | null {
   if (!call || result.isError || !isReadToolName(toolName)) return null;
   const path = call.arguments.path ?? call.arguments.file_path;
+  const requestedLine = call.arguments.line ?? call.arguments.offset;
+  const line = typeof requestedLine === 'number' && Number.isInteger(requestedLine) && requestedLine > 0
+    ? requestedLine
+    : undefined;
   return typeof path === 'string' && path.length > 0
-    ? { type: 'reference', refs: [{ path }] }
+    ? { type: 'reference', refs: [{ path, line }] }
     : null;
 }
 

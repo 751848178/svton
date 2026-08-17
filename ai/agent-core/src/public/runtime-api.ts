@@ -13,9 +13,24 @@ export type {
   AgentCapabilities,
   ContextConfig,
   PendingApproval,
+  ToolApprovalDecision,
+  ToolApprovalRequest,
+  ToolApprovalResultMetadata,
+  ToolApprovalSettlement,
+  ToolApprovalSettlementDecision,
   IRuntime,
   McpServerToolConfig,
 } from '../agent/types';
+export { canonicalSessionId, DEFAULT_RUNTIME_SESSION_ID } from '../agent/session-id';
+export type {
+  UserInputAnswers,
+  UserInputOption,
+  UserInputQuestion,
+  UserInputRequest,
+  UserInputRequester,
+  UserInputSettlement,
+} from '../agent/user-input.types';
+export { UserInputSettledKeys } from '../agent/user-input-settled-keys';
 export { SvtonAgentRuntime } from '../agent/svton-agent-runtime';
 export {
   resolveModelById,
@@ -27,6 +42,15 @@ export {
   selectNativeToolResult,
 } from '../agent/native-tool-event-selectors.utils';
 export { selectLastAssistantMessage } from '../agent/native-message-event-selectors.utils';
+export {
+  isRuntimeSkillContextMessage,
+  RUNTIME_SKILL_CONTEXT_PREFIX,
+} from '../agent/runtime-skill-context-message';
+export {
+  redactPublicArguments,
+  redactSecretRecord,
+  redactSecrets,
+} from '../agent/secret-redactor.utils';
 export type {
   SerializedRuntime,
   CheckpointMeta,

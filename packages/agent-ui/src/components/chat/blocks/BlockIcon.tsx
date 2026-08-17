@@ -1,24 +1,33 @@
 import React from 'react';
-import { cn } from '@svton/ui';
+import type { ElementType } from 'react';
+import {
+  CompletedIcon,
+  ErrorIcon,
+  FileIcon,
+  PendingIcon,
+  PlanIcon,
+  RunningIcon,
+  SubagentIcon,
+  WarningIcon,
+  cn,
+  type SvtonIconProps,
+} from '@svton/ui';
 
 export type BlockType = 'plan' | 'file' | 'subagent' | 'warning';
-
 export type BlockStatus = 'running' | 'completed' | 'error' | 'pending';
+type IconView = { Icon: ElementType<SvtonIconProps>; className: string };
 
-/** Shared status → { char, color } lookup, mirrors ToolCallCard STATUS_ICON */
-const STATUS_STYLE: Record<BlockStatus, { char: string; color: string }> = {
-  running: { char: '●', color: 'text-blue-400 animate-pulse' },
-  completed: { char: '✓', color: 'text-green-400' },
-  error: { char: '✗', color: 'text-red-500' },
-  pending: { char: '○', color: 'text-gray-500' },
+const STATUS_ICON: Record<BlockStatus, IconView> = {
+  running: { Icon: RunningIcon, className: 'animate-spin text-status-info motion-reduce:animate-none' },
+  completed: { Icon: CompletedIcon, className: 'text-status-success' },
+  error: { Icon: ErrorIcon, className: 'text-destructive' },
+  pending: { Icon: PendingIcon, className: 'text-muted-foreground' },
 };
-
-/** Block type → base icon char */
-const TYPE_ICON: Record<BlockType, string> = {
-  plan: '📋',
-  file: '📄',
-  subagent: '🤖',
-  warning: '⚠',
+const TYPE_ICON: Record<BlockType, ElementType<SvtonIconProps>> = {
+  plan: PlanIcon,
+  file: FileIcon,
+  subagent: SubagentIcon,
+  warning: WarningIcon,
 };
 
 interface BlockIconProps {
@@ -27,21 +36,9 @@ interface BlockIconProps {
   className?: string;
 }
 
-/**
- * Atomic block header icon — shows type emoji + status indicator.
- */
+/** Decorative line icon paired with the block's visible type or status label. */
 export const BlockIcon: React.FC<BlockIconProps> = ({ type, status, className }) => {
-  if (status) {
-    const s = STATUS_STYLE[status];
-    return (
-      <span className={cn('flex-shrink-0 text-xs', s.color, className)}>
-        {s.char}
-      </span>
-    );
-  }
-  return (
-    <span className={cn('flex-shrink-0 text-xs', className)}>
-      {TYPE_ICON[type]}
-    </span>
-  );
+  const view = status ? STATUS_ICON[status] : { Icon: TYPE_ICON[type], className: '' };
+  const Icon = view.Icon;
+  return <Icon size={14} className={cn('flex-shrink-0', view.className, className)} aria-hidden="true" />;
 };

@@ -1,5 +1,7 @@
 import React, { ReactNode } from 'react';
 import { cn } from '../../lib/utils';
+import { LockIcon } from '../../icons';
+import { useI18n } from '../../i18n';
 
 export interface PermissionStateProps {
   title?: ReactNode;
@@ -11,9 +13,10 @@ export interface PermissionStateProps {
 }
 
 export function PermissionState(props: PermissionStateProps) {
+  const { translate } = useI18n();
   const {
-    title = 'Access Denied',
-    message = 'You do not have permission to view this content.',
+    title = translate('permission.deniedTitle'),
+    message = translate('permission.deniedMessage'),
     action,
     className,
     align = 'center',
@@ -33,11 +36,8 @@ export function PermissionState(props: PermissionStateProps) {
         className
       )}
     >
-      <div className="size-12 rounded-full bg-amber-500/10 flex items-center justify-center mb-2">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgb(245, 158, 11)" strokeWidth="2">
-          <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-        </svg>
+      <div className="size-12 rounded-full bg-warning/10 flex items-center justify-center mb-2">
+        <LockIcon size={24} className="text-warning" aria-hidden="true" />
       </div>
       <div className="text-base font-medium text-foreground">{title}</div>
       {message && <div className="text-sm text-muted-foreground max-w-[300px]">{message}</div>}

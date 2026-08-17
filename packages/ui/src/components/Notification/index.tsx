@@ -2,6 +2,8 @@ import React, { useState, useEffect, ReactNode } from 'react';
 import { cn } from '../../lib/utils';
 import { Portal } from '../Portal';
 import { useTransitionState } from '../../hooks/useTransitionState';
+import { CloseIcon, CompletedIcon, ErrorIcon, InfoIcon, WarningIcon } from '../../icons';
+import { useI18n } from '../../i18n';
 
 type NotificationType = 'info' | 'success' | 'warning' | 'error';
 type Placement = 'topRight' | 'topLeft' | 'bottomRight' | 'bottomLeft';
@@ -15,17 +17,27 @@ export interface NotificationProps {
   closable?: boolean;
   icon?: ReactNode;
   className?: string;
+  /** Keep true for standalone notifications; containers own one shared live region. */
+  announce?: boolean;
 }
 
 const typeStyles: Record<NotificationType, string> = {
-  info: 'text-blue-500',
-  success: 'text-green-500',
-  warning: 'text-orange-500',
-  error: 'text-red-500',
+  info: 'text-info',
+  success: 'text-success',
+  warning: 'text-warning',
+  error: 'text-destructive',
 };
 
+const typeIcons = {
+  info: InfoIcon,
+  success: CompletedIcon,
+  warning: WarningIcon,
+  error: ErrorIcon,
+} satisfies Record<NotificationType, typeof InfoIcon>;
+
 function NotificationItemInternal(props: NotificationProps) {
-  const { title, description, type = 'info', duration = 4500, onClose, closable = true, icon, className } = props;
+  const { translate } = useI18n();
+  const { title, description, type = 'info', duration = 4500, onClose, closable = true, icon, className, announce = true } = props;
   const [open, setOpen] = useState(true);
   const { state } = useTransitionState(open, 200);
 
@@ -46,29 +58,28 @@ function NotificationItemInternal(props: NotificationProps) {
   const anim = state === 'entering' ? 'anim-slide-in-right' : state === 'exiting' ? 'anim-fade-out' : '';
 
   const handleClose = () => setOpen(false);
-
-  const defaultIcon = (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={typeStyles[type]}>
-      {type === 'success' && <><circle cx="12" cy="12" r="10" /><polyline points="9 12 12 15 16 10" /></>}
-      {type === 'error' && <><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></>}
-      {type === 'warning' && <><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></>}
-      {type === 'info' && <><circle cx="12" cy="12" r="10" /><line x1="12" y1="16" x2="12" y2="12" /><line x1="12" y1="8" x2="12.01" y2="8" /></>}
-    </svg>
-  );
+  const StatusIcon = typeIcons[type];
 
   return (
     <div
-      role="status"
-      aria-live="polite"
+      role={announce ? 'status' : undefined}
+      aria-live={announce ? 'polite' : undefined}
       className={cn('flex gap-3 p-4 bg-popover text-popover-foreground border border-border rounded-lg shadow-lg w-80', anim, className)}
     >
-      {icon ?? defaultIcon}
+      {icon ?? <StatusIcon size={20} className={typeStyles[type]} aria-hidden="true" data-status-icon={type} />}
       <div className="flex-1">
         <div className={cn('font-medium', description && 'mb-1')}>{title}</div>
         {description && <div className="text-sm text-muted-foreground">{description}</div>}
       </div>
       {closable && (
-        <button onClick={handleClose} className="text-muted-foreground hover:text-foreground">×</button>
+        <button
+          type="button"
+          onClick={handleClose}
+          aria-label={translate('modal.close')}
+          className="inline-flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <CloseIcon size={14} aria-hidden="true" />
+        </button>
       )}
     </div>
   );
@@ -87,6 +98,7 @@ export function NotificationContainer({ placement = 'topRight' }: { placement?: 
   return (
     <Portal>
       <div
+        role="status"
         aria-live="polite"
         aria-atomic="false"
         className={cn(
@@ -96,7 +108,7 @@ export function NotificationContainer({ placement = 'topRight' }: { placement?: 
         )}
       >
         {items.map((item) => (
-          <NotificationItemInternal key={item.id} {...item} onClose={() => setItems((prev) => prev.filter((n) => n.id !== item.id))} />
+          <NotificationItemInternal key={item.id} {...item} announce={false} onClose={() => setItems((prev) => prev.filter((n) => n.id !== item.id))} />
         ))}
       </div>
     </Portal>

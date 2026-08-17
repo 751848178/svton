@@ -16,9 +16,15 @@ export type {
   AgentConfig,
   ContextConfig,
   PendingApproval,
+  ToolApprovalDecision,
+  ToolApprovalRequest,
+  ToolApprovalResultMetadata,
+  ToolApprovalSettlement,
+  ToolApprovalSettlementDecision,
   McpServerToolConfig,
   IRuntime,
 } from './types';
+export { canonicalSessionId, DEFAULT_RUNTIME_SESSION_ID } from './session-id';
 
 export { SvtonAgentRuntime } from './svton-agent-runtime';
 export { resolveModelById } from './runtime-helpers';
@@ -28,3 +34,12 @@ export {
   selectNativeToolResult,
 } from './native-tool-event-selectors.utils';
 export { selectLastAssistantMessage } from './native-message-event-selectors.utils';
+export {
+  isRuntimeSkillContextMessage,
+  RUNTIME_SKILL_CONTEXT_PREFIX,
+} from './runtime-skill-context-message';
+export {
+  redactPublicArguments,
+  redactSecretRecord,
+  redactSecrets,
+} from './secret-redactor.utils';

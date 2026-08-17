@@ -25,6 +25,11 @@ export function useTransitionState(open: boolean, timeoutMs = 200): {
     if (open === prevOpenRef.current) return;
     prevOpenRef.current = open;
 
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      setState(open ? 'visible' : 'closed');
+      return;
+    }
+
     if (open) {
       // Opening: go to entering, then visible on next frame
       setState('entering');

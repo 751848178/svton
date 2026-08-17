@@ -1,5 +1,10 @@
 import type { AgentEvent } from '@earendil-works/pi-agent-core';
 import type { ToolCall, ToolResult } from '../tool/types';
+import {
+  redactPublicArguments,
+  redactSecretRecord,
+  redactSecrets,
+} from './secret-redactor.utils';
 
 type ToolStartEvent = Extract<AgentEvent, { type: 'tool_execution_start' }>;
 type ToolUpdateEvent = Extract<AgentEvent, { type: 'tool_execution_update' }>;
@@ -9,7 +14,7 @@ export function selectNativeToolCall(event: ToolStartEvent): ToolCall {
   return {
     id: event.toolCallId,
     name: event.toolName,
-    arguments: readRecord(event.args) ?? {},
+    arguments: redactPublicArguments(readRecord(event.args) ?? {}),
   };
 }
 
@@ -17,23 +22,39 @@ export function selectNativeToolUpdate(event: ToolUpdateEvent): {
   callId: string;
   name?: string;
   arguments: Record<string, unknown>;
+  partialResult?: ToolResult;
 } {
+  const partialResult = readNativeToolResult(event.toolCallId, event.partialResult);
   return {
     callId: event.toolCallId,
     ...(event.toolName ? { name: event.toolName } : {}),
-    arguments: readRecord(event.args) ?? {},
+    arguments: redactPublicArguments(readRecord(event.args) ?? {}),
+    ...(partialResult ? { partialResult } : {}),
   };
 }
 
 export function selectNativeToolResult(event: ToolEndEvent): ToolResult {
-  const result = readRecord(event.result);
+  return readNativeToolResult(event.toolCallId, event.result, event.isError) ?? {
+    callId: event.toolCallId,
+    output: '',
+    isError: event.isError,
+  };
+}
+
+function readNativeToolResult(
+  callId: string,
+  value: unknown,
+  fallbackIsError = false,
+): ToolResult | undefined {
+  const result = readRecord(value);
+  if (!result) return undefined;
   const details = readRecord(result?.details);
   const metadata = readRecord(details?.metadata);
   return {
-    callId: event.toolCallId,
-    output: readToolOutput(result?.content),
-    isError: event.isError,
-    ...(metadata ? { metadata } : {}),
+    callId,
+    output: redactSecrets(readToolOutput(result?.content)),
+    isError: typeof details?.isError === 'boolean' ? details.isError : fallbackIsError,
+    ...(metadata ? { metadata: redactSecretRecord(metadata) } : {}),
   };
 }
 

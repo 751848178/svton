@@ -82,6 +82,8 @@ import {
   ImageGenerateExecutor,
   previewDocumentDef,
   PreviewDocumentExecutor,
+  requestUserInputDef,
+  RequestUserInputExecutor,
   // CSV fan-out tool (registered later, needs subagent manager)
   // Managers
   SkillManager,
@@ -118,6 +120,7 @@ import {
 import type { McpServerConfig } from '@svton/agent-ui';
 import type { LoadConfigResult } from './config-store';
 import { loadDesktopAgentConfig } from './desktop-agent-config.service';
+import { resolveDesktopModelSelection } from './desktop-model-selection';
 import { desktopE2eActive, getDesktopE2eModelsOverride } from './e2e-provider';
 
 export type InitResult =
@@ -161,16 +164,16 @@ export async function initAgent(platform: TauriPlatform, modelOverride?: string)
   const { model: modelConfig, providers } = result.config;
   const effectiveModelOverride = desktopE2eActive() ? undefined : modelOverride;
 
-  let providerKey = modelConfig.provider;
-
-  if (effectiveModelOverride) {
-    for (const [key, pCfg] of Object.entries(providers)) {
-      if (pCfg.models && effectiveModelOverride in pCfg.models) {
-        providerKey = key;
-        break;
-      }
-    }
+  let selection;
+  try {
+    selection = resolveDesktopModelSelection(result.config, effectiveModelOverride);
+  } catch (error) {
+    return {
+      kind: 'error',
+      message: error instanceof Error ? error.message : String(error),
+    };
   }
+  const providerKey = selection.providerId;
 
   const providerCfg = providers[providerKey];
   if (!providerCfg) {
@@ -191,7 +194,7 @@ export async function initAgent(platform: TauriPlatform, modelOverride?: string)
     supportsStreaming: true,
   }));
 
-  const selectedModel = effectiveModelOverride || modelConfig.name || modelEntries[0]?.[0] || 'gpt-4o';
+  const selectedModel = selection.modelId || modelConfig.name || modelEntries[0]?.[0] || 'gpt-4o';
   const providerFamily = providerCfg.type === 'anthropic' ? 'anthropic' : 'openai';
   const { models, model: piModel } = createPiModelsForProvider(selectedModel, {
     family: providerFamily,
@@ -203,19 +206,15 @@ export async function initAgent(platform: TauriPlatform, modelOverride?: string)
     ...getDesktopE2eModelsOverride(),
   });
 
-  // ── Register ALL tools ──
   const toolRegistry = new ToolRegistry();
-
-  // File tools
+  toolRegistry.register(requestUserInputDef, new RequestUserInputExecutor());
   toolRegistry.register(fileReadDef, new FileReadExecutor());
   toolRegistry.register(fileWriteDef, new FileWriteExecutor());
   toolRegistry.register(fileEditDef, new FileEditExecutor());
 
-  // Search tools
   toolRegistry.register(grepDef, new GrepExecutor());
   toolRegistry.register(globDef, new GlobExecutor());
 
-  // Shell tool
   toolRegistry.register(bashDef, new BashExecutor());
 
   // Web tools
@@ -306,7 +305,9 @@ export async function initAgent(platform: TauriPlatform, modelOverride?: string)
   // Apply disabled tools/skills filtering
   const disabledTools = await platform.storage.get<string[]>('agent:disabled_tools');
   if (Array.isArray(disabledTools)) {
-    for (const name of disabledTools) toolRegistry.unregister(name);
+    for (const name of disabledTools) {
+      if (name !== 'request_user_input') toolRegistry.unregister(name);
+    }
   }
   const disabledSkills = await platform.storage.get<string[]>('agent:disabled_skills');
   if (Array.isArray(disabledSkills)) {

@@ -113,7 +113,7 @@ export class DefaultSettingsAdapter implements ISettingsAdapter {
     return this.storage.getString(LS.defaultModel);
   }
 
-  setDefaultModel(key: string): void {
+  async setDefaultModel(key: string): Promise<void> {
     this.storage.setString(LS.defaultModel, key);
     this.onUpdate?.();
   }
@@ -168,9 +168,8 @@ export class DefaultSettingsAdapter implements ISettingsAdapter {
     return this.storage.getString(LS.permissionMode) || 'default';
   }
 
-  savePermissionMode(mode: string): void {
+  async savePermissionMode(mode: string): Promise<void> {
     this.storage.setString(LS.permissionMode, mode);
-    this._agentConfig?.capabilities?.permissionManager?.setMode(mode as any);
   }
 
   // ── Tools/Skills toggles ─────────────────────────────────

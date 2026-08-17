@@ -84,7 +84,10 @@ export async function restoreMessagesIntoRuntime(
   runtime: SvtonAgentRuntime,
   sessionId: string | null,
   shouldApply: () => boolean = () => true,
-): Promise<'checkpoint' | 'empty' | 'stale'> {
+): Promise<
+  | { kind: 'checkpoint'; checkpoint: SerializedRuntime }
+  | { kind: 'empty' | 'stale'; checkpoint: null }
+> {
   const resumeManager = sessionId ? runtime.getResumeManager() : null;
   let checkpoint: SerializedRuntime | null = null;
   try {
@@ -96,12 +99,12 @@ export async function restoreMessagesIntoRuntime(
       error: error instanceof Error ? error.message : String(error),
     });
   }
-  if (!shouldApply()) return 'stale';
+  if (!shouldApply()) return { kind: 'stale', checkpoint: null };
   if (checkpoint && resumeManager) {
     resumeManager.applyLoadedState(checkpoint, runtime);
-    return 'checkpoint';
+    return { kind: 'checkpoint', checkpoint };
   } else {
     runtime.reset();
-    return 'empty';
+    return { kind: 'empty', checkpoint: null };
   }
 }

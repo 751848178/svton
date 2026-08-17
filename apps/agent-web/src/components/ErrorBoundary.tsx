@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, type ReactNode } from 'react';
+import { Button, ErrorState, useI18n } from '@svton/ui';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -11,42 +12,30 @@ interface ErrorBoundaryProps {
  * Uses key-based remount to recover from errors.
  */
 export function ErrorBoundary({ children }: ErrorBoundaryProps) {
-  const [error, setError] = useState<Error | null>(null);
+  const { translate: t } = useI18n();
+  const [hasError, setHasError] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
 
   const handleRetry = useCallback(() => {
-    setError(null);
+    setHasError(false);
     setRetryKey((k) => k + 1);
   }, []);
 
-  if (error) {
+  if (hasError) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50 p-6">
-        <div className="max-w-md w-full bg-white rounded-lg shadow-sm border border-red-100 p-6 text-center">
-          <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-red-50 flex items-center justify-center">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-red-500">
-              <circle cx="12" cy="12" r="10" />
-              <line x1="15" y1="9" x2="9" y2="15" />
-              <line x1="9" y1="9" x2="15" y2="15" />
-            </svg>
-          </div>
-          <h2 className="text-lg font-medium text-gray-900 mb-2">Something went wrong</h2>
-          <p className="text-sm text-gray-500 mb-4">
-            {error.message || 'An unexpected error occurred.'}
-          </p>
-          <button
-            onClick={handleRetry}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition-colors"
-          >
-            Retry
-          </button>
-        </div>
+      <div className="flex min-h-screen items-center justify-center bg-background p-6">
+        <ErrorState
+          className="w-full max-w-md rounded-lg border border-border bg-card shadow-sm"
+          title={t('tool.error')}
+          message={t('chat.announcement.failed')}
+          action={<Button type="button" onClick={handleRetry}>{t('action.retry')}</Button>}
+        />
       </div>
     );
   }
 
   return (
-    <ErrorCatcher key={retryKey} onError={setError}>
+    <ErrorCatcher key={retryKey} onError={() => setHasError(true)}>
       {children}
     </ErrorCatcher>
   );
@@ -55,9 +44,9 @@ export function ErrorBoundary({ children }: ErrorBoundaryProps) {
 /**
  * Internal class component that catches render errors.
  */
-class ErrorCatcher extends React.Component<{ children: ReactNode; onError: (error: Error) => void }> {
-  override componentDidCatch(error: Error) {
-    this.props.onError(error);
+class ErrorCatcher extends React.Component<{ children: ReactNode; onError: () => void }> {
+  override componentDidCatch() {
+    this.props.onError();
   }
 
   override render() {

@@ -20,6 +20,11 @@ export interface ProviderConfig {
 export interface ModelConfig {
   id: string;
   name: string;
+  hidden?: boolean;
+  reasoningEfforts?: string[];
+  defaultReasoningEffort?: string;
+  inputModalities?: string[];
+  serviceTiers?: string[];
   contextWindow?: number;
   supportsToolUse?: boolean;
   supportsVision?: boolean;
@@ -189,4 +194,7 @@ export interface ModelOption {
   providerId: string;
   providerName: string;
   providerType: string;
+  hidden?: boolean;
+  reasoningEfforts?: readonly string[];
+  defaultReasoningEffort?: string;
 }

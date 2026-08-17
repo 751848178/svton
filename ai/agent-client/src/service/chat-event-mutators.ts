@@ -151,6 +151,7 @@ export function applyToolCallEnd(
   toolName: string,
   owningCall: DisplayToolCall | undefined,
 ): DisplayMessage {
+  if (owningCall?.status === 'completed' || owningCall?.status === 'error') return m;
   const endStatus = result.isError ? 'error' as const : 'completed' as const;
   const updatedCalls = (m.toolCalls || []).map((tc) =>
     tc.id === result.callId ? { ...tc, result, status: endStatus } : tc,

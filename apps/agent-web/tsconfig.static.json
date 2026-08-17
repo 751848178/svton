@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "svton-web-locale-host": [
+        "./src/lib/locale/web-locale-host.static.ts"
+      ],
+      "@/*": [
+        "./src/*"
+      ]
+    }
+  }
+}

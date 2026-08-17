@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import 'reflect-metadata';
 import {
   SvtonAgentRuntime,
+  SkillManager,
   ToolRegistry,
   fauxAssistantMessage,
   fauxText,
@@ -141,11 +142,29 @@ describe('ChatService canonical history rollback', () => {
     expect(service.messages.map((message) => message.content))
       .toEqual(['failure target', 'recovered reply']);
   });
+
+  it('resolves retry past a captured synthetic skill-context index', async () => {
+    const { runtime, mock } = await createHarness(service, false, true);
+    mock.addResponse(fauxAssistantMessage([fauxText('old skilled response')]));
+    await service.sendMessage('skill-retry target');
+    const user = service.messages.find((message) => message.role === 'user')!;
+    expect(user.runtimeMessageIndex).toBe(0);
+    expect(runtime.getCanonicalMessages()[0]).toMatchObject({ role: 'user' });
+
+    const rollback = vi.spyOn(runtime, 'rollbackCanonicalMessages');
+    mock.addResponse(fauxAssistantMessage([fauxText('new skilled response')]));
+    await service.retryFromMessage(user.id);
+
+    expect(rollback).toHaveBeenCalledWith(1);
+    expect(serialized(runtime.getCanonicalMessages())).not.toContain('old skilled response');
+    expect(serialized(runtime.getCanonicalMessages())).toContain('new skilled response');
+  });
 });
 
 async function createHarness(
   service: ChatService,
   withTool = false,
+  withSkill = false,
 ): Promise<Harness> {
   const registry = new ToolRegistry();
   if (withTool) {
@@ -166,7 +185,19 @@ async function createHarness(
       }),
     });
   }
-  const { config, mock } = buildPiAgentConfig({ toolRegistry: registry });
+  const skillManager = new SkillManager();
+  if (withSkill) {
+    skillManager.register({
+      name: 'retry-skill', description: 'Retry skill fixture',
+      instructions: 'Use the retry skill fixture.', scope: 'user',
+      trigger: { type: 'implicit', patterns: ['skill-retry'] },
+      triggerSignals: ['skill-retry'],
+    });
+  }
+  const { config, mock } = buildPiAgentConfig({
+    toolRegistry: registry,
+    ...(withSkill ? { capabilities: { skillManager } } : {}),
+  });
   const createRuntime = vi.spyOn(SvtonAgentRuntime, 'createAsync');
   await service.init(makeBrowserPlatform(), config);
   const result = createRuntime.mock.results.at(-1);

@@ -53,7 +53,9 @@ export async function* runPermissionAndApprovalGate(
 ): AsyncGenerator<SvtonCapabilityEvent, PolicyGateOutcome> {
   if (!ctx.permissionManager) return { kind: 'approved', autoReviewResult: null };
 
-  const decision = ctx.permissionManager.check(ctx.call);
+  const decision = ctx.permissionManager.check(ctx.call, {
+    sessionId: ctx.execOptions.sessionId,
+  });
   if (!decision.allowed) {
     const result = createPermissionDeniedResult(ctx.call.id, decision.reason);
     return { kind: 'blocked', result };
@@ -62,17 +64,31 @@ export async function* runPermissionAndApprovalGate(
     return { kind: 'approved', autoReviewResult: null };
   }
 
-  const outcome = yield* resolveApproval(ctx);
+  const outcome = yield* resolveApproval(
+    ctx,
+    decision.sessionScopeKey,
+    decision.reason,
+  );
   return outcome;
 }
 
 /** Auto-reviewer + user-approval resolution when permission requires approval. */
 async function* resolveApproval(
   ctx: PolicyGateContext,
+  sessionScopeKey?: string,
+  reason?: string,
 ): AsyncGenerator<SvtonCapabilityEvent, PolicyGateOutcome> {
   if (!ctx.autoReviewer) {
     const rejection = yield* requestUserApproval(
-      ctx.pendingApprovals, ctx.call, ctx.execOptions.signal,
+      ctx.pendingApprovals,
+      ctx.call,
+      {
+        sessionId: ctx.execOptions.sessionId,
+        signal: ctx.execOptions.signal,
+        reason,
+        sessionScopeKey,
+        permissionManager: ctx.permissionManager,
+      },
     );
     return rejection
       ? { kind: 'blocked', result: rejection }
@@ -102,9 +118,17 @@ async function* resolveApproval(
 
   // ask_user — escalate to user approval, decorating the result with the review.
   const rejection = yield* requestUserApproval(
-    ctx.pendingApprovals, ctx.call, ctx.execOptions.signal,
-    (result) => withAutoReviewMetadata(result, review),
-    toAutoReviewMetadata(review),
+    ctx.pendingApprovals,
+    ctx.call,
+    {
+      sessionId: ctx.execOptions.sessionId,
+      signal: ctx.execOptions.signal,
+      reason,
+      decorateResult: (result) => withAutoReviewMetadata(result, review),
+      metadata: toAutoReviewMetadata(review),
+      sessionScopeKey,
+      permissionManager: ctx.permissionManager,
+    },
   );
   if (rejection) return { kind: 'blocked', result: rejection };
   return { kind: 'approved', autoReviewResult: review };

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAgentContext } from '../service/provider';
 import type { PlanProgress } from '../service/chat.service';
+import type { ChatPreparedInput } from '../service/chat-prepared-input.types';
 
 /**
  * Chat hook for message interaction.
@@ -15,6 +16,12 @@ export function useChat() {
   const [lastUsage, setLastUsage] = useState(() => chatInternal.getState('lastUsage'));
   const [activePlan, setActivePlan] = useState<PlanProgress | null>(() => chatInternal.getState('activePlan'));
   const [inputHistory, setInputHistory] = useState<string[]>(() => chatInternal.getState('inputHistory'));
+  const [currentModelKey, setCurrentModelKey] = useState(() =>
+    chatInternal.getState('currentModelKey'));
+  const [currentReasoningEffort, setCurrentReasoningEffort] = useState(() =>
+    chatInternal.getState('currentReasoningEffort'));
+  const [currentPermissionMode, setCurrentPermissionMode] = useState(() =>
+    chatInternal.getState('currentPermissionMode'));
   const [, refreshSessionRouting] = useState(0);
 
   useEffect(() => {
@@ -33,10 +40,18 @@ export function useChat() {
     const unsubInputHistory = chatInternal.subscribe('inputHistory', () => {
       setInputHistory(chatInternal.getState('inputHistory'));
     });
+    const unsubModelKey = chatInternal.subscribe('currentModelKey', () => {
+      setCurrentModelKey(chatInternal.getState('currentModelKey'));
+    });
+    const unsubReasoning = chatInternal.subscribe('currentReasoningEffort', () => {
+      setCurrentReasoningEffort(chatInternal.getState('currentReasoningEffort'));
+    });
+    const unsubPermission = chatInternal.subscribe('currentPermissionMode', () => {
+      setCurrentPermissionMode(chatInternal.getState('currentPermissionMode'));
+    });
     const refreshRouting = () => refreshSessionRouting((version) => version + 1);
     const unsubActiveSession = chatInternal.subscribe('activeSessionId', refreshRouting);
-    const unsubBackgroundSession = chatInternal.subscribe('backgroundSessionId', refreshRouting);
-    const unsubRuntimeSession = chatInternal.subscribe('runtimeSessionId', refreshRouting);
+    const unsubRunState = chatInternal.subscribe('runStateVersion', refreshRouting);
 
     return () => {
       unsubMessages();
@@ -44,13 +59,15 @@ export function useChat() {
       unsubUsage();
       unsubPlan();
       unsubInputHistory();
+      unsubModelKey();
+      unsubReasoning();
+      unsubPermission();
       unsubActiveSession();
-      unsubBackgroundSession();
-      unsubRuntimeSession();
+      unsubRunState();
     };
   }, [chatInternal]);
 
-  const isStreaming = status === 'running' || status === 'waiting_approval' || !chatService.canSend;
+  const isStreaming = status === 'running' || status === 'waiting_approval';
 
   return {
     messages,
@@ -60,8 +77,12 @@ export function useChat() {
     lastUsage,
     activePlan,
     inputHistory,
+    currentModelKey,
+    currentReasoningEffort,
+    currentPermissionMode,
 
     send: (content: string, images?: Array<{ data: string; mimeType?: string }>) => chatService.sendMessage(content, images),
+    submitPrepared: (input: ChatPreparedInput) => Promise.resolve(chatService.acceptPreparedMessage(input)),
     retry: () => chatService.retry(),
     retryFromMessage: (id: string) => chatService.retryFromMessage(id),
     editMessage: (id: string, content: string) => chatService.editMessage(id, content),

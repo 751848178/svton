@@ -17,6 +17,7 @@ import type { IStorage } from '@svton/agent-platform';
 import type { SerializedRuntime, CheckpointMeta } from './types';
 import type { SvtonAgentRuntime } from '../agent/svton-agent-runtime';
 import { parseSerializedRuntime } from './checkpoint-state.utils';
+import { cloneSecretSafeMessages } from './checkpoint-secret-safe-clone';
 import { logger } from '../utils/logger';
 
 const STORAGE_PREFIX = 'agent:checkpoint:';
@@ -31,9 +32,10 @@ export class SessionResumeManager {
   async checkpoint(
     sessionId: string,
     runtime: SvtonAgentRuntime,
+    runRevision?: number,
   ): Promise<void> {
     try {
-      const state = this.serializeRuntime(runtime);
+      const state = this.serializeRuntime(runtime, runRevision);
       await this.storage.set(STORAGE_PREFIX + sessionId, JSON.stringify(state));
       logger.debug('Checkpoint', `Saved checkpoint for session ${sessionId}`, {
         messageCount: state.messages.length,
@@ -68,6 +70,7 @@ export class SessionResumeManager {
       model: state.model,
       updatedAt: state.updatedAt,
       planId: state.planId,
+      runRevision: state.runRevision,
     };
   }
 
@@ -126,6 +129,7 @@ export class SessionResumeManager {
             model: state.model,
             updatedAt: state.updatedAt,
             planId: state.planId,
+            runRevision: state.runRevision,
           });
         }
       } catch {
@@ -140,8 +144,11 @@ export class SessionResumeManager {
   // Private helpers
   // ----------------------------------------------------------
 
-  private serializeRuntime(runtime: SvtonAgentRuntime): SerializedRuntime {
-    const messages = runtime.getMessages();
+  private serializeRuntime(
+    runtime: SvtonAgentRuntime,
+    runRevision?: number,
+  ): SerializedRuntime {
+    const messages = cloneSecretSafeMessages(runtime.getMessages());
     const reasoningEffort = runtime.getReasoningEffort();
 
     return {
@@ -149,6 +156,7 @@ export class SessionResumeManager {
       model: runtime.getModel(),
       reasoningEffort,
       updatedAt: Date.now(),
+      ...(runRevision ? { runRevision } : {}),
     };
   }
 }

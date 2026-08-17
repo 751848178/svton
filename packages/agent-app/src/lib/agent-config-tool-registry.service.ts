@@ -28,6 +28,8 @@ import {
   GoogleImagenProvider,
   MemoryManager,
   PlanningManager,
+  requestUserInputDef,
+  RequestUserInputExecutor,
 } from '@svton/agent-core';
 import type { BrowserPlatform } from '@svton/agent-platform';
 import type {
@@ -70,6 +72,7 @@ export async function createAgentToolRegistry(
     storage,
   } = options;
   const toolRegistry = new ToolRegistry();
+  toolRegistry.register(requestUserInputDef, new RequestUserInputExecutor());
 
   if (features.webFetch !== false) {
     toolRegistry.register(webFetchDef, new WebFetchExecutor());

@@ -36,10 +36,11 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'pnpm dev',
+    command: process.env.SVTON_E2E_SERVER_COMMAND ?? 'pnpm dev',
+    env: { SVTON_E2E_VISUAL_CAPTURE: '1' },
     url: BASE_URL,
     timeout: 120_000,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     stdout: 'pipe',
     stderr: 'pipe',
   },

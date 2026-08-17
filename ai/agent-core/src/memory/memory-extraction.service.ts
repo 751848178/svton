@@ -23,6 +23,7 @@ export async function extractMemorableFacts(
   provider: ExtractionProvider,
   model: string,
   existingMemoryText: string,
+  signal?: AbortSignal,
 ): Promise<string[]> {
   const convText = buildConversationText(messages);
   if (convText.length < 100) return [];
@@ -49,7 +50,9 @@ Output ONLY new facts not already in the existing memory. One fact per line, pre
     model,
     maxTokens: 500,
     stream: true,
+    signal,
   })) {
+    if (signal?.aborted) throw new DOMException('Memory extraction aborted', 'AbortError');
     if (event.type === 'text_delta') extraction += event.text;
   }
 

@@ -1,243 +1,42 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { cn, useI18n } from '@svton/ui';
+import { SettingsSwitch } from './SettingsSwitch';
 
-// ════════════════════════════════════════════════════════════
-// AutoReviewerSettings — auto-reviewer configuration panel
-// ════════════════════════════════════════════════════════════
-
-export interface AutoReviewerRule {
-  id: string;
-  description: string;
-  verdict: string;
-}
-
+export interface AutoReviewerRule { id: string; description: string; verdict: string }
 export interface AutoReviewerSettingsProps {
   mode: 'auto_review' | 'manual';
   rules: AutoReviewerRule[];
   onModeChange: (mode: 'auto_review' | 'manual') => void;
 }
 
-type VerdictColor = 'green' | 'red' | 'yellow';
-
-function getVerdictColor(verdict: string): VerdictColor {
-  const v = verdict.toLowerCase();
-  if (v.includes('approve') || v.includes('allow') || v.includes('pass')) return 'green';
-  if (v.includes('deny') || v.includes('block') || v.includes('reject')) return 'red';
-  return 'yellow';
-}
-
-function getVerdictBg(color: VerdictColor): string {
-  switch (color) {
-    case 'green':
-      return 'rgba(34,197,94,0.15)';
-    case 'red':
-      return 'rgba(239,68,68,0.15)';
-    case 'yellow':
-      return 'rgba(234,179,8,0.15)';
-  }
-}
-
-function getVerdictTextColor(color: VerdictColor): string {
-  switch (color) {
-    case 'green':
-      return '#4ade80';
-    case 'red':
-      return '#f87171';
-    case 'yellow':
-      return '#facc15';
-  }
+function verdictClass(verdict: string) {
+  const normalized = verdict.toLowerCase();
+  if (normalized.includes('approve') || normalized.includes('allow') || normalized.includes('pass')) return 'bg-green-900/20 text-green-400';
+  if (normalized.includes('deny') || normalized.includes('block') || normalized.includes('reject')) return 'bg-red-900/20 text-red-400';
+  return 'bg-yellow-900/20 text-yellow-400';
 }
 
 export function AutoReviewerSettings({ mode, rules, onModeChange }: AutoReviewerSettingsProps) {
-  const [localMode, setLocalMode] = useState<'auto_review' | 'manual'>(mode);
-
-  const handleToggle = () => {
-    const newMode = localMode === 'auto_review' ? 'manual' : 'auto_review';
-    setLocalMode(newMode);
-    onModeChange(newMode);
+  const { translate: t } = useI18n();
+  const [localMode, setLocalMode] = useState(mode);
+  useEffect(() => setLocalMode(mode), [mode]);
+  const auto = localMode === 'auto_review';
+  const toggle = (checked: boolean) => {
+    const next = checked ? 'auto_review' : 'manual';
+    setLocalMode(next);
+    onModeChange(next);
   };
-
-  const isAuto = localMode === 'auto_review';
-
-  const sectionTitleStyle: React.CSSProperties = {
-    fontSize: '18px',
-    fontWeight: 500,
-    color: '#ffffff',
-    marginBottom: '4px',
-  };
-
-  const sectionDescStyle: React.CSSProperties = {
-    fontSize: '12px',
-    color: '#6b7280',
-    marginBottom: '24px',
-  };
-
-  const cardStyle: React.CSSProperties = {
-    background: '#1c1c1c',
-    borderRadius: '12px',
-    border: '1px solid #2a2a2a',
-    padding: '20px',
-    marginBottom: '16px',
-  };
-
-  const toggleContainerStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: '12px 16px',
-    background: '#171717',
-    borderRadius: '10px',
-    border: '1px solid #2a2a2a',
-    marginBottom: '16px',
-  };
-
-  const toggleSwitchStyle = (isOn: boolean): React.CSSProperties => ({
-    position: 'relative',
-    display: 'inline-flex',
-    height: '18px',
-    width: '32px',
-    alignItems: 'center',
-    borderRadius: '9999px',
-    border: 'none',
-    cursor: 'pointer',
-    padding: 0,
-    transition: 'background-color 200ms ease',
-    backgroundColor: isOn ? '#0891b2' : '#333333',
-  });
-
-  const toggleKnobStyle = (isOn: boolean): React.CSSProperties => ({
-    display: 'inline-block',
-    height: '12px',
-    width: '12px',
-    borderRadius: '9999px',
-    backgroundColor: '#ffffff',
-    transition: 'transform 200ms ease',
-    transform: isOn ? 'translateX(17px)' : 'translateX(3px)',
-  });
-
-  const descTextStyle: React.CSSProperties = {
-    fontSize: '12px',
-    color: '#6b7280',
-    lineHeight: 1.6,
-    padding: '12px 14px',
-    borderRadius: '10px',
-    background: 'rgba(8,145,178,0.06)',
-    border: '1px solid rgba(14,116,144,0.25)',
-    marginBottom: '16px',
-  };
-
-  const ruleItemStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: '12px',
-    padding: '10px 14px',
-    background: '#171717',
-    borderRadius: '8px',
-    border: '1px solid #2a2a2a',
-    marginBottom: '6px',
-  };
-
-  const ruleDescStyle: React.CSSProperties = {
-    fontSize: '12px',
-    color: '#d1d5db',
-    flex: 1,
-  };
-
-  const ruleIdStyle: React.CSSProperties = {
-    fontSize: '10px',
-    color: '#6b7280',
-    fontFamily: 'monospace',
-    marginTop: '2px',
-  };
-
-  const verdictBadgeStyle = (color: VerdictColor): React.CSSProperties => ({
-    display: 'inline-flex',
-    alignItems: 'center',
-    padding: '3px 8px',
-    borderRadius: '4px',
-    fontSize: '10px',
-    fontWeight: 600,
-    textTransform: 'uppercase',
-    letterSpacing: '0.03em',
-    color: getVerdictTextColor(color),
-    backgroundColor: getVerdictBg(color),
-    flexShrink: 0,
-    whiteSpace: 'nowrap',
-  });
-
-  const rulesHeaderStyle: React.CSSProperties = {
-    fontSize: '11px',
-    color: '#6b7280',
-    textTransform: 'uppercase',
-    letterSpacing: '0.05em',
-    marginBottom: '10px',
-    fontWeight: 500,
-  };
-
   return (
-    <div>
-      <h2 style={sectionTitleStyle}>自动审核</h2>
-      <p style={sectionDescStyle}>配置工具调用的自动审核行为。</p>
-
-      <div style={cardStyle}>
-        {/* Mode toggle */}
-        <div style={toggleContainerStyle}>
-          <div>
-            <span style={{ fontSize: '14px', color: '#e5e7eb', fontWeight: 500 }}>
-              自动审核模式
-            </span>
-            <p style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
-              {isAuto ? '当前：自动审核（安全规则自动通过）' : '当前：手动模式（所有调用需确认）'}
-            </p>
-          </div>
-          <button
-            type="button"
-            style={toggleSwitchStyle(isAuto)}
-            onClick={handleToggle}
-            aria-label="Toggle auto-review mode"
-          >
-            <span style={toggleKnobStyle(isAuto)} />
-          </button>
-        </div>
-
-        {/* Description banner */}
-        <div style={descTextStyle}>
-          {isAuto
-            ? '在自动模式下，符合安全规则的工具调用会自动通过审批。'
-            : '在手动模式下，所有工具调用都需要人工审批。'}
-          <br />
-          In auto mode, tool calls matching safe rules are auto-approved. In manual mode, all tool calls require approval.
-        </div>
-
-        {/* Built-in rules list */}
-        <div style={rulesHeaderStyle}>内置规则</div>
-        {rules.length === 0 ? (
-          <div
-            style={{
-              textAlign: 'center',
-              padding: '24px',
-              color: '#6b7280',
-              fontSize: '13px',
-            }}
-          >
-            暂无已配置的规则
-          </div>
-        ) : (
-          rules.map((rule) => {
-            const color = getVerdictColor(rule.verdict);
-            return (
-              <div key={rule.id} style={ruleItemStyle}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={ruleDescStyle}>{rule.description}</div>
-                  <div style={ruleIdStyle}>{rule.id}</div>
-                </div>
-                <span style={verdictBadgeStyle(color)}>{rule.verdict}</span>
-              </div>
-            );
-          })
-        )}
+    <section aria-labelledby="auto-reviewer-heading">
+      <h2 id="auto-reviewer-heading" className="text-lg font-medium text-white">{t('settings.reviewer.title')}</h2>
+      <p className="mb-6 mt-1 text-xs text-gray-500">{t('settings.reviewer.description')}</p>
+      <div className="rounded-xl border border-[#2a2a2a] bg-[#1c1c1c] p-3 sm:p-5">
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-[#2a2a2a] bg-[#171717] px-4 py-2"><div><h3 className="text-sm font-medium text-gray-200">{t('settings.reviewer.mode')}</h3><p className="mt-0.5 text-[11px] text-gray-500">{t(auto ? 'settings.reviewer.autoDescription' : 'settings.reviewer.manualDescription')}</p></div><SettingsSwitch checked={auto} onCheckedChange={toggle} label={t('settings.reviewer.mode')} /></div>
+        <p className="mb-4 rounded-lg border border-cyan-900/30 bg-cyan-900/10 p-3 text-xs leading-5 text-gray-500">{t(auto ? 'settings.reviewer.autoBody' : 'settings.reviewer.manualBody')}</p>
+        <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wider text-gray-500">{t('settings.reviewer.rules')}</h3>
+        {rules.length === 0 ? <p className="py-6 text-center text-sm text-gray-500">{t('settings.reviewer.empty')}</p> : <div className="space-y-2">{rules.map((rule) => <div key={rule.id} className="flex min-w-0 items-start justify-between gap-3 rounded-lg border border-[#2a2a2a] bg-[#171717] p-3"><div className="min-w-0 flex-1"><p className="text-xs text-gray-300">{rule.description}</p><p className="mt-1 truncate font-mono text-[10px] text-gray-500">{rule.id}</p></div><span className={cn('shrink-0 rounded px-2 py-1 text-[10px] font-semibold uppercase', verdictClass(rule.verdict))}>{rule.verdict}</span></div>)}</div>}
       </div>
-    </div>
+    </section>
   );
 }
 

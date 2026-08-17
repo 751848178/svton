@@ -10,6 +10,9 @@ import {
   LS_DISABLED_TOOLS, LS_PERMISSION_MODE, LS_CUSTOM_INSTRUCTIONS,
   LS_DISABLED_SKILLS, LS_SEARCH_ENDPOINT, LS_DEFAULT_MODEL,
 } from '@/lib/settings-store';
+import type { LiveModelRegistry } from '@svton/agent-app';
+import { toWebRegistrySources } from './web-model-registry';
+import type { BrowserSettingsPresentationCopy } from './locale/web-presentation-copy';
 
 const LS_MCP_SERVERS = 'agent-web:mcp_servers';
 
@@ -18,10 +21,17 @@ export class BrowserSettingsAdapter implements ISettingsAdapter {
   private _platform: BrowserPlatform;
   private onUpdate?: () => void;
   private marketplace = new SkillMarketplace();
+  private readonly modelRegistry?: LiveModelRegistry;
 
-  constructor(platform: BrowserPlatform, onUpdate?: () => void) {
+  constructor(
+    platform: BrowserPlatform,
+    private readonly presentationCopy: BrowserSettingsPresentationCopy,
+    onUpdate?: () => void,
+    modelRegistry?: LiveModelRegistry,
+  ) {
     this._platform = platform;
     this.onUpdate = onUpdate;
+    this.modelRegistry = modelRegistry;
   }
 
   setAgentConfig(cfg: AgentConfig | null) { this._agentConfig = cfg; }
@@ -49,10 +59,15 @@ export class BrowserSettingsAdapter implements ISettingsAdapter {
         type: (info.type === 'anthropic' ? 'anthropic' : 'openai') as 'openai' | 'anthropic',
         baseUrl: info.baseUrl,
         apiKey: info.apiKey,
-        models: info.models,
+        models: info.models.map((model) => ({
+          ...orig?.models.find((candidate) => candidate.id === model.id),
+          ...model,
+        })),
       } as ProviderSetting;
     });
     saveSettings(updated);
+    this.modelRegistry?.replace(toWebRegistrySources(updated));
+    this.onUpdate?.();
   }
 
   // ── Model selection ──────────────────────────────────────
@@ -60,7 +75,8 @@ export class BrowserSettingsAdapter implements ISettingsAdapter {
     return loadString(LS_DEFAULT_MODEL) || '';
   }
 
-  setDefaultModel(key: string): void {
+  async setDefaultModel(key: string): Promise<void> {
+    await initAgentConfig(key, this._platform);
     saveString(LS_DEFAULT_MODEL, key);
   }
 
@@ -102,7 +118,7 @@ export class BrowserSettingsAdapter implements ISettingsAdapter {
     return loadString(LS_PERMISSION_MODE) || 'default';
   }
 
-  savePermissionMode(mode: string): void {
+  async savePermissionMode(mode: string): Promise<void> {
     saveString(LS_PERMISSION_MODE, mode);
   }
 
@@ -222,7 +238,7 @@ export class BrowserSettingsAdapter implements ISettingsAdapter {
 
   // ── Platform info ────────────────────────────────────────
   getStorageDescription(): string {
-    return 'Web 版设置存储在浏览器 localStorage 中。清除浏览器数据会重置所有配置。';
+    return this.presentationCopy.storageDescription();
   }
 
   // ── Web search ───────────────────────────────────────────

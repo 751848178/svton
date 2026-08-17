@@ -1,10 +1,13 @@
-import React, { createContext, useContext, useEffect, useMemo, useRef } from 'react';
+import React, { createContext, useContext, useMemo, useRef } from 'react';
 import { container } from '@svton/service';
 import type { IPlatform } from '@svton/agent-platform';
 import type { AgentConfig } from '@svton/agent-core';
 import { ChatService } from './chat.service';
 import { SessionService } from './session.service';
 import { ProjectService } from './project.service';
+import { useAgentProviderStartup } from '../startup/use-agent-provider-startup';
+import type { StartupTaskController } from '../startup/use-startup-task';
+import type { ModelKey } from '../model-switch/model-switch.types';
 
 /** Minimal interface for the reactive internal instance */
 export interface InternalLike<T> {
@@ -44,24 +47,32 @@ export async function globalFlush() {
   if (_flushFn) await _flushFn();
 }
 
-interface AgentProviderProps {
+export interface AgentProviderProps {
   platform: IPlatform;
   config: AgentConfig;
   runtimeKey?: string;
+  modelKey?: ModelKey;
   initialSessionId?: string;
   children: React.ReactNode;
+  startupFallback?: (controller: StartupTaskController<void>) => React.ReactNode;
+  beforeStartupSource?: (source: 'chat' | 'session' | 'project') => void | Promise<void>;
 }
 
 /**
  * Top-level provider that initializes Agent services.
  * Uses the @svton/service container to create reactive instances.
  */
-export function AgentProvider({ platform, config, runtimeKey, initialSessionId, children }: AgentProviderProps) {
+export function AgentProvider({
+  platform,
+  config,
+  runtimeKey,
+  modelKey,
+  initialSessionId,
+  children,
+  startupFallback,
+  beforeStartupSource,
+}: AgentProviderProps) {
   const scopeRef = useRef(container.createScope());
-  // Track what config we've already initialized with, to avoid re-init on every render
-  const initConfigRef = useRef<AgentConfig | null>(null);
-  const initStorageRef = useRef<IPlatform['storage'] | null>(null);
-  const initRuntimeKeyRef = useRef<string | undefined>(undefined);
 
   // Create service instances in useMemo (pure, no side effects)
   const instances = useMemo(() => {
@@ -72,23 +83,16 @@ export function AgentProvider({ platform, config, runtimeKey, initialSessionId, 
     return { chatInternal, sessionInternal, projectInternal };
   }, []);
 
-  // Initialize services in useEffect — ONLY when config actually changes
-  useEffect(() => {
-    // Skip re-initialization if we already initialized with this config
-    if (
-      initConfigRef.current === config
-      && initStorageRef.current === platform.storage
-      && initRuntimeKeyRef.current === runtimeKey
-    ) {
-      return;
-    }
-    initConfigRef.current = config;
-    initStorageRef.current = platform.storage;
-    initRuntimeKeyRef.current = runtimeKey;
-    instances.chatInternal.target.init(platform, config, runtimeKey);
-    instances.sessionInternal.target.init(platform.storage);
-    instances.projectInternal.target.init(platform.storage);
-  }, [platform, config, runtimeKey, instances]);
+  const startup = useAgentProviderStartup({
+    platform,
+    config,
+    runtimeKey,
+    modelKey,
+    chatService: instances.chatInternal.target,
+    sessionService: instances.sessionInternal.target,
+    projectService: instances.projectInternal.target,
+    beforeSource: beforeStartupSource,
+  });
 
   const value = useMemo(() => ({
     platform,
@@ -102,10 +106,25 @@ export function AgentProvider({ platform, config, runtimeKey, initialSessionId, 
     flush: globalFlush,
   }), [instances, platform, initialSessionId]);
 
+  if (startup.state.phase !== 'ready') {
+    return startupFallback?.(startup) ?? <DefaultStartupFallback controller={startup} />;
+  }
+
   return (
     <AgentContext.Provider value={value}>
       {children}
     </AgentContext.Provider>
+  );
+}
+
+function DefaultStartupFallback({ controller }: { controller: StartupTaskController<void> }) {
+  const { state } = controller;
+  if (state.phase === 'loading') return <div role="status">Initializing agent…</div>;
+  return (
+    <div role="alert">
+      <p>{state.phase === 'error' ? state.cause : 'Agent configuration is required.'}</p>
+      <button type="button" onClick={controller.retry}>Retry</button>
+    </div>
   );
 }
 

@@ -6,3 +6,4 @@ export type {
 } from './types';
 
 export { PermissionManager } from './manager';
+export type { PermissionCheckContext } from './manager';

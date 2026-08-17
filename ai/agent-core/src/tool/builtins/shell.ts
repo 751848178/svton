@@ -66,8 +66,9 @@ export class BashExecutor implements IToolExecutor {
           },
         };
       }
+      const startedAt = Date.now();
       const result = await runner.run(command, execOptions);
-      const formatted = formatCommandResult(result, '(no output)');
+      const formatted = formatCommandResult(result, '(no output)', Date.now() - startedAt);
 
       return {
         callId: call.id,
@@ -75,8 +76,13 @@ export class BashExecutor implements IToolExecutor {
         isError: formatted.isError,
         metadata: {
           exitCode: formatted.exitCode,
+          stdout: formatted.stdout,
+          stderr: formatted.stderr,
+          signal: formatted.signal,
           timedOut: formatted.timedOut,
+          durationMs: formatted.durationMs,
           command,
+          cwd: execOptions.cwd,
           timeout: execOptions.timeout,
         },
       };

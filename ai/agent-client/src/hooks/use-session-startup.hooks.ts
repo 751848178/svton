@@ -40,7 +40,8 @@ export function useSessionStartup({
           sessionService.currentSessionId,
         );
         if (sessionId) {
-          sessionService.switchTo(sessionId);
+          const switched = await sessionService.switchTo(sessionId);
+          if (!switched) return;
           chatService.bindSession(sessionId);
           await loadSessionMessagesForSwitch(chatService, sessionService, sessionId, false);
           return;

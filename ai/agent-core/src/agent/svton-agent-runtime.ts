@@ -6,6 +6,7 @@ import type { Models, Model, UserMessage } from '@earendil-works/pi-ai';
 import type { ReasoningEffort } from '../provider/types';
 import type { ToolRegistry } from '../tool/registry';
 import type { PermissionManager } from '../permission/manager';
+import type { PermissionMode } from '../permission/types';
 import type { HookManager } from '../hooks/manager';
 import type { SkillManager } from '../skill/manager';
 import type { SkillDefinition } from '../skill/types';
@@ -18,7 +19,7 @@ import type { SessionResumeManager } from '../checkpoint/manager';
 import type { IPlatform } from '@svton/agent-platform';
 import type {
   AgentConfig, IRuntime, McpServerToolConfig, PendingApproval,
-  PublicRuntimeEvent, RunOptions,
+  PublicRuntimeEvent, RunOptions, ToolApprovalDecision,
 } from './types';
 import type { AutoReviewerManager } from '../auto-reviewer/manager';
 import type { AgentDefinitionManager } from '../agent-definition/manager';
@@ -34,12 +35,13 @@ import { createPostTurnCallback, type PostTurnDeps } from './runtime-lifecycle';
 import { reasoningToThinkingLevel, resolveModelById } from './runtime-helpers';
 import { RuntimeCapabilitySinkService } from './runtime-capability-sink.service';
 import { cancelAgentRun } from './runtime-run-cancellation.utils';
+import { UserInputBroker } from './user-input-broker';
+import type { UserInputAnswers } from './user-input.types';
 
 const DEFAULT_MAX_ITERATIONS = 50;
 /** Composition root over the Pi `Agent`. */
 export class SvtonAgentRuntime implements IRuntime {
-  private readonly models: Models;
-  private readonly model: Model<any>;
+  private readonly models: Models; private readonly model: Model<any>;
   private readonly modelId: string;
   private readonly toolRegistry: ToolRegistry;
   private systemPrompt: string;
@@ -65,6 +67,7 @@ export class SvtonAgentRuntime implements IRuntime {
   private toolExecService: ToolExecutionService;
   private readonly platform: IPlatform;
   private readonly capabilitySink = new RuntimeCapabilitySinkService();
+  private readonly userInputBroker: UserInputBroker; private readonly postTurnMemoryTimeoutMs: number | undefined;
 
   private constructor(config: AgentConfig, platform: IPlatform) {
     this.models = config.models;
@@ -74,6 +77,8 @@ export class SvtonAgentRuntime implements IRuntime {
     this.maxIterations = config.maxIterations ?? DEFAULT_MAX_ITERATIONS;
     this.workingDir = config.workingDir || '/';
     this.platform = platform;
+    this.userInputBroker = new UserInputBroker((event) => this.capabilitySink.route(event));
+    this.postTurnMemoryTimeoutMs = Number.isFinite(config.postTurnMemoryTimeoutMs) ? Math.max(0, config.postTurnMemoryTimeoutMs!) : undefined;
     const caps = config.capabilities;
     this.skillManager = caps?.skillManager ?? null;
     this.memoryManager = caps?.memoryManager ?? null;
@@ -111,17 +116,19 @@ export class SvtonAgentRuntime implements IRuntime {
       capabilityContext: this.capabilityContext(), maxIterations: this.maxIterations,
       onActiveSkills: (s) => { this.activeSkills = s; },
       refreshTools: (sink) => this.refreshTools(sink),
-      cancelRun: (signal) => cancelAgentRun(this.agent, this.approvalGate, signal),
+      cancelRun: (signal) => cancelAgentRun(this.agent, this.approvalGate, this.userInputBroker, signal),
       postTurn: createPostTurnCallback(this.postTurnDeps()),
     }, userMessage, options);
   }
-
   approveToolCall(callId: string): void { this.approvalGate.approveToolCall(callId); }
   rejectToolCall(callId: string): void { this.approvalGate.rejectToolCall(callId); }
-  abort(): void { this.agent.abort(); this.approvalGate.abortPending(); }
+  settleToolApproval(sessionId: string, requestId: string, decision: ToolApprovalDecision): boolean { return this.approvalGate.settleToolApproval(sessionId, requestId, decision); }
+  respondToUserInput(sessionId: string, requestId: string, answers: UserInputAnswers): boolean { return this.userInputBroker.respond(sessionId, requestId, answers); }
+  resolveUserInputRequest(sessionId: string, requestId: string): boolean { return this.userInputBroker.interrupt(sessionId, requestId); }
+  abort(): void { this.agent.abort(); this.approvalGate.abortPending(); this.userInputBroker.abortPending(); }
   getMessages(): AgentMessage[] { return [...this.agent.state.messages]; }
   setMessages(messages: AgentMessage[]): void { this.agent.state.messages = [...messages]; }
-  reset(): void { this.agent.reset(); this.approvalGate.abortPending(); this.activeSkills = []; this.capabilitySink.reset(); }
+  reset(): void { this.agent.reset(); this.approvalGate.abortPending(); this.userInputBroker.reset(); this.permissionManager?.clearSessionGrants(); this.activeSkills = []; this.capabilitySink.reset(); }
   getCanonicalMessages(): AgentMessage[] { return [...this.agent.state.messages]; }
   rollbackCanonicalMessages(index: number): void {
     if (!Number.isInteger(index) || index < 0 || index > this.agent.state.messages.length) throw new RangeError(`Invalid canonical message index: ${index}`);
@@ -130,12 +137,18 @@ export class SvtonAgentRuntime implements IRuntime {
   getModel(): string { return this.modelId; }
   setSubagentManager(manager: SubagentManager): void { this.subagentManager = manager; }
   setPermissionManager(manager: PermissionManager): void { this.permissionManager = manager; this.toolExecService = this.buildToolExecService(); }
+  setPermissionMode(mode: PermissionMode): boolean {
+    if (!this.permissionManager) return false;
+    this.permissionManager.setMode(mode);
+    return true;
+  }
+  getPermissionMode(): PermissionMode | undefined { return this.permissionManager?.getMode(); }
+  getPermissionManager(): PermissionManager | null { return this.permissionManager; }
   setHookManager(manager: HookManager): void { this.hookManager = manager; this.toolExecService = this.buildToolExecService(); }
   setReasoningEffort(effort: ReasoningEffort | undefined): void { this.reasoningEffort = effort; this.agent.state.thinkingLevel = reasoningToThinkingLevel(effort); }
   getReasoningEffort(): ReasoningEffort | undefined { return this.reasoningEffort; }
   getResumeManager(): SessionResumeManager | null { return this.resumeManager; }
   getAgentDefinitionManager(): AgentDefinitionManager | null { return this.agentDefinitionManager; }
-
   switchAgentDefinition(name: string): boolean {
     const def = this.agentDefinitionManager?.get(name);
     if (!def) return false;
@@ -150,29 +163,24 @@ export class SvtonAgentRuntime implements IRuntime {
     return true;
   }
 
-  // ----------------------------------------------------------
-  // Private — composition
-  // ----------------------------------------------------------
-
   private buildAgent(config: AgentConfig): Agent {
     return buildPiAgent({
       systemPrompt: this.systemPrompt, model: this.model, models: this.models,
       toolRegistry: this.toolRegistry, toolExecService: this.toolExecService,
       compactor: this.compactor, approvalGate: this.approvalGate,
       initialMessages: config.initialMessages,
-      // Apply an initial thinking level from the config so the Pi Agent streams
-      // thinking when reasoning is configured (e.g. the web E2E thinking path).
       thinkingLevel: config.reasoningEffort
         ? reasoningToThinkingLevel(config.reasoningEffort) as 'low' | 'medium' | 'high' | 'xhigh'
         : undefined,
       routeToolEvent: (ev) => this.capabilitySink.route(ev),
     });
   }
-
   private buildToolExecService(): ToolExecutionService {
     return new ToolExecutionService(
       this.toolRegistry, this.platform, this.workingDir, this.permissionManager, this.hookManager,
       this.approvalGate.pendingApprovals as Map<string, PendingApproval>,
+      undefined,
+      this.userInputBroker,
     );
   }
 
@@ -194,7 +202,7 @@ export class SvtonAgentRuntime implements IRuntime {
     return {
       memoryManager: this.memoryManager, models: this.models, model: this.model,
       modelId: this.modelId, resumeManager: this.resumeManager, runtime: this,
-      getMessages: () => this.getMessages(),
+      getMessages: () => this.getMessages(), memoryTimeoutMs: this.postTurnMemoryTimeoutMs,
     };
   }
 }

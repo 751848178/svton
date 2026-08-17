@@ -1,5 +1,5 @@
 import React from 'react';
-import { cn, t } from '@svton/ui';
+import { SparklesIcon, cn, useI18n } from '@svton/ui';
 
 /**
  * Streaming activity indicator — a single line of text with a "light sweeping
@@ -7,7 +7,7 @@ import { cn, t } from '@svton/ui';
  *
  * Replaces the old expanded process blocks (thinking / tool calls) during
  * streaming: instead of flooding the chat with intermediate steps, we show one
- * quiet shimmering line. Mirrors the Codex / Claude Code interaction style.
+ * quiet shimmering line.
  *
  * The shimmer is pure CSS: a linear-gradient is clipped to the glyph shape
  * (bg-clip-text + text-transparent) and animated across a 200% background to
@@ -26,7 +26,7 @@ const SHIMMER_TEXT = cn(
   'bg-clip-text text-transparent',
   'bg-[linear-gradient(90deg,rgb(107,114,128)_0%,rgb(107,114,128)_35%,rgb(229,231,235)_50%,rgb(107,114,128)_65%,rgb(107,114,128)_100%)]',
   'bg-[length:200%_auto]',
-  'animate-[shimmer_2.5s_linear_infinite]',
+  'animate-[shimmer_2.5s_linear_infinite] motion-reduce:animate-none',
 );
 
 export const ActivityIndicator: React.FC<ActivityIndicatorProps> = ({
@@ -34,15 +34,16 @@ export const ActivityIndicator: React.FC<ActivityIndicatorProps> = ({
   activeSkills,
   className,
 }) => {
+  const { translate: t } = useI18n();
   // Derive the label: explicit text > active skills > generic "thinking".
   const label = text
     ?? (activeSkills && activeSkills.length > 0
-      ? `${activeSkills.join(', ')} ${t('chat.usingSkill')}中...`
+      ? t('chat.usingSkills', { skills: activeSkills.join(', ') })
       : t('chat.thinking'));
   return (
-    <div className={cn('flex items-center gap-1.5 py-1.5 text-xs select-none cursor-pointer hover:opacity-80 transition-opacity', className)}>
-      <span className={SHIMMER_TEXT} aria-hidden>✦</span>
-      <span className={cn('italic truncate', SHIMMER_TEXT)}>{label}</span>
+    <div data-transcript-state="running" className={cn('flex items-center gap-1.5 py-1.5 text-xs select-none cursor-pointer hover:opacity-80 transition-opacity', className)}>
+      <SparklesIcon size={12} className="text-status-info" aria-hidden="true" />
+      <span data-svton-shimmer-label className={cn('italic truncate', SHIMMER_TEXT)}>{label}</span>
     </div>
   );
 };

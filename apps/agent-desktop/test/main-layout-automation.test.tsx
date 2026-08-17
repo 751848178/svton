@@ -5,6 +5,7 @@ import type { AgentConfig } from '@svton/agent-core';
 import type { TauriPlatform } from '@svton/agent-platform';
 import { MainLayout } from '../src/components/MainLayout';
 import { AutomationPanelExtra } from '../src/components/ExtraPanels';
+import { LiveModelRegistry } from '@svton/agent-app';
 
 const sendMock = vi.fn();
 const createMock = vi.fn();
@@ -12,15 +13,30 @@ const switchToMock = vi.fn();
 const deleteMock = vi.fn();
 const updateProjectIdMock = vi.fn();
 
-vi.mock('@svton/agent-client', () => ({
+vi.mock('@svton/agent-client', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@svton/agent-client')>(),
   useChat: () => ({
     status: 'idle',
     abort: vi.fn(),
     messages: [],
     send: sendMock,
+    currentModelKey: { providerId: 'test', modelId: 'test-model' },
+    currentPermissionMode: 'default',
+    currentReasoningEffort: undefined,
   }),
   useSession: () => ({
     sessions: [{ id: 'session-1', title: 'Session 1' }],
+    activityBySessionId: new Map(),
+    managementBySessionId: new Map(),
+    management: {
+      rename: vi.fn(), setPinned: vi.fn(), archive: vi.fn(), stopAndArchive: vi.fn(),
+      unarchive: vi.fn(), deletePermanently: vi.fn(),
+    },
+    search: {
+      results: [], query: '', scope: 'active', includeContent: false,
+      searching: false, error: null,
+      setQuery: vi.fn(), setScope: vi.fn(), setIncludeContent: vi.fn(), retry: vi.fn(),
+    },
     currentSessionId: 'session-1',
     create: createMock,
     switchTo: switchToMock,
@@ -37,7 +53,15 @@ vi.mock('@svton/agent-client', () => ({
       deleteProject: vi.fn(),
     },
     chatService: {
-      setReasoningEffort: vi.fn(),
+      activeSessionId: 'session-1',
+      runtimeSettings: {
+        setReasoningEffort: vi.fn(),
+        getModelSwitchBlockedReason: vi.fn(() => null),
+        getPermissionProfileBlockedReason: vi.fn(() => null),
+        switchModel: vi.fn(),
+        switchPermissionProfile: vi.fn(),
+        retryModelDefaultPersistence: vi.fn(),
+      },
     },
   }),
 }));
@@ -117,14 +141,23 @@ describe('MainLayout automation trigger binding', () => {
         triggerHandler = handler;
       }),
     };
+    const initialModelKey = { providerId: 'test', modelId: 'test-model' };
+    const registry = new LiveModelRegistry([{
+      id: 'test', name: 'Test', type: 'openai',
+      models: [{ id: 'test-model', name: 'Test Model' }],
+    }]);
 
     render(
       <MainLayout
         config={makeConfig()}
         platform={makePlatform()}
-        models={[{ id: 'test-model', name: 'Test Model', providerName: 'Test' }]}
-        currentModel="test-model"
-        setCurrentModel={vi.fn()}
+        registry={registry}
+        initialModelKey={initialModelKey}
+        modelSwitchHost={{
+          getPersisted: () => initialModelKey,
+          prepareConfig: async () => { throw new Error('not used'); },
+          persistDefault: async () => {},
+        }}
         extra={{ automationManager } as any}
       />,
     );

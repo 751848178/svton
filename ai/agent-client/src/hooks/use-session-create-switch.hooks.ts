@@ -2,7 +2,6 @@ import { useCallback, useRef, type MutableRefObject } from 'react';
 import type { ChatService, DisplayMessage } from '../service/chat.service';
 import type { SessionService } from '../service/session.service';
 import type { SessionTransitionQueue } from '../service/session-transition-queue.service';
-import { hasVisiblePendingToolCalls } from './use-tool-approval.utils';
 import { loadSessionMessagesForSwitch } from './use-session-switch-load.utils';
 
 interface CreateSwitchParams {
@@ -18,11 +17,11 @@ async function prepareCurrentSession({
   saveSessionMessages,
 }: Pick<CreateSwitchParams, 'chatService' | 'saveSessionMessages'>): Promise<boolean> {
   const sessionId = chatService.activeSessionId;
-  let preservePending = chatService.hasPendingApprovals;
+  let preservePending = chatService.hasPendingApprovalsForSession(sessionId);
   if (!sessionId) return preservePending;
   chatService.cacheSessionMessages(sessionId, [...chatService.messages]);
   if (chatService.status === 'running' || chatService.status === 'waiting_approval') {
-    preservePending = chatService.hasPendingApprovals;
+    preservePending = chatService.hasPendingApprovalsForSession(sessionId);
   } else {
     const snapshot = chatService.getMessagesForSave();
     if (snapshot.length > 0) await saveSessionMessages(sessionId, snapshot);
@@ -55,7 +54,7 @@ export function useSessionCreateSwitch({
         });
         const sessionId = await sessionService.create(title, model, projectId);
         chatService.bindSession(sessionId);
-        await chatService.clearMessages({ preservePendingToolCalls: preservePending });
+        await chatService.clearMessages({ preserveLiveApprovals: preservePending });
         return sessionId;
       } finally {
         isSwitching.current = false;
@@ -79,7 +78,8 @@ export function useSessionCreateSwitch({
           chatService,
           saveSessionMessages,
         });
-        sessionService.switchTo(sessionId);
+        const switched = await sessionService.switchTo(sessionId);
+        if (!switched) return;
         chatService.bindSession(sessionId);
         await loadSessionMessagesForSwitch(
           chatService,
@@ -87,12 +87,6 @@ export function useSessionCreateSwitch({
           sessionId,
           preservePending,
         );
-        if (chatService.isSessionStreaming(sessionId)) {
-          chatService.status = preservePending
-            || hasVisiblePendingToolCalls(chatService.messages)
-            ? 'waiting_approval'
-            : 'running';
-        }
       } finally {
         isSwitching.current = false;
       }

@@ -23,3 +23,18 @@ pub async fn dialog_open_file(app: tauri::AppHandle) -> Result<Option<String>, S
 
     Ok(file_path)
 }
+
+#[tauri::command]
+pub async fn dialog_save_file(
+    app: tauri::AppHandle,
+    default_name: String,
+) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+
+    Ok(app
+        .dialog()
+        .file()
+        .set_file_name(default_name)
+        .blocking_save_file()
+        .map(|path| path.to_string()))
+}

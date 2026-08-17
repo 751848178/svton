@@ -20,6 +20,12 @@ function isSerializedRuntime(value: unknown): value is SerializedRuntime {
   if (value.reasoningEffort !== undefined && typeof value.reasoningEffort !== 'string') {
     return false;
   }
+  if (value.runRevision !== undefined
+    && (typeof value.runRevision !== 'number'
+      || !Number.isInteger(value.runRevision)
+      || value.runRevision < 1)) {
+    return false;
+  }
   return value.planId === undefined || typeof value.planId === 'string';
 }
 

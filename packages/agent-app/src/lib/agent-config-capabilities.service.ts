@@ -83,6 +83,7 @@ export async function createAgentCapabilities(
     storage,
     AGENT_CONFIG_STORAGE_KEYS.disabledTools,
   )) {
+    if (name === 'request_user_input') continue;
     toolRegistry.unregister(name);
   }
   for (const name of loadStoredStringList(

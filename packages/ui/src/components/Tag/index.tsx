@@ -1,6 +1,8 @@
 import React, { ReactNode } from 'react';
 import { cn } from '../../lib/utils';
 import { cva, type VariantProps } from 'class-variance-authority';
+import { CloseIcon } from '../../icons';
+import { useI18n } from '../../i18n';
 
 const tagVariants = cva('inline-flex items-center gap-1 px-2 py-0.5 text-xs leading-5 rounded', {
   variants: {
@@ -33,6 +35,7 @@ export interface TagProps extends VariantProps<typeof tagVariants> {
 }
 
 export function Tag(props: TagProps) {
+  const { translate } = useI18n();
   const { children, color, bordered, closable = false, onClose, icon, className } = props;
 
   return (
@@ -40,7 +43,14 @@ export function Tag(props: TagProps) {
       {icon}
       {children}
       {closable && (
-        <span onClick={onClose} className="cursor-pointer opacity-60 hover:opacity-100 text-[10px] ml-0.5">×</span>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label={translate('modal.close')}
+          className="inline-flex size-6 items-center justify-center rounded opacity-60 hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ml-0.5"
+        >
+          <CloseIcon size={12} aria-hidden="true" />
+        </button>
       )}
     </span>
   );

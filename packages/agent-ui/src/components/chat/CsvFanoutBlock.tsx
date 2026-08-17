@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { ChevronIcon, cn, useI18n, type TranslationKey } from '@svton/ui';
+import { TimelineStatusIcon, type TranscriptStatus } from '../timeline/TimelineStatusIcon';
 
 export interface CsvFanoutRow {
   rowIndex: number;
@@ -13,11 +15,11 @@ export interface CsvFanoutBlockProps {
   className?: string;
 }
 
-const STATUS_INDICATOR: Record<CsvFanoutRow['status'], { icon: string; color: string; label: string }> = {
-  pending: { icon: '○', color: 'text-gray-500', label: 'Pending' },
-  running: { icon: '●', color: 'text-blue-400 animate-pulse', label: 'Running' },
-  success: { icon: '✓', color: 'text-green-400', label: 'Success' },
-  failed: { icon: '✗', color: 'text-red-400', label: 'Failed' },
+const STATUS_INDICATOR: Record<CsvFanoutRow['status'], { status: TranscriptStatus; labelKey: TranslationKey }> = {
+  pending: { status: 'pending', labelKey: 'status.pending' },
+  running: { status: 'running', labelKey: 'status.running' },
+  success: { status: 'success', labelKey: 'status.success' },
+  failed: { status: 'failed', labelKey: 'status.failed' },
 };
 
 /**
@@ -29,6 +31,7 @@ export const CsvFanoutBlock: React.FC<CsvFanoutBlockProps> = ({
   totalRows,
   className,
 }) => {
+  const { translate: t } = useI18n();
   const [expanded, setExpanded] = useState(true);
 
   const completed = rows.filter((r) => r.status === 'success' || r.status === 'failed').length;
@@ -44,34 +47,35 @@ export const CsvFanoutBlock: React.FC<CsvFanoutBlockProps> = ({
   }, [rows]);
 
   return (
-    <div className={`svton-csv-fanout rounded-lg border border-[#383838] bg-[#252525] overflow-hidden ${className ?? ''}`}>
+    <div className={cn('svton-csv-fanout overflow-hidden rounded-lg border border-border bg-card', className)}>
       {/* Header */}
       <button
-        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-[#2a2a2a] transition-colors"
+        className="flex min-h-11 w-full items-center gap-2 px-3 py-2 transition-colors hover:bg-accent"
         onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
       >
-        <span className="text-xs font-semibold text-gray-300">CSV Fan-out</span>
-        <span className="text-[10px] text-gray-500">
+        <span className="text-xs font-semibold text-foreground">{t('csv.title')}</span>
+        <span className="text-[10px] text-muted-foreground">
           {completed}/{totalRows}
         </span>
         {failed > 0 && (
-          <span className="text-[10px] text-red-400 bg-red-950/50 px-1.5 rounded">
-            {failed} failed
+          <span className="rounded bg-destructive/10 px-1.5 text-[10px] text-destructive">
+            {failed} {t('status.failed')}
           </span>
         )}
         {running > 0 && (
-          <span className="text-[10px] text-blue-400 bg-blue-950/50 px-1.5 rounded">
-            {running} running
+          <span className="rounded bg-status-info/10 px-1.5 text-[10px] text-status-info">
+            {running} {t('status.running')}
           </span>
         )}
-        <span className="text-[10px] text-gray-500 ml-auto">{pct}%</span>
-        <span className="text-gray-500 text-xs">{expanded ? '▾' : '▸'}</span>
+        <span className="ml-auto text-[10px] text-muted-foreground">{pct}%</span>
+        <ChevronIcon size={14} className={cn('text-muted-foreground transition-transform', expanded && 'rotate-90')} aria-hidden="true" />
       </button>
 
       {/* Progress bar */}
-      <div className="h-1 bg-[#2a2a2a]">
+      <div className="h-1 bg-muted">
         <div
-          className={`h-full transition-all duration-300 ${failed > 0 ? 'bg-orange-400' : 'bg-green-400'}`}
+          className={cn('h-full transition-all duration-300 motion-reduce:transition-none', failed > 0 ? 'bg-status-warning' : 'bg-status-success')}
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -80,16 +84,16 @@ export const CsvFanoutBlock: React.FC<CsvFanoutBlockProps> = ({
       {expanded && (
         <div className="overflow-x-auto max-h-80 overflow-y-auto">
           <table className="w-full text-xs">
-            <thead className="sticky top-0 bg-[#2a2a2a] z-10">
-              <tr className="border-b border-[#383838]">
-                <th className="px-2 py-1.5 text-left text-[10px] text-gray-500 font-medium w-8">#</th>
-                <th className="px-2 py-1.5 text-left text-[10px] text-gray-500 font-medium w-20">Status</th>
+            <thead className="sticky top-0 z-10 bg-muted">
+              <tr className="border-b border-border">
+                <th className="w-8 px-2 py-1.5 text-left text-[10px] font-medium text-muted-foreground">#</th>
+                <th className="w-20 px-2 py-1.5 text-left text-[10px] font-medium text-muted-foreground">{t('csv.status')}</th>
                 {allKeys.map((key) => (
-                  <th key={key} className="px-2 py-1.5 text-left text-[10px] text-gray-500 font-medium whitespace-nowrap">
+                  <th key={key} className="whitespace-nowrap px-2 py-1.5 text-left text-[10px] font-medium text-muted-foreground">
                     {key}
                   </th>
                 ))}
-                <th className="px-2 py-1.5 text-left text-[10px] text-gray-500 font-medium">Summary</th>
+                <th className="px-2 py-1.5 text-left text-[10px] font-medium text-muted-foreground">{t('csv.summary')}</th>
               </tr>
             </thead>
             <tbody>
@@ -98,21 +102,21 @@ export const CsvFanoutBlock: React.FC<CsvFanoutBlockProps> = ({
                 return (
                   <tr
                     key={row.rowIndex}
-                    className="border-b border-[#333] hover:bg-[#1e1e1e]"
+                    className="border-b border-border hover:bg-accent"
                   >
-                    <td className="px-2 py-1 text-gray-600 text-[10px]">{row.rowIndex}</td>
+                    <td className="px-2 py-1 text-[10px] text-muted-foreground">{row.rowIndex}</td>
                     <td className="px-2 py-1">
-                      <span className={`svton-csv-status svton-csv-status-${row.status} flex items-center gap-1 ${indicator.color}`}>
-                        <span className="text-[10px]">{indicator.icon}</span>
-                        <span className="text-[10px]">{indicator.label}</span>
+                      <span className={`svton-csv-status svton-csv-status-${row.status} flex items-center gap-1`}>
+                        <TimelineStatusIcon status={indicator.status} />
+                        <span className="text-[10px] text-foreground">{t(indicator.labelKey)}</span>
                       </span>
                     </td>
                     {allKeys.map((key) => (
-                      <td key={key} className="px-2 py-1 text-gray-400 max-w-[200px] truncate" title={row.rowData[key] ?? ''}>
+                      <td key={key} className="max-w-[200px] truncate px-2 py-1 text-foreground" title={row.rowData[key] ?? ''}>
                         {row.rowData[key] ?? ''}
                       </td>
                     ))}
-                    <td className="px-2 py-1 text-gray-500 max-w-[300px] truncate" title={row.summary ?? ''}>
+                    <td className="max-w-[300px] truncate px-2 py-1 text-muted-foreground" title={row.summary ?? ''}>
                       {row.summary ?? ''}
                     </td>
                   </tr>

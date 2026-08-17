@@ -1,22 +1,21 @@
 import React, { useState } from 'react';
-import { cn, t } from '@svton/ui';
+import { cn, useI18n } from '@svton/ui';
 import { DiffView } from '../DiffView';
+import type { ArtifactChange, ArtifactTarget } from '../../artifacts/artifact.types';
 
-export interface FileChangeEntry {
-  path: string;
-  changeType: 'create' | 'modify' | 'delete';
-  diff?: string;
-}
+export type FileChangeEntry = ArtifactChange;
 
 interface FileChangeViewProps {
   changes: FileChangeEntry[];
   className?: string;
+  artifactId?: string;
+  onArtifactOpen?: (target: ArtifactTarget) => void;
 }
 
-const CHANGE_STYLE: Record<string, { label: string; color: string; icon: string }> = {
-  create: { label: '+', color: 'text-green-400', icon: 'green' },
-  modify: { label: '~', color: 'text-yellow-400', icon: 'yellow' },
-  delete: { label: '-', color: 'text-red-400', icon: 'red' },
+const CHANGE_STYLE: Record<string, { color: string }> = {
+  create: { color: 'text-green-400' },
+  modify: { color: 'text-yellow-400' },
+  delete: { color: 'text-red-400' },
 };
 
 function shortenPath(path: string): string {
@@ -29,7 +28,8 @@ function shortenPath(path: string): string {
  * Inline file change block — shows file list with change type indicators.
  * Click a file to expand its diff.
  */
-export const FileChangeView: React.FC<FileChangeViewProps> = ({ changes, className }) => {
+export const FileChangeView: React.FC<FileChangeViewProps> = ({ changes, className, artifactId, onArtifactOpen }) => {
+  const { translate: t } = useI18n();
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
 
   if (!changes.length) return null;
@@ -37,11 +37,13 @@ export const FileChangeView: React.FC<FileChangeViewProps> = ({ changes, classNa
   return (
     <div className={cn('rounded-lg border border-[#383838] bg-[#2a2a2a] overflow-hidden my-1', className)}>
       {/* Summary header */}
-      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#3a3a3a]">
-        <span className="text-xs">📄</span>
-        <span className="text-[11px] text-gray-400">
-          {changes.length} {changes.length === 1 ? 'file' : 'files'} changed
+      <div className="flex min-h-11 items-center gap-2 border-b border-[#3a3a3a] px-3 py-1.5">
+        <span className="flex-1 text-[11px] text-gray-400">
+          {t(changes.length === 1 ? 'block.file_change.summaryOne' : 'block.file_change.summary', { count: changes.length })}
         </span>
+        {artifactId && onArtifactOpen && (
+          <button type="button" onClick={() => onArtifactOpen({ kind: 'diff', id: artifactId, title: t('block.file_change.panelTitle'), changes })} className="min-h-11 rounded-lg px-3 text-xs text-cyan-400 hover:bg-[#333]">{t('action.openContentPanel')}</button>
+        )}
       </div>
 
       {/* File list */}
@@ -52,23 +54,24 @@ export const FileChangeView: React.FC<FileChangeViewProps> = ({ changes, classNa
           const hasDiff = change.diff && change.diff.trim().length > 0;
 
           return (
-            <div key={i}>
+            <div key={`${change.path}:${i}`}>
               <button
+                type="button"
                 onClick={() => hasDiff && setExpandedIdx(isExpanded ? null : i)}
                 className={cn(
-                  'w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors',
+                  'flex min-h-11 w-full items-center gap-2 px-3 py-1.5 text-left transition-colors',
                   hasDiff && 'hover:bg-[#2a2a2a] cursor-pointer',
                 )}
               >
-                <span className={cn('text-xs font-mono w-3 text-center', style.color)}>
-                  {style.label}
+                <span className={cn('w-8 text-[10px]', style.color)}>
+                  {t(`block.file_change.${change.changeType}`)}
                 </span>
                 <span className="text-[11px] text-gray-300 font-mono truncate flex-1">
                   {shortenPath(change.path)}
                 </span>
                 {hasDiff && (
                   <span className="text-gray-600 text-[10px] flex-shrink-0">
-                    {isExpanded ? '▾' : '▸'}
+                    {t(isExpanded ? 'action.collapse' : 'action.expand')}
                   </span>
                 )}
               </button>

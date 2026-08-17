@@ -19,9 +19,11 @@ export function Portal(props: PortalProps) {
     setMountNode(container ?? document.body);
   }, [container, disabled]);
 
-  if (disabled || !mountNode) {
+  if (disabled) {
     return <>{children}</>;
   }
+
+  if (!mountNode) return null;
 
   return createPortal(children, mountNode);
 }
