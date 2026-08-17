@@ -26,9 +26,9 @@ branches/worktrees and leave local and remote `master` aligned and clean.
 | WI-01 | done | Classify every dirty/untracked path and its owning workstream; identify secrets, generated files, and cross-branch overlap. | Three status/size manifests; machine-local artifacts moved to recoverable backup; release and Pi changes confirmed task-owned |
 | WI-02 | done | Commit, verify, push, and merge `codex/f674-release-ux-redesign` through PR #3. | Focused API suites, API/Web type-check and builds, Prisma validation; PR #3 merged as `743ac299` |
 | WI-03 | done | Commit and integrate the post-PR #2 changes from `codex/f665-release-environment-governance`. | Four task-owned commits; semantic intake revision conflict resolution; merge `47bb7f8f` |
-| WI-04 | in_progress | Commit and integrate `codex/agent-codex-desktop-ui-parity` without losing its parity ledger or evidence. | Checkpoint commits, affected package checks, master ancestry |
-| WI-05 | pending | Run final cross-workstream verification and synchronize progress/TODO evidence. | Tests/builds/diff checks and final document status |
-| WI-06 | pending | Push `master`, remove merged branches/worktrees, and prove the remaining development environment is clean. | Local/remote parity, worktree list, clean status |
+| WI-04 | done | Commit and integrate `codex/agent-codex-desktop-ui-parity` without losing its parity ledger or evidence. | Checkpoint `7d873df6`; semantic Modal/Drawer conflict reconciliation; merge `67f5c7c7`; full affected package checks |
+| WI-05 | done | Run final cross-workstream verification and synchronize progress/TODO evidence. | Agent full-suite/package/native checks; Devpilot 15 suites/92 tests, type-checks, Prisma validation, and API/Web builds |
+| WI-06 | in_progress | Push `master`, remove merged branches/worktrees, and prove the remaining development environment is clean. | Local/remote parity, worktree list, clean status |
 
 ## Change Log
 
@@ -44,3 +44,18 @@ branches/worktrees and leave local and remote `master` aligned and clean.
   archived/ready state guards and CAS revision updates while initializing
   legacy null revisions to one. Focused tests, API/Web type-check and API build
   passed; merged as `47bb7f8f`.
+- 2026-08-18: Preserved the complete Agent Core/Client/UI/App/Web/Desktop
+  parity checkpoint as `7d873df6` and merged it as `67f5c7c7`. Replaced the
+  superseded `useOverlay` implementation with the shared modal-layer owner
+  while retaining the release flow's localized close label and external
+  description-id compatibility. All seven affected JavaScript test suites,
+  package type/build checks, frozen lockfile install, Web/Desktop production
+  builds, Devpilot modal contract, and Desktop Rust check passed. Remaining
+  Pi parity items and missing machine-local UIINV report regeneration are
+  recorded in the preserved parity TODO rather than marked complete.
+- 2026-08-18: Completed final merged-tree verification. Agent Core 1895,
+  Client 521, shared UI 88, Agent UI 348, Agent App 63, Web 62, and Desktop
+  108 tests passed alongside all affected package builds/type-checks and
+  Desktop `cargo check --locked`. Devpilot's 15 intake/archive/analysis/
+  release-security suites passed 92 tests; API/Web type-checks, Prisma schema
+  validation, and API/Web production builds also passed.
