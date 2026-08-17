@@ -3,7 +3,13 @@
 Branch: `fix/f383-release-orchestration-mainchain`
 Session commits: `474bba8a` → `0c2d66b7`
 
-## Status: PARTIAL — core P0 deliverables verified; one F382 deploy-subsystem blocker remains
+## Status: DONE — 六阶段真实主链已复现签收（终态见文末 "Final reproducible ReleasePlan" 与 "Completion boundary"，plan `cms5m7z2001ow14kkg3jg0l87`，2026-07-29）
+
+> 头部勘误（2026-08-17）：本文件头曾长期停留在 2026-07-28 的中间状态（下方原记录），
+> 与文末终态结论不一致，已导致后续评审误判"真实主链未跑通"。早期中间记录原样保留，
+> 结论以文末 SUCCESS/done 为准。
+
+### 早期中间状态（2026-07-28，已被次日结果取代）：PARTIAL — core P0 deliverables verified; one F382 deploy-subsystem blocker remains
 
 Per the completion definition, F383 cannot be marked `done` because the real
 6-stage release did not reach `succeeded` end-to-end (the `application_deploy`

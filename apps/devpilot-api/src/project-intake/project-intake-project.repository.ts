@@ -51,14 +51,31 @@ export async function transitionProjectIntake(
   projectId: string,
   status: ProjectIntakeStatus,
 ) {
+  const current = await prisma.project.findFirst({
+    where: { id: projectId, teamId },
+    select: { onboardingRevision: true },
+  });
+  if (!current)
+    throw new NotFoundException(
+      intakeError(
+        "PROJECT_NOT_FOUND",
+        "项目不存在",
+        "请返回项目接入列表并重新选择。",
+      ),
+    );
   const result = await prisma.project.updateMany({
     where: {
       id: projectId,
       teamId,
       archivedAt: null,
       onboardingStatus: { notIn: ["ready", "archived"] },
+      onboardingRevision: current.onboardingRevision,
     },
-    data: { onboardingStatus: status, onboardingRevision: { increment: 1 } },
+    data: {
+      onboardingStatus: status,
+      onboardingRevision:
+        current.onboardingRevision === null ? 1 : { increment: 1 },
+    },
   });
   if (result.count !== 1) {
     const project = await prisma.project.findFirst({

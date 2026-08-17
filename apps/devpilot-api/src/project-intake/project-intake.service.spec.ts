@@ -155,6 +155,30 @@ describe("ProjectIntakeService", () => {
     );
   });
 
+  it("initializes the intake revision when a legacy project enters review", async () => {
+    const { prisma, service } = createService();
+    (prisma.project.findFirst as jest.Mock).mockResolvedValue({
+      id: "project-legacy",
+      onboardingStatus: null,
+      onboardingRevision: null,
+    });
+
+    await service.review("team-1", "user-1", "project-legacy", "run-1", {
+      items: [],
+    });
+
+    expect(prisma.project.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          archivedAt: null,
+          onboardingRevision: null,
+          onboardingStatus: { notIn: ["ready", "archived"] },
+        }),
+        data: { onboardingStatus: "review", onboardingRevision: 1 },
+      }),
+    );
+  });
+
   it("delegates retry to repository analysis before returning to analyzing", async () => {
     const { prisma, runs, service } = createService();
 
