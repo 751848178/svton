@@ -4,6 +4,9 @@ import {
 } from './repository-analysis.constants';
 
 const TOKEN_LIKE = /\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|glpat-[A-Za-z0-9_-]{10,}|npm_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|Bearer\s+\S+)\b/gi;
+const STRONG_SECRET_TEXT = /\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|glpat-[A-Za-z0-9_-]{10,}|npm_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,})\b/i;
+const COMPLETE_PRIVATE_KEY =
+  /-----BEGIN ([A-Z0-9 ]*PRIVATE KEY)-----\r?\n(?:[A-Za-z0-9+/=]{16,}\r?\n)+-----END \1-----/;
 const PRIVATE_KEY = /-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?-----END [^-]*PRIVATE KEY-----/g;
 const URL_USERINFO = /([a-z][a-z\d+.-]*:\/\/)[^/@\s]+@/gi;
 const ENV_ASSIGNMENT =
@@ -119,9 +122,16 @@ export function containsRepositorySecretText(value: string): boolean {
   return false;
 }
 
-export function containsRepositoryStructuredSecretText(value: string): boolean {
+export function containsRepositoryStrongSecretText(value: string): boolean {
+  return COMPLETE_PRIVATE_KEY.test(value) || STRONG_SECRET_TEXT.test(value);
+}
+
+export function containsRepositoryStructuredSecretText(
+  value: string,
+  keyMatcher: (key: string) => boolean = isSecretKey,
+): boolean {
   for (const match of value.matchAll(STRUCTURED_ASSIGNMENT)) {
-    if (!isSecretKey(String(match[1]))) continue;
+    if (!keyMatcher(String(match[1]))) continue;
     const assigned = String(match[2] || '').trim();
     const normalized = assigned.replace(/^['"]|['"]$/g, '').trim();
     if (

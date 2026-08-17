@@ -13,7 +13,7 @@ export function useApplicationServiceConfig(reload: () => Promise<unknown>) {
       service: ApplicationServiceItem,
       form: ServiceDeploymentForm,
     ) => {
-      await apiRequest(`PATCH:/applications/${application.id}/services/${service.id}`, {
+      await apiRequest(`PUT:/applications/${application.id}/services/${service.id}`, {
         deployConfig: mergeServiceDeploymentConfig(service.deployConfig, form),
       });
       feedback.success(tc('updateSuccess'));

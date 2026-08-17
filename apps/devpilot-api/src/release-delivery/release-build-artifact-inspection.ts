@@ -2,13 +2,9 @@ import { createHash } from "node:crypto";
 import { constants, createReadStream, createWriteStream } from "node:fs";
 import { mkdir, open } from "node:fs/promises";
 import { dirname } from "node:path";
-import { extname } from "node:path";
 import { pipeline } from "node:stream/promises";
-import {
-  containsRepositorySecretText,
-  containsRepositoryStructuredSecretText,
-} from "../repository-analysis/repository-analysis-redact.utils";
 import { artifactFailure } from "./release-build-artifact-policy";
+import { containsReleaseBuildArtifactSecretText } from "./release-build-artifact-secret.utils";
 
 export async function copyReleaseBuildArtifactFile(
   source: string,
@@ -41,10 +37,7 @@ export async function inspectReleaseBuildArtifactFile(
     hash.update(bytes);
     sizeBytes += bytes.length;
     const text = `${carry}${bytes.toString("utf8")}`;
-    if (
-      containsRepositorySecretText(text) ||
-      (structured(path) && containsRepositoryStructuredSecretText(text))
-    ) {
+    if (containsReleaseBuildArtifactSecretText(path, text)) {
       throw artifactFailure(
         "ARTIFACT_SECRET_CONTENT",
         "制品输出包含疑似秘密内容",
@@ -53,8 +46,4 @@ export async function inspectReleaseBuildArtifactFile(
     carry = text.slice(-1_000);
   }
   return { digest: `sha256:${hash.digest("hex")}`, sizeBytes };
-}
-
-function structured(path: string) {
-  return [".json", ".yaml", ".yml"].includes(extname(path).toLowerCase());
 }

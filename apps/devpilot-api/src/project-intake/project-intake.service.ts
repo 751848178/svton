@@ -1,8 +1,4 @@
-import {
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from "@nestjs/common";
+import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import type { StartRepositoryAnalysisDto } from "../repository-analysis/dto/repository-analysis.dto";
 import type { ConnectRepositoryDto } from "../repository-analysis/dto/repository-connection.dto";
@@ -189,9 +185,15 @@ export class ProjectIntakeService {
     projectId: string,
     status: ProjectIntakeStatus,
   ): Promise<void> {
+    const project = await this.findProject(teamId, projectId);
     await this.prisma.project.updateMany({
-      where: { id: projectId, teamId, onboardingStatus: { not: "ready" } },
-      data: { onboardingStatus: status, onboardingRevision: { increment: 1 } },
+      where: { id: projectId, teamId, OR: [
+        { onboardingStatus: null }, { onboardingStatus: { not: "ready" } },
+      ] },
+      data: {
+        onboardingStatus: status,
+        onboardingRevision: project.onboardingRevision === null ? 1 : { increment: 1 },
+      },
     });
   }
 }

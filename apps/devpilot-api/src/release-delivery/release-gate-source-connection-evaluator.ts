@@ -105,7 +105,7 @@ export function evaluateReleaseGateSource(
     evidenceRef: context.decisionTarget
       ? `${reference};repository-ref:${sourceBranch}@${sourceCommitSha}`
       : `${reference};${buildReference}`,
-    checkedAt: context.decisionTarget ? checkedAt : buildCheckedAt,
+    checkedAt: context.decisionTarget ? now : buildCheckedAt,
     ttlMs: SOURCE_TTL_MS,
     now,
   });

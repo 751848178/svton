@@ -24,6 +24,24 @@ describe("evaluateReleaseGateSource", () => {
       reasonCode: "repository_source_resolution_failed",
     });
   });
+
+  it("treats an exact Commit resolved for this request as fresh evidence", () => {
+    const context = sourceContext("connected");
+    context.project.repositoryConnection!.verifiedAt = new Date(
+      "2026-07-01T00:00:00.000Z",
+    );
+    context.decisionTarget = {
+      sourceBranch: "master",
+      sourceCommitSha: "8e7c465d56e68dafcef0dfbc480fe721044b0fb3",
+    };
+
+    expect(evaluateReleaseGateSource("C01", context, NOW)).toMatchObject({
+      status: "checked",
+      reasonCode: "exact_commit_resolved",
+      checkedAt: NOW.toISOString(),
+      fresh: true,
+    });
+  });
 });
 
 function sourceContext(status: "connected" | "failed") {
