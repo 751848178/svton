@@ -77,7 +77,11 @@ export class ProjectIntakeFinalizationIntegrationFixture {
       new RepositoryIdentityFinalizerService(),
       new RepositoryIntakeSnapshotIntegrityService(),
     );
-    this.service = new ProjectIntakeFinalizationService(records, executor);
+    this.service = new ProjectIntakeFinalizationService(
+      prisma,
+      records,
+      executor,
+    );
   }
 
   async setup(): Promise<void> {

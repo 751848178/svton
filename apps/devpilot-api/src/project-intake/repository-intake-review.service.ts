@@ -27,6 +27,7 @@ export class RepositoryIntakeReviewService {
     projectId: string,
     runId: string,
     dto: ReviewRepositoryIntakeContractDto,
+    afterApply?: (tx: Prisma.TransactionClient) => Promise<void>,
   ) {
     const run = await this.repository.load(teamId, projectId, runId);
     if (!run) throw new NotFoundException(repositoryError(
@@ -56,7 +57,7 @@ export class RepositoryIntakeReviewService {
       await this.suggestions.apply(teamId, actorId, projectId, runId, normalized, {
         version: 1,
         inputHash,
-      });
+      }, afterApply);
     } catch (error) {
       if (!isUniqueConflict(error)) throw error;
       const winner = await this.repository.findSnapshot(runId);

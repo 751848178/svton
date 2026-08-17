@@ -15,6 +15,14 @@ export function intakeError(
   return { code, message, action };
 }
 
+export function projectIntakeNotFoundError(): ProjectIntakeErrorBody {
+  return intakeError(
+    "PROJECT_NOT_FOUND",
+    "项目不存在",
+    "请返回项目接入列表并重新选择。",
+  );
+}
+
 export function duplicateRepositoryError(): ConflictException {
   return new ConflictException(
     intakeError(

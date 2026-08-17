@@ -1,4 +1,5 @@
 import type { RepositoryAnalysisSuggestion } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 
 export type RepositoryDecision = {
   suggestion: RepositoryAnalysisSuggestion;
@@ -25,4 +26,5 @@ export type RepositoryApplyInput = {
   markConnectionApplied: boolean;
   decisions: RepositoryDecision[];
   snapshot?: { version: number; inputHash: string };
+  afterApply?: (tx: Prisma.TransactionClient) => Promise<void>;
 };

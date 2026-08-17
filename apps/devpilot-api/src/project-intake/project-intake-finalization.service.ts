@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from "@nestjs/common";
+import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import { createHash } from "crypto";
 import type { FinalizeProjectIntakeDto } from "./dto/project-intake.dto";
 import { ProjectIntakeFinalizationExecutorService } from "./project-intake-finalization-executor.service";
@@ -10,12 +10,16 @@ import {
   isPrismaTransactionRetryable,
   isPrismaUniqueError,
   isRepositoryIdentityUniqueError,
+  projectIntakeNotFoundError,
 } from "./project-intake-errors.utils";
 import type { ProjectIntakeFinalizationResult } from "./project-intake.types";
+import { PrismaService } from "../prisma/prisma.service";
+import { assertProjectWritable } from "../project/project-archived-write.error";
 
 @Injectable()
 export class ProjectIntakeFinalizationService {
   constructor(
+    private readonly prisma: PrismaService,
     private readonly records: ProjectIntakeFinalizationRecordRepository,
     private readonly executor: ProjectIntakeFinalizationExecutorService,
   ) {}
@@ -26,13 +30,21 @@ export class ProjectIntakeFinalizationService {
     projectId: string,
     dto: FinalizeProjectIntakeDto,
   ): Promise<ProjectIntakeFinalizationResult> {
+    const project = await this.prisma.project.findFirst({
+      where: { id: projectId, teamId },
+      select: { archivedAt: true, onboardingStatus: true },
+    });
+    if (!project) throw new NotFoundException(projectIntakeNotFoundError());
+    assertProjectWritable(project);
     const inputHash = createHash("sha256")
-      .update(JSON.stringify({
-        projectId,
-        analysisRunId: dto.analysisRunId,
-        reviewSnapshotId: dto.reviewSnapshotId!,
-        reviewSnapshotHash: dto.reviewSnapshotHash!,
-      }))
+      .update(
+        JSON.stringify({
+          projectId,
+          analysisRunId: dto.analysisRunId,
+          reviewSnapshotId: dto.reviewSnapshotId!,
+          reviewSnapshotHash: dto.reviewSnapshotHash!,
+        }),
+      )
       .digest("hex");
     const record = await this.records.prepare({
       teamId,

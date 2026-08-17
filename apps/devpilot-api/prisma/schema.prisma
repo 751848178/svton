@@ -945,6 +945,8 @@ model RepositoryAnalysisRun {
   startedAt        DateTime?
   finishedAt       DateTime?
   durationMs       Int?
+  workerLeaseToken String?  @db.VarChar(64)
+  workerLeaseExpiresAt DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -966,6 +968,7 @@ model RepositoryAnalysisRun {
   @@index([triggeredById])
   @@index([retryOfId])
   @@index([status])
+  @@index([workerLeaseExpiresAt])
   @@index([createdAt])
 }
 

@@ -9,6 +9,7 @@ import {
   intakeError,
   isPrismaUniqueError,
 } from "./project-intake-errors.utils";
+import { lockWritableProject } from "../project/project-writable-lock.repository";
 
 export interface PrepareFinalizationRecordInput {
   teamId: string;
@@ -26,57 +27,64 @@ export class ProjectIntakeFinalizationRecordRepository {
   async prepare(
     input: PrepareFinalizationRecordInput,
   ): Promise<ProjectIntakeFinalization> {
-    const project = await this.prisma.project.findFirst({
-      where: { id: input.projectId, teamId: input.teamId },
-      select: { id: true },
-    });
-    if (!project) {
-      throw new NotFoundException(
-        intakeError(
-          "PROJECT_NOT_FOUND",
-          "项目不存在",
-          "请返回项目接入列表并重新选择。",
-        ),
-      );
-    }
-    let record = await this.find(input.projectId, input.idempotencyKey);
-    if (!record) {
-      try {
-        record = await this.prisma.projectIntakeFinalization.create({
-          data: {
-            teamId: input.teamId,
-            projectId: input.projectId,
-            analysisRunId: input.analysisRunId,
-            actorId: input.actorId,
-            idempotencyKey: input.idempotencyKey,
-            inputHash: input.inputHash,
-            status: "pending",
-            startedAt: new Date(),
+    return this.prisma.$transaction(
+      async (tx) => {
+        await lockWritableProject(tx, input.teamId, input.projectId);
+        let record = await tx.projectIntakeFinalization.findUnique({
+          where: {
+            projectId_idempotencyKey: {
+              projectId: input.projectId,
+              idempotencyKey: input.idempotencyKey,
+            },
           },
         });
-      } catch (error) {
-        if (!isPrismaUniqueError(error)) throw error;
-        record = await this.find(input.projectId, input.idempotencyKey);
-      }
-    }
-    if (!record) throw new Error("finalization record disappeared");
-    this.assertSameInput(record, input);
-    if (record.status !== "succeeded") {
-      await this.prisma.projectIntakeFinalization.updateMany({
-        where: { id: record.id, status: { in: ["pending", "failed"] } },
-        data: {
-          status: "pending",
-          errorCode: null,
-          errorMessage: null,
-          startedAt: new Date(),
-          finishedAt: null,
-        },
-      });
-      record = await this.prisma.projectIntakeFinalization.findUniqueOrThrow({
-        where: { id: record.id },
-      });
-    }
-    return record;
+        if (!record) {
+          try {
+            record = await tx.projectIntakeFinalization.create({
+              data: {
+                teamId: input.teamId,
+                projectId: input.projectId,
+                analysisRunId: input.analysisRunId,
+                actorId: input.actorId,
+                idempotencyKey: input.idempotencyKey,
+                inputHash: input.inputHash,
+                status: "pending",
+                startedAt: new Date(),
+              },
+            });
+          } catch (error) {
+            if (!isPrismaUniqueError(error)) throw error;
+            record = await tx.projectIntakeFinalization.findUnique({
+              where: {
+                projectId_idempotencyKey: {
+                  projectId: input.projectId,
+                  idempotencyKey: input.idempotencyKey,
+                },
+              },
+            });
+          }
+        }
+        if (!record) throw new Error("finalization record disappeared");
+        this.assertSameInput(record, input);
+        if (record.status !== "succeeded") {
+          await tx.projectIntakeFinalization.updateMany({
+            where: { id: record.id, status: { in: ["pending", "failed"] } },
+            data: {
+              status: "pending",
+              errorCode: null,
+              errorMessage: null,
+              startedAt: new Date(),
+              finishedAt: null,
+            },
+          });
+          record = await tx.projectIntakeFinalization.findUniqueOrThrow({
+            where: { id: record.id },
+          });
+        }
+        return record;
+      },
+      { isolationLevel: "Serializable" },
+    );
   }
 
   async markFailed(id: string, code: string): Promise<void> {

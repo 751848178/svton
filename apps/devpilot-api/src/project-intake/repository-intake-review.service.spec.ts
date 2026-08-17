@@ -34,6 +34,7 @@ describe('RepositoryIntakeReviewService', () => {
       'team-1', 'actor-1', 'project-1', 'run-1',
       { decisions: [{ suggestionId: 'repo', decision: 'accept' }] },
       { version: 1, inputHash: expect.stringMatching(/^[a-f0-9]{64}$/) },
+      undefined,
     );
   });
 

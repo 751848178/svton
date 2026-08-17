@@ -1,4 +1,5 @@
 import { RepositoryAnalysisWorkerService } from './repository-analysis-worker.service';
+import { archivedProjectWriteError } from '../project/project-archived-write.error';
 
 const RUN = {
   id: 'run-1',
@@ -17,7 +18,8 @@ function createHarness(timeoutMs: number) {
   const runs = {
     findWorkerRun: jest.fn().mockResolvedValue(RUN),
     isCancelRequested: jest.fn().mockResolvedValue(false),
-    start: jest.fn(),
+    start: jest.fn().mockResolvedValue({ state: 'claimed' }),
+    extendWorkerLease: jest.fn().mockResolvedValue({ count: 1 }),
     succeed: jest.fn(),
     terminal: jest.fn(),
     recoverActiveIds: jest.fn().mockResolvedValue([]),
@@ -36,6 +38,8 @@ function createHarness(timeoutMs: number) {
   const parser = { parse: jest.fn() };
   const suggestions = { build: jest.fn() };
   const audit = { record: jest.fn() };
+  const completion = { succeed: jest.fn(), fail: jest.fn() };
+  const finalization = { fail: jest.fn() };
   const worker = new RepositoryAnalysisWorkerService(
     config as never,
     runs as never,
@@ -45,9 +49,10 @@ function createHarness(timeoutMs: number) {
     inventory as never,
     parser as never,
     suggestions as never,
-    audit as never,
+    completion as never,
+    finalization as never,
   );
-  return { worker, runs, stages, git, inventory, parser, audit };
+  return { worker, runs, stages, git, inventory, parser, audit, completion, finalization };
 }
 
 async function execute(worker: RepositoryAnalysisWorkerService) {
@@ -56,6 +61,48 @@ async function execute(worker: RepositoryAnalysisWorkerService) {
 }
 
 describe('RepositoryAnalysisWorkerService failures', () => {
+  afterEach(() => jest.useRealTimers());
+
+  it('retries detached storage failures until the run can be read', async () => {
+    jest.useFakeTimers();
+    const harness = createHarness(1_000);
+    harness.runs.findWorkerRun
+      .mockRejectedValueOnce(new Error('database unavailable'))
+      .mockRejectedValueOnce(new Error('database still unavailable'))
+      .mockResolvedValueOnce(null);
+
+    harness.worker.enqueue(RUN.id);
+    await jest.runAllTimersAsync();
+
+    expect(harness.runs.findWorkerRun).toHaveBeenCalledTimes(3);
+  });
+
+  it('leaves an archived queued run untouched when worker start is rejected', async () => {
+    const harness = createHarness(1_000);
+    harness.runs.start.mockRejectedValue(archivedProjectWriteError());
+
+    await execute(harness.worker);
+
+    expect(harness.stages.start).not.toHaveBeenCalled();
+    expect(harness.stages.fail).not.toHaveBeenCalled();
+    expect(harness.stages.cancelRemaining).not.toHaveBeenCalled();
+    expect(harness.runs.terminal).not.toHaveBeenCalled();
+    expect(harness.audit.record).not.toHaveBeenCalled();
+    expect(harness.git.checkout).not.toHaveBeenCalled();
+  });
+
+  it('leaves a run untouched when another worker owns the lease', async () => {
+    const harness = createHarness(1_000);
+    harness.runs.start.mockResolvedValue({ state: 'terminal' });
+
+    await execute(harness.worker);
+
+    expect(harness.stages.start).not.toHaveBeenCalled();
+    expect(harness.completion.succeed).not.toHaveBeenCalled();
+    expect(harness.finalization.fail).not.toHaveBeenCalled();
+    expect(harness.git.checkout).not.toHaveBeenCalled();
+  });
+
   it('marks a whole-run timeout failed and cancels remaining stages', async () => {
     const harness = createHarness(5);
     harness.git.checkout.mockImplementation(
@@ -67,21 +114,13 @@ describe('RepositoryAnalysisWorkerService failures', () => {
 
     await execute(harness.worker);
 
-    expect(harness.stages.fail).toHaveBeenCalledWith(
-      RUN.id,
-      'checkout',
-      'REPOSITORY_ANALYSIS_TIMEOUT',
-      expect.any(String),
-    );
-    expect(harness.stages.cancelRemaining).toHaveBeenCalledWith(RUN.id);
-    expect(harness.runs.terminal).toHaveBeenCalledWith(
-      RUN.id,
-      'failed',
-      expect.objectContaining({ code: 'REPOSITORY_ANALYSIS_TIMEOUT' }),
-    );
-    expect(harness.audit.record).toHaveBeenCalledWith(expect.objectContaining({
-      action: 'repository.analysis.fail',
-      status: 'failed',
+    expect(harness.finalization.fail).toHaveBeenCalledWith(expect.objectContaining({
+      runId: RUN.id,
+      currentStage: 'checkout',
+      error: expect.anything(),
+      timedOut: true,
+      aborted: true,
+      cancelRequested: false,
     }));
   });
 
@@ -103,16 +142,29 @@ describe('RepositoryAnalysisWorkerService failures', () => {
     await execute(harness.worker);
 
     expect(cleanup).toHaveBeenCalledTimes(1);
-    expect(harness.stages.fail).toHaveBeenCalledWith(
-      RUN.id,
-      'detect',
-      'REPOSITORY_ANALYSIS_FAILED',
-      expect.any(String),
+    expect(harness.finalization.fail).toHaveBeenCalledWith(expect.objectContaining({
+      currentStage: 'detect',
+      error: expect.any(Error),
+    }));
+  });
+
+  it('requeues when completion fencing rejects failure finalization', async () => {
+    jest.useFakeTimers();
+    const harness = createHarness(1_000);
+    harness.parser.parse.mockImplementation(() => { throw new Error('parser exploded'); });
+    harness.git.checkout.mockResolvedValue({ root: '/tmp/repository', cleanup: jest.fn() });
+    harness.inventory.inventory.mockResolvedValue({
+      root: '/tmp/repository', files: [], entries: [], totalFiles: 0, totalBytes: 0,
+    });
+    harness.finalization.fail.mockRejectedValueOnce(
+      new Error('repository analysis worker lease lost'),
     );
-    expect(harness.runs.terminal).toHaveBeenCalledWith(
-      RUN.id,
-      'failed',
-      expect.objectContaining({ code: 'REPOSITORY_ANALYSIS_FAILED' }),
-    );
+    harness.runs.findWorkerRun.mockResolvedValueOnce(RUN).mockResolvedValueOnce(null);
+
+    harness.worker.enqueue(RUN.id);
+    await jest.runAllTimersAsync();
+
+    expect(harness.finalization.fail).toHaveBeenCalledTimes(1);
+    expect(harness.runs.findWorkerRun).toHaveBeenCalledTimes(2);
   });
 });

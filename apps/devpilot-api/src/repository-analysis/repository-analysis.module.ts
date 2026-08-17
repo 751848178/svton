@@ -6,11 +6,13 @@ import { RepositoryIdentityModule } from '../repository-identity/repository-iden
 import { RepositoryAnalysisAccessService } from './repository-analysis-access.service';
 import { RepositoryAnalysisAuditService } from './repository-analysis-audit.service';
 import { RepositoryAnalysisController } from './repository-analysis.controller';
+import { RepositoryAnalysisCompletionRepository } from './repository-analysis-completion.repository';
 import { RepositoryAnalysisRunRepository } from './repository-analysis-run.repository';
 import { RepositoryAnalysisRunClaimRepository } from './repository-analysis-run-claim.repository';
 import { RepositoryAnalysisRunService } from './repository-analysis-run.service';
 import { RepositoryAnalysisStageRepository } from './repository-analysis-stage.repository';
 import { RepositoryAnalysisWorkerService } from './repository-analysis-worker.service';
+import { RepositoryAnalysisWorkerFinalizationService } from './repository-analysis-worker-finalization.service';
 import { RepositoryApplicationApplyRepository } from './repository-application-apply.repository';
 import { RepositoryConnectionRepository } from './repository-connection.repository';
 import { RepositoryConnectionService } from './repository-connection.service';
@@ -33,11 +35,13 @@ import { RepositorySuggestionBuilderService } from './repository-suggestion-buil
   providers: [
     RepositoryAnalysisAccessService,
     RepositoryAnalysisAuditService,
+    RepositoryAnalysisCompletionRepository,
     RepositoryAnalysisRunRepository,
     RepositoryAnalysisRunClaimRepository,
     RepositoryAnalysisRunService,
     RepositoryAnalysisStageRepository,
     RepositoryAnalysisWorkerService,
+    RepositoryAnalysisWorkerFinalizationService,
     RepositoryApplicationApplyRepository,
     RepositoryConnectionRepository,
     RepositoryConnectionService,

@@ -4,16 +4,18 @@ import { identityConflict } from "./repository-identity.errors";
 import { assertIdentityCandidate } from "./repository-identity-policy.utils";
 import type {
   RepositoryIdentityTransaction,
-  RepositoryIdentityState,
   SaveFailedConnectionInput,
   SaveVerifiedConnectionInput,
 } from "./repository-identity.types";
 import { normalizeRepositoryIdentity } from "./repository-identity.utils";
 import { RepositoryIdentityCoordinatorService } from "./repository-identity-coordinator.service";
+import { loadWritableRepositoryProject } from "./repository-identity-project-state.repository";
 
 @Injectable()
 export class RepositoryIdentityConnectionRepository {
-  constructor(private readonly coordinator: RepositoryIdentityCoordinatorService) {}
+  constructor(
+    private readonly coordinator: RepositoryIdentityCoordinatorService,
+  ) {}
 
   saveVerified(
     input: SaveVerifiedConnectionInput,
@@ -22,12 +24,23 @@ export class RepositoryIdentityConnectionRepository {
       gitConnectionId?: string;
       teamCredentialId?: string;
     }>,
+    afterVerified?: (
+      tx: RepositoryIdentityTransaction,
+      connection: Awaited<ReturnType<RepositoryIdentityTransaction["repositoryConnection"]["upsert"]>>,
+    ) => Promise<void>,
   ) {
     return this.coordinator.run(input.teamId, input.projectId, async (tx) => {
-      const project = await this.lockedProject(tx, input.teamId, input.projectId);
+      const project = await loadWritableRepositoryProject(
+        tx,
+        input.teamId,
+        input.projectId,
+      );
       await this.assertNoDuplicate(tx, input);
       if (project.repositoryAnalysisRuns.length) throw activeAnalysis();
-      if (project.onboardingStatus === "ready" && !project.repositoryIdentity?.currentRevision) {
+      if (
+        project.onboardingStatus === "ready" &&
+        !project.repositoryIdentity?.currentRevision
+      ) {
         throw identityConflict(
           "PROJECT_REPOSITORY_IDENTITY_MIGRATION_REQUIRED",
           "READY 项目缺少可验证的仓库身份修订",
@@ -42,14 +55,17 @@ export class RepositoryIdentityConnectionRepository {
         });
       }
       const existing = project.repositoryConnection;
-      const sameSnapshot = existing?.repositoryUrl === input.repositoryUrl
-        && existing.selectedBranch === input.selectedBranch
-        && existing.commitSha === input.commitSha;
-      const stored = prepareCredentials ? await prepareCredentials(tx) : {
-        source: input.credentialSource,
-        gitConnectionId: input.gitConnectionId,
-        teamCredentialId: input.teamCredentialId,
-      };
+      const sameSnapshot =
+        existing?.repositoryUrl === input.repositoryUrl &&
+        existing.selectedBranch === input.selectedBranch &&
+        existing.commitSha === input.commitSha;
+      const stored = prepareCredentials
+        ? await prepareCredentials(tx)
+        : {
+            source: input.credentialSource,
+            gitConnectionId: input.gitConnectionId,
+            teamCredentialId: input.teamCredentialId,
+          };
       const data: Prisma.RepositoryConnectionUncheckedCreateInput = {
         ...input,
         connectedById: input.userId,
@@ -65,20 +81,35 @@ export class RepositoryIdentityConnectionRepository {
         errorMessage: null,
       };
       delete (data as { userId?: string }).userId;
-      return tx.repositoryConnection.upsert({
+      const connection = await tx.repositoryConnection.upsert({
         where: { projectId: input.projectId },
         create: data,
         update: data,
       });
+      await afterVerified?.(tx, connection);
+      return connection;
     });
   }
 
-  saveFailureIfUnlocked(input: SaveFailedConnectionInput) {
+  saveFailureIfUnlocked(
+    input: SaveFailedConnectionInput,
+    afterFailure?: (
+      tx: RepositoryIdentityTransaction,
+      connection: Awaited<ReturnType<RepositoryIdentityTransaction["repositoryConnection"]["upsert"]>>,
+    ) => Promise<void>,
+  ) {
     return this.coordinator.run(input.teamId, input.projectId, async (tx) => {
-      const project = await this.lockedProject(tx, input.teamId, input.projectId);
-      if (project.onboardingStatus === "ready"
-        || project.repositoryIdentity
-        || project.repositoryAnalysisRuns.length) return null;
+      const project = await loadWritableRepositoryProject(
+        tx,
+        input.teamId,
+        input.projectId,
+      );
+      if (
+        project.onboardingStatus === "ready" ||
+        project.repositoryIdentity ||
+        project.repositoryAnalysisRuns.length
+      )
+        return null;
       const data: Prisma.RepositoryConnectionUncheckedCreateInput = {
         teamId: input.teamId,
         projectId: input.projectId,
@@ -94,43 +125,14 @@ export class RepositoryIdentityConnectionRepository {
         errorCode: input.errorCode,
         errorMessage: input.errorMessage,
       };
-      return tx.repositoryConnection.upsert({
+      const connection = await tx.repositoryConnection.upsert({
         where: { projectId: input.projectId },
         create: data,
         update: data,
       });
+      await afterFailure?.(tx, connection);
+      return connection;
     });
-  }
-
-  private lockedProject(tx: Prisma.TransactionClient, teamId: string, projectId: string) {
-    return tx.project.findFirstOrThrow({
-      where: { id: projectId, teamId },
-      select: {
-        onboardingStatus: true,
-        repositoryConnection: true,
-        repositoryIdentity: {
-          select: {
-            id: true, projectId: true, provider: true, canonicalKey: true, canonicalUrl: true, lockedAt: true,
-            currentRevision: {
-              select: {
-                id: true, revision: true, defaultBranch: true, reason: true, createdAt: true,
-                identityId: true, projectId: true,
-              },
-            },
-          },
-        },
-        repositoryAnalysisRuns: {
-          where: { status: { in: ["queued", "running"] } },
-          take: 1,
-          select: { id: true },
-        },
-      },
-    }) as Promise<{
-      repositoryConnection: Prisma.RepositoryConnectionGetPayload<Record<string, never>> | null;
-      onboardingStatus: string | null;
-      repositoryIdentity: RepositoryIdentityState | null;
-      repositoryAnalysisRuns: Array<{ id: string }>;
-    }>;
   }
 
   private async assertNoDuplicate(
@@ -140,15 +142,25 @@ export class RepositoryIdentityConnectionRepository {
     const normalized = normalizeRepositoryIdentity(input.repositoryUrl);
     if (!normalized) return;
     const identity = await tx.projectRepositoryIdentity.findFirst({
-      where: { teamId: input.teamId, canonicalKey: normalized.canonicalKey, projectId: { not: input.projectId } },
+      where: {
+        teamId: input.teamId,
+        canonicalKey: normalized.canonicalKey,
+        projectId: { not: input.projectId },
+      },
       select: { id: true },
     });
     const connections = await tx.repositoryConnection.findMany({
       where: { teamId: input.teamId, projectId: { not: input.projectId } },
       select: { repositoryUrl: true },
     });
-    if (identity || connections.some((item) =>
-      normalizeRepositoryIdentity(item.repositoryUrl)?.canonicalKey === normalized.canonicalKey)) {
+    if (
+      identity ||
+      connections.some(
+        (item) =>
+          normalizeRepositoryIdentity(item.repositoryUrl)?.canonicalKey ===
+          normalized.canonicalKey,
+      )
+    ) {
       throw identityConflict(
         "PROJECT_REPOSITORY_DUPLICATE",
         "该仓库已由当前团队的其他项目纳管",

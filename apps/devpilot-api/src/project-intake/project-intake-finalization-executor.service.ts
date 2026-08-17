@@ -8,12 +8,16 @@ import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { ProjectGovernanceFinalizationService } from "../project/project-governance-finalization.service";
 import { RepositoryIdentityFinalizerService } from "../repository-identity/repository-identity-finalizer.service";
-import { intakeError } from "./project-intake-errors.utils";
+import {
+  intakeError,
+  projectIntakeNotFoundError,
+} from "./project-intake-errors.utils";
 import type {
   FinalizeProjectIntakeInput,
   ProjectIntakeFinalizationResult,
 } from "./project-intake.types";
 import { RepositoryIntakeSnapshotIntegrityService } from "./repository-intake-snapshot-integrity.service";
+import { assertProjectWritable } from "../project/project-archived-write.error";
 
 @Injectable()
 export class ProjectIntakeFinalizationExecutorService {
@@ -37,18 +41,15 @@ export class ProjectIntakeFinalizationExecutorService {
     tx: Prisma.TransactionClient,
     input: FinalizeProjectIntakeInput,
   ): Promise<ProjectIntakeFinalizationResult> {
+    await tx.$queryRaw`SELECT id FROM Project
+      WHERE id = ${input.projectId} AND teamId = ${input.teamId} FOR UPDATE`;
     const project = await tx.project.findFirst({
       where: { id: input.projectId, teamId: input.teamId },
       include: { repositoryConnection: true, repositoryIdentity: true },
     });
     if (!project)
-      throw new NotFoundException(
-        intakeError(
-          "PROJECT_NOT_FOUND",
-          "项目不存在",
-          "请返回项目接入列表并重新选择。",
-        ),
-      );
+      throw new NotFoundException(projectIntakeNotFoundError());
+    assertProjectWritable(project);
     if (
       project.onboardingStatus !== "review" ||
       project.onboardingRevision === null
@@ -97,7 +98,11 @@ export class ProjectIntakeFinalizationExecutorService {
         ),
       );
     }
-    this.snapshotIntegrity.assertMatches(run.suggestions, reviewSnapshot, connection);
+    this.snapshotIntegrity.assertMatches(
+      run.suggestions,
+      reviewSnapshot,
+      connection,
+    );
 
     const identity = await this.identities.lock(tx, {
       teamId: input.teamId,
