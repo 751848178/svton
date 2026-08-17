@@ -46,7 +46,7 @@ const LINE_PREFIX: Record<DiffLine['type'], string> = {
 
 /**
  * Renders a unified diff with color-coded lines.
- * Codex-style: green additions, red deletions, monospace font.
+ * Unified diff with distinct additions, deletions, and monospace content.
  */
 export const DiffView: React.FC<DiffViewProps> = ({ diff, className }) => {
   const lines = parseDiff(diff);

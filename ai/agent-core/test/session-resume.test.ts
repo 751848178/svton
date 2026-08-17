@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { SessionResumeManager } from '@svton/agent-core';
+import { cloneSecretSafeMessages } from '../src/checkpoint/checkpoint-secret-safe-clone';
 import type { AgentMessage } from '@earendil-works/pi-agent-core';
 import type { UserMessage } from '@earendil-works/pi-ai';
 import type { IStorage } from '@svton/agent-platform';
@@ -190,6 +191,78 @@ describe('F2 — Session Resume (SessionResumeManager)', () => {
       const parsed = JSON.parse(raw!);
       expect(parsed.messages).toEqual([]);
     });
+
+    it('persists a secret-safe clone and restores it without mutating live messages', async () => {
+      const rawApiKey = 'raw-api-key-checkpoint';
+      const rawPassword = 'raw-password-checkpoint';
+      const opaqueSignature = 'eyJabcdefgh.eyJijklmnop.abcdefghijk';
+      const opaqueImageData = `image-${opaqueSignature}`;
+      const messages = structuredClone(sampleMessages);
+      const assistant = messages[1] as Extract<AgentMessage, { role: 'assistant' }>;
+      const call = assistant.content.find((item) => item.type === 'toolCall');
+      if (!call || call.type !== 'toolCall') throw new Error('Missing tool call fixture');
+      const cyclicArguments: Record<string, unknown> = {
+        apiKey: rawApiKey,
+        nested: { password: rawPassword },
+        command: `deploy --password=${rawPassword}`,
+        bigint: 42n,
+      };
+      cyclicArguments.self = cyclicArguments;
+      call.arguments = cyclicArguments;
+      call.thoughtSignature = opaqueSignature;
+      const text = assistant.content.find((item) => item.type === 'text');
+      const thinking = assistant.content.find((item) => item.type === 'thinking');
+      if (text?.type === 'text') text.textSignature = opaqueSignature;
+      if (thinking?.type === 'thinking') thinking.thinkingSignature = opaqueSignature;
+      (assistant as unknown as Record<string, unknown>).errorMessage = undefined;
+      (assistant as unknown as Record<string, unknown>).metadata = {
+        password: 'meta-x', apiKey: 'meta-y', tokenCount: 4,
+        providerBlob: opaqueSignature,
+      };
+      const toolResult = messages[2] as Extract<AgentMessage, { role: 'toolResult' }>;
+      const toolDetails: Record<string, unknown> = {
+        password: 'x', apiKey: 'y', tokenCount: 3, secretQuestionIds: ['q1'],
+        stdout: `password=${rawPassword}`,
+        command: 'deploy --token raw-command-secret',
+        result: 'password=raw-result-secret',
+        providerBlob: opaqueSignature,
+      };
+      toolDetails.self = toolDetails;
+      toolResult.details = toolDetails;
+      const image = toolResult.content.find((item) => item.type === 'image');
+      if (image?.type === 'image') image.data = opaqueImageData;
+      const runtime = createMockRuntime(messages);
+      const safeClone = cloneSecretSafeMessages(messages);
+      expect(findBigIntPaths(safeClone)).toEqual([]);
+      expect(() => JSON.stringify(safeClone)).not.toThrow();
+
+      await manager.checkpoint('secret-safe', runtime as any);
+
+      const raw = await storage.get<string>('agent:checkpoint:secret-safe');
+      expect(raw).not.toContain(rawApiKey);
+      expect(raw).not.toContain(rawPassword);
+      expect(raw).not.toContain('"password":"x"');
+      expect(raw).not.toContain('"apiKey":"y"');
+      expect(raw).not.toContain('meta-x');
+      expect(raw).not.toContain('meta-y');
+      expect(raw).not.toContain('raw-command-secret');
+      expect(raw).not.toContain('raw-result-secret');
+      expect(raw).toContain(opaqueSignature);
+      expect(raw).toContain(opaqueImageData);
+      expect(raw).toContain('"tokenCount":3');
+      expect(raw).toContain('"tokenCount":4');
+      expect(raw).toContain('"secretQuestionIds":["q1"]');
+      expect(raw).toContain('[circular]');
+      expect(await manager.load('secret-safe')).not.toBeNull();
+      expect(call.arguments.apiKey).toBe(rawApiKey);
+      expect(call.arguments.self).toBe(call.arguments);
+      const restored = createMockRuntime([]);
+      expect(await manager.restore('secret-safe', restored as any)).toBe(true);
+      expect(JSON.stringify(restored.getMessages())).not.toContain(rawApiKey);
+      expect(JSON.stringify(restored.getMessages())).not.toContain(rawPassword);
+      expect(JSON.stringify(restored.getMessages())).toContain(opaqueSignature);
+      expect(JSON.stringify(restored.getMessages())).toContain(opaqueImageData);
+    });
   });
 
   // ----------------------------------------------------------
@@ -205,6 +278,19 @@ describe('F2 — Session Resume (SessionResumeManager)', () => {
       expect(state).not.toBeNull();
       expect(state!.messages).toStrictEqual(sampleMessages);
       expect(state!.model).toBe('test-model');
+    });
+
+    it('accepts canonical toolUse and rejects noncanonical tool_use', async () => {
+      const runtime = createMockRuntime(sampleMessages);
+      await manager.checkpoint('tool-stop-reason', runtime as any);
+      expect(await manager.load('tool-stop-reason')).not.toBeNull();
+
+      const raw = await storage.get<string>('agent:checkpoint:tool-stop-reason');
+      const malformed = JSON.parse(raw!);
+      malformed.messages[1].stopReason = 'tool_use';
+      await storage.set('agent:checkpoint:tool-stop-reason', JSON.stringify(malformed));
+
+      expect(await manager.load('tool-stop-reason')).toBeNull();
     });
 
     it('returns null when no checkpoint exists', async () => {
@@ -327,3 +413,16 @@ describe('F2 — Session Resume (SessionResumeManager)', () => {
     });
   });
 });
+
+function findBigIntPaths(value: unknown): string[] {
+  const paths: string[] = [];
+  const seen = new WeakSet<object>();
+  function visit(item: unknown, path: string): void {
+    if (typeof item === 'bigint') paths.push(path);
+    if (!item || typeof item !== 'object' || seen.has(item)) return;
+    seen.add(item);
+    for (const [key, nested] of Object.entries(item)) visit(nested, `${path}.${key}`);
+  }
+  visit(value, 'root');
+  return paths;
+}

@@ -17,6 +17,7 @@ import {
   nativeTextDelta,
 } from '../../../ai/agent-core/test/helpers';
 import { AgentShell } from '../src/components/AgentShell';
+import { LiveModelRegistry } from '../src/models/model-registry';
 
 vi.mock('react-markdown', () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -26,17 +27,29 @@ vi.mock('@svton/agent-ui', async () => {
   const React = await import('react');
 
   return {
-    ChatPanel: ({ messages, onSend }: { messages: Array<{ id: string; content: string }>; onSend: (content: string) => void }) =>
+    ChatPanel: ({ messages, interaction }: {
+      messages: Array<{ id: string; content: string }>;
+      interaction: {
+        createOperationId: () => string;
+        dispatch: (intent: unknown) => Promise<unknown>;
+      };
+    }) =>
       React.createElement(
         'div',
         null,
         React.createElement('textarea', {
           'aria-label': 'chat-input',
-          onKeyDown: (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+          onKeyDown: async (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
             if (event.key === 'Enter') {
               event.preventDefault();
-              onSend((event.currentTarget as HTMLTextAreaElement).value);
-              (event.currentTarget as HTMLTextAreaElement).value = '';
+              const textarea = event.currentTarget;
+              const text = textarea.value;
+              textarea.value = '';
+              await interaction.dispatch({
+                id: interaction.createOperationId(),
+                kind: 'turn.send',
+                draft: { text, attachments: [] },
+              });
             }
           },
         }),
@@ -44,7 +57,19 @@ vi.mock('@svton/agent-ui', async () => {
       ),
     SettingsView: () => React.createElement('div', null),
     Sidebar: () => React.createElement('aside', null),
+    ResponsiveAgentFrame: ({ sidebar, header, compactHeader, children }: {
+      sidebar: React.ReactNode;
+      header?: React.ReactNode;
+      compactHeader?: React.ReactNode;
+      children: React.ReactNode;
+    }) => React.createElement('div', null, sidebar, header ?? compactHeader, children),
+    ResponsiveArtifactHost: ({ chat }: { chat: React.ReactNode }) =>
+      React.createElement('div', null, chat),
+    ArtifactHostStatus: () => null,
+    ArtifactPanel: () => React.createElement('div', null),
     SplitScreenPanel: () => React.createElement('div', null),
+    ModelSelector: () => null,
+    SessionSettingsControls: () => null,
   };
 });
 
@@ -128,27 +153,29 @@ describe('AgentShell user flow', () => {
     const { config, scriptRun } = makeConfig();
     scriptRun();
     const user = userEvent.setup();
+    const modelKey = { providerId: 'mock', modelId: 'mock-model' };
+    const modelRegistry = new LiveModelRegistry([{
+      id: 'mock', name: 'Mock', type: 'openai',
+      models: [{ id: 'mock-model', name: 'Mock Model' }],
+    }]);
 
     render(
-      <AgentProvider platform={makePlatform(storage)} config={config}>
+      <AgentProvider platform={makePlatform(storage)} config={config} modelKey={modelKey}>
         <AgentShell
           config={config}
           adapter={{ savePermissionMode: async () => {} }}
-          models={[{
-            key: 'mock::mock-model',
-            id: 'mock-model',
-            name: 'Mock Model',
-            providerId: 'mock',
-            providerName: 'Mock',
-            providerType: 'mock',
-          }]}
-          currentModel="mock::mock-model"
-          onModelChange={() => {}}
+          modelRegistry={modelRegistry}
+          modelSwitchHost={{
+            getPersisted: () => modelKey,
+            prepareConfig: async () => { throw new Error('not used'); },
+            persistDefault: async () => {},
+          }}
+          initialModelKey={modelKey}
         />
       </AgentProvider>,
     );
 
-    await user.type(screen.getByRole('textbox'), 'Say hello{Enter}');
+    await user.type(await screen.findByRole('textbox'), 'Say hello{Enter}');
 
     await waitFor(() => {
       expect(screen.getByText('Say hello')).toBeTruthy();

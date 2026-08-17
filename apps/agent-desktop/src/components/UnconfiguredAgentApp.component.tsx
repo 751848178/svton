@@ -5,6 +5,21 @@ import { Sidebar, type View } from './Sidebar';
 import { SettingsPanel } from './SettingsPanel';
 import { startDragging, toggleMaximize } from '@/lib/window-controls';
 
+const unavailableManagement = {
+  rename: async () => ({ ok: false as const, reason: 'invalid' as const }),
+  setPinned: async () => ({ ok: false as const, reason: 'invalid' as const }),
+  archive: async () => ({ ok: false as const, reason: 'invalid' as const }),
+  stopAndArchive: async () => ({ ok: false as const, reason: 'invalid' as const }),
+  unarchive: async () => ({ ok: false as const, reason: 'invalid' as const }),
+  deletePermanently: async () => {},
+};
+
+const emptySearch = {
+  query: '', scope: 'active' as const, includeContent: false,
+  searching: false, error: null,
+  setQuery: () => {}, setScope: () => {}, setIncludeContent: () => {}, retry: () => {},
+};
+
 interface UnconfiguredAgentAppProps {
   platform: TauriPlatform | null;
   view: View;
@@ -42,13 +57,17 @@ export function UnconfiguredAgentApp({
       {platform && (
         <Sidebar
           config={null}
-          sessions={[]}
+          activeSessions={[]}
+          searchResults={[]}
+          sessionSearch={emptySearch}
+          activityBySessionId={new Map()}
+          managementBySessionId={new Map()}
+          managementActions={unavailableManagement}
           currentSessionId={null}
           projects={[]}
           currentProjectId={null}
           onNewChat={() => {}}
           onSwitchSession={() => {}}
-          onDeleteSession={() => {}}
           onNavigate={setView}
           onSwitchProject={() => {}}
           onOpenProjectFolder={() => {}}

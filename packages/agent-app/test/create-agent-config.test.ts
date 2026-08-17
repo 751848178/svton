@@ -4,6 +4,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { createAgentConfig } from '../src/lib/create-agent-config';
+import { encodeModelKey } from '@svton/agent-client';
 import type { BrowserPlatform, IStorage } from '@svton/agent-platform';
 
 class MemStorage implements IStorage {
@@ -35,6 +36,33 @@ const providers = [{
 }];
 
 describe('createAgentConfig', () => {
+  it('instantiates the provider selected by a qualified duplicate model identity', async () => {
+    const duplicateProviders = [
+      {
+        name: 'provider-a',
+        type: 'openai' as const,
+        baseUrl: 'https://a.example.test',
+        apiKey: 'key-a',
+        models: [{ id: 'shared', name: 'Shared A' }],
+      },
+      {
+        name: 'provider-b',
+        type: 'anthropic' as const,
+        baseUrl: 'https://b.example.test',
+        apiKey: 'key-b',
+        models: [{ id: 'shared', name: 'Shared B' }],
+      },
+    ];
+    const config = await createAgentConfig({
+      providers: duplicateProviders,
+      model: encodeModelKey({ providerId: 'provider-b', modelId: 'shared' }),
+      platform: makePlatform(),
+    });
+    expect(config.model).toBe('shared');
+    expect(config.piModel?.provider).toBe('anthropic');
+    expect(config.piModel?.baseUrl).toBe('https://b.example.test');
+  });
+
   it('returns a ready config with provider + model', async () => {
     const config = await createAgentConfig({
       providers,
@@ -91,6 +119,7 @@ describe('createAgentConfig', () => {
     expect(names).toContain('plan_create');
     expect(names).toContain('plan_get_status');
     expect(names).toContain('plan_update_step');
+    expect(names).toContain('request_user_input');
   });
 
   it('registers code-review skill by default', async () => {

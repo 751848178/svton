@@ -1,24 +1,22 @@
 import React, { useState } from 'react';
-import { cn } from '@svton/ui';
+import { cn, useI18n } from '@svton/ui';
 import { DiffView } from '../DiffView';
 import type { FileChangeEntry } from './FileChangeView';
+import type { ArtifactTarget } from '../../artifacts/artifact.types';
 
 interface TurnDiffViewProps {
   changes: FileChangeEntry[];
   className?: string;
+  artifactId?: string;
+  onArtifactOpen?: (target: ArtifactTarget) => void;
 }
-
-const CHANGE_LABEL: Record<string, string> = {
-  create: '新建',
-  modify: '修改',
-  delete: '删除',
-};
 
 /**
  * Aggregated turn diff — summarizes all file changes across a single assistant turn.
  * Shows total additions/deletions + expandable per-file diffs.
  */
-export const TurnDiffView: React.FC<TurnDiffViewProps> = ({ changes, className }) => {
+export const TurnDiffView: React.FC<TurnDiffViewProps> = ({ changes, className, artifactId, onArtifactOpen }) => {
+  const { translate: t } = useI18n();
   const [expanded, setExpanded] = useState(false);
 
   if (!changes.length) return null;
@@ -38,13 +36,9 @@ export const TurnDiffView: React.FC<TurnDiffViewProps> = ({ changes, className }
   return (
     <div className={cn('rounded-lg border border-[#383838] bg-[#2a2a2a] overflow-hidden my-1', className)}>
       {/* Summary header */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-[#2a2a2a] transition-colors"
-      >
-        <span className="text-xs">📝</span>
+      <div className="flex min-h-11 items-center gap-3 px-3 py-2">
         <span className="text-[11px] text-gray-300 flex-1">
-          {changes.length} {changes.length === 1 ? 'file' : 'files'} changed
+          {t(changes.length === 1 ? 'block.file_change.summaryOne' : 'block.file_change.summary', { count: changes.length })}
         </span>
         {additions > 0 && (
           <span className="text-[11px] text-green-400 font-mono">+{additions}</span>
@@ -52,8 +46,11 @@ export const TurnDiffView: React.FC<TurnDiffViewProps> = ({ changes, className }
         {deletions > 0 && (
           <span className="text-[11px] text-red-400 font-mono">-{deletions}</span>
         )}
-        <span className="text-gray-500 text-[10px]">{expanded ? '▾' : '▸'}</span>
-      </button>
+        {artifactId && onArtifactOpen && (
+          <button type="button" onClick={() => onArtifactOpen({ kind: 'diff', id: artifactId, title: t('block.turn_diff.title'), changes })} className="min-h-11 rounded-lg px-3 text-xs text-cyan-400 hover:bg-[#333]">{t('action.openContentPanel')}</button>
+        )}
+        <button type="button" onClick={() => setExpanded(!expanded)} aria-expanded={expanded} className="min-h-11 rounded-lg px-3 text-xs text-gray-400 hover:bg-[#333]">{t(expanded ? 'action.collapse' : 'action.expand')}</button>
+      </div>
 
       {/* File list with diffs */}
       {expanded && (
@@ -67,7 +64,7 @@ export const TurnDiffView: React.FC<TurnDiffViewProps> = ({ changes, className }
                   change.changeType === 'modify' && 'bg-yellow-900/30 text-yellow-400',
                   change.changeType === 'delete' && 'bg-red-900/30 text-red-400',
                 )}>
-                  {CHANGE_LABEL[change.changeType] || change.changeType}
+                  {t(`block.file_change.${change.changeType}`)}
                 </span>
                 <span className="text-[11px] font-mono text-gray-400 truncate">{change.path}</span>
               </div>

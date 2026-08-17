@@ -1,60 +1,79 @@
+import type { ChatRunAddress } from './chat-run.types';
+
 interface ActiveChatRun {
   generation: number;
-  sessionId: string | null;
+  address: ChatRunAddress;
   assistantMessageId: string;
   acceptsEvents: boolean;
   onAbortedSettled: (() => void) | null;
 }
 
 export interface ChatRunLease {
-  readonly sessionId: string | null;
+  readonly address: ChatRunAddress;
   acceptsEvents: () => boolean;
   release: () => boolean;
 }
 
-/** Keeps one runtime run owned until its generator has fully settled. */
+/** Keeps one runtime run per session owned until its generator fully settles. */
 export class ChatRunOwnershipService {
   private generation = 0;
-  private active: ActiveChatRun | null = null;
-  readonly assistantMessageId = { current: null as string | null };
+  private readonly active = new Map<string | null, ActiveChatRun>();
 
-  get isProcessing(): boolean {
-    return this.active !== null;
+  isProcessing(sessionId: string | null): boolean {
+    return this.active.has(sessionId);
   }
 
-  begin(sessionId: string | null, assistantMessageId: string): ChatRunLease | null {
-    if (this.active) return null;
+  address(sessionId: string | null): ChatRunAddress | null {
+    const run = this.active.get(sessionId);
+    return run ? { ...run.address } : null;
+  }
+
+  addresses(): ChatRunAddress[] {
+    return [...this.active.values()].map((run) => ({ ...run.address }));
+  }
+
+  assistantMessageId(sessionId: string | null): string | null {
+    return this.active.get(sessionId)?.assistantMessageId ?? null;
+  }
+
+  begin(address: ChatRunAddress, assistantMessageId: string): ChatRunLease | null {
+    if (this.active.has(address.sessionId)) return null;
     const run: ActiveChatRun = {
       generation: ++this.generation,
-      sessionId,
+      address,
       assistantMessageId,
       acceptsEvents: true,
       onAbortedSettled: null,
     };
-    this.active = run;
-    this.assistantMessageId.current = assistantMessageId;
+    this.active.set(address.sessionId, run);
     return {
-      sessionId,
-      acceptsEvents: () => this.active === run && run.acceptsEvents,
+      address,
+      acceptsEvents: () => this.active.get(address.sessionId) === run && run.acceptsEvents,
       release: () => this.release(run),
     };
   }
 
-  abortActive(onIdle?: () => void): void {
-    if (this.active) {
-      this.active.acceptsEvents = false;
-      this.active.onAbortedSettled ??= onIdle ?? null;
+  abortSession(sessionId: string | null, onIdle?: () => void): void {
+    const run = this.active.get(sessionId);
+    if (run) {
+      run.acceptsEvents = false;
+      run.onAbortedSettled ??= onIdle ?? null;
       return;
     }
     onIdle?.();
   }
 
+  discardSession(sessionId: string | null): boolean {
+    const run = this.active.get(sessionId);
+    if (!run) return false;
+    run.acceptsEvents = false;
+    this.active.delete(sessionId);
+    return true;
+  }
+
   private release(run: ActiveChatRun): boolean {
-    if (this.active !== run) return false;
-    this.active = null;
-    if (this.assistantMessageId.current === run.assistantMessageId) {
-      this.assistantMessageId.current = null;
-    }
+    if (this.active.get(run.address.sessionId) !== run) return false;
+    this.active.delete(run.address.sessionId);
     if (!run.acceptsEvents) run.onAbortedSettled?.();
     return true;
   }

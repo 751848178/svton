@@ -62,7 +62,7 @@ test.describe('agent-web real browser E2E', () => {
     await expect(lastAssistant(page)).toContainText('Final answer here', { timeout: 20_000 });
     // Thinking is a process block, collapsed under the "已处理" toggle by
     // default. Expand the process details to reveal the thinking block.
-    await lastAssistant(page).getByText('已处理').click();
+    await lastAssistant(page).getByRole('button', { name: /^Processed\b/ }).click();
     const toggle = lastAssistant(page).getByTestId('thinking-toggle');
     await expect(toggle).toBeVisible();
     await toggle.click();
@@ -90,9 +90,9 @@ test.describe('agent-web real browser E2E', () => {
     await appReady(page);
     await enqueueResponses(page, [responses.error()]);
     await send(page, 'broken request');
-    // The error block is a process block, collapsed under the "已处理" toggle.
-    await lastAssistant(page).getByText('已处理').click().catch(() => {});
-    await expect(page.getByTestId('message-error')).toBeVisible({ timeout: 20_000 });
+    const failure = page.getByTestId('timeline-error');
+    await expect(failure).toBeVisible({ timeout: 20_000 });
+    await expect(failure).toContainText('Provider stream failed (simulated)');
     await page.screenshot({ path: `${SHOTS}/w8-error.png` });
 
     await enqueueResponses(page, [responses.text('recovered after failure')]);

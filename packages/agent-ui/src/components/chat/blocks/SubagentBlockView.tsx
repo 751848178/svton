@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { cn } from "@svton/ui";
+import { ChevronIcon, SubagentIcon, cn, useI18n, type TranslationKey } from "@svton/ui";
+import { TimelineStatusIcon, type TranscriptStatus } from "../../timeline/TimelineStatusIcon";
 
 interface SubagentBlockViewProps {
   agentId: string;
@@ -43,39 +44,40 @@ export const SubagentBlockView: React.FC<SubagentBlockViewProps> = ({
   summary,
   className,
 }) => {
+  const { translate: t } = useI18n();
   const [expanded, setExpanded] = useState(false);
   const statusView = readSubagentStatusView(status);
 
   return (
     <div
       className={cn(
-        "rounded-lg border border-[#383838] bg-[#2a2a2a] overflow-hidden my-1",
+        "my-1 overflow-hidden rounded-lg border border-border bg-card",
         className,
       )}
     >
       <button
         onClick={() => summary && setExpanded(!expanded)}
         className={cn(
-          "w-full flex items-center gap-2 px-3 py-2 text-left transition-colors",
-          summary && "hover:bg-[#2a2a2a] cursor-pointer",
+          "flex min-h-11 w-full items-center gap-2 px-3 py-2 text-left transition-colors",
+          summary && "cursor-pointer hover:bg-accent",
         )}
+        aria-expanded={summary ? expanded : undefined}
       >
-        <span className="text-xs flex-shrink-0">🤖</span>
-        <span className="text-[11px] text-gray-400 truncate flex-1">
+        <SubagentIcon size={14} className="shrink-0 text-muted-foreground" aria-hidden="true" />
+        <span className="flex-1 truncate text-[11px] text-foreground">
           {task}
         </span>
-        <span className={cn("text-[10px] flex-shrink-0", statusView.className)}>
-          {statusView.label}
+        <span className="flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground">
+          <TimelineStatusIcon status={statusView.status} />
+          {t(statusView.labelKey)}
         </span>
         {summary && (
-          <span className="text-gray-500 text-[10px] flex-shrink-0">
-            {expanded ? "▾" : "▸"}
-          </span>
+          <ChevronIcon size={14} className={cn("shrink-0 text-muted-foreground transition-transform", expanded && "rotate-90")} aria-hidden="true" />
         )}
       </button>
       {expanded && summary && (
-        <div className="px-3 py-2 border-t border-[#3a3a3a]">
-          <p className="text-[11px] text-gray-400 leading-relaxed whitespace-pre-wrap">
+        <div className="border-t border-border px-3 py-2">
+          <p className="whitespace-pre-wrap text-[11px] leading-relaxed text-muted-foreground">
             {summary}
           </p>
         </div>
@@ -84,16 +86,16 @@ export const SubagentBlockView: React.FC<SubagentBlockViewProps> = ({
   );
 };
 
-function readSubagentStatusView(status: SubagentBlockStatus) {
+function readSubagentStatusView(status: SubagentBlockStatus): { labelKey: TranslationKey; status: TranscriptStatus } {
   if (status === "running")
-    return { label: "● 运行中", className: "text-blue-400 animate-pulse" };
+    return { labelKey: "block.subagent.running", status: "running" as TranscriptStatus };
   if (status === "completed")
-    return { label: "✓ 完成", className: "text-green-400" };
+    return { labelKey: "block.subagent.completed", status: "completed" as TranscriptStatus };
   if (status === "failed" || status === "error")
-    return { label: "✗ 失败", className: "text-red-400" };
+    return { labelKey: "block.subagent.failed", status: "failed" as TranscriptStatus };
   if (status === "cancelled")
-    return { label: "× 已取消", className: "text-yellow-400" };
+    return { labelKey: "block.subagent.cancelled", status: "cancelled" as TranscriptStatus };
   if (status === "pending")
-    return { label: "○ 等待中", className: "text-gray-400" };
-  return { label: "? 未知", className: "text-gray-400" };
+    return { labelKey: "block.subagent.pending", status: "pending" as TranscriptStatus };
+  return { labelKey: "block.subagent.unknown", status: "unknown" as TranscriptStatus };
 }

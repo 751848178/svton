@@ -24,7 +24,7 @@ function finalizeMessagePendingApprovals(message: DisplayMessage): DisplayMessag
   };
 }
 
-function updateMessageToolCallStatus(
+export function updateMessageToolCallStatus(
   message: DisplayMessage,
   callId: string,
   status: DisplayToolCall['status'],

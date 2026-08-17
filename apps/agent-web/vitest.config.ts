@@ -21,7 +21,9 @@ export default defineConfig({
       '@svton/agent-client': path.resolve(__dirname, '../../ai/agent-client/src/index.ts'),
       '@svton/agent-platform': path.resolve(__dirname, '../../ai/agent-platform/src/index.ts'),
       '@svton/agent-ui': path.resolve(__dirname, '../../packages/agent-ui/src/index.ts'),
+      '@svton/ui/i18n': path.resolve(__dirname, '../../packages/ui/src/i18n/server.ts'),
       '@svton/ui': path.resolve(__dirname, '../../packages/ui/src/index.ts'),
+      'svton-web-locale-host': path.resolve(__dirname, 'src/lib/locale/web-locale-host.ts'),
       '@': path.resolve(__dirname, 'src'),
       // agent-core's compiled dist imports @tauri-apps/api/core, which isn't
       // resolvable in the test environment. Stub it to a no-op invoke so deps

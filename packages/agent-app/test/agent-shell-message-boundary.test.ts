@@ -27,6 +27,10 @@ describe('AgentShell message display boundary', () => {
       role: 'assistant',
       content: 'done',
       timestamp: 1,
+      images: [
+        { data: 'https://example.com/remote.png', mimeType: 'image/png' },
+        { data: 'local-base64', mimeType: 'image/jpeg' },
+      ],
       toolCalls: [{
         id: 'call-1',
         name: 'file_read',
@@ -47,23 +51,41 @@ describe('AgentShell message display boundary', () => {
           images: ['data:image/png;base64,preview'],
         },
       ],
+      timeline: {
+        version: 1,
+        sessionId: 'session-a',
+        turnId: 'assistant-1',
+        status: 'completed',
+        usage: {
+          input: 10,
+          output: 4,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 14,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        },
+        usageResponseKeys: ['usage:abc:def'],
+        items: [],
+        revision: 1,
+      },
     };
 
-    const projected = projectClientMessageToChatPanel(message, {
-      input: 10,
-      output: 4,
-      cacheRead: 0,
-      cacheWrite: 0,
-      totalTokens: 14,
-      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-    });
+    const projected = projectClientMessageToChatPanel(message);
 
     expect(projected.toolCalls?.[0].name).toBe('file_read');
+    expect(projected.images).toEqual(message.images);
     expect(projected.blocks).toEqual([message.blocks?.[0]]);
     expect(projected.usage).toEqual({
       promptTokens: 10,
       completionTokens: 4,
       totalTokens: 14,
     });
+  });
+
+  it('never projects a compatibility-global usage onto another message', () => {
+    const message: DisplayMessage = {
+      id: 'assistant-without-usage', role: 'assistant', content: 'done', timestamp: 1,
+    };
+    expect(projectClientMessageToChatPanel(message).usage).toBeUndefined();
   });
 });

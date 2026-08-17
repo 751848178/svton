@@ -3,6 +3,7 @@ import { finalizeStalePendingApprovals } from './chat-message-tool-status.utils'
 
 export interface LoadMessagesOptions {
   preservePendingToolCalls?: boolean;
+  preserveLiveApprovals?: boolean;
 }
 
 export function prepareLoadedMessages(

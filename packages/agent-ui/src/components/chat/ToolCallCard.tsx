@@ -1,141 +1,24 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { cn, t } from '@svton/ui';
-import { DiffView, isDiff } from './DiffView';
-import { MarkdownRenderer } from './MarkdownRenderer';
-import { ScreenshotView, isImageOutput } from './ScreenshotView';
-import { getToolDisplayName, getMcpServerName } from './tool-names';
+import React, { useEffect, useRef, useState } from 'react';
+import { cn, useI18n } from '@svton/ui';
+import { ToolCallDetails } from './ToolCallDetails';
+import { ToolCallHeader } from './ToolCallHeader';
+import { describeToolCall } from './tool-call-card.utils';
+import type { ToolCallCardProps } from './tool-call-card.types';
 
-export interface ToolCallInfo {
-  id: string;
-  name: string;
-  arguments: Record<string, unknown>;
-  result?: {
-    output: string;
-    isError?: boolean;
-    metadata?: Record<string, unknown>;
-  };
-  status: 'running' | 'completed' | 'error' | 'pending_approval';
-}
+export type { ToolCallCardProps, ToolCallInfo } from './tool-call-card.types';
 
-export interface ToolCallCardProps {
-  toolCall: ToolCallInfo;
-  onApprove?: (callId: string) => void;
-  onReject?: (callId: string) => void;
-  /** Start collapsed (for completed turns) */
-  defaultCollapsed?: boolean;
-  className?: string;
-}
+/** Disclosure state only; tool classification and presentation live in narrow peers. */
+export const ToolCallCard: React.FC<ToolCallCardProps> = ({ toolCall, className }) => {
+  const { translate } = useI18n();
+  const done = toolCall.status === 'completed' || toolCall.status === 'error';
+  const [expanded, setExpanded] = useState(!done);
+  const previousDone = useRef(done);
+  const view = describeToolCall(toolCall, translate);
 
-/** Tools that run shell commands */
-const SHELL_TOOLS = new Set(['bash', 'shell', 'exec', 'run_command', 'terminal']);
-
-/** Tools that edit files */
-const FILE_EDIT_TOOLS = new Set(['file_edit', 'edit', 'write_file', 'create_file', 'apply_diff']);
-
-/** Computer Use + Chrome CDP tools */
-const COMPUTER_USE_TOOLS = new Set([
-  'screenshot', 'mouse_click', 'mouse_double_click', 'mouse_move', 'mouse_down', 'mouse_up', 'mouse_drag', 'scroll', 'keyboard_type', 'keyboard_press_key',
-  'chrome_navigate', 'chrome_screenshot', 'chrome_click', 'chrome_type', 'chrome_evaluate', 'chrome_get_content',
-]);
-
-/** Screenshot-producing tools */
-const SCREENSHOT_TOOLS = new Set(['screenshot', 'chrome_screenshot']);
-
-/** Max lines of output to show when expanded (head + tail budget).
- *  Matches Codex's TOOL_CALL_MAX_LINES = 5 — keeps the conversation scannable. */
-const OUTPUT_MAX_LINES = 5;
-
-/** Status → icon */
-const STATUS_ICON: Record<ToolCallInfo['status'], { char: string; color: string }> = {
-  running: { char: '●', color: 'text-blue-400 animate-pulse' },
-  completed: { char: '✓', color: 'text-green-400' },
-  error: { char: '✗', color: 'text-red-500' },
-  pending_approval: { char: '⚠', color: 'text-yellow-500' },
-};
-
-/**
- * Truncate output lines showing head + tail with ellipsis in between.
- * Codex pattern: see the beginning and end of output.
- */
-function truncateOutput(output: string, maxLines: number): { text: string; truncated: number } {
-  const lines = output.split('\n');
-  if (lines.length <= maxLines) return { text: output, truncated: 0 };
-
-  // Tail gets more lines than head — the end of tool output is usually more
-  // important (final result, error message, exit code).
-  const tailCount = Math.ceil(maxLines / 2);
-  const headCount = Math.floor(maxLines / 2);
-  const head = lines.slice(0, headCount);
-  const tail = lines.slice(-tailCount);
-  const truncated = lines.length - headCount - tailCount;
-
-  return {
-    text: [...head, `  ... +${truncated} lines`, ...tail].join('\n'),
-    truncated,
-  };
-}
-
-/**
- * Codex-style tool call card.
- * - Shell commands: inline command with dimmed output
- * - File edits: compact card with diff preview
- * - Computer Use: purple accent with screenshot rendering
- * - Generic tools: standard parameter + output view
- */
-export const ToolCallCard: React.FC<ToolCallCardProps> = ({
-  toolCall,
-  onApprove,
-  onReject,
-  // defaultCollapsed is accepted for backward compat but ignored — cards now
-  // always start collapsed (see useState above).
-  className,
-}) => {
-  const isDone = toolCall.status === 'completed' || toolCall.status === 'error';
-  // Codex-style: running tools start expanded; completed tools start collapsed.
-  const [expanded, setExpanded] = useState(!isDone);
-
-  // Auto-collapse when a running tool transitions to done.
-  const prevDoneRef = useRef(isDone);
   useEffect(() => {
-    if (!prevDoneRef.current && isDone) {
-      setExpanded(false);
-    }
-    prevDoneRef.current = isDone;
-  }, [isDone]);
-
-  const icon = STATUS_ICON[toolCall.status];
-  const isShell = SHELL_TOOLS.has(toolCall.name);
-  const isFileEdit = FILE_EDIT_TOOLS.has(toolCall.name);
-  const isComputerUse = COMPUTER_USE_TOOLS.has(toolCall.name);
-  const isScreenshotTool = SCREENSHOT_TOOLS.has(toolCall.name);
-  const displayName = getToolDisplayName(toolCall.name);
-  const mcpServer = getMcpServerName(toolCall.name);
-  const isMcp = !!mcpServer;
-
-  // For shell tools, extract the command for inline display
-  const shellCommand = isShell ? (toolCall.arguments.command as string || '') : '';
-  const fileName = isFileEdit ? (toolCall.arguments.path as string || toolCall.arguments.file_path as string || '') : '';
-
-  // Build args preview (non-shell, non-file-edit tools)
-  const argsPreview = !isShell && !isFileEdit
-    ? Object.entries(toolCall.arguments)
-        .map(([k, v]) => {
-          const val = typeof v === 'string' ? v : JSON.stringify(v);
-          return `${k}: ${val.length > 30 ? val.slice(0, 30) + '…' : val}`;
-        })
-        .join(', ')
-    : '';
-
-  const output = toolCall.result?.output ?? '';
-  const isDiffOutput = isDiff(output);
-  const isImageOutputResult = isScreenshotTool && isImageOutput(output);
-  // Only treat output as markdown when it contains strong markdown signals.
-  // Previously `- ` and `1. ` were included, but those match ordinary shell
-  // output (e.g. `ls -la`, version strings) and cause misrendering.
-  const isMarkdownOutput = output && !isImageOutputResult && (
-    output.includes('```') ||
-    /^#{1,6}\s/m.test(output)   // markdown heading: # / ## / ### ...
-  );
+    if (!previousDone.current && done) setExpanded(false);
+    previousDone.current = done;
+  }, [done]);
 
   return (
     <div
@@ -143,157 +26,13 @@ export const ToolCallCard: React.FC<ToolCallCardProps> = ({
       data-testid={`tool-card-${toolCall.name}`}
       data-tool-status={toolCall.status}
     >
-      {/* Header row — always visible */}
-      <button
-        className="w-full flex items-start gap-1.5 text-left group"
-        onClick={() => setExpanded(!expanded)}
-      >
-        <span className={cn('flex-shrink-0 mt-px text-xs', icon.color)}>{icon.char}</span>
-        {isShell ? (
-          /* Shell: show command inline */
-          <span className="font-mono text-xs text-gray-400 truncate flex-1">
-            <span className="text-cyan-600">{displayName}</span>
-            <span className="text-gray-600 mx-1">→</span>
-            <span className="text-gray-300">{shellCommand.length > 80 ? shellCommand.slice(0, 80) + '…' : shellCommand}</span>
-          </span>
-        ) : isFileEdit ? (
-          /* File edit: show file path */
-          <span className="text-xs text-gray-400 truncate flex-1">
-            <span className="text-cyan-600">{displayName}</span>
-            <span className="text-gray-600 mx-1">→</span>
-            <span className="text-gray-300">{fileName}</span>
-          </span>
-        ) : isComputerUse ? (
-          /* Computer Use: purple accent with action summary */
-          <span className="text-xs text-gray-400 truncate flex-1">
-            <span className="text-purple-500">{displayName}</span>
-            {argsPreview && (
-              <>
-                <span className="text-gray-600 mx-1">→</span>
-                <span className="text-gray-300">{argsPreview}</span>
-              </>
-            )}
-          </span>
-        ) : (
-          /* Generic tool (includes MCP tools) */
-          <>
-            {isMcp && (
-              <span className="text-[9px] font-medium text-purple-500 bg-purple-950/40 px-1.5 py-0.5 rounded flex-shrink-0">MCP</span>
-            )}
-            <span className={cn('font-mono text-xs flex-shrink-0', isMcp ? 'text-purple-400' : 'text-cyan-600')}>{displayName}</span>
-            <span className="text-xs text-gray-400 truncate flex-1">{argsPreview}</span>
-          </>
-        )}
-        <span className="text-gray-500 text-xs flex-shrink-0 transition-opacity">
-          {expanded ? '▾' : '▸'}
-        </span>
-      </button>
-
-      {/* Collapsed preview — thumbnail for screenshot tools, text for others */}
-      {!expanded && toolCall.result && !toolCall.result.isError && output && !isFileEdit && (
-        isScreenshotTool && isImageOutput(output) ? (
-          <div className="mt-0.5 pl-4">
-            <ScreenshotView output={output} className="max-w-[120px] max-h-16" />
-          </div>
-        ) : !isScreenshotTool ? (
-          <div className="mt-0.5 pl-4">
-            <span className="text-xs text-gray-600 line-clamp-1">
-              {output.slice(0, 120)}
-              {output.length > 120 && '…'}
-            </span>
-          </div>
-        ) : null
-      )}
-
-      {/* Error preview when collapsed */}
-      {!expanded && toolCall.result?.isError && (
-        <div className="mt-0.5 pl-4">
-          <span className="text-xs text-red-400/80 line-clamp-1">
-            {output.slice(0, 120)}
-            {output.length > 120 && '…'}
-          </span>
-        </div>
-      )}
-
-      {/* Expanded details */}
-      {expanded && (
-        <div className="ml-4 mt-1 space-y-1.5">
-          {/* Shell command — show full command */}
-          {isShell && shellCommand && (
-            <div className="text-xs">
-              <div className="bg-[#252525] rounded-md px-3 py-1.5 font-mono text-gray-300 border border-[#3a3a3a] overflow-x-auto">
-                <span className="text-gray-500 select-none">$ </span>
-                {shellCommand}
-              </div>
-            </div>
-          )}
-
-          {/* File edit — show path */}
-          {isFileEdit && fileName && (
-            <div className="text-xs text-gray-400">
-              <span className="text-gray-500 select-none">File: </span>
-              <span className="text-gray-300 font-mono">{fileName}</span>
-            </div>
-          )}
-
-          {/* Generic tool parameters (non-shell, non-file-edit, non-computer-use) */}
-          {!isShell && !isFileEdit && !isComputerUse && (
-            <div>
-              <div className="text-[10px] text-gray-500 mb-0.5">{t('tool.parameters')}</div>
-              <pre className="text-xs text-gray-400 bg-[#252525] rounded-md px-3 py-1.5 overflow-x-auto overflow-y-auto max-h-60 border border-[#3a3a3a]">
-                {JSON.stringify(toolCall.arguments, null, 2)}
-              </pre>
-            </div>
-          )}
-
-          {/* Result output */}
-          {toolCall.result && output && (
-            <div>
-              <div className="text-[10px] text-gray-500 mb-0.5">
-                {toolCall.result.isError ? t('tool.error') : t('tool.output')}
-              </div>
-              {isImageOutputResult ? (
-                <ScreenshotView output={output} className="flex-1 min-w-0" />
-              ) : isDiffOutput ? (
-                <DiffView diff={output} className="flex-1 min-w-0" />
-              ) : isMarkdownOutput && !toolCall.result.isError ? (
-                <div className={cn(
-                  'rounded-md px-3 py-1.5 overflow-x-auto overflow-y-auto max-h-80 text-xs',
-                  toolCall.result.isError ? 'bg-red-950/50 text-red-400' : 'bg-[#252525] text-gray-400',
-                )}>
-                  <MarkdownRenderer content={output} className="text-xs" />
-                </div>
-              ) : (
-                <ShellOutput output={output} isError={toolCall.result.isError} maxLines={OUTPUT_MAX_LINES} />
-              )}
-            </div>
-          )}
-
-          {/* Pending approval indicator */}
-          {toolCall.status === 'pending_approval' && (
-            <div className="text-xs text-yellow-600">{t('tool.pending')}</div>
-          )}
-        </div>
-      )}
+      <ToolCallHeader
+        toolCall={toolCall}
+        view={view}
+        expanded={expanded}
+        onToggle={() => setExpanded((current) => !current)}
+      />
+      <ToolCallDetails toolCall={toolCall} view={view} expanded={expanded} />
     </div>
   );
 };
-
-// ─── ShellOutput — dimmed output with head+tail truncation ─────
-
-function ShellOutput({ output, isError, maxLines }: { output: string; isError?: boolean; maxLines: number }) {
-  const { text, truncated } = truncateOutput(output, maxLines);
-
-  return (
-    <pre
-      className={cn(
-        'text-xs rounded-md px-3 py-1.5 overflow-x-auto max-h-80 overflow-y-auto border',
-        isError
-          ? 'bg-red-950/30 text-red-400/90 border-red-900/30'
-          : 'bg-[#252525] text-gray-600 border-[#3a3a3a]',
-      )}
-    >
-      {text}
-    </pre>
-  );
-}

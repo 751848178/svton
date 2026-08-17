@@ -14,16 +14,22 @@
  * ```
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { BrowserPlatform } from '@svton/agent-platform';
-import { AgentProvider } from '@svton/agent-client';
+import { AgentProvider, useStartupTask } from '@svton/agent-client';
+import { StartupStateView } from '@svton/agent-ui';
 import type { AgentConfig } from '@svton/agent-core';
 import { AgentShell } from './components/AgentShell';
 import { DefaultSettingsAdapter } from './lib/default-settings-adapter';
-import { createAgentConfig } from './lib/create-agent-config';
 import { createAgentAppStorage } from './lib/storage';
-import { buildModelOptions } from './lib/model-selection';
-import type { AgentAppProps, ModelOption } from './types';
+import type { AgentAppProps } from './types';
+import { initializeAgentAppConfig } from './lib/initialize-agent-app-config';
+import {
+  LiveModelRegistry,
+  providerConfigsToRegistrySources,
+} from './models/model-registry';
+import { createAgentAppModelSwitchHost } from './models/agent-app-model-switch-host';
+import { encodeModelKey } from '@svton/agent-client';
 
 export function AgentApp(props: AgentAppProps) {
   const {
@@ -53,13 +59,7 @@ export function AgentApp(props: AgentAppProps) {
   const platform = useMemo(() => new BrowserPlatform({
     storageName: `${storage?.namespace ?? 'svton-app'}:storage`,
   }), [storage?.namespace]);
-  const [agentConfig, setAgentConfig] = useState<AgentConfig | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const appStorage = useMemo(() => createAgentAppStorage(storage?.namespace), [storage?.namespace]);
-  const [currentModel, setCurrentModel] = useState(() => {
-    if (defaultModel) return defaultModel;
-    return createAgentAppStorage(storage?.namespace).getString('defaultModel');
-  });
   const [refreshKey, setRefreshKey] = useState(0);
 
   const settingsKey = JSON.stringify(settings ?? {});
@@ -77,6 +77,17 @@ export function AgentApp(props: AgentAppProps) {
   );
 
   const runtimeProviders = useMemo(() => adapter.getProviderConfigs(), [adapter, refreshKey]);
+  const [modelRegistry] = useState(() => new LiveModelRegistry(
+    providerConfigsToRegistrySources(runtimeProviders),
+  ));
+  useEffect(() => {
+    modelRegistry.replace(providerConfigsToRegistrySources(runtimeProviders));
+  }, [modelRegistry, runtimeProviders]);
+  const storedModel = defaultModel || appStorage.getString('defaultModel');
+  const [initialModelKey] = useState(() =>
+    modelRegistry.resolve(storedModel)
+    ?? modelRegistry.getSnapshot().records.find((record) => !record.hidden)?.key
+    ?? null);
   const runtimeMcpServers = useMemo(
     () => [...(mcpServers ?? []), ...adapter.getMcpServerEntries()],
     [adapter, mcpServers, refreshKey],
@@ -84,117 +95,88 @@ export function AgentApp(props: AgentAppProps) {
   const runtimeSearchEndpoint = searchEndpoint ?? adapter.getSearchEndpoint();
   const runtimeSearchApiKey = adapter.getSearchApiKey?.();
 
-  // Build model list from all providers
-  const models: ModelOption[] = useMemo(() => {
-    return buildModelOptions(runtimeProviders);
-  }, [runtimeProviders]);
-
   useEffect(() => {
-    if (!currentModel && models[0]) {
-      setCurrentModel(models[0].key);
+    if (initialModelKey && storedModel !== encodeModelKey(initialModelKey)) {
+      appStorage.setString('defaultModel', encodeModelKey(initialModelKey));
     }
-  }, [currentModel, models]);
+  }, [appStorage, initialModelKey, storedModel]);
 
-  // Initialize agent
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        if (!currentModel && models.length > 0) return;
-        const config = await createAgentConfig({
-          providers: runtimeProviders,
-          model: currentModel,
-          platform,
-          features,
-          searchEndpoint: runtimeSearchEndpoint,
-          searchApiKey: runtimeSearchApiKey,
-          systemPrompt,
-          workingDir,
-          skills,
-          mcpServers: runtimeMcpServers,
-          imageProviders,
-          storageNamespace: storage?.namespace,
-          integrations,
-          marketplace,
-          maxIterations,
-          contextConfig,
-        });
-
-        // Populate agent data for settings
-        adapter.setAgentData({
-          tools: config.toolRegistry.listDefinitions().map((t: any) => ({
-            name: t.name,
-            description: t.description,
-            parameters: t.parameters,
-          })),
-          skills: (config.capabilities?.skillManager?.list() ?? []).map(s => ({
-            name: s.name,
-            description: s.description,
-          })),
-          permissionMode: config.capabilities?.permissionManager?.getMode() || 'default',
-          hasMemory: !!config.capabilities?.memoryManager,
-          memoryText: config.capabilities?.memoryManager?.getAllMemoryText?.() ?? '',
-          mcpServers: (config.capabilities?.mcpClients ?? []).map((client: any) => ({
-            name: client.info?.name || 'mcp',
-            connected: client.connected,
-          })),
-          hasSubagent: !!config.capabilities?.subagentManager,
-          hasPlanning: !!config.capabilities?.planningManager,
-        });
-        adapter.onUpdate = () => setRefreshKey(k => k + 1);
-        adapter.setAgentConfig(config);
-
-        if (!cancelled) {
-          setAgentConfig(config);
-          setError(null);
+  const startupModel = initialModelKey ? encodeModelKey(initialModelKey) : '';
+  const configOptions = useMemo(() => ({
+    providers: runtimeProviders,
+    model: startupModel,
+    platform,
+    features,
+    searchEndpoint: runtimeSearchEndpoint,
+    searchApiKey: runtimeSearchApiKey,
+    systemPrompt,
+    workingDir,
+    skills,
+    mcpServers: runtimeMcpServers,
+    imageProviders,
+    storageNamespace: storage?.namespace,
+    integrations,
+    marketplace,
+    maxIterations,
+    contextConfig,
+  }), [runtimeProviders, startupModel, platform, features, runtimeSearchEndpoint,
+    runtimeSearchApiKey, systemPrompt, workingDir, skills, runtimeMcpServers,
+    imageProviders, storage?.namespace, integrations, marketplace, maxIterations,
+    contextConfig, refreshKey]);
+  const configOptionsRef = useRef(configOptions);
+  configOptionsRef.current = configOptions;
+  const [modelSwitchHost] = useState(() => initialModelKey
+    ? createAgentAppModelSwitchHost(
+        platform,
+        () => configOptionsRef.current,
+        adapter,
+        appStorage,
+        initialModelKey,
+      )
+    : null);
+  const configStartup = useStartupTask<AgentConfig>({
+    source: 'provider',
+    generationKey: configOptions,
+    load: async () => startupModel
+      ? {
+          kind: 'ready',
+          value: await initializeAgentAppConfig(
+            configOptions,
+            adapter,
+            () => setRefreshKey((key) => key + 1),
+          ),
         }
-      } catch (e) {
-        if (!cancelled) {
-          setError(e instanceof Error ? e.message : String(e));
-        }
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [platform, currentModel, models.length, runtimeProviders, features, runtimeSearchEndpoint, systemPrompt, workingDir, skills, runtimeMcpServers, imageProviders, storage?.namespace, integrations, marketplace, maxIterations, contextConfig, adapter, refreshKey]);
+      : { kind: 'noConfiguration', cause: '请先配置 Provider、API Key 和模型。' },
+  });
 
-  // Model change handler
-  const handleModelChange = useCallback((model: string) => {
-    setCurrentModel(model);
-    // Save selection
-    appStorage.setString('defaultModel', model);
-  }, [appStorage]);
-
-  // Error state
-  if (error) {
+  if (configStartup.state.phase !== 'ready' || !initialModelKey || !modelSwitchHost) {
     return (
-      <div className={`flex items-center justify-center h-screen bg-[#000000] text-gray-100 font-mono ${className ?? ''}`}>
-        <div className="text-center max-w-md">
-          <div className="text-red-400 text-sm mb-2">初始化失败</div>
-          <div className="text-gray-500 text-xs">{error}</div>
-          <div className="text-gray-600 text-xs mt-4">请检查 Provider 配置和 API Key</div>
-        </div>
-      </div>
+      <StartupStateView
+        state={configStartup.state}
+        onRetry={configStartup.retry}
+        className={className}
+      />
     );
   }
-
-  // Loading state
-  if (!agentConfig) {
-    return (
-      <div className={`flex items-center justify-center h-screen bg-[#000000] text-gray-100 font-mono ${className ?? ''}`}>
-        <div className="text-gray-500 text-sm">初始化中...</div>
-      </div>
-    );
-  }
+  const agentConfig = configStartup.state.value;
 
   // Ready — render with AgentProvider (creates @svton/service scope)
   return (
     <div className={className} data-theme={theme}>
-      <AgentProvider platform={platform} config={agentConfig} runtimeKey={runtime?.key}>
+      <AgentProvider
+        platform={platform}
+        config={agentConfig}
+        runtimeKey={runtime?.key}
+        modelKey={initialModelKey}
+        startupFallback={(startup) => (
+          <StartupStateView state={startup.state} onRetry={startup.retry} />
+        )}
+      >
         <AgentShell
           config={agentConfig}
-          models={models}
-          currentModel={currentModel}
-          onModelChange={handleModelChange}
+          modelRegistry={modelRegistry}
+          modelSwitchHost={modelSwitchHost}
+          initialModelKey={initialModelKey}
           adapter={adapter}
           title={title}
           sidebarConfig={sidebarConfig}

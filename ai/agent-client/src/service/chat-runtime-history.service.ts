@@ -1,4 +1,8 @@
-import type { SvtonAgentRuntime } from '@svton/agent-core';
+import {
+  isRuntimeSkillContextMessage,
+  type AgentMessage,
+  type SvtonAgentRuntime,
+} from '@svton/agent-core';
 import type { DisplayMessage } from '../types';
 import type { MessageEditPlan } from './chat-commands';
 
@@ -29,10 +33,10 @@ export function rollbackRuntimeForMessage(
 ): DisplayMessage[] | null {
   const canonical = runtime.getCanonicalMessages();
   let index = plan.runtimeMessageIndex;
-  if (index === undefined || canonical[index]?.role !== 'user') {
+  if (!isActualCanonicalUser(canonical, index)) {
     index = resolveByUserOrdinal(canonical, currentMessages, plan.targetMessageId);
   }
-  if (index === undefined || canonical[index]?.role !== 'user') return null;
+  if (index === undefined || !isActualCanonicalUser(canonical, index)) return null;
   runtime.rollbackCanonicalMessages(index);
   return plan.messages.map((message) => (
     message.id === plan.targetMessageId
@@ -53,8 +57,19 @@ function resolveByUserOrdinal(
   return userPositions(canonical)[ordinal];
 }
 
-function userPositions(messages: ReadonlyArray<{ role: string }>): number[] {
+function userPositions(messages: ReadonlyArray<AgentMessage>): number[] {
   return messages
-    .map((message, index) => message.role === 'user' ? index : -1)
+    .map((message, index) => (
+      message.role === 'user' && !isRuntimeSkillContextMessage(message) ? index : -1
+    ))
     .filter((index) => index >= 0);
+}
+
+function isActualCanonicalUser(
+  messages: ReadonlyArray<AgentMessage>,
+  index: number | undefined,
+): boolean {
+  if (index === undefined) return false;
+  const message = messages[index];
+  return message?.role === 'user' && !isRuntimeSkillContextMessage(message);
 }

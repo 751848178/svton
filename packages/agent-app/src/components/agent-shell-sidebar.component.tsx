@@ -24,11 +24,13 @@ export function AgentShellSidebar({
   onNavigate,
 }: AgentShellSidebarProps) {
   const {
-    sessions,
     currentSessionId,
     create,
     switchTo,
-    delete: deleteSession,
+    activityBySessionId,
+    managementBySessionId,
+    management,
+    search,
   } = useSession();
 
   return (
@@ -50,9 +52,13 @@ export function AgentShellSidebar({
       onNavigate={(view) => {
         if (view === 'chat' || view === 'settings') onNavigate(view);
       }}
-      sessions={sessions.map((session) => ({
-        id: session.id,
-        title: session.title || '新对话',
+      sessions={search.results.map((result) => ({
+        id: result.session.id,
+        title: result.session.title || '新对话',
+        activity: activityBySessionId.get(result.session.id),
+        management: managementBySessionId.get(result.session.id),
+        snippet: result.snippet,
+        snippetSource: result.source,
       }))}
       currentSessionId={currentSessionId}
       onNewChat={() => {
@@ -63,7 +69,8 @@ export function AgentShellSidebar({
         switchTo(id);
         onNavigate('chat');
       }}
-      onDeleteSession={deleteSession}
+      managementActions={management}
+      sessionSearch={search}
       onOpenSettings={() => onNavigate('settings')}
     />
   );

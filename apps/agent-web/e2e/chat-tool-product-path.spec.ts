@@ -84,10 +84,8 @@ test.describe('agent-web tool approval and progress E2E', () => {
     ]);
     await send(page, 'search example');
     await searchStarted;
-    await lastAssistant(page).locator('button[title]').first().click();
-    const toolCard = page.getByTestId('tool-card-web_search');
-    await expect(toolCard).toHaveAttribute('data-tool-status', 'running');
-    await expect(lastAssistant(page)).toContainText('Searching the web');
+    const liveTool = lastAssistant(page).getByTestId('timeline-progress-update');
+    await expect(liveTool).toContainText('web_search running');
     releaseSearch();
     await expect(lastAssistant(page)).toContainText(
       'Search completed successfully',
@@ -96,9 +94,9 @@ test.describe('agent-web tool approval and progress E2E', () => {
     await expect(page.getByTestId('send-button')).toBeVisible({
       timeout: 20_000,
     });
-    await lastAssistant(page).getByText('已处理').click().catch(() => {});
+    const toolCard = page.getByTestId(/timeline-tool-/);
     await expect(toolCard).toBeVisible();
-    await expect(toolCard).toHaveAttribute('data-tool-status', 'completed');
+    await expect(toolCard).toHaveAttribute('data-timeline-status', 'completed');
     await page.screenshot({
       path: `${SHOTS}/w6-tool-progress-success.png`,
     });

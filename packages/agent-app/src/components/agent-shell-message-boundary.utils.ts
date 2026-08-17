@@ -2,7 +2,6 @@ import type {
   ContentBlock as ClientContentBlock,
   DisplayMessage,
 } from '@svton/agent-client';
-import type { Usage } from '@earendil-works/pi-ai';
 import type {
   ChatPanelMessage,
   ContentBlock as UiContentBlock,
@@ -35,8 +34,8 @@ export function toInlineChatBlocks(
  */
 export function projectClientMessageToChatPanel(
   message: DisplayMessage,
-  usage?: Usage,
 ): ChatPanelMessage {
+  const usage = message.timeline?.usage;
   return {
     id: message.id,
     role: message.role,
@@ -44,8 +43,10 @@ export function projectClientMessageToChatPanel(
     thinking: message.thinking,
     error: message.error,
     images: message.images,
+    publicAttachments: message.publicAttachments,
     toolCalls: message.toolCalls,
     blocks: toInlineChatBlocks(message.blocks),
+    timeline: message.timeline,
     isStreaming: message.isStreaming,
     systemType: message.systemType,
     duration: message.duration,

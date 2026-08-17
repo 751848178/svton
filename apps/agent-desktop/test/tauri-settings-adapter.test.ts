@@ -147,14 +147,14 @@ describe('TauriSettingsAdapter', () => {
       expect(await storage.get<string>('desktop:customInstructions')).toBe('Always use TypeScript');
     });
 
-    it('savePermissionMode persists and updates the running permissionManager', async () => {
+    it('savePermissionMode persists without mutating the stale startup manager', async () => {
       const setMode = vi.fn();
       const fakeAgentConfig = {
         capabilities: { permissionManager: { setMode } },
       } as any;
       const adapter = new TauriSettingsAdapter(platform, fakeAgentConfig, onUpdate);
-      adapter.savePermissionMode('auto');
-      expect(setMode).toHaveBeenCalledWith('auto');
+      await adapter.savePermissionMode('auto');
+      expect(setMode).not.toHaveBeenCalled();
       expect(await storage.get<string>('agent:permission_mode')).toBe('auto');
     });
   });

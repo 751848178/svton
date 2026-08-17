@@ -7,10 +7,13 @@ import { CodeBlock } from './CodeBlock';
 // Re-exported from the shared module so CodeBlock and MarkdownRenderer use the
 // same ESM hljs instance with all languages registered.
 import { hljs } from '../../lib/highlight-setup';
+import type { ArtifactTarget } from '../artifacts/artifact.types';
 
 export interface MarkdownRendererProps {
   content: string;
   className?: string;
+  artifactId?: string;
+  onArtifactOpen?: (target: ArtifactTarget) => void;
 }
 
 /**
@@ -28,14 +31,31 @@ function extractText(children: React.ReactNode): string {
 }
 
 /**
- * Renders Markdown content with Codex-style formatting.
+ * Renders Markdown content through the shared transcript primitives.
  */
-export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, className }) => {
+export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, className, artifactId, onArtifactOpen }) => {
+  const components: Components = artifactId && onArtifactOpen
+    ? {
+        ...markdownComponents,
+        code(props) {
+          const source = extractText(props.children).replace(/\n$/, '');
+          const position = (props.node as MarkdownCodeProps['node'] | undefined)?.position?.start ?? {};
+          const targetId = `${artifactId}:code:${position.offset ?? contentHash(source)}`;
+          return renderMarkdownCode(props, (code, language) => onArtifactOpen({
+            kind: 'code',
+            id: targetId,
+            title: `${language || 'Code'} line ${position.line ?? 1}`,
+            language,
+            content: code,
+          }), targetId);
+        },
+      }
+    : markdownComponents;
   return (
     <div className={cn('min-w-0 overflow-hidden break-words', className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        components={markdownComponents}
+        components={components}
       >
         {content}
       </ReactMarkdown>
@@ -49,29 +69,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, cla
 
 const markdownComponents: Components = {
   // Code blocks & inline code
-  code({ className: codeClassName, children, ...rest }) {
-    const lang = /language-(\w+)/.exec(codeClassName || '')?.[1];
-    const text = extractText(children).replace(/\n$/, '');
-
-    // Check if inside <pre> (block code) by inspecting the parent node
-    const node = (rest as { node?: { tagName?: string; properties?: { className?: string[] } } })?.node;
-    const isInsidePre = node?.properties?.className?.[0]?.startsWith('language-') || lang;
-
-    if (isInsidePre || lang) {
-      return <CodeBlock code={text} language={lang} highlight />;
-    }
-
-    // Inline code
-    if (!text.includes('\n') && text.length < 200) {
-      return (
-        <code className="bg-[#2a2a2a] text-gray-300 px-1.5 py-0.5 rounded text-[13px] font-mono">
-          {text}
-        </code>
-      );
-    }
-
-    return <CodeBlock code={text} />;
-  },
+  code(props) { return renderMarkdownCode(props); },
 
   // Pre tag: delegate to code component
   pre({ children }) {
@@ -153,3 +151,39 @@ const markdownComponents: Components = {
     return <em>{children}</em>;
   },
 };
+
+interface MarkdownCodeProps {
+  className?: string;
+  children?: React.ReactNode;
+  node?: {
+    properties?: { className?: string[] };
+    position?: { start?: { line?: number; offset?: number } };
+  };
+}
+
+function renderMarkdownCode(
+  { className: codeClassName, children, ...rest }: MarkdownCodeProps,
+  onPreview?: (code: string, language?: string) => void,
+  artifactTargetId?: string,
+) {
+  const lang = /language-(\w+)/.exec(codeClassName || '')?.[1];
+  const text = extractText(children).replace(/\n$/, '');
+  const node = (rest as { node?: { properties?: { className?: string[] } } })?.node;
+  const block = node?.properties?.className?.[0]?.startsWith('language-') || lang;
+  if (block || lang) {
+    return <CodeBlock code={text} language={lang} highlight onPreview={onPreview} artifactTargetId={artifactTargetId} />;
+  }
+  if (!text.includes('\n') && text.length < 200) {
+    return <code className="rounded bg-[#2a2a2a] px-1.5 py-0.5 font-mono text-[13px] text-gray-300">{text}</code>;
+  }
+  return <CodeBlock code={text} />;
+}
+
+function contentHash(content: string): string {
+  let hash = 2166136261;
+  for (let index = 0; index < content.length; index += 1) {
+    hash ^= content.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}

@@ -1,26 +1,24 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import {
   ChatPanel,
-  SplitScreenPanel,
+  ResponsiveArtifactHost,
   type ChatPanelMessage,
-  type SplitScreenContent,
 } from '@svton/agent-ui';
-import { useChat, useToolApproval } from '@svton/agent-client';
-import { projectClientMessageToChatPanel } from '@svton/agent-app';
+import { useChat, useToolApproval, useUserInput } from '@svton/agent-client';
+import { prepareChatInput, projectClientMessageToChatPanel, useArtifactController, useChatInteractionController } from '@svton/agent-app';
 import { InputControls } from './InputControls';
-import { buildOpenReferenceCommand } from '@/lib/reference-open.utils';
 import { CHAT_PRESETS } from './chat-content.constants';
 import type { ChatContentProps } from './ChatContent.types';
+import { useDesktopTimelineIntents } from './use-desktop-timeline-intents';
+import { createDesktopComposerFileAdapter } from './desktop-composer-file-adapter';
+import { createDesktopArtifactHostAdapter } from './desktop-artifact-host-adapter';
 
 export function ChatContent({
   modelSelector,
   slashCommands,
   matchedSkills,
   onAbort,
-  permissionMode,
-  onPermissionModeChange,
-  planMode,
-  onPlanModeChange,
+  sessionSettings,
   plugins,
   onPluginToggle,
   gitBranch,
@@ -30,61 +28,30 @@ export function ChatContent({
   onSelectProject,
   mentionItems,
   onMentionSelect,
-  reasoningEffort,
-  onReasoningEffortChange,
   workingDir,
 }: ChatContentProps) {
-  const { messages, isStreaming, lastUsage, send, retry, retryFromMessage, editMessage, activePlan, inputHistory } = useChat();
-  const { approve, reject } = useToolApproval();
-  const [splitScreen, setSplitScreen] = useState<SplitScreenContent | null>(null);
-  /** Preview content stored for popout windows to read */
-  const [popoutContent, setPopoutContent] = useState<SplitScreenContent | null>(null);
-
-  const handleOpenDocument = useCallback(async (doc: SplitScreenContent) => {
-    const previewMode = localStorage.getItem('agent:preview_mode') || 'sidebar';
-
-    if (previewMode === 'window') {
-      try {
-        const key = Date.now().toString();
-
-        // Store content in localStorage BEFORE opening the window.
-        // localStorage is shared across all Tauri webviews with the same origin,
-        // so the preview window can read it immediately on mount.
-        localStorage.setItem(`svton-preview-${key}`, JSON.stringify(doc));
-
-        // Open the preview window — the URL includes the key so it can find the content
-        const { invoke } = await import('@tauri-apps/api/core' as string);
-        await invoke('popout_preview', { key });
-      } catch (e) {
-        console.error('Popout preview failed:', e);
-        // Fallback to sidebar mode
-        setSplitScreen(doc);
-      }
-    } else {
-      setSplitScreen(doc);
-    }
-  }, []);
-
-  const handleOpenEditor = useCallback((content: string) => { setSplitScreen({ type: 'document', title: 'Edit', content }); }, []);
+  const { messages, isStreaming, canSend, submitPrepared, retry, retryFromMessage, editMessage, activePlan, inputHistory } = useChat();
+  const { request: approvalRequest, settle: settleApproval, approve, reject } = useToolApproval();
+  const {
+    request: userInputRequest,
+    submit: submitUserInput,
+    updateDraft: updateUserInputDraft,
+  } = useUserInput();
+  const timelineHosts = useDesktopTimelineIntents(retryFromMessage, workingDir);
+  const fileAdapter = useMemo(createDesktopComposerFileAdapter, []);
+  const artifactHost = useMemo(() => createDesktopArtifactHostAdapter(workingDir), [workingDir]);
+  const artifact = useArtifactController(artifactHost);
+  const interaction = useChatInteractionController({
+    canSend, isStreaming, stop: onAbort, slashCommands, fileAdapter,
+    send: (submission) => submitPrepared(prepareChatInput(submission)),
+  });
 
   const presets = useMemo(() => CHAT_PRESETS, []);
 
   const panelMessages: ChatPanelMessage[] = useMemo(
     () =>
-      messages.map((message, index) => projectClientMessageToChatPanel(
-        message,
-        index === messages.length - 1
-          && message.role === 'assistant'
-          && !message.isStreaming
-          ? lastUsage ?? undefined
-          : undefined,
-      )),
-    [messages, lastUsage],
-  );
-
-  const handleSend = useCallback(
-    (content: string, images?: Array<{ data: string; mimeType?: string }>) => send(content, images),
-    [send],
+      messages.map((message) => projectClientMessageToChatPanel(message)),
+    [messages],
   );
 
   // Whether project selector should be shown (only when no messages in conversation)
@@ -95,10 +62,7 @@ export function ChatContent({
     <>
       {modelSelector}
       <InputControls
-        permissionMode={permissionMode}
-        onPermissionModeChange={onPermissionModeChange}
-        planMode={planMode}
-        onPlanModeChange={onPlanModeChange}
+        sessionSettings={sessionSettings}
         plugins={plugins}
         onPluginToggle={onPluginToggle}
         gitBranch={gitBranch}
@@ -106,46 +70,35 @@ export function ChatContent({
         projects={showProjectSelector ? projects : undefined}
         currentProjectId={currentProjectId}
         onSelectProject={onSelectProject}
-        reasoningEffort={reasoningEffort}
-        onReasoningEffortChange={onReasoningEffortChange}
       />
     </>
-  ), [modelSelector, permissionMode, onPermissionModeChange, planMode, onPlanModeChange, plugins, onPluginToggle, gitBranch, projectName, showProjectSelector, projects, currentProjectId, onSelectProject, reasoningEffort, onReasoningEffortChange]);
+  ), [modelSelector, sessionSettings, plugins, onPluginToggle, gitBranch, projectName, showProjectSelector, projects, currentProjectId, onSelectProject]);
 
   return (
-    <div className="flex flex-1 min-w-0 min-h-0 relative">
-      <div className={splitScreen ? 'w-1/2 min-w-0 min-h-0 flex flex-col' : 'flex-1 min-h-0 flex flex-col'}>
+    <ResponsiveArtifactHost
+      interaction={artifact}
+      chat={(
         <ChatPanel
           messages={panelMessages}
-          onSend={handleSend}
+          interaction={interaction}
           onAbort={onAbort}
           onApproveTool={approve}
           onRejectTool={reject}
+          approvalRequest={approvalRequest}
+          onApprovalDecision={settleApproval}
+          userInputRequest={userInputRequest}
+          onSubmitUserInput={submitUserInput}
+          onUserInputDraftChange={updateUserInputDraft}
           onRetry={(messageId?: string) => messageId ? retryFromMessage(messageId) : retry()}
           onEditMessage={editMessage}
-          onOpenDocument={handleOpenDocument}
-          onOpenEditor={handleOpenEditor}
-          onOpenReference={async (path, _line) => {
-            try {
-              const api = await import('@tauri-apps/api/core' as string);
-              const invoke = (api as any).invoke;
-              await invoke('process_exec', {
-                command: buildOpenReferenceCommand(path, workingDir),
-                cwd: null,
-              });
-            } catch (e) {
-              console.error('Failed to open file:', e);
-            }
-          }}
-          onCommand={async (action) => {
-            // Execute slash-command actions (e.g. run-tests, deploy).
-            // The action string is a semantic command id; send it as a prompt
-            // so the agent can act on it.
-            if (action && typeof action === 'string') {
-              send(action);
-            }
-          }}
+          artifactInteraction={artifact}
+          onTimelineIntent={timelineHosts.onTimelineIntent}
+          timelineCapabilities={timelineHosts.timelineCapabilities}
           isStreaming={isStreaming}
+          disabled={!canSend && !isStreaming}
+          disabledReason={!canSend && !isStreaming
+            ? 'Another session is still running. Return to it or stop it before sending here.'
+            : undefined}
           placeholder="描述你想做的事情...  输入 / 查看命令  @ 引用"
           emptyMessage={(
             <div className="text-center py-8">
@@ -165,26 +118,9 @@ export function ChatContent({
           inputHistory={inputHistory}
           matchedSkills={matchedSkills}
           activePlan={activePlan}
-          onFileReference={async () => {
-            try {
-              const api = await import('@tauri-apps/api/core' as string);
-              const invoke = (api as any).invoke;
-              const filePath = await invoke('dialog_open_file') as string | null;
-              if (!filePath) return;
-              const content = await invoke('fs_read_file', { path: filePath }) as string;
-              const name = filePath.replace(/\\/g, '/').split('/').pop() || 'file';
-              const text = `📄 ${name}\n\`\`\`\n${content}\n\`\`\``;
-              send(text);
-            } catch { /* cancelled or error */ }
-          }}
           className="bg-transparent"
         />
-      </div>
-      {splitScreen && (
-        <div className="w-1/2 min-w-0">
-          <SplitScreenPanel content={splitScreen} onClose={() => setSplitScreen(null)} />
-        </div>
       )}
-    </div>
+    />
   );
 }

@@ -1,98 +1,105 @@
-import React from 'react';
-import type { ToolCallInfo } from './ToolCallCard';
+import React, { useCallback, useRef } from 'react';
+import { Modal, useI18n, type TranslationKey } from '@svton/ui';
 import { getToolDisplayName } from './tool-names';
-import { t } from '@svton/ui';
+import type { ApprovalDecisionView, ApprovalRequestView } from './approval.types';
 
-interface ToolApprovalModalProps {
-  toolCall: ToolCallInfo;
-  onApprove: (callId: string) => void;
-  onReject: (callId: string) => void;
+export interface ToolApprovalModalProps {
+  request: ApprovalRequestView;
+  onDecision: (requestId: string, decision: ApprovalDecisionView) => void;
 }
 
-/** Format tool arguments into readable key-value pairs */
-function formatArguments(args: Record<string, unknown>): Array<{ key: string; value: string }> {
-  // Handle {raw: "..."} fallback format from failed JSON parsing
-  if (args.raw && typeof args.raw === 'string' && Object.keys(args).length === 1) {
-    try {
-      const parsed = JSON.parse(args.raw as string);
-      if (typeof parsed === 'object' && parsed !== null) {
-        return formatArguments(parsed as Record<string, unknown>);
-      }
-    } catch { /* fallback to raw display */ }
-  }
+const DECISION_VIEW: Record<ApprovalDecisionView, { label: TranslationKey; testId: string; className: string }> = {
+  cancel: { label: 'approval.cancel', testId: 'tool-cancel', className: 'border border-border text-gray-300 hover:bg-muted' },
+  decline: { label: 'approval.decline', testId: 'tool-reject', className: 'border border-border text-gray-300 hover:bg-muted' },
+  acceptForSession: { label: 'approval.allowSession', testId: 'tool-approve-session', className: 'border border-cyan-800 text-cyan-200 hover:bg-cyan-950/40' },
+  accept: { label: 'approval.allowOnce', testId: 'tool-approve', className: 'bg-primary text-primary-foreground hover:bg-primary/90' },
+};
+const DECISION_ORDER: ApprovalDecisionView[] = ['cancel', 'decline', 'acceptForSession', 'accept'];
 
+function formatArguments(args: Record<string, unknown>, unavailable: string) {
   return Object.entries(args).map(([key, value]) => {
-    const str = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
-    // Truncate long values for readability
-    const truncated = str.length > 200 ? str.slice(0, 200) + '…' : str;
-    return { key, value: truncated };
+    const text = formatArgumentValue(value, unavailable);
+    return { key, value: text.length > 200 ? `${text.slice(0, 200)}…` : text };
   });
 }
 
-/**
- * Modal dialog for tool approval.
- * Automatically pops up when a tool call needs user permission.
- */
-export const ToolApprovalModal: React.FC<ToolApprovalModalProps> = ({
-  toolCall,
-  onApprove,
-  onReject,
-}) => {
-  const displayName = getToolDisplayName(toolCall.name);
+function formatArgumentValue(value: unknown, unavailable: string): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'bigint') return value.toString();
+  try {
+    const serialized = JSON.stringify(value, null, 2);
+    return typeof serialized === 'string' ? serialized : String(value ?? 'null');
+  } catch {
+    return unavailable;
+  }
+}
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/40" />
-
-      {/* Dialog */}
-      <div className="relative bg-[#2a2a2a] rounded-xl shadow-2xl border border-[#383838] max-w-md w-full mx-4 overflow-hidden">
-        {/* Header */}
-        <div className="px-5 py-4 border-b border-[#383838] flex items-center gap-3">
-          <span className="flex items-center justify-center w-8 h-8 rounded-full bg-yellow-900/30 text-yellow-400 text-sm">
-            ⚠
-          </span>
-          <div>
-            <div className="text-sm font-semibold text-gray-200">{t('tool.title')}</div>
-            <div className="text-xs text-gray-500 mt-0.5">
-              <span className="font-mono text-cyan-600">{displayName}</span> {t('tool.needsPermission')}
-            </div>
-          </div>
-        </div>
-
-        {/* Arguments — show as readable key-value list */}
-        {Object.keys(toolCall.arguments).length > 0 && (
-          <div className="px-5 py-3 border-b border-[#383838]">
-            <div className="text-[10px] text-gray-400 font-medium mb-1.5 uppercase tracking-wider">{t('tool.parameters')}</div>
-            <div className="space-y-1.5">
-              {formatArguments(toolCall.arguments).map(({ key, value }) => (
-                <div key={key} className="flex items-start gap-2">
-                  <span className="text-xs font-medium text-gray-500 flex-shrink-0 min-w-[60px]">{key}</span>
-                  <span className="text-xs text-gray-300 break-all">{value}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Actions */}
-        <div className="px-5 py-3 flex items-center justify-end gap-2 bg-[#171717]">
-          <button
-            onClick={() => onReject(toolCall.id)}
-            className="px-4 py-2 text-xs font-medium rounded-lg border border-[#3a3a3a] text-gray-400 hover:bg-[#2a2a2a] transition-colors"
-            data-testid="tool-reject"
-          >
-            {t('tool.deny')}
-          </button>
-          <button
-            onClick={() => onApprove(toolCall.id)}
-            className="px-4 py-2 text-xs font-medium rounded-lg bg-gray-100 text-gray-900 hover:bg-gray-200 transition-colors"
-            data-testid="tool-approve"
-          >
-            {t('tool.allow')}
-          </button>
-        </div>
-      </div>
-    </div>
+/** Session-owned global alertdialog; persisted history remains non-actionable. */
+export function ToolApprovalModal({ request, onDecision }: ToolApprovalModalProps) {
+  const { translate } = useI18n();
+  const requestKey = `${request.sessionId}:${request.requestId}`;
+  const decisionState = useRef({ requestKey, settled: false });
+  if (decisionState.current.requestKey !== requestKey) {
+    decisionState.current = { requestKey, settled: false };
+  }
+  const decide = useCallback((decision: ApprovalDecisionView) => {
+    if (decisionState.current.settled || !request.decisions.includes(decision)) return;
+    decisionState.current.settled = true;
+    onDecision(request.requestId, decision);
+  }, [onDecision, request]);
+  const canCancel = request.decisions.includes('cancel');
+  const safeDecision = canCancel ? 'cancel' : request.decisions.includes('decline') ? 'decline' : null;
+  const displayName = getToolDisplayName(request.toolName, translate);
+  const description = (
+    <span data-approval-summary tabIndex={-1}>{translate('approval.summary', { tool: displayName })}{request.reason ? ` ${request.reason}` : ''}</span>
   );
-};
+  const footer = DECISION_ORDER.filter((decision) => request.decisions.includes(decision)).map((decision) => {
+    const view = DECISION_VIEW[decision];
+    return (
+      <button
+        key={decision}
+        type="button"
+        data-approval-decision={decision}
+        data-testid={view.testId}
+        onClick={() => decide(decision)}
+        className={`rounded-lg px-4 py-2 text-xs font-medium focus-visible:ring-2 focus-visible:ring-ring ${view.className}`}
+      >
+        {translate(view.label)}
+      </button>
+    );
+  });
+  return (
+    <Modal
+      open
+      onClose={() => decide('cancel')}
+      role="alertdialog"
+      title={translate('approval.title')}
+      description={description}
+      maskClosable={false}
+      closeOnEscape={canCancel}
+      showCloseButton={false}
+      initialFocusSelector={safeDecision ? `[data-approval-decision="${safeDecision}"]` : '[data-approval-summary]'}
+      restoreFocusSelector={'[data-testid="chat-input"]'}
+      testId="tool-approval-dialog"
+      width={512}
+      className="max-h-[85vh] border border-border bg-popover shadow-2xl"
+      bodyClassName="p-0"
+      footerClassName="flex-wrap bg-[#171717]"
+      footer={footer}
+    >
+      {Object.keys(request.arguments).length > 0 && (
+        <section className="px-5 py-4" aria-label={translate('approval.parameters')}>
+          <h3 className="mb-2 text-[10px] font-medium uppercase tracking-wider text-gray-400">{translate('approval.parameters')}</h3>
+          <dl className="space-y-2">
+            {formatArguments(request.arguments, translate('approval.unavailable')).map(({ key, value }) => (
+              <div key={key} className="grid grid-cols-[minmax(72px,auto)_1fr] gap-3">
+                <dt className="break-all text-xs font-medium text-muted-foreground">{key}</dt>
+                <dd className="break-all whitespace-pre-wrap text-xs text-gray-300">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      )}
+    </Modal>
+  );
+}

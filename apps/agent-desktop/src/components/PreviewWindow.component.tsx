@@ -33,6 +33,7 @@ export function PreviewWindow() {
     <div className="h-screen bg-[#2a2a2a] text-gray-100">
       <SplitScreenPanel
         content={content}
+        readOnly
         onClose={() => {
           void (async () => {
             try {

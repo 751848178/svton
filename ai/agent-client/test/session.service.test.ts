@@ -77,7 +77,7 @@ describe('SessionService', () => {
       await service.init(replacement);
 
       expect(service.sessions.map((session) => session.id)).toEqual(['fresh']);
-      expect(service.currentSessionId).toBeNull();
+      expect(service.currentSessionId).toBe('fresh');
     });
 
     it('ignores a stale initialization that finishes after a new backend', async () => {
@@ -105,7 +105,7 @@ describe('SessionService', () => {
       await storage.set('agent:session_list', existingList);
       await service.init(storage);
       expect(service.sessions).toHaveLength(2);
-      expect(service.sessions[0].id).toBe('s1');
+      expect(service.sessions.map((session) => session.id)).toEqual(['s2', 's1']);
     });
   });
 
@@ -132,11 +132,10 @@ describe('SessionService', () => {
       expect(service.sessions[0].model).toBe('gpt-4o');
     });
 
-    it('prepends new session to the list', async () => {
+    it('uses the deterministic id tie-break when timestamps match', async () => {
       const id1 = await service.create('First');
       const id2 = await service.create('Second');
-      expect(service.sessions[0].id).toBe(id2);
-      expect(service.sessions[1].id).toBe(id1);
+      expect(service.sessions.map((session) => session.id)).toEqual([id1, id2].sort());
     });
 
     it('persists session data to storage', async () => {
@@ -152,7 +151,9 @@ describe('SessionService', () => {
       await service.create('Two');
       const list = await storage.get<any[]>('agent:session_list');
       expect(list).toHaveLength(2);
-      expect(list![0].title).toBe('Two');
+      expect(list!.map((session) => session.id)).toEqual(
+        service.sessions.map((session) => session.id),
+      );
     });
 
     it('handles corrupted sessions array gracefully', async () => {
@@ -233,11 +234,11 @@ describe('SessionService', () => {
 
       // Verify storage updated
       const saved = await storage.get<any>(`agent:session:${id}`);
-      expect(saved.title).toBe('After Save');
+      expect(saved.title).toBe('Before Save');
       expect(saved.messages).toHaveLength(1);
 
       // Verify session list updated
-      expect(service.sessions[0].title).toBe('After Save');
+      expect(service.sessions[0].title).toBe('Before Save');
       expect(service.sessions[0].messageCount).toBe(1);
     });
 
@@ -326,14 +327,15 @@ describe('SessionService', () => {
       await service.init(storage);
       const id1 = await service.create('One');
       const id2 = await service.create('Two');
-      service.switchTo(id1);
+      await service.switchTo(id1);
       expect(service.currentSessionId).toBe(id1);
-      service.switchTo(id2);
+      await service.switchTo(id2);
       expect(service.currentSessionId).toBe(id2);
     });
 
-    it('allows setting to null', () => {
-      service.switchTo(null);
+    it('rejects an unknown id without changing selection', async () => {
+      await service.init(storage);
+      await service.switchTo('missing');
       expect(service.currentSessionId).toBeNull();
     });
   });

@@ -7,7 +7,7 @@
  * existing `ToolExecutionService` (which runs the full permission/auto-review
  * pipeline) via the tool-adapter event sink — this module owns the *state*
  * the approval flow resolves against:
- *   - `pendingApprovals: Map<callId, PendingApproval>` — the promises the
+ *   - `pendingApprovals: Map<requestId, PendingApproval>` — the promises the
  *     ToolExecutionService awaits.
  *   - `beforeToolCall` — a thin abort gate installed on Pi Agent so an aborted
  *     run short-circuits tool preparation without executing the pipeline.
@@ -16,6 +16,8 @@
  */
 import type { BeforeToolCallContext, BeforeToolCallResult } from '@earendil-works/pi-agent-core';
 import type { PendingApproval } from './types';
+import { canonicalSessionId } from './session-id';
+import type { ToolApprovalDecision, ToolApprovalSettlementDecision } from './tool-approval.types';
 
 export type PendingApprovalMap = Map<string, PendingApproval>;
 
@@ -28,28 +30,52 @@ export class ApprovalGate {
 
   /** Approve a pending tool call (resolves its await). */
   approveToolCall(callId: string): void {
-    const pending = this.pendingApprovals.get(callId);
-    if (pending) {
-      pending.resolve(true);
-      this.pendingApprovals.delete(callId);
-    }
+    this.settleLegacyCall(callId, 'accept');
   }
 
   /** Reject a pending tool call (resolves its await with false). */
   rejectToolCall(callId: string): void {
-    const pending = this.pendingApprovals.get(callId);
-    if (pending) {
-      pending.resolve(false);
-      this.pendingApprovals.delete(callId);
-    }
+    this.settleLegacyCall(callId, 'decline');
+  }
+
+  /** Settle exactly one request owned by the named canonical session. */
+  settleToolApproval(
+    sessionId: string,
+    requestId: string,
+    decision: ToolApprovalDecision,
+  ): boolean {
+    const pending = this.pendingApprovals.get(requestId);
+    if (!pending?.request) return false;
+    if (pending.request.sessionId !== canonicalSessionId(sessionId)) return false;
+    if (!pending.request.decisions.includes(decision)) return false;
+    return this.finish(requestId, pending, decision);
   }
 
   /** Reject every pending approval (called on abort). */
-  abortPending(): void {
-    for (const pending of this.pendingApprovals.values()) {
-      pending.resolve(false);
+  abortPending(sessionId?: string): void {
+    const canonical = sessionId === undefined ? undefined : canonicalSessionId(sessionId);
+    for (const [key, pending] of [...this.pendingApprovals]) {
+      if (canonical !== undefined && pending.request?.sessionId !== canonical) continue;
+      this.finish(key, pending, 'interrupted');
     }
-    this.pendingApprovals.clear();
+  }
+
+  private settleLegacyCall(callId: string, decision: ToolApprovalDecision): boolean {
+    for (const [key, pending] of this.pendingApprovals) {
+      if (pending.call.id === callId) return this.finish(key, pending, decision);
+    }
+    return false;
+  }
+
+  private finish(
+    key: string,
+    pending: PendingApproval,
+    decision: ToolApprovalSettlementDecision,
+  ): boolean {
+    if (this.pendingApprovals.get(key) !== pending) return false;
+    this.pendingApprovals.delete(key);
+    pending.resolve(decision);
+    return true;
   }
 
   /**

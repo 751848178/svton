@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "next dev -p 3210",
     "build": "next build",
+    "build:static:zh": "SVTON_STATIC_EXPORT=1 SVTON_STATIC_EXPORT_LOCALE=zh next build",
+    "build:static:en": "SVTON_STATIC_EXPORT=1 SVTON_STATIC_EXPORT_LOCALE=en next build",
     "start": "next start -p 3210",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -30,6 +32,7 @@
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.0.0",
     "autoprefixer": "^10.4.17",
+    "axe-core": "4.11.1",
     "jsdom": "^26.0.0",
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.0",

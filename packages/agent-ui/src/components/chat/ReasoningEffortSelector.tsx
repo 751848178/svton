@@ -1,112 +1,65 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React from 'react';
+import { useI18n } from '@svton/ui';
 
 export type ReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh' | undefined;
 
 export interface ReasoningEffortSelectorProps {
   value: ReasoningEffort;
   onChange: (value: ReasoningEffort) => void;
+  availableEfforts?: readonly Exclude<ReasoningEffort, undefined>[];
+  defaultEffort?: Exclude<ReasoningEffort, undefined>;
+  disabled?: boolean;
+  disabledReason?: string;
   className?: string;
 }
 
-const EFFORT_OPTIONS: Array<{
-  value: ReasoningEffort;
-  label: string;
-  icon: string;
-  hint: string;
-}> = [
-  { value: undefined, label: 'Auto', icon: '◇', hint: 'Let the model decide' },
-  { value: 'low', label: 'Low', icon: '▸', hint: 'Fast, minimal reasoning' },
-  { value: 'medium', label: 'Medium', icon: '▸▸', hint: 'Balanced speed and depth' },
-  { value: 'high', label: 'High', icon: '▸▸▸', hint: 'Deeper reasoning, slower' },
-  { value: 'xhigh', label: 'Xhigh', icon: '▸▸▸▸', hint: 'Maximum reasoning effort' },
-];
-
-/**
- * A compact inline dropdown for selecting reasoning effort level.
- * Opens a small menu with effort options.
- */
+/** Native, capability-driven selector shared by composer and Settings. */
 export const ReasoningEffortSelector: React.FC<ReasoningEffortSelectorProps> = ({
   value,
   onChange,
+  availableEfforts = [],
+  defaultEffort,
+  disabled = false,
+  disabledReason,
   className,
 }) => {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const selectedOption = EFFORT_OPTIONS.find((o) => o.value === value) ?? EFFORT_OPTIONS[0];
-
-  // Close on outside click
-  useEffect(() => {
-    if (!open) return;
-
-    function handleClick(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [open]);
-
-  // Close on Escape
-  useEffect(() => {
-    if (!open) return;
-
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false);
-    }
-
-    document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
-  }, [open]);
-
+  const { translate: t } = useI18n();
+  const options = availableEfforts.filter((effort, index) =>
+    availableEfforts.indexOf(effort) === index);
+  const unavailableCurrent = value !== undefined && !options.includes(value);
+  const label = (effort: Exclude<ReasoningEffort, undefined>) =>
+    t(`settings.reasoning.${effort}`);
   return (
-    <div ref={containerRef} className={`svton-reasoning-effort relative inline-block ${className ?? ''}`}>
-      {/* Trigger button */}
-      <button
-        className="svton-reasoning-effort-trigger flex items-center gap-1 px-2 py-1 rounded-md text-[11px] text-gray-400 hover:text-gray-300 hover:bg-[#2a2a2a] border border-transparent hover:border-[#383838] transition-colors"
-        onClick={() => setOpen(!open)}
-        title={`Reasoning: ${selectedOption.label}`}
+    <label className={`inline-flex min-w-0 flex-col gap-1 ${className ?? ''}`}>
+      <span className="sr-only">{t('settings.reasoning.title')}</span>
+      <select
+        aria-label={t('settings.reasoning.title')}
+        title={disabledReason ?? t('settings.reasoning.title')}
+        value={value ?? 'auto'}
+        disabled={disabled}
+        onChange={(event) => onChange(parseEffort(event.target.value))}
+        className="min-h-11 min-w-[112px] rounded-md border border-[#383838] bg-[#1c1c1c] px-3 text-xs text-gray-300 outline-none focus:border-cyan-600 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        <span className="text-[10px] text-gray-500">{selectedOption.icon}</span>
-        <span className="text-gray-400">{selectedOption.label}</span>
-        <span className="text-gray-600 text-[8px] ml-0.5">{open ? '▴' : '▾'}</span>
-      </button>
-
-      {/* Dropdown menu */}
-      {open && (
-        <div className="svton-reasoning-effort-menu absolute right-0 top-full mt-1 min-w-[180px] rounded-lg border border-[#383838] bg-[#252525] shadow-xl z-50 overflow-hidden py-0.5">
-          {EFFORT_OPTIONS.map((option) => {
-            const isSelected = option.value === value;
-            return (
-              <button
-                key={option.label}
-                className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-left hover:bg-[#2a2a2a] transition-colors ${
-                  isSelected ? 'bg-[#2a2a2a]' : ''
-                }`}
-                onClick={() => {
-                  onChange(option.value);
-                  setOpen(false);
-                }}
-              >
-                <span className="text-[10px] text-gray-500 w-8 text-center flex-shrink-0">
-                  {option.icon}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className={`text-xs ${isSelected ? 'text-cyan-400' : 'text-gray-300'}`}>
-                    {option.label}
-                  </div>
-                  <div className="text-[9px] text-gray-600 truncate">{option.hint}</div>
-                </div>
-                {isSelected && (
-                  <span className="text-[10px] text-cyan-400 flex-shrink-0">✓</span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
+        <option value="auto">
+          {defaultEffort
+            ? t('settings.reasoning.autoDefault', { effort: label(defaultEffort) })
+            : t('settings.reasoning.auto')}
+        </option>
+        {unavailableCurrent && (
+          <option value={value} disabled>
+            {t('settings.reasoning.currentUnavailable', { effort: label(value) })}
+          </option>
+        )}
+        {options.map((effort) => (
+          <option key={effort} value={effort}>{label(effort)}</option>
+        ))}
+      </select>
+    </label>
   );
 };
+
+function parseEffort(value: string): ReasoningEffort {
+  return value === 'low' || value === 'medium' || value === 'high' || value === 'xhigh'
+    ? value
+    : undefined;
+}

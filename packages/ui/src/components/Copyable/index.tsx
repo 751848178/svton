@@ -1,5 +1,7 @@
 import React, { useState, useCallback, ReactNode } from 'react';
 import { cn } from '../../lib/utils';
+import { CheckIcon, CopyIcon } from '../../icons';
+import { useI18n } from '../../i18n';
 
 export interface CopyableProps {
   text: string;
@@ -13,7 +15,8 @@ export interface CopyableProps {
 }
 
 export function Copyable(props: CopyableProps) {
-  const { text, children, onCopy, onError, copiedText = 'Copied!', copyText = 'Copy', timeout = 2000, className } = props;
+  const { translate } = useI18n();
+  const { text, children, onCopy, onError, copiedText = translate('action.copied'), copyText = translate('action.copy'), timeout = 2000, className } = props;
   const [copied, setCopied] = useState(false);
 
   const handleCopy = useCallback(async () => {
@@ -40,16 +43,9 @@ export function Copyable(props: CopyableProps) {
             : 'text-muted-foreground border-border hover:border-foreground/40'
         )}
       >
-        {copied ? (
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
-        ) : (
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-          </svg>
-        )}
+        {copied
+          ? <CheckIcon size={14} aria-hidden="true" />
+          : <CopyIcon size={14} aria-hidden="true" />}
         {copied ? copiedText : copyText}
       </button>
     </span>

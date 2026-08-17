@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
+import { CloseIcon, useI18n } from '@svton/ui';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { ExportManager } from './ExportManager';
 
@@ -19,13 +20,12 @@ type ViewMode = 'edit' | 'preview';
 
 /**
  * Inline content editor for AI-generated content.
- * Follows the Doubao pattern: Chat → Edit → Export.
- *
  * - Edit mode: raw markdown textarea
  * - Preview mode: rendered markdown
  * - Export: download as .md / .txt / .html
  */
 export function ContentEditor({ content: initialContent, title, onClose, onSave }: ContentEditorProps) {
+  const { translate: t } = useI18n();
   const [content, setContent] = useState(initialContent);
   const [mode, setMode] = useState<ViewMode>('preview');
   const [hasChanges, setHasChanges] = useState(false);
@@ -42,35 +42,35 @@ export function ContentEditor({ content: initialContent, title, onClose, onSave 
 
   return (
     <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-4xl max-h-[90vh] bg-[#2a2a2a] rounded-xl shadow-2xl flex flex-col mx-4">
+      <div className="mx-4 flex max-h-[90vh] w-full max-w-4xl flex-col rounded-xl border border-border bg-card shadow-2xl" role="dialog" aria-modal="true" aria-label={title || t('editor.title')}>
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#383838]">
+        <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <div className="flex items-center gap-3">
-            <h3 className="text-base font-semibold text-gray-100">
-              {title || 'Content Editor'}
+            <h3 className="text-base font-semibold text-foreground">
+              {title || t('editor.title')}
             </h3>
             {hasChanges && (
-              <span className="text-xs text-orange-500 font-medium">Unsaved changes</span>
+              <span className="text-xs font-medium text-status-warning">{t('editor.unsaved')}</span>
             )}
           </div>
           <div className="flex items-center gap-2">
             {/* Mode toggle */}
-            <div className="flex bg-[#2a2a2a] rounded-lg p-0.5">
+            <div className="flex rounded-lg bg-muted p-0.5">
               <button
                 onClick={() => setMode('edit')}
-                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                  mode === 'edit' ? 'bg-[#333] shadow text-gray-100' : 'text-gray-500 hover:text-gray-300'
+                className={`min-h-11 min-w-11 rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                  mode === 'edit' ? 'bg-accent text-foreground shadow' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                Edit
+                {t('action.edit')}
               </button>
               <button
                 onClick={() => setMode('preview')}
-                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-                  mode === 'preview' ? 'bg-[#333] shadow text-gray-100' : 'text-gray-500 hover:text-gray-300'
+                className={`min-h-11 min-w-11 rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                  mode === 'preview' ? 'bg-accent text-foreground shadow' : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                Preview
+                {t('action.preview')}
               </button>
             </div>
 
@@ -79,9 +79,9 @@ export function ContentEditor({ content: initialContent, title, onClose, onSave 
               {(onClick) => (
                 <button
                   onClick={onClick}
-                  className="px-3 py-1 text-xs font-medium text-gray-400 hover:text-gray-200 bg-[#2a2a2a] rounded-lg transition-colors"
+                  className="min-h-11 min-w-11 rounded-lg bg-muted px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
                 >
-                  Export
+                  {t('action.export')}
                 </button>
               )}
             </ExportManager>
@@ -90,22 +90,19 @@ export function ContentEditor({ content: initialContent, title, onClose, onSave 
             {hasChanges && onSave && (
               <button
                 onClick={handleSave}
-                className="px-3 py-1 text-xs font-medium text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition-colors"
+                className="min-h-11 min-w-11 rounded-lg bg-primary px-3 py-1 text-xs font-medium text-primary-foreground transition-colors"
               >
-                Save
+                {t('editor.save')}
               </button>
             )}
 
             {/* Close */}
             <button
               onClick={onClose}
-              className="p-1 text-gray-400 hover:text-gray-300 transition-colors"
-              aria-label="Close editor"
+              className="flex h-11 w-11 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              aria-label={t('editor.close')}
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
+              <CloseIcon size={18} aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -116,8 +113,8 @@ export function ContentEditor({ content: initialContent, title, onClose, onSave 
             <textarea
               value={content}
               onChange={handleChange}
-              className="w-full h-full min-h-[400px] p-6 text-sm font-mono leading-relaxed text-gray-100 resize-none focus:outline-none"
-              placeholder="Edit content..."
+              className="h-full min-h-[400px] w-full resize-none bg-card p-6 font-mono text-sm leading-relaxed text-foreground focus:outline-none"
+              placeholder={t('editor.placeholder')}
               spellCheck={false}
             />
           ) : (
@@ -128,8 +125,8 @@ export function ContentEditor({ content: initialContent, title, onClose, onSave 
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-400">
-          <span>{content.length} chars</span>
+        <div className="flex items-center justify-between border-t border-border px-6 py-3 text-xs text-muted-foreground">
+          <span>{content.length} {t('editor.characters')}</span>
           <span>Markdown</span>
         </div>
       </div>

@@ -1,33 +1,37 @@
 import type { ToolCall } from '../tool/types';
+import type { PendingApprovalMap } from './approval-gate';
+import type {
+  PendingApproval,
+  ToolApprovalRequest,
+  ToolApprovalSettlementDecision,
+} from './tool-approval.types';
 
-export type PendingApprovalMap = Map<string, {
-  call: ToolCall;
-  resolve: (approved: boolean) => void;
-  timestamp: number;
-}>;
+export type { PendingApprovalMap } from './approval-gate';
 
 export function waitForToolApproval(
   pendingApprovals: PendingApprovalMap,
   call: ToolCall,
+  request: ToolApprovalRequest,
   signal?: AbortSignal,
-): Promise<boolean> {
-  if (signal?.aborted) return Promise.resolve(false);
+): Promise<ToolApprovalSettlementDecision> {
+  if (signal?.aborted) return Promise.resolve('interrupted');
 
-  return new Promise<boolean>((resolve) => {
+  return new Promise<ToolApprovalSettlementDecision>((resolve) => {
     let settled = false;
-    const finish = (approved: boolean) => {
+    const finish: PendingApproval['resolve'] = (resolution) => {
       if (settled) return;
       settled = true;
       signal?.removeEventListener('abort', abort);
-      pendingApprovals.delete(call.id);
-      resolve(approved);
+      pendingApprovals.delete(request.requestId);
+      resolve(resolution === true ? 'accept' : resolution === false ? 'decline' : resolution);
     };
-    const abort = () => finish(false);
+    const abort = () => finish('interrupted');
 
-    pendingApprovals.set(call.id, {
+    pendingApprovals.set(request.requestId, {
       call,
+      request,
       resolve: finish,
-      timestamp: Date.now(),
+      timestamp: request.createdAt,
     });
     signal?.addEventListener('abort', abort, { once: true });
   });

@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import 'reflect-metadata';
 import { ChatService } from '../src/service/chat.service';
+import { finalizeStreamEnd } from '../src/service/chat-stream-runner';
 import type { DisplayMessage } from '../src/types';
 import {
   SvtonAgentRuntime,
+  SessionResumeManager,
   ToolRegistry,
   fauxAssistantMessage,
   fauxText,
@@ -31,6 +33,7 @@ import {
   nativeToolUpdate,
   nativeTurnBoundary,
   type MockModelsHandle,
+  MemoryStorage,
 } from './helpers/pi-test-utils';
 
 // ==============================================================
@@ -65,9 +68,40 @@ function createConfig() {
 }
 
 function getInitializedRuntime(chat: ChatService): SvtonAgentRuntime {
-  const runtime = chat['runtime'];
+  const runtime = (chat as any).runtimeRegistry.get(chat.activeSessionId) ?? chat['runtime'];
   if (!runtime) throw new Error('ChatService runtime is not initialized');
   return runtime;
+}
+
+let addressedFixtureRun = 0;
+function startAddressedRun(chat: ChatService, owner = chat.activeSessionId) {
+  const address = { sessionId: owner, runId: `fixture-run-${++addressedFixtureRun}` };
+  (chat as any).runs.start(address, 1);
+  return (chat as any).runOwnership.begin(address, `fixture-assistant-${addressedFixtureRun}`);
+}
+
+function interruptedApprovalMessages(
+  sessionId: string,
+  prefix: DisplayMessage[] = [],
+): DisplayMessage[] {
+  return [
+    ...prefix,
+    { id: 'reload-user', role: 'user', content: 'approve', timestamp: 3 },
+    {
+      id: 'reload-assistant', role: 'assistant', content: '', timestamp: 4,
+      timeline: {
+        version: 1, sessionId, turnId: 'reload-assistant',
+        status: 'interrupted', revision: 2,
+        items: [{
+          id: 'approval-reload', requestId: 'approval-reload', itemId: 'call-reload',
+          sessionId, turnId: 'reload-assistant', kind: 'approvalDecision',
+          lane: 'outcome', status: 'interrupted', decision: 'interrupted',
+          title: 'Approval interrupted', revision: 1, toolName: 'e2e_approval',
+          arguments: {}, decisions: ['accept', 'decline', 'cancel'], completedAt: 5,
+        }],
+      },
+    },
+  ];
 }
 
 // ==============================================================
@@ -455,7 +489,7 @@ describe('ChatService', () => {
       service.messages = [
         { id: 'msg_streaming', role: 'assistant', content: 'Partial', toolCalls: [], isStreaming: true, timestamp: Date.now() },
       ];
-      (service as any).status = 'running';
+      startAddressedRun(service);
 
       service.abort();
 
@@ -503,7 +537,7 @@ describe('ChatService', () => {
         call: { id: 'tc1', name: 'test_tool', arguments: {} },
         resolve: vi.fn(),
       });
-      (service as any).status = 'waiting_approval';
+      startAddressedRun(service);
 
       service.abort();
 
@@ -628,6 +662,58 @@ describe('ChatService', () => {
       expect(service.messages[0].toolCalls![0].status).toBe('pending_approval');
       expect((service.messages[0].blocks![0] as any).call.status).toBe('pending_approval');
     });
+
+    it('keeps reloaded interrupted approval history after async runtime restore', async () => {
+      service.bindSession('session-reload');
+      const messages = interruptedApprovalMessages('session-reload');
+
+      await service.loadMessages(messages);
+
+      expect(service.messages).toEqual(messages);
+      expect(service.getPendingApproval()).toBeNull();
+      expect(getInitializedRuntime(service).getMessages()).toEqual([]);
+    });
+
+    it('keeps an interrupted approval tail after an older checkpoint and can send', async () => {
+      const sessionId = 'session-old-checkpoint';
+      const canonical = [
+        { role: 'user' as const, content: 'first turn', timestamp: 1 },
+        { ...fauxAssistantMessage([fauxText('first done')]), timestamp: 2 },
+      ];
+      const storage = new MemoryStorage();
+      await storage.set(`agent:checkpoint:${sessionId}`, JSON.stringify({
+        messages: canonical, model: 'test-model', updatedAt: 2,
+      }));
+      const registry = new ToolRegistry();
+      registry.register(testToolDef, createMockExecutor());
+      const resumeManager = new SessionResumeManager(storage);
+      const { config } = buildPiAgentConfig({
+        toolRegistry: registry,
+        capabilities: { resumeManager },
+      });
+      service = new ChatService();
+      await service.init(makeBrowserPlatform(storage), config);
+      service.bindSession(sessionId);
+      const messages = interruptedApprovalMessages(sessionId, [
+        { id: 'first-u', role: 'user', content: 'first turn', timestamp: 1 },
+        { id: 'first-a', role: 'assistant', content: 'first done', timestamp: 2 },
+      ]);
+
+      await service.loadMessages(messages);
+      scripter = new EventScripter(service as unknown as {
+        runtime: { run: (...args: any[]) => AsyncGenerator<PublicRuntimeEvent> };
+      });
+
+      expect(service.messages.map((message) => message.content)).toEqual([
+        'first turn', 'first done', 'approve', '',
+      ]);
+      expect(getInitializedRuntime(service).getMessages()).toEqual(canonical);
+      expect(service.getPendingApproval()).toBeNull();
+      scripter.addResponse([nativeTextDelta('continued'), nativeAgentEnd()]);
+      await service.sendMessage('continue after reload');
+      expect(service.messages.at(-1)?.content).toBe('continued');
+      expect(service.canSend).toBe(true);
+    });
   });
 
   // ----------------------------------------------------------
@@ -746,14 +832,18 @@ describe('ChatService', () => {
     });
 
     it('returns true and aborts when running', () => {
-      (service as any).status = 'running';
+      startAddressedRun(service);
       const result = service.abortIfStreaming();
       expect(result).toBe(true);
       expect(service.status).toBe('idle');
     });
 
     it('returns true when waiting_approval', () => {
-      (service as any).status = 'waiting_approval';
+      startAddressedRun(service);
+      (service as any).runs.requestApproval(
+        (service as any).runs.address(service.activeSessionId),
+        'fixture-approval',
+      );
       const result = service.abortIfStreaming();
       expect(result).toBe(true);
     });
@@ -781,7 +871,11 @@ describe('ChatService', () => {
           },
         }],
       }];
-      (service as any).status = 'waiting_approval';
+      startAddressedRun(service);
+      (service as any).runs.requestApproval(
+        (service as any).runs.address(service.activeSessionId),
+        'tc-visible-abort',
+      );
 
       const result = service.abortIfStreaming();
 
@@ -800,17 +894,16 @@ describe('ChatService', () => {
   // ----------------------------------------------------------
   describe('isSessionStreaming', () => {
     it('returns true when session is background streaming', () => {
-      (service as any).backgroundSessionId = 'sess-1';
+      startAddressedRun(service, 'sess-1');
       expect(service.isSessionStreaming('sess-1')).toBe(true);
     });
 
     it('returns false for different session', () => {
-      (service as any).backgroundSessionId = 'sess-1';
+      startAddressedRun(service, 'sess-1');
       expect(service.isSessionStreaming('sess-2')).toBe(false);
     });
 
     it('returns false when no background stream', () => {
-      (service as any).backgroundSessionId = null;
       expect(service.isSessionStreaming('sess-1')).toBe(false);
     });
   });
@@ -1405,40 +1498,72 @@ describe('ChatService', () => {
       });
     });
 
-    it('deduplicates git diff file headers in code review blocks', async () => {
+    it('keeps a successful git diff as one real tool outcome without review findings', async () => {
       scripter = await initScripted();
-      service.bindSession('sess-1');
-      (service as any).backgroundSessionId = 'sess-1';
-
-      service.messages = [{
-        id: 'msg_diff',
-        role: 'assistant',
-        content: '',
-        timestamp: Date.now(),
-        toolCalls: [{ id: 'diff-1', name: 'git_diff', arguments: {}, status: 'running' }],
-        blocks: [{ type: 'tool_call', call: { id: 'diff-1', name: 'git_diff', arguments: {}, status: 'running' } }],
-      }];
-
-      (service as any).handleEvent(nativeToolEnd({
+      const firstOutput = [
+        'diff --git a/src/app.ts b/src/app.ts',
+        '--- a/src/app.ts',
+        '+++ b/src/app.ts',
+        'diff --git a/src/new.ts b/src/new.ts',
+        '--- /dev/null',
+        '+++ b/src/new.ts',
+      ].join('\n');
+      scripter.addResponse([
+        nativeToolStart({ id: 'diff-1', name: 'git_diff', arguments: { base: 'main' } }),
+        nativeToolEnd({
           callId: 'diff-1',
-          output: [
-            'diff --git a/src/app.ts b/src/app.ts',
-            '--- a/src/app.ts',
-            '+++ b/src/app.ts',
-            'diff --git a/src/new.ts b/src/new.ts',
-            '--- /dev/null',
-            '+++ b/src/new.ts',
-          ].join('\n'),
+          output: firstOutput,
           isError: false,
-        }), 'msg_diff');
+        }, 'git_diff'),
+        nativeToolEnd({
+          callId: 'diff-1', output: 'late duplicate must not replace the diff', isError: false,
+        }, 'git_diff'),
+        ...nativeAssistantLifecycle(),
+      ]);
 
-      expect(service.messages[0].blocks).toContainEqual({
-        type: 'code_review',
-        findings: [
-          { file: 'src/app.ts', severity: 'info', comment: '文件变更' },
-          { file: 'src/new.ts', severity: 'info', comment: '文件变更' },
-        ],
+      await service.sendMessage('Show the diff');
+
+      const assistant = service.messages.find((message) => message.role === 'assistant');
+      expect(assistant?.blocks?.some((block) => block.type === 'code_review')).toBe(false);
+      expect(assistant?.toolCalls).toEqual([
+        expect.objectContaining({
+          id: 'diff-1', name: 'git_diff', status: 'completed',
+          result: expect.objectContaining({ output: firstOutput, isError: false }),
+        }),
+      ]);
+      expect(assistant?.blocks?.filter((block) => block.type === 'tool_call')).toHaveLength(1);
+      expect(assistant?.timeline?.items).toEqual([
+        expect.objectContaining({
+          id: 'diff-1', kind: 'toolExecution', toolName: 'git_diff',
+          status: 'completed', result: firstOutput,
+        }),
+      ]);
+    });
+
+    it('keeps a failed git diff honest without creating review findings', async () => {
+      scripter = await initScripted();
+      scripter.addResponse([
+        nativeToolStart({ id: 'diff-failed', name: 'git_diff', arguments: {} }),
+        nativeToolEnd({
+          callId: 'diff-failed', output: 'fatal: not a git repository', isError: true,
+        }, 'git_diff'),
+        ...nativeAssistantLifecycle(),
+      ]);
+
+      await service.sendMessage('Show the diff');
+
+      const assistant = service.messages.find((message) => message.role === 'assistant');
+      expect(assistant?.blocks?.some((block) => block.type === 'code_review')).toBe(false);
+      expect(assistant?.toolCalls?.[0]).toMatchObject({
+        id: 'diff-failed', status: 'error',
+        result: { output: 'fatal: not a git repository', isError: true },
       });
+      expect(assistant?.timeline?.items).toEqual([
+        expect.objectContaining({
+          id: 'diff-failed', kind: 'toolExecution', status: 'failed',
+          result: 'fatal: not a git repository',
+        }),
+      ]);
     });
 
     it('skips file change blocks when file edit calls omit a path', async () => {
@@ -1607,7 +1732,6 @@ describe('ChatService', () => {
         contextConfig: { maxTokens: 100, compactionThreshold: 0.5, reservedForResponse: 10, preserveRecentMessages: 2 },
       }).config);
       service.bindSession('sess-1');
-      (service as any).backgroundSessionId = 'sess-1';
 
       // Script a compaction signal mid-stream (the runtime emits this when the
       // SvtonCompactor prunes; here we drive it directly via the scripter).
@@ -1632,7 +1756,7 @@ describe('ChatService', () => {
     it('sets status to waiting_approval and registers pending call', async () => {
       scripter = await initScripted();
       service.bindSession('sess-active');
-      (service as any).backgroundSessionId = 'sess-active';
+      (service as any).runs.start({ sessionId: 'sess-active', runId: 'test-approval-run' }, 1);
 
       // Drive the approval-gate event directly (the runtime emits this from its
       // beforeToolCall hook). Verifies status transitions + pending registration.
@@ -1690,17 +1814,17 @@ describe('ChatService', () => {
       expect(service.getPendingToolCalls()[0].metadata?.autoReviewVerdict).toEqual({
         verdict: 'ask_user',
         reason: 'No matching rule',
-        ruleId: undefined,
+        ruleId: null,
       });
       expect(service.messages[0].toolCalls![0].metadata?.autoReviewVerdict).toEqual({
         verdict: 'ask_user',
         reason: 'No matching rule',
-        ruleId: undefined,
+        ruleId: null,
       });
       expect((service.messages[0].blocks![0] as any).call.metadata?.autoReviewVerdict).toEqual({
         verdict: 'ask_user',
         reason: 'No matching rule',
-        ruleId: undefined,
+        ruleId: null,
       });
     });
 
@@ -2044,6 +2168,7 @@ describe('ChatService', () => {
     it('isolates a newly cleared session from the runtime still streaming in background', async () => {
       await service.init(mockPlatform, createConfig());
       service.bindSession('session-a');
+      await service.clearMessages();
       const oldRuntime = getInitializedRuntime(service);
       const oldReset = vi.spyOn(oldRuntime, 'reset');
       let markStarted!: () => void;
@@ -2094,6 +2219,7 @@ describe('ChatService', () => {
     it('routes controls to the active runtime after aborting a detached background runtime', async () => {
       await service.init(mockPlatform, createConfig());
       service.bindSession('session-a');
+      await service.clearMessages();
       const backgroundRuntime = getInitializedRuntime(service);
       let markBackgroundStarted!: () => void;
       let settleBackground!: () => void;
@@ -2127,7 +2253,7 @@ describe('ChatService', () => {
       });
       const activeAbort = vi.spyOn(activeRuntime, 'abort').mockImplementation(() => settleActive());
 
-      service.abort();
+      service.abortSession('session-a');
       await backgroundTurn;
       expect(backgroundAbort).toHaveBeenCalledTimes(1);
 
@@ -2146,10 +2272,75 @@ describe('ChatService', () => {
       expect(backgroundAbort).toHaveBeenCalledTimes(1);
     });
 
+    it('promotes returned A runtime after approval and can continue sending', async () => {
+      await service.init(mockPlatform, createConfig());
+      service.bindSession('session-a');
+      await service.clearMessages();
+      const runtimeA = getInitializedRuntime(service);
+      let releaseApproval!: () => void;
+      let markApprovalRequested!: () => void;
+      const approvalReleased = new Promise<void>((resolve) => { releaseApproval = resolve; });
+      const approvalRequested = new Promise<void>((resolve) => { markApprovalRequested = resolve; });
+      let runCount = 0;
+      vi.spyOn(runtimeA, 'settleToolApproval').mockImplementation(() => {
+        releaseApproval();
+        return true;
+      });
+      vi.spyOn(runtimeA, 'run').mockImplementation(async function* () {
+        runCount += 1;
+        if (runCount === 1) {
+          markApprovalRequested();
+          yield {
+            type: 'tool_approval_needed',
+            request: {
+              requestId: 'approval-a', sessionId: 'session-a', itemId: 'call-a',
+              createdAt: 1, toolName: 'test_tool', arguments: {},
+              decisions: ['accept', 'decline', 'cancel'],
+            },
+          };
+          await approvalReleased;
+          yield {
+            type: 'tool_approval_settled',
+            settlement: {
+              requestId: 'approval-a', sessionId: 'session-a', itemId: 'call-a',
+              decision: 'accept', settledAt: 2,
+            },
+          };
+        }
+        yield nativeTextDelta(runCount === 1 ? 'A_DONE' : 'A_CONTINUED');
+        yield nativeAgentEnd();
+      });
+
+      const firstTurn = service.sendMessage('SESSION_A');
+      await approvalRequested;
+      await vi.waitFor(() => expect(service.getPendingApproval()?.requestId).toBe('approval-a'));
+      const cachedA = [...service.messages];
+      service.cacheSessionMessages('session-a', cachedA);
+      service.bindSession('session-b');
+      await service.clearMessages({ preserveLiveApprovals: true });
+      expect(getInitializedRuntime(service)).not.toBe(runtimeA);
+
+      service.bindSession('session-a');
+      await service.loadMessages(cachedA, {
+        preservePendingToolCalls: true,
+        preserveLiveApprovals: true,
+      });
+      expect(service.status).toBe('waiting_approval');
+      expect(service.settleToolApproval('approval-a', 'accept')).toBe(true);
+      await firstTurn;
+
+      expect(getInitializedRuntime(service)).toBe(runtimeA);
+      expect(service.runtimeSessionId).toBe('session-a');
+      expect(service.canSend).toBe(true);
+      await service.sendMessage('CONTINUE_A');
+      expect(service.messages.at(-1)?.content).toContain('A_CONTINUED');
+    });
+
     it('routes events to session cache when session is not active', async () => {
       scripter = await initScripted();
       service.bindSession('sess-active');
-      (service as any).backgroundSessionId = 'sess-bg';
+      const address = { sessionId: 'sess-bg', runId: 'fixture-bg-events' };
+      (service as any).runs.start(address, 1);
 
       // Cache some messages for background session
       const bgMsgs: DisplayMessage[] = [
@@ -2160,7 +2351,7 @@ describe('ChatService', () => {
 
       // Simulate a native text message update for the background session.
       const event: any = nativeTextDelta('BG response');
-      (service as any).handleEvent(event, 'bg_assistant');
+      (service as any).handler.handle(event, 'bg_assistant', service, address);
 
       // Active messages should NOT change
       expect(service.messages.find((m) => m.id === 'bg_assistant')).toBeUndefined();
@@ -2173,7 +2364,7 @@ describe('ChatService', () => {
     it('invokes onBackgroundStreamEnd when stream completes in background', async () => {
       scripter = await initScripted();
       service.bindSession('sess-active');
-      (service as any).backgroundSessionId = 'sess-bg';
+      const address = { sessionId: 'sess-bg', runId: 'fixture-bg-complete' };
 
       let callbackCalled = false;
       let callbackSessionId = '';
@@ -2187,17 +2378,19 @@ describe('ChatService', () => {
       ];
       service.cacheSessionMessages('sess-bg', bgMsgs);
 
-      (service as any).handleStreamEnd('bg_asst', { isStreaming: false, duration: 100 });
+      finalizeStreamEnd(
+        service, address, 'bg_asst', { isStreaming: false, duration: 100 },
+        service.onBackgroundStreamEnd, null,
+      );
 
       expect(callbackCalled).toBe(true);
       expect(callbackSessionId).toBe('sess-bg');
-      expect(service.backgroundSessionId).toBeNull();
     });
 
     it('invokes onBackgroundStreamEnd when a background stream is aborted', async () => {
       scripter = await initScripted();
       service.bindSession('sess-active');
-      (service as any).backgroundSessionId = 'sess-bg';
+      const lease = startAddressedRun(service, 'sess-bg');
 
       let callbackSessionId = '';
       service.onBackgroundStreamEnd = (sid) => {
@@ -2209,18 +2402,20 @@ describe('ChatService', () => {
       ];
       service.cacheSessionMessages('sess-bg', bgMsgs);
 
-      service.abort();
+      service.abortSession('sess-bg');
+      expect(callbackSessionId).toBe('');
+      lease.release();
 
       const cached = service.getCachedMessages('sess-bg');
       expect(cached![0].isStreaming).toBe(false);
       expect(callbackSessionId).toBe('sess-bg');
-      expect(service.backgroundSessionId).toBeNull();
     });
 
     it('marks cached background tool calls pending when approval is requested', async () => {
       scripter = await initScripted();
       service.bindSession('sess-active');
-      (service as any).backgroundSessionId = 'sess-bg';
+      const address = { sessionId: 'sess-bg', runId: 'test-bg-approval-run' };
+      (service as any).runs.start(address, 1);
 
       const bgMsgs: DisplayMessage[] = [
         {
@@ -2238,10 +2433,15 @@ describe('ChatService', () => {
       ];
       service.cacheSessionMessages('sess-bg', bgMsgs);
 
-      (service as any).handleEvent({
-        type: 'tool_approval_needed',
-        call: { id: 'tc-bg', name: 'test_tool', arguments: {} },
-      }, 'bg_asst');
+      (service as any).handler.handle(
+        {
+          type: 'tool_approval_needed',
+          call: { id: 'tc-bg', name: 'test_tool', arguments: {} },
+        },
+        'bg_asst',
+        service,
+        address,
+      );
 
       const cached = service.getCachedMessages('sess-bg');
       expect(service.hasPendingApprovals).toBe(true);

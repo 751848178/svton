@@ -1,8 +1,24 @@
 // Utils
 export { cn } from './lib/utils';
+export { useDialogFocus } from './hooks/useDialogFocus';
+export type { DialogFocusOptions } from './hooks/useDialogFocus';
 
-// i18n
-export { t, setLocale, getLocale, type Locale } from './i18n';
+// Curated line-icon surface
+export * from './icons';
+
+// i18n client boundary; server code imports pure helpers from @svton/ui/i18n.
+export {
+  LocaleProvider,
+  useI18n,
+  createTranslator,
+  translate,
+  formatDateTime,
+  formatNumber,
+  formatRelativeTime,
+  localeToLanguageTag,
+  resolveBrowserLocale,
+} from './i18n';
+export type { I18nValue, Locale, TranslationKey, Translator } from './i18n';
 
 // State Components
 export { LoadingState, Loading } from './components/LoadingState';
@@ -126,4 +142,3 @@ export type { VisuallyHiddenProps } from './components/VisuallyHidden';
 
 export { ClickOutside } from './components/ClickOutside';
 export type { ClickOutsideProps } from './components/ClickOutside';
-

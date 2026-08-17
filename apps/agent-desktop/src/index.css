@@ -6,6 +6,8 @@
 :root {
   --background: #212121;
   --foreground: #f0f0f0;
+  --svton-ui-background: #212121;
+  --svton-ui-foreground: #f0f0f0;
 }
 
 html, body, #root {
@@ -22,14 +24,6 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -webkit-background-clip: padding-box;
-}
-
-/* Remove default focus ring in Tauri webview */
-*:focus {
-  outline: none;
-}
-*:focus-visible {
-  outline: none;
 }
 
 /* Scrollbar styling — thin dark scrollbar */

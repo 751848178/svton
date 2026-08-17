@@ -23,15 +23,14 @@ import {
   reseedRuntimeFromSnapshot,
   snapshotRuntimeMessages,
 } from './chat-runtime-bridge';
-import { updateToolCallStatusEverywhere, type MessageStoreHost } from './chat-message-store';
+import type { MessageStoreHost } from './chat-message-store';
+import { cloneRuntimeConfig } from './chat-runtime-config';
 
 export interface ReinitBindings {
   platform: IPlatform;
   config: AgentConfig;
-  /** Pending-approval queue to tear down on the prior runtime. */
-  approvals: { size: number; keys: () => Iterable<string>; clear: () => void };
-  /** Host whose tool-call statuses get marked errored on teardown. */
-  host: MessageStoreHost;
+  hasPendingApprovals: () => boolean;
+  teardownApprovals: () => void;
   /** Attach input history to the platform + observable publisher. */
   attachHistory: () => Promise<void>;
 }
@@ -52,12 +51,9 @@ export async function recreateRuntime(
   bindings: ReinitBindings,
   previousRuntime: SvtonAgentRuntime | null,
 ): Promise<{ runtime: SvtonAgentRuntime; snapshotApplied: boolean }> {
-  if (bindings.approvals.size > 0) {
+  if (bindings.hasPendingApprovals()) {
     previousRuntime?.abort();
-    for (const callId of bindings.approvals.keys()) {
-      updateToolCallStatusEverywhere(bindings.host, callId, 'error');
-    }
-    bindings.approvals.clear();
+    bindings.teardownApprovals();
   }
   // PI007 3-list fix: snapshot canonical runtime truth BEFORE recreating.
   const snapshot = snapshotRuntimeMessages(previousRuntime);
@@ -74,24 +70,19 @@ export async function createIsolatedRuntime(
   config: AgentConfig,
   platform: IPlatform,
 ): Promise<SvtonAgentRuntime> {
-  const isolatedConfig: AgentConfig = {
-    ...config,
-    capabilities: config.capabilities
-      ? { ...config.capabilities, subagentManager: undefined }
-      : undefined,
-    initialMessages: [],
-  };
-  return createConfiguredRuntime(isolatedConfig, platform);
+  return createConfiguredRuntime(config, platform, []);
 }
 
-async function createConfiguredRuntime(
+export async function createConfiguredRuntime(
   config: AgentConfig,
   platform: IPlatform,
+  initialMessages = config.initialMessages,
 ): Promise<SvtonAgentRuntime> {
-  const runtime = await SvtonAgentRuntime.createAsync(config, platform);
-  await wireSubagentManager(config, runtime, platform);
-  if (config.reasoningEffort !== undefined) {
-    runtime.setReasoningEffort(config.reasoningEffort);
+  const runtimeConfig = cloneRuntimeConfig(config, initialMessages);
+  const runtime = await SvtonAgentRuntime.createAsync(runtimeConfig, platform);
+  await wireSubagentManager(runtimeConfig, runtime, platform);
+  if (runtimeConfig.reasoningEffort !== undefined) {
+    runtime.setReasoningEffort(runtimeConfig.reasoningEffort);
   }
   return runtime;
 }

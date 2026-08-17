@@ -20,7 +20,9 @@ import {
   openConfigInEditor,
   type SvtonConfig,
 } from '@/lib/config-store';
-import { toConfigProviders, toProviderInfoList } from '@/lib/provider-settings.utils';
+import type { LiveModelRegistry } from '@svton/agent-app';
+import { toDesktopRegistrySources } from './desktop-model-registry';
+import { persistDesktopDefaultModel, persistDesktopProviders, readDesktopDefaultModel, readDesktopProviders, updateDesktopProviders } from './desktop-settings-model-persistence';
 
 export class TauriSettingsAdapter implements ISettingsAdapter {
   private config: SvtonConfig | null = null;
@@ -35,14 +37,17 @@ export class TauriSettingsAdapter implements ISettingsAdapter {
   private _searchApiKey: string = '';
   private _searchEndpoint: string = '';
   private marketplace = new SkillMarketplace();
+  private readonly modelRegistry?: LiveModelRegistry;
+  private readonly permissionLoad: Promise<void>;
 
   private onReinit?: (workingDir?: string) => void;
 
-  constructor(platform: TauriPlatform, agentConfig?: AgentConfig, onUpdate?: () => void, onReinit?: (workingDir?: string) => void) {
+  constructor(platform: TauriPlatform, agentConfig?: AgentConfig, onUpdate?: () => void, onReinit?: (workingDir?: string) => void, modelRegistry?: LiveModelRegistry) {
     this.platform = platform;
     this._agentConfig = agentConfig;
     this.onUpdate = onUpdate;
     this.onReinit = onReinit;
+    this.modelRegistry = modelRegistry;
     // Load persisted values from storage
     platform.storage.get<string[]>('agent:disabled_tools').then((v) => {
       if (Array.isArray(v)) this._disabledTools = v;
@@ -59,7 +64,7 @@ export class TauriSettingsAdapter implements ISettingsAdapter {
     platform.storage.get<string>('desktop:customInstructions').then((v) => {
       if (typeof v === 'string') this._customInstructions = v;
     }).catch(() => {});
-    platform.storage.get<string>('agent:permission_mode').then((v) => {
+    this.permissionLoad = platform.storage.get<string>('agent:permission_mode').then((v) => {
       if (v) {
         this._permissionMode = v;
         // NOTE: Do NOT call setMode() here — the PermissionManager is already
@@ -73,43 +78,38 @@ export class TauriSettingsAdapter implements ISettingsAdapter {
     }).catch(() => {});
   }
 
-  setConfig(config: SvtonConfig | null) { this.config = config; }
+  setConfig(config: SvtonConfig | null) {
+    this.config = config;
+    if (config) this.modelRegistry?.replace(toDesktopRegistrySources(config));
+  }
   setAgentConfig(cfg: AgentConfig | undefined) { this._agentConfig = cfg; }
 
   private _integrationManager: any = null;
   setIntegrationManager(mgr: any) { this._integrationManager = mgr; }
 
   // ── Providers ────────────────────────────────────────────
-  getProviders(): ProviderInfo[] {
-    if (!this.config) return [];
-    return toProviderInfoList(this.config.providers);
-  }
+  getProviders(): ProviderInfo[] { return readDesktopProviders(this.config); }
 
   setProviders(providers: ProviderInfo[]): void {
+    this.config = updateDesktopProviders(this.config, providers);
     if (!this.config) return;
-    const mapped = toConfigProviders(this.config.providers, providers);
-    this.config = { ...this.config, providers: mapped };
     this.onUpdate?.();
   }
 
   async saveProviders(providers: ProviderInfo[]): Promise<void> {
     this.setProviders(providers);
-    if (this.config) await saveConfig(this.platform, this.config);
+    if (this.config) {
+      await persistDesktopProviders(this.platform, this.config, this.modelRegistry);
+    }
   }
 
   // ── Model selection ──────────────────────────────────────
   getDefaultModel(): string {
-    if (!this.config) return '';
-    return `${this.config.model.provider}::${this.config.model.name}`;
+    return readDesktopDefaultModel(this.config);
   }
 
-  setDefaultModel(key: string): void {
-    if (!this.config) return;
-    const [provider, ...rest] = key.split('::');
-    this.config = {
-      ...this.config,
-      model: { provider, name: rest.join('::') },
-    };
+  async setDefaultModel(key: string): Promise<void> {
+    this.config = await persistDesktopDefaultModel(this.platform, this.config, key);
     this.onUpdate?.();
   }
 
@@ -152,10 +152,10 @@ export class TauriSettingsAdapter implements ISettingsAdapter {
     return this._permissionMode;
   }
 
-  savePermissionMode(mode: string): void {
+  async savePermissionMode(mode: string): Promise<void> {
+    await this.permissionLoad;
+    await this.platform.storage.set('agent:permission_mode', mode);
     this._permissionMode = mode;
-    this._agentConfig?.capabilities?.permissionManager?.setMode?.(mode as any);
-    this.platform.storage.set('agent:permission_mode', mode).catch(() => {});
   }
 
   // ── Tool / skill toggles ─────────────────────────────────

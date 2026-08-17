@@ -9,7 +9,7 @@ export interface TurnSeparatorProps {
 
 /**
  * Soft turn separator between conversation turns.
- * Minimal, low-contrast — stays out of the way like Codex.
+ * Minimal, low-contrast separator for completed turns.
  */
 export const TurnSeparator: React.FC<TurnSeparatorProps> = ({ label, className }) => {
   if (!label) {

@@ -51,9 +51,9 @@ describe('New components — Gap 12+13 fixes', () => {
       expect(screen.getByText('src/app.ts:42')).toBeInTheDocument();
       expect(screen.getByText('src/utils.ts:10')).toBeInTheDocument();
 
-      // Each severity label (uppercase) appears
-      expect(screen.getByText('error')).toBeInTheDocument();
-      expect(screen.getByText('warning')).toBeInTheDocument();
+      // Each catalog-owned severity label appears.
+      expect(screen.getByText('Error')).toBeInTheDocument();
+      expect(screen.getByText('Warning')).toBeInTheDocument();
     });
 
     it('renders finding comments', () => {
@@ -119,7 +119,7 @@ describe('New components — Gap 12+13 fixes', () => {
     it('shows image count in header', () => {
       render(<ImageResultBlock images={sampleImages} model="m" />);
 
-      expect(screen.getByText(/1 Image Generated/)).toBeInTheDocument();
+      expect(screen.getByText(/1 (image generated|已生成图像)/i)).toBeInTheDocument();
     });
 
     it('renders nothing for empty images', () => {
@@ -144,7 +144,7 @@ describe('New components — Gap 12+13 fixes', () => {
 
       // Header shows completed/total — "2/3" since 2 are success/failed
       // Wait, all 3 are success or failed, so it should be 3/3
-      expect(screen.getByText('CSV Fan-out')).toBeInTheDocument();
+      expect(screen.getByText(/CSV (fan-out|批处理)/i)).toBeInTheDocument();
       expect(screen.getByText(/3\/3/)).toBeInTheDocument();
     });
 
@@ -166,7 +166,7 @@ describe('New components — Gap 12+13 fixes', () => {
     it('shows failed badge when there are failures', () => {
       render(<CsvFanoutBlock rows={sampleCsvRows} totalRows={3} />);
 
-      expect(screen.getByText(/1 failed/)).toBeInTheDocument();
+      expect(screen.getByText(/1 (Failed|失败)/)).toBeInTheDocument();
     });
 
     it('shows column headers from row data', () => {
@@ -183,7 +183,7 @@ describe('New components — Gap 12+13 fixes', () => {
       expect(screen.getByText('Alice')).toBeInTheDocument();
 
       // Click header to collapse
-      fireEvent.click(screen.getByText('CSV Fan-out'));
+      fireEvent.click(screen.getByText(/CSV (fan-out|批处理)/i));
 
       // Row data hidden
       expect(screen.queryByText('Alice')).not.toBeInTheDocument();
@@ -197,37 +197,49 @@ describe('New components — Gap 12+13 fixes', () => {
     it('renders with default Auto value', () => {
       render(<ReasoningEffortSelector value={undefined} onChange={vi.fn()} />);
 
-      // Default option is "Auto"
-      expect(screen.getByText('Auto')).toBeInTheDocument();
+      expect(screen.getByRole('combobox', { name: 'Reasoning effort' })).toHaveValue('auto');
     });
 
-    it('shows all options when opened', () => {
-      render(<ReasoningEffortSelector value={undefined} onChange={vi.fn()} />);
-
-      // Click trigger to open menu
-      fireEvent.click(screen.getByText('Auto'));
+    it('shows only efforts supported by the active model', () => {
+      render(<ReasoningEffortSelector
+        value={undefined} availableEfforts={['low', 'high']} onChange={vi.fn()} />);
 
       expect(screen.getByText('Low')).toBeInTheDocument();
-      expect(screen.getByText('Medium')).toBeInTheDocument();
       expect(screen.getByText('High')).toBeInTheDocument();
-      expect(screen.getByText('Xhigh')).toBeInTheDocument();
+      expect(screen.queryByText('Medium')).not.toBeInTheDocument();
+      expect(screen.queryByText('Xhigh')).not.toBeInTheDocument();
+    });
+
+    it('identifies the registry default without selecting it as the current effort', () => {
+      render(<ReasoningEffortSelector
+        value={undefined}
+        availableEfforts={['high']}
+        defaultEffort="high"
+        onChange={vi.fn()}
+      />);
+
+      expect(screen.getByRole('combobox', { name: 'Reasoning effort' })).toHaveValue('auto');
+      expect(screen.getByText('Auto (model default: High)')).toBeInTheDocument();
     });
 
     it('calls onChange with selected value', () => {
       const onChange = vi.fn();
-      render(<ReasoningEffortSelector value={undefined} onChange={onChange} />);
+      render(<ReasoningEffortSelector
+        value={undefined} availableEfforts={['high']} onChange={onChange} />);
 
-      fireEvent.click(screen.getByText('Auto'));
-      fireEvent.click(screen.getByText('High'));
+      fireEvent.change(screen.getByRole('combobox', { name: 'Reasoning effort' }), {
+        target: { value: 'high' },
+      });
 
       expect(onChange).toHaveBeenCalledWith('high');
     });
 
-    it('shows current selection highlight', () => {
-      render(<ReasoningEffortSelector value="medium" onChange={vi.fn()} />);
+    it('keeps a removed current effort visible but unavailable', () => {
+      render(<ReasoningEffortSelector
+        value="medium" availableEfforts={['high']} onChange={vi.fn()} />);
 
-      // Trigger shows Medium
-      expect(screen.getByText('Medium')).toBeInTheDocument();
+      expect(screen.getByRole('combobox', { name: 'Reasoning effort' })).toHaveValue('medium');
+      expect(screen.getByText('Medium (current; unavailable)')).toBeDisabled();
     });
   });
 
@@ -303,7 +315,7 @@ describe('New components — Gap 12+13 fixes', () => {
   // "已处理" toggle. This clicks the toggle to reveal them.
   // ----------------------------------------------------------
   function expandProcessBlocks() {
-    const toggle = screen.queryByText('已处理');
+    const toggle = screen.queryByText(/已处理|Processed/);
     if (toggle) {
       fireEvent.click(toggle);
     }
@@ -367,7 +379,7 @@ describe('New components — Gap 12+13 fixes', () => {
 
       expandProcessBlocks();
 
-      expect(screen.getByText(/1 Image Generated/)).toBeInTheDocument();
+      expect(screen.getByText(/1 (image generated|已生成图像)/i)).toBeInTheDocument();
     });
   });
 
@@ -482,7 +494,7 @@ describe('New components — Gap 12+13 fixes', () => {
 
       expandProcessBlocks();
 
-      expect(screen.getByText('CSV Fan-out')).toBeInTheDocument();
+      expect(screen.getByText(/CSV (fan-out|批处理)/i)).toBeInTheDocument();
     });
   });
 });

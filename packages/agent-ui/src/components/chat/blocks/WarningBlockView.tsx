@@ -1,5 +1,6 @@
 import React from 'react';
 import { cn } from '@svton/ui';
+import { TimelineStatusIcon } from '../../timeline/TimelineStatusIcon';
 
 interface WarningBlockViewProps {
   text: string;
@@ -8,20 +9,19 @@ interface WarningBlockViewProps {
 }
 
 /**
- * Inline warning block — yellow ⚠ icon + message + optional source tag.
- * Distinct from error blocks (red ✗) — warnings are non-fatal.
+ * Inline non-fatal warning with an optional source tag.
  */
 export const WarningBlockView: React.FC<WarningBlockViewProps> = ({ text, source, className }) => {
   return (
     <div className={cn(
-      'flex items-start gap-2 mt-2 px-3 py-2 rounded-lg border border-yellow-900/30 bg-yellow-950/20',
+      'mt-2 flex items-start gap-2 rounded-lg border border-status-warning/30 bg-status-warning/10 px-3 py-2',
       className,
     )}>
-      <span className="text-yellow-400 text-xs flex-shrink-0 mt-px">⚠</span>
+      <TimelineStatusIcon status="warning" className="mt-px" />
       <div className="min-w-0 flex-1">
-        <span className="text-[12px] text-yellow-200/90 leading-relaxed">{text}</span>
+        <span className="text-[12px] leading-relaxed text-foreground">{text}</span>
         {source && (
-          <span className="ml-2 text-[10px] text-yellow-600 border border-yellow-900/40 rounded px-1 py-0.5">
+          <span className="ml-2 rounded border border-status-warning/40 px-1 py-0.5 text-[10px] text-status-warning">
             {source}
           </span>
         )}

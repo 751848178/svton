@@ -485,6 +485,51 @@ describe('storedToDisplayMessages', () => {
     ]);
   });
 
+  it('drops untrusted legacy code_review blocks while retaining the real git diff outcome', () => {
+    const fakeFinding = { file: 'a.ts', severity: 'info' as const, comment: '文件变更' };
+    expect(JSON.stringify(displayToStoredMessages([{
+      id: 'live-fake-review', role: 'assistant', content: '', timestamp: 1,
+      blocks: [{ type: 'code_review', findings: [fakeFinding] }],
+    }]))).not.toContain('code_review');
+
+    const stored = [{
+      role: 'assistant',
+      id: 'legacy-fake-review',
+      content: '',
+      toolCalls: [{
+        id: 'diff-1', name: 'git_diff', arguments: { base: 'main' }, status: 'completed',
+        result: { callId: 'diff-1', output: 'diff --git a/a.ts b/a.ts', isError: false },
+      }],
+      blocks: [
+        {
+          type: 'tool_call',
+          call: {
+            id: 'diff-1', name: 'git_diff', arguments: { base: 'main' }, status: 'completed',
+            result: { callId: 'diff-1', output: 'diff --git a/a.ts b/a.ts', isError: false },
+          },
+        },
+        {
+          type: 'code_review',
+          findings: [fakeFinding],
+        },
+      ],
+    }];
+
+    const restored = storedToDisplayMessages(stored);
+    expect(restored[0].blocks?.some((block) => block.type === 'code_review')).toBe(false);
+    expect(restored[0].toolCalls?.[0]).toMatchObject({
+      id: 'diff-1', name: 'git_diff', status: 'completed',
+      result: { output: 'diff --git a/a.ts b/a.ts', isError: false },
+    });
+    expect(restored[0].timeline?.items).toEqual([
+      expect.objectContaining({
+        id: 'diff-1', kind: 'toolExecution', toolName: 'git_diff', status: 'completed',
+        result: 'diff --git a/a.ts b/a.ts',
+      }),
+    ]);
+    expect(JSON.stringify(displayToStoredMessages(restored))).not.toContain('code_review');
+  });
+
   it('generates unique IDs for restored messages', () => {
     const stored = [
       { role: 'user', content: 'A' },

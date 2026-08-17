@@ -1,5 +1,6 @@
 import React from 'react';
 import { cn } from '@svton/ui';
+import { TimelineStatusIcon } from '../../timeline/TimelineStatusIcon';
 
 interface ProgressBlockViewProps {
   text: string;
@@ -9,18 +10,14 @@ interface ProgressBlockViewProps {
 
 /**
  * Inline progress block — transient status indicator.
- * Running: blue pulsing dot. Done: green checkmark.
+ * State is conveyed by the shared transcript status icon and visible text.
  */
 export const ProgressBlockView: React.FC<ProgressBlockViewProps> = ({ text, status, className }) => {
   const isRunning = status === 'running';
   return (
     <div className={cn('flex items-center gap-2 px-3 py-1.5 my-0.5', className)}>
-      {isRunning ? (
-        <span className="text-[10px] text-blue-400 animate-pulse flex-shrink-0">●</span>
-      ) : (
-        <span className="text-[10px] text-green-400 flex-shrink-0">✓</span>
-      )}
-      <span className={cn('text-[11px]', isRunning ? 'text-gray-400' : 'text-gray-600')}>
+      <TimelineStatusIcon status={status} />
+      <span className={cn('text-[11px]', isRunning ? 'text-foreground' : 'text-muted-foreground')}>
         {text}
       </span>
     </div>

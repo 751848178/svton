@@ -7,4 +7,8 @@ export class SessionTransitionQueue {
     this.tail = result.then(() => undefined, () => undefined);
     return result;
   }
+
+  flush(): Promise<void> {
+    return this.tail;
+  }
 }

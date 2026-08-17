@@ -391,10 +391,10 @@ describe('F1+F13 — Tool Execution Pipeline (sandbox + auto-reviewer)', () => {
       // First event should be tool_approval_needed
       expect(first.value.type).toBe('tool_approval_needed');
       if (first.value.type === 'tool_approval_needed') {
-        expect(first.value.metadata?.autoReviewVerdict).toEqual({
+        expect(first.value.request.metadata?.autoReviewVerdict).toEqual({
           verdict: 'ask_user',
           reason: 'No matching rule',
-          ruleId: undefined,
+          ruleId: null,
         });
       }
       expect(pendingApprovals.size).toBe(1);
@@ -403,6 +403,7 @@ describe('F1+F13 — Tool Execution Pipeline (sandbox + auto-reviewer)', () => {
         entry.resolve(false);
       }
       pendingApprovals.clear();
+      await gen.next();
       await gen.next();
     });
 
@@ -425,6 +426,8 @@ describe('F1+F13 — Tool Execution Pipeline (sandbox + auto-reviewer)', () => {
       }
       pendingApprovals.clear();
 
+      const settledEvent = await gen.next();
+      expect(settledEvent.value.type).toBe('tool_approval_settled');
       const rejectedEvent = await gen.next();
       expect(rejectedEvent.done).toBe(true);
       expect(rejectedEvent.value.isError).toBe(true);
@@ -454,6 +457,8 @@ describe('F1+F13 — Tool Execution Pipeline (sandbox + auto-reviewer)', () => {
       }
       pendingApprovals.clear();
 
+      const settledEvent = await gen.next();
+      expect(settledEvent.value.type).toBe('tool_approval_settled');
       const approvedEvent = await gen.next();
       expect(approvedEvent.done).toBe(true);
       expect(approvedEvent.value.isError).toBeFalsy();

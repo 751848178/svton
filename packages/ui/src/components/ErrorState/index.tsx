@@ -1,5 +1,7 @@
 import React, { ReactNode } from 'react';
 import { cn } from '../../lib/utils';
+import { WarningIcon } from '../../icons';
+import { useI18n } from '../../i18n';
 
 export interface ErrorStateProps {
   title?: ReactNode;
@@ -11,7 +13,8 @@ export interface ErrorStateProps {
 }
 
 export function ErrorState(props: ErrorStateProps) {
-  const { title = 'Something went wrong', message, action, className, align = 'center', justify = 'center' } = props;
+  const { translate } = useI18n();
+  const { title = translate('tool.error'), message, action, className, align = 'center', justify = 'center' } = props;
 
   return (
     <div
@@ -27,11 +30,7 @@ export function ErrorState(props: ErrorStateProps) {
       )}
     >
       <div className="size-12 rounded-full bg-destructive/10 flex items-center justify-center mb-2">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-destructive">
-          <circle cx="12" cy="12" r="10" />
-          <line x1="12" y1="8" x2="12" y2="12" />
-          <line x1="12" y1="16" x2="12.01" y2="16" />
-        </svg>
+        <WarningIcon size={24} className="text-destructive" aria-hidden="true" />
       </div>
       <div className="text-base font-medium text-foreground">{title}</div>
       {message && <div className="text-sm text-muted-foreground">{message}</div>}

@@ -11,10 +11,10 @@
  * transformation logic that keeps them in sync with events.
  */
 
-import type { ToolResult } from '@svton/agent-core';
 import type { Usage } from '@earendil-works/pi-ai';
 import type { ChatStatus, DisplayMessage, PlanProgress } from '../types';
-import { finalizeStalePendingApprovals, updateToolCallStatusInMessages } from './chat-message-tool-status.utils';
+import { finalizeStalePendingApprovals } from './chat-message-tool-status.utils';
+import { interruptMessageTimeline } from '../timeline/message-projection';
 
 /**
  * The slice of ChatService that these helpers touch. Keeping it an interface
@@ -27,100 +27,91 @@ export interface MessageStoreHost {
   lastUsage: Usage | null;
   activePlan: PlanProgress | null;
   activeSessionId: string | null;
+  /** Legacy injected-event hint only; real runtime routing always supplies an owner. */
   backgroundSessionId: string | null;
+  sessionUsage?: Map<string | null, Usage | null>;
+  sessionPlans?: Map<string | null, PlanProgress | null>;
 }
 
 /** True when the streaming session is the active (visible) session. */
-export function isActiveSessionStreaming(host: MessageStoreHost): boolean {
-  return host.backgroundSessionId === host.activeSessionId;
+export function isActiveSessionStreaming(
+  host: MessageStoreHost,
+  ownerSessionId = host.backgroundSessionId,
+): boolean {
+  return ownerSessionId === host.activeSessionId;
 }
 
 /** Apply a pure transform to whichever session is currently streaming. */
 export function mapStreamingMessage(
   host: MessageStoreHost,
   fn: (m: DisplayMessage) => DisplayMessage,
+  ownerSessionId = host.backgroundSessionId,
 ): void {
-  if (isActiveSessionStreaming(host)) {
+  if (isActiveSessionStreaming(host, ownerSessionId)) {
     host.messages = host.messages.map(fn);
     return;
   }
-  const bgId = host.backgroundSessionId;
-  if (!bgId) return;
-  const cached = host.sessionMessages.get(bgId);
-  if (cached) host.sessionMessages.set(bgId, cached.map(fn));
+  if (!ownerSessionId) return;
+  const cached = host.sessionMessages.get(ownerSessionId);
+  if (cached) host.sessionMessages.set(ownerSessionId, cached.map(fn));
 }
 
 /** Find the streaming assistant message in whichever session owns it. */
 export function findStreamingMessage(
   host: MessageStoreHost,
   assistantMsgId: string,
+  ownerSessionId = host.backgroundSessionId,
 ): DisplayMessage | undefined {
-  if (isActiveSessionStreaming(host)) {
+  if (isActiveSessionStreaming(host, ownerSessionId)) {
     return host.messages.find((m) => m.id === assistantMsgId);
   }
-  const bgId = host.backgroundSessionId;
-  if (!bgId) return undefined;
-  return host.sessionMessages.get(bgId)?.find((m) => m.id === assistantMsgId);
+  if (!ownerSessionId) return undefined;
+  return host.sessionMessages.get(ownerSessionId)?.find((m) => m.id === assistantMsgId);
 }
 
-/** Update a tool call's status across the active list AND all background caches. */
-export function updateToolCallStatusEverywhere(
+/** Resolve the user message that owns a streaming assistant turn. */
+export function findPrecedingUserMessageId(
   host: MessageStoreHost,
-  callId: string,
-  status: DisplayMessage['toolCalls'] extends (infer T)[] | undefined ? (T extends { status: infer S } ? S : never) : never,
-  metadata?: Record<string, unknown>,
-): void {
-  host.messages = updateToolCallStatusInMessages(host.messages, callId, status, metadata);
-  for (const [sessionId, msgs] of host.sessionMessages.entries()) {
-    host.sessionMessages.set(sessionId, updateToolCallStatusInMessages(msgs, callId, status, metadata));
-  }
-}
-
-/** Fold a planning tool result's planProgress into the active plan + a plan block. */
-export function applyPlanProgressToStore(
-  host: MessageStoreHost,
-  result: ToolResult,
   assistantMsgId: string,
-): void {
-  if (result.isError || !result.metadata) return;
-  const progress = result.metadata.planProgress as PlanProgress | undefined;
-  if (!progress || !progress.planId || !Array.isArray(progress.steps)) return;
-
-  host.activePlan = {
-    planId: progress.planId,
-    title: progress.title,
-    steps: progress.steps,
-  };
-
-  mapStreamingMessage(host, (m) => {
-    if (m.id !== assistantMsgId) return m;
-    const blocks = [...(m.blocks || [])];
-    const existingIdx = blocks.findIndex((b) => b.type === 'plan' && b.plan?.planId === progress.planId);
-    const planBlock = {
-      type: 'plan' as const,
-      plan: { planId: progress.planId, title: progress.title, steps: progress.steps },
-    };
-    if (existingIdx >= 0) blocks[existingIdx] = planBlock;
-    else blocks.push(planBlock);
-    return { ...m, blocks };
-  });
+  ownerSessionId = host.backgroundSessionId,
+): string | undefined {
+  const messages = isActiveSessionStreaming(host, ownerSessionId)
+    ? host.messages
+    : ownerSessionId
+      ? host.sessionMessages.get(ownerSessionId) ?? []
+      : [];
+  const assistantIndex = messages.findIndex((message) => message.id === assistantMsgId);
+  for (let index = assistantIndex - 1; index >= 0; index -= 1) {
+    if (messages[index].role === 'user') return messages[index].id;
+  }
+  return undefined;
 }
 
-/** Mark every streaming assistant message as finalized (abort/shutdown). */
-export function finalizeStreamingMessages(host: MessageStoreHost): void {
-  host.messages = finalizeStalePendingApprovals(host.messages).map((m) =>
-    m.isStreaming ? { ...m, isStreaming: false } : m,
-  );
-  const bgId = host.backgroundSessionId;
-  if (bgId) {
-    const cached = host.sessionMessages.get(bgId);
-    if (cached) {
-      host.sessionMessages.set(
-        bgId,
-        finalizeStalePendingApprovals(cached).map((m) => (m.isStreaming ? { ...m, isStreaming: false } : m)),
-      );
-    }
+/** Finalize streaming display state for exactly one addressed session. */
+export function finalizeStreamingMessages(
+  host: MessageStoreHost,
+  ownerSessionId: string | null,
+): void {
+  if (ownerSessionId === host.activeSessionId) {
+    host.messages = finalizeMessageList(host.messages, ownerSessionId ?? 'local');
+    return;
   }
+  if (!ownerSessionId) return;
+  const cached = host.sessionMessages.get(ownerSessionId);
+  if (cached) {
+    host.sessionMessages.set(
+      ownerSessionId,
+      finalizeMessageList(cached, ownerSessionId),
+    );
+  }
+}
+
+function finalizeMessageList(messages: DisplayMessage[], sessionId: string): DisplayMessage[] {
+  const at = Date.now();
+  return finalizeStalePendingApprovals(messages).map((message) => {
+    if (!message.isStreaming) return message;
+    return { ...interruptMessageTimeline(message, sessionId, at), isStreaming: false };
+  });
 }
 
 /**
@@ -129,12 +120,12 @@ export function finalizeStreamingMessages(host: MessageStoreHost): void {
  * streaming (so the caller can fire onBackgroundStreamEnd if it differs from
  * the active session).
  */
-export function abortStreaming(host: MessageStoreHost): string | null {
-  finalizeStreamingMessages(host);
-  const bgId = host.backgroundSessionId;
-  host.backgroundSessionId = null;
-  host.status = 'idle';
-  return bgId;
+export function abortStreaming(
+  host: MessageStoreHost,
+  ownerSessionId: string | null,
+): string | null {
+  finalizeStreamingMessages(host, ownerSessionId);
+  return ownerSessionId && ownerSessionId !== host.activeSessionId ? ownerSessionId : null;
 }
 
 /** Filter to savable messages (no streaming-in-progress, no system messages). */
@@ -150,6 +141,29 @@ export function messagesForSave(
 
 /** Force-prepare for shutdown flush: persist even in-progress messages. */
 export function forceMessagesForSave(host: MessageStoreHost): DisplayMessage[] {
-  const messages = host.messages.filter((m) => m.role !== 'system');
+  return forceMessagesForSessionSave(host, host.activeSessionId);
+}
+
+export function forceMessagesForSessionSave(
+  host: MessageStoreHost,
+  sessionId: string | null,
+): DisplayMessage[] {
+  const source = sessionId && sessionId !== host.activeSessionId
+    ? host.sessionMessages.get(sessionId) ?? []
+    : host.messages;
+  const messages = source.filter((m) => m.role !== 'system');
   return finalizeStalePendingApprovals(messages).map((m) => ({ ...m, isStreaming: false }));
+}
+
+export function appendSessionMessage(
+  host: MessageStoreHost,
+  sessionId: string | null,
+  message: DisplayMessage,
+): void {
+  if (sessionId === host.activeSessionId) {
+    host.messages = [...host.messages, message];
+  } else if (sessionId) {
+    const cached = host.sessionMessages.get(sessionId) ?? [];
+    host.sessionMessages.set(sessionId, [...cached, message]);
+  }
 }

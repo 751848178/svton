@@ -12,11 +12,21 @@ import { defineConfig } from 'tsup';
  * Component 中 import 本包的任一组件会形成一个 client 边界——但展示型组件在 client 渲染
  * 行为完全一致，不影响首屏（它们仍随 server HTML 流式返回）。
  */
-export default defineConfig({
-  entry: ['src/index.ts'],
-  format: ['cjs', 'esm'],
-  dts: true,
-  banner: {
-    js: "'use client';",
+const external = ['react', 'react-dom', 'react/jsx-runtime', 'lucide-react'];
+
+export default defineConfig([
+  {
+    entry: ['src/index.ts'],
+    format: ['cjs', 'esm'],
+    dts: true,
+    external,
+    banner: { js: "'use client';" },
   },
-});
+  {
+    entry: { i18n: 'src/i18n/server.ts' },
+    format: ['cjs', 'esm'],
+    dts: true,
+    external,
+    clean: false,
+  },
+]);

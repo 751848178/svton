@@ -34,7 +34,7 @@ describe('ChatInput', () => {
 
     it('disables textarea when disabled', () => {
       render(<ChatInput onSend={vi.fn()} disabled />);
-      expect(screen.getByRole('textbox')).toBeDisabled();
+      expect(screen.getByRole('combobox')).toBeDisabled();
     });
 
     it('renders leading and trailing slots', () => {
@@ -59,9 +59,9 @@ describe('ChatInput', () => {
       const user = userEvent.setup();
       render(<ChatInput onSend={onSend} />);
 
-      const textarea = screen.getByRole('textbox');
+      const textarea = screen.getByRole('combobox');
       await user.type(textarea, 'Hello');
-      await user.click(screen.getByTitle('引用').parentElement!.querySelector('button:last-child')!);
+      await user.click(screen.getByTitle('Reference').parentElement!.querySelector('button:last-child')!);
 
       // Alternative: press Enter
       // The send button is the last button in the bottom bar
@@ -72,7 +72,7 @@ describe('ChatInput', () => {
       const user = userEvent.setup();
       render(<ChatInput onSend={onSend} />);
 
-      const textarea = screen.getByRole('textbox');
+      const textarea = screen.getByRole('combobox');
       await user.type(textarea, 'Hello{Enter}');
       expect(onSend).toHaveBeenCalledWith('Hello', undefined);
     });
@@ -82,7 +82,7 @@ describe('ChatInput', () => {
       const user = userEvent.setup();
       render(<ChatInput onSend={onSend} />);
 
-      const textarea = screen.getByRole('textbox');
+      const textarea = screen.getByRole('combobox');
       await user.type(textarea, 'Hello{Shift>}{Enter}{/Shift}');
       expect(onSend).not.toHaveBeenCalled();
     });
@@ -92,7 +92,7 @@ describe('ChatInput', () => {
       const user = userEvent.setup();
       render(<ChatInput onSend={onSend} />);
 
-      const textarea = screen.getByRole('textbox');
+      const textarea = screen.getByRole('combobox');
       await user.type(textarea, '{Enter}');
       expect(onSend).not.toHaveBeenCalled();
     });
@@ -102,7 +102,7 @@ describe('ChatInput', () => {
       const user = userEvent.setup();
       render(<ChatInput onSend={onSend} />);
 
-      const textarea = screen.getByRole('textbox');
+      const textarea = screen.getByRole('combobox');
       await user.type(textarea, 'Hello{Enter}');
       expect(textarea).toHaveValue('');
     });
@@ -127,15 +127,15 @@ describe('ChatInput', () => {
   // ----------------------------------------------------------
   describe('slash commands', () => {
     const commands: SlashCommand[] = [
-      { name: 'help', description: 'Show help', action: vi.fn() },
-      { name: 'clear', description: 'Clear chat', action: vi.fn() },
+      { id: 'help', name: 'help', description: 'Show help', execute: vi.fn(() => true) },
+      { id: 'clear', name: 'clear', description: 'Clear chat', execute: vi.fn(() => true) },
     ];
 
     it('shows command popup when typing /', async () => {
       const user = userEvent.setup();
       render(<ChatInput onSend={vi.fn()} slashCommands={commands} />);
 
-      const textarea = screen.getByRole('textbox');
+      const textarea = screen.getByRole('combobox');
       await user.type(textarea, '/');
       expect(screen.getByText('/help')).toBeInTheDocument();
       expect(screen.getByText('/clear')).toBeInTheDocument();
@@ -145,7 +145,7 @@ describe('ChatInput', () => {
       const user = userEvent.setup();
       render(<ChatInput onSend={vi.fn()} slashCommands={commands} />);
 
-      const textarea = screen.getByRole('textbox');
+      const textarea = screen.getByRole('combobox');
       await user.type(textarea, '/he');
       expect(screen.getByText('/help')).toBeInTheDocument();
       expect(screen.queryByText('/clear')).not.toBeInTheDocument();
@@ -154,12 +154,12 @@ describe('ChatInput', () => {
     it('executes command when clicked', async () => {
       const action = vi.fn();
       const cmds: SlashCommand[] = [
-        { name: 'help', description: 'Show help', action },
+        { id: 'help', name: 'help', description: 'Show help', execute: async () => { action(); return true; } },
       ];
       const user = userEvent.setup();
       render(<ChatInput onSend={vi.fn()} slashCommands={cmds} />);
 
-      const textarea = screen.getByRole('textbox');
+      const textarea = screen.getByRole('combobox');
       await user.type(textarea, '/');
       await user.click(screen.getByText('/help'));
       expect(action).toHaveBeenCalled();
@@ -174,9 +174,9 @@ describe('ChatInput', () => {
       const user = userEvent.setup();
       render(<ChatInput onSend={vi.fn()} />);
 
-      await user.click(screen.getByTitle('引用'));
-      expect(screen.getByText('上传图片')).toBeInTheDocument();
-      expect(screen.getByText('引用文件')).toBeInTheDocument();
+      await user.click(screen.getByTitle('Reference'));
+      expect(screen.getByText('Upload image')).toBeInTheDocument();
+      expect(screen.getByText('Reference file')).toBeInTheDocument();
     });
 
     it('calls onFileReference when 引用文件 clicked', async () => {
@@ -184,8 +184,8 @@ describe('ChatInput', () => {
       const user = userEvent.setup();
       render(<ChatInput onSend={vi.fn()} onFileReference={onFileRef} />);
 
-      await user.click(screen.getByTitle('引用'));
-      await user.click(screen.getByText('引用文件'));
+      await user.click(screen.getByTitle('Reference'));
+      await user.click(screen.getByText('Reference file'));
       expect(onFileRef).toHaveBeenCalled();
     });
   });
@@ -195,9 +195,9 @@ describe('ChatInput', () => {
   // ----------------------------------------------------------
   describe('mention items', () => {
     const mentions: MentionItem[] = [
-      { label: 'read_file', description: 'Read a file', category: 'tool' },
-      { label: 'write_file', description: 'Write a file', category: 'tool' },
-      { label: 'code-review', description: 'Review code quality', category: 'skill' },
+      { id: 'tool:read_file', label: 'read_file', name: 'read_file', path: 'tool:read_file', description: 'Read a file', category: 'tool' },
+      { id: 'tool:write_file', label: 'write_file', name: 'write_file', path: 'tool:write_file', description: 'Write a file', category: 'tool' },
+      { id: 'skill:code-review', label: 'code-review', name: 'code-review', path: '/skills/code-review', description: 'Review code quality', category: 'skill' },
     ];
 
     it('shows mention categories when typing @', async () => {
@@ -210,11 +210,11 @@ describe('ChatInput', () => {
         />,
       );
 
-      const textarea = screen.getByRole('textbox');
+      const textarea = screen.getByRole('combobox');
       await user.type(textarea, '@');
-      // Should show category buttons: 工具 and 技能
-      expect(screen.getByText('工具')).toBeInTheDocument();
-      expect(screen.getByText('技能')).toBeInTheDocument();
+      // Should show category buttons: Tool and Skill.
+      expect(screen.getByText('Tool')).toBeInTheDocument();
+      expect(screen.getByText('Skill')).toBeInTheDocument();
     });
 
     it('shows mention items when category selected', async () => {
@@ -227,9 +227,9 @@ describe('ChatInput', () => {
         />,
       );
 
-      const textarea = screen.getByRole('textbox');
+      const textarea = screen.getByRole('combobox');
       await user.type(textarea, '@');
-      await user.click(screen.getByText('工具'));
+      await user.click(screen.getByText('Tool'));
       expect(screen.getByText('read_file')).toBeInTheDocument();
       expect(screen.getByText('write_file')).toBeInTheDocument();
     });
@@ -244,9 +244,9 @@ describe('ChatInput', () => {
         />,
       );
 
-      const textarea = screen.getByRole('textbox');
+      const textarea = screen.getByRole('combobox');
       await user.type(textarea, '@');
-      await user.click(screen.getByText('工具'));
+      await user.click(screen.getByText('Tool'));
       await user.click(screen.getByText('read_file'));
       expect(textarea.value).toContain('@read_file');
     });
@@ -261,7 +261,7 @@ describe('ChatInput', () => {
         />,
       );
 
-      const textarea = screen.getByRole('textbox');
+      const textarea = screen.getByRole('combobox');
       await user.type(textarea, '@read');
       // Should show the filtered category with read_file
       expect(screen.getByText('read_file')).toBeInTheDocument();
@@ -275,7 +275,7 @@ describe('ChatInput', () => {
     it('navigates submitted input history with arrow keys', () => {
       render(<ChatInput onSend={vi.fn()} inputHistory={['first prompt', 'second prompt']} />);
 
-      const textarea = screen.getByRole('textbox');
+      const textarea = screen.getByRole('combobox');
       fireEvent.keyDown(textarea, { key: 'ArrowUp' });
       expect(textarea).toHaveValue('second prompt');
 
@@ -293,7 +293,7 @@ describe('ChatInput', () => {
       const user = userEvent.setup();
       render(<ChatInput onSend={vi.fn()} inputHistory={['previous prompt']} />);
 
-      const textarea = screen.getByRole('textbox');
+      const textarea = screen.getByRole('combobox');
       await user.type(textarea, 'draft text');
 
       fireEvent.keyDown(textarea, { key: 'ArrowUp' });
@@ -318,7 +318,7 @@ describe('ChatInput', () => {
         />,
       );
 
-      const textarea = screen.getByRole('textbox');
+      const textarea = screen.getByRole('combobox');
       await user.type(textarea, '/');
 
       fireEvent.keyDown(textarea, { key: 'ArrowDown' });

@@ -80,6 +80,8 @@ export {
   CsvFanoutExecutor,
   previewDocumentDef,
   PreviewDocumentExecutor,
+  requestUserInputDef,
+  RequestUserInputExecutor,
 } from '../tool/builtins';
 export type {
   WebSearchConfig,

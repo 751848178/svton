@@ -1,196 +1,199 @@
 import 'reflect-metadata';
 import { Service, observable, action } from '@svton/service';
 import type { IStorage } from '@svton/agent-platform';
-import { SYSTEM_CLOCK, RANDOM_ID_GENERATOR } from '@svton/agent-core';
-import type { IClock, IIdGenerator } from '@svton/agent-core';
+import { SYSTEM_CLOCK, RANDOM_ID_GENERATOR, type IClock, type IIdGenerator } from '@svton/agent-core';
 import { SessionRepository } from './session.repository';
 import type { SessionData, SessionInfo } from './session.types';
+import type { SessionTerminalIdentity, TerminalRunState } from './session-activity.types';
+import { persistSessionRead, persistSessionSnapshot } from './session-activity-persistence';
+import { SessionTransitionQueue } from './session-transition-queue.service';
+import { persistSessionMetadata } from './session-metadata-persistence';
+import { resolveActiveSessionId, sortSessions } from './session-management-selectors';
+import { normalizeManualTitle } from './session-title-policy';
+import type { SessionSearchOptions, SessionSearchResult } from './session-search.types';
+import { applySessionInfoUpdate, type SessionInfoUpdate } from './session-info-update';
+import { persistNewSession } from './session-creation-persistence';
+import { searchPersistedSessions } from './session-search-persistence';
 export type { SessionData, SessionInfo } from './session.types';
 
 @Service()
 export class SessionService {
   @observable() sessions: SessionInfo[] = [];
   @observable() currentSessionId: string | null = null;
-  @observable() ready: boolean = false;
-
-  private storage: IStorage | null = null;
+  @observable() ready = false;
   private repository: SessionRepository | null = null;
   private initGeneration = 0;
-  // Injectable for deterministic tests; default to the real clock/id generator.
+  private readonly deleted = new Set<string>();
+  private readonly writes = new SessionTransitionQueue();
   private clock: IClock = SYSTEM_CLOCK;
   private idGen: IIdGenerator = RANDOM_ID_GENERATOR;
 
   @action()
   async init(storage: IStorage, opts?: { clock?: IClock; idGen?: IIdGenerator }): Promise<void> {
-    if (this.ready && this.storage === storage) return;
+    if (this.ready && this.repository?.owns(storage)) return;
     const generation = ++this.initGeneration;
     this.ready = false;
-    this.storage = storage;
     const repository = new SessionRepository(storage);
     this.repository = repository;
+    this.deleted.clear();
     this.sessions = [];
     this.currentSessionId = null;
     if (opts?.clock) this.clock = opts.clock;
     if (opts?.idGen) this.idGen = opts.idGen;
-    const sessions = await repository.loadSessionList();
+    const [loaded, savedId] = await Promise.all([
+      repository.loadSessionList(), repository.loadCurrentSessionId(),
+    ]);
+    if (generation !== this.initGeneration) return;
+    const sessions = sortSessions(loaded);
+    const currentSessionId = resolveActiveSessionId(sessions, savedId);
+    if (currentSessionId !== savedId) await repository.saveCurrentSessionId(currentSessionId);
     if (generation !== this.initGeneration) return;
     this.sessions = sessions;
+    this.currentSessionId = currentSessionId;
     this.ready = true;
   }
 
   @action()
-  async create(title?: string, model?: string, projectId?: string): Promise<string> {
-    if (!Array.isArray(this.sessions)) {
-      console.error('[SessionService] create() — sessions corrupted, resetting');
-      this.sessions = [];
-    }
-
-    const id = this.idGen.nextId('session');
-    const now = this.clock.now();
-
-    const session: SessionData = {
-      id,
-      title: title || `Chat ${this.sessions.length + 1}`,
-      model: model || 'gpt-4o',
-      messages: [],
-      createdAt: now,
-      updatedAt: now,
-      projectId,
-    };
-
-    const info: SessionInfo = {
-      id,
-      title: session.title,
-      model: session.model,
-      messageCount: 0,
-      createdAt: now,
-      updatedAt: now,
-      projectId,
-    };
-
-    // All async I/O first — no observable changes yet
-    const newSessions = [info, ...this.sessions];
-    await this.repository!.saveSession(session);
-    await this.repository!.saveSessionList(newSessions);
-
-    // Apply observable changes last
-    this.sessions = newSessions;
-    this.currentSessionId = id;
-
-    return id;
+  create(title?: string, model?: string, projectId?: string): Promise<string> {
+    return this.writes.run(async () => {
+      const id = this.idGen.nextId('session');
+      const sessions = await persistNewSession(this.repo, this.sessions, {
+        id, title: title || `Chat ${(this.sessions?.length ?? 0) + 1}`,
+        titleSource: title ? 'manual' : 'auto', model: model || 'gpt-4o',
+        projectId, now: this.clock.now(),
+      });
+      this.sessions = sessions;
+      this.currentSessionId = id;
+      return id;
+    });
   }
 
-  async loadSession(id: string): Promise<SessionData | null> {
-    return this.repository!.loadSession(id);
+  loadSession(id: string): Promise<SessionData | null> { return this.repo.loadSession(id); }
+
+  saveSession(data: SessionData, terminal?: TerminalRunState): Promise<void> {
+    return this.writes.run(async () => {
+      const sessions = await persistSessionSnapshot(
+        this.writeContext, data, this.clock.now(), terminal,
+      );
+      if (sessions) this.sessions = sessions;
+    });
   }
 
-  /**
-   * Save session data.
-   * All async I/O before observable changes.
-   */
-  async saveSession(data: SessionData): Promise<void> {
-    if (!Array.isArray(this.sessions)) return;
-
-    const now = this.clock.now();
-    const toSave: SessionData = {
-      id: data.id,
-      title: data.title,
-      model: data.model,
-      messages: data.messages,
-      createdAt: data.createdAt,
-      updatedAt: now,
-      projectId: data.projectId,
-    };
-    await this.repository!.saveSession(toSave);
-
-    const updatedSessions = this.sessions.map((s) =>
-      s.id === data.id
-        ? { ...s, title: data.title, messageCount: data.messages.length, updatedAt: now, projectId: data.projectId }
-        : s,
-    );
-    await this.repository!.saveSessionList(updatedSessions);
-
-    this.sessions = updatedSessions;
-  }
-
-  /**
-   * Delete a session.
-   */
   @action()
-  async delete(id: string): Promise<void> {
-    if (!Array.isArray(this.sessions)) {
-      this.sessions = [];
-    }
-    await this.repository!.deleteSession(id);
-    const newSessions = this.sessions.filter((s) => s.id !== id);
-    await this.repository!.saveSessionList(newSessions);
-
-    this.sessions = newSessions;
-    if (this.currentSessionId === id) {
-      this.currentSessionId = newSessions[0]?.id || null;
-    }
+  markRead(id: string, terminal: SessionTerminalIdentity, at = this.clock.now()): Promise<boolean> {
+    return this.writes.run(async () => {
+      const sessions = await persistSessionRead(this.writeContext, id, terminal, at);
+      if (!sessions) return false;
+      this.sessions = sessions;
+      return true;
+    });
   }
 
-  /**
-   * Switch to a session.
-   */
   @action()
-  switchTo(id: string): void {
-    this.currentSessionId = id;
+  switchTo(id: string): Promise<boolean> {
+    return this.writes.run(async () => {
+      const valid = this.sessions.some((session) =>
+        session.id === id && session.archivedAt === undefined && !this.deleted.has(id),
+      );
+      if (!valid) return false;
+      await this.repo.saveCurrentSessionId(id);
+      this.currentSessionId = id;
+      return true;
+    });
   }
 
-  /**
-   * Update the projectId of a session.
-   */
-  @action()
-  async updateProjectId(sessionId: string, projectId: string | undefined): Promise<void> {
-    if (!Array.isArray(this.sessions)) return;
-
-    // Update in-memory list
-    const updatedSessions = this.sessions.map((s) =>
-      s.id === sessionId ? { ...s, projectId } : s,
-    );
-
-    // Persist list
-    await this.repository!.saveSessionList(updatedSessions);
-
-    // Also update the session data itself (for loadSession to return correct projectId)
-    const data = await this.repository!.loadSession(sessionId);
-    if (data) {
-      await this.repository!.saveSession({ ...data, projectId });
-    }
-
-    this.sessions = updatedSessions;
+  rename(id: string, title: string): Promise<boolean> {
+    const normalized = normalizeManualTitle(title);
+    if (!normalized) return Promise.resolve(false);
+    return this.mutate(id, (session) => ({
+      ...session, title: normalized, titleSource: 'manual', updatedAt: this.clock.now(),
+    }));
   }
 
-  /**
-   * Lightweight metadata update for immediate sidebar response.
-   * Updates title, projectId, and/or messageCount without a full saveSession.
-   */
+  setPinned(id: string, isPinned: boolean): Promise<boolean> {
+    return this.mutate(id, (session) => session.isPinned === isPinned ? session : ({
+      ...session, isPinned, updatedAt: this.clock.now(),
+    }));
+  }
+
+  archive(id: string): Promise<boolean> {
+    return this.mutate(id, (session) => session.archivedAt !== undefined ? session : ({
+      ...session, archivedAt: this.clock.now(), isPinned: false, updatedAt: this.clock.now(),
+    }), true);
+  }
+
+  unarchive(id: string): Promise<boolean> {
+    return this.mutate(id, (session) => session.archivedAt === undefined ? session : ({
+      ...session, archivedAt: undefined, updatedAt: this.clock.now(),
+    }));
+  }
+
   @action()
-  async updateSessionInfo(
+  delete(id: string): Promise<void> {
+    this.beginDelete(id);
+    return this.writes.run(async () => {
+      await this.repo.deleteSessionArtifacts(id);
+      const sessions = this.sessions.filter((session) => session.id !== id);
+      const selected = resolveActiveSessionId(
+        sessions, this.currentSessionId === id ? null : this.currentSessionId,
+      );
+      await this.repo.saveSessionList(sessions);
+      await this.repo.saveCurrentSessionId(selected);
+      this.sessions = sessions;
+      this.currentSessionId = selected;
+    });
+  }
+
+  beginDelete(id: string): void { this.deleted.add(id); }
+
+  updateProjectId(id: string, projectId: string | undefined): Promise<boolean> {
+    return this.mutate(id, (session) => ({
+      ...session, projectId, updatedAt: this.clock.now(),
+    }));
+  }
+
+  updateSessionInfo(
     id: string,
-    updates: Partial<Pick<SessionInfo, 'title' | 'projectId' | 'messageCount'>>,
-  ): Promise<void> {
-    if (!Array.isArray(this.sessions)) return;
+    updates: SessionInfoUpdate,
+  ): Promise<boolean> {
+    return this.mutate(id, (session) =>
+      applySessionInfoUpdate(session, updates, this.clock.now()));
+  }
 
-    const updatedSessions = this.sessions.map((s) =>
-      s.id === id ? { ...s, ...updates } : s,
+  async search(query: string, options?: SessionSearchOptions): Promise<SessionSearchResult[]> {
+    return searchPersistedSessions(
+      this.writes, this.repo, this.sessions,
+      (id) => this.deleted.has(id), query, options,
     );
+  }
 
-    await this.repository!.saveSessionList(updatedSessions);
+  private mutate(
+    id: string,
+    update: (session: SessionInfo) => SessionInfo,
+    chooseFallback = false,
+  ): Promise<boolean> {
+    return this.writes.run(async () => {
+      const sessions = await persistSessionMetadata(this.writeContext, id, update);
+      if (!sessions) return false;
+      this.sessions = sessions;
+      if (chooseFallback && this.currentSessionId === id) {
+        this.currentSessionId = resolveActiveSessionId(sessions);
+        await this.repo.saveCurrentSessionId(this.currentSessionId);
+      }
+      return true;
+    });
+  }
 
-    // Also patch the session data record (title + projectId)
-    const data = await this.repository!.loadSession(id);
-    if (data) {
-      const patched: SessionData = {
-        ...data,
-        ...(updates.title ? { title: updates.title } : {}),
-        ...(updates.projectId !== undefined ? { projectId: updates.projectId } : {}),
-      };
-      await this.repository!.saveSession(patched);
-    }
+  private get repo(): SessionRepository {
+    if (!this.repository) throw new Error('SessionService is not initialized');
+    return this.repository;
+  }
 
-    this.sessions = updatedSessions;
+  private get writeContext() {
+    return {
+      repository: this.repo,
+      sessions: () => this.sessions,
+      isDeleted: (id: string) => this.deleted.has(id),
+    };
   }
 }

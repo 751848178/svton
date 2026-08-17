@@ -1,5 +1,6 @@
 import React from 'react';
-import { cn, t } from '@svton/ui';
+import { cn, useI18n } from '@svton/ui';
+import { PlanStepStatusIcon, planStepSurface } from './PlanStepStatusIcon';
 
 export interface PlanStepInfo {
   id: string;
@@ -18,35 +19,28 @@ interface PlanPanelProps {
   className?: string;
 }
 
-const STATUS_STYLE: Record<string, { icon: string; color: string; bg: string }> = {
-  completed: { icon: '✓', color: 'text-green-400', bg: 'bg-green-900/30' },
-  in_progress: { icon: '●', color: 'text-blue-400 animate-pulse', bg: 'bg-blue-900/30' },
-  failed: { icon: '✗', color: 'text-red-400', bg: 'bg-red-900/30' },
-  skipped: { icon: '—', color: 'text-gray-500', bg: 'bg-[#2a2a2a]' },
-  pending: { icon: '○', color: 'text-gray-500', bg: '' },
-};
-
 /**
  * Inline plan progress panel shown in the chat.
  */
 export const PlanPanel: React.FC<PlanPanelProps> = ({ plan, className }) => {
+  const { translate: t } = useI18n();
   const total = plan.steps.length;
   const done = plan.steps.filter((s) => s.status === 'completed').length;
   const failed = plan.steps.filter((s) => s.status === 'failed').length;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
   return (
-    <div className={cn('mx-4 mb-1 rounded-lg border [#2a2a2a] bg-[#2a2a2a] overflow-hidden', className)}>
+    <div className={cn('mx-4 mb-1 overflow-hidden rounded-lg border border-border bg-card', className)}>
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100 dark:border-gray-700">
-        <span className="text-xs font-semibold gray-300">{plan.title}</span>
-        <span className="text-[10px] text-gray-400 ml-auto">{done}/{total} {t('plan.completed')}</span>
+      <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+        <span className="text-xs font-semibold text-foreground">{plan.title}</span>
+        <span className="ml-auto text-[10px] text-muted-foreground">{done}/{total} {t('plan.completed')}</span>
       </div>
 
       {/* Progress bar */}
-      <div className="h-1 [#222]">
+      <div className="h-1 bg-muted">
         <div
-          className={cn('h-full transition-all duration-300', failed > 0 ? 'bg-orange-400' : 'bg-green-400')}
+          className={cn('h-full transition-all duration-300 motion-reduce:transition-none', failed > 0 ? 'bg-status-warning' : 'bg-status-success')}
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -54,15 +48,14 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({ plan, className }) => {
       {/* Steps */}
       <div className="px-3 py-1.5 space-y-0.5">
         {plan.steps.map((step) => {
-          const style = STATUS_STYLE[step.status] || STATUS_STYLE.pending;
           return (
-            <div key={step.id} className={cn('flex items-center gap-1.5 text-[11px] rounded px-1 py-0.5', style.bg)}>
-              <span className={cn('flex-shrink-0 text-[10px]', style.color)}>{style.icon}</span>
+            <div key={step.id} className={cn('flex items-center gap-1.5 rounded px-1 py-0.5 text-[11px]', planStepSurface(step.status))}>
+              <PlanStepStatusIcon status={step.status} />
               <span className={cn(
                 'truncate',
-                step.status === 'completed' ? 'text-gray-400 line-through' :
-                step.status === 'pending' ? 'text-gray-400' :
-                'text-gray-300',
+                step.status === 'completed' ? 'text-muted-foreground line-through' :
+                step.status === 'pending' ? 'text-muted-foreground' :
+                'text-foreground',
               )}>
                 {step.title}
               </span>

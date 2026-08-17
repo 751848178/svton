@@ -273,7 +273,7 @@ describe('SvtonAgentRuntime (Pi-backed)', () => {
       while (!result.done) {
         events.push(result.value);
         if (result.value.type === 'tool_approval_needed') {
-          runtime.approveToolCall(result.value.call.id);
+          runtime.approveToolCall(result.value.request.itemId);
         }
         result = await gen.next();
       }
@@ -299,7 +299,7 @@ describe('SvtonAgentRuntime (Pi-backed)', () => {
       while (!result.done) {
         events.push(result.value);
         if (result.value.type === 'tool_approval_needed') {
-          const callId = result.value.call.id;
+          const callId = result.value.request.itemId;
           setTimeout(() => runtime.rejectToolCall(callId), 1);
         }
         result = await gen.next();

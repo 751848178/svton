@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useMemo } from 'react';
+import { FileIcon, useI18n } from '@svton/ui';
 import { sanitizeHtml } from '../../lib/sanitize';
+import { TimelineStatusIcon } from '../timeline/TimelineStatusIcon';
 
 export interface ResearchReportProps {
   /** Report title */
@@ -17,13 +19,13 @@ export interface ResearchReportProps {
 
 /**
  * Structured research report component.
- * Follows the Doubao "Deep Research" pattern:
  * - Progress indicator during generation
  * - Table of contents navigation
  * - Source citations
  * - Exportable content
  */
 export function ResearchReport({ title, content, phase = 'complete', sources, className }: ResearchReportProps) {
+  const { translate: t } = useI18n();
   // Extract headings for table of contents
   const headings = useMemo(() => {
     const lines = content.split('\n');
@@ -50,30 +52,27 @@ export function ResearchReport({ title, content, phase = 'complete', sources, cl
   }
 
   return (
-    <div className={`rounded-xl border border-[#383838] bg-[#2a2a2a] overflow-hidden my-4 ${className || ''}`}>
+    <div className={`my-4 overflow-hidden rounded-xl border border-border bg-card ${className || ''}`}>
       {/* Header */}
-      <div className="px-6 py-4 bg-[#1a1a1a] border-b border-[#383838]">
+      <div className="border-b border-border bg-muted px-6 py-4">
         <div className="flex items-center gap-2 mb-1">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-blue-500">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-          </svg>
-          <span className="text-xs text-blue-600 font-medium uppercase tracking-wide">Research Report</span>
+          <FileIcon size={16} className="text-status-info" aria-hidden="true" />
+          <span className="text-xs font-medium uppercase tracking-wide text-status-info">{t('research.report')}</span>
         </div>
-        <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+        <h2 className="text-lg font-semibold text-foreground">{title}</h2>
       </div>
 
       <div className="flex">
         {/* Sidebar — Table of Contents */}
         {headings.length > 2 && (
-          <nav className="hidden md:block w-48 flex-shrink-0 p-4 border-r border-[#333] bg-[#1a1a1a]">
-            <div className="text-[11px] text-gray-400 font-medium uppercase tracking-wide mb-2">Contents</div>
+          <nav className="hidden w-48 flex-shrink-0 border-r border-border bg-muted p-4 md:block">
+            <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{t('research.contents')}</div>
             <ul className="space-y-1">
               {headings.map((h, i) => (
                 <li key={i}>
                   <a
                     href={`#${h.id}`}
-                    className={`text-xs text-gray-500 hover:text-blue-500 transition-colors block truncate ${
+                    className={`block truncate text-xs text-muted-foreground transition-colors hover:text-status-info ${
                       h.level === 2 ? 'pl-2' : h.level === 3 ? 'pl-4' : ''
                     }`}
                     onClick={(e) => {
@@ -92,7 +91,7 @@ export function ResearchReport({ title, content, phase = 'complete', sources, cl
         {/* Main content */}
         <div className="flex-1 px-6 py-4 min-w-0">
           <div
-            className="prose prose-sm max-w-none text-gray-300"
+            className="prose prose-sm max-w-none text-foreground"
             dangerouslySetInnerHTML={{ __html: sanitizeHtml(markdownToSimpleHTML(processedContent)) }}
           />
         </div>
@@ -100,13 +99,13 @@ export function ResearchReport({ title, content, phase = 'complete', sources, cl
 
       {/* Sources */}
       {sources && sources.length > 0 && (
-        <div className="px-6 py-3 border-t border-[#333] bg-[#1a1a1a]">
-          <div className="text-[11px] text-gray-400 font-medium uppercase tracking-wide mb-1.5">Sources</div>
+        <div className="border-t border-border bg-muted px-6 py-3">
+          <div className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{t('research.sources')}</div>
           <div className="flex flex-wrap gap-2">
             {sources.map((s, i) => (
-              <span key={i} className="inline-flex items-center gap-1 text-xs text-gray-400 bg-[#2a2a2a] px-2 py-0.5 rounded">
+              <span key={i} className="inline-flex items-center gap-1 rounded bg-card px-2 py-0.5 text-xs text-muted-foreground">
                 {s.url ? (
-                  <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-600">
+                  <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-status-info hover:underline">
                     [{i + 1}] {s.title}
                   </a>
                 ) : (
@@ -123,20 +122,21 @@ export function ResearchReport({ title, content, phase = 'complete', sources, cl
 
 // ─── Research Progress ──────────────────────────────────────
 function ResearchProgress({ phase, title }: { phase: string; title: string }) {
+  const { translate: t } = useI18n();
   const phases = [
-    { key: 'searching', label: 'Searching', icon: '🔍' },
-    { key: 'analyzing', label: 'Analyzing', icon: '📊' },
-    { key: 'generating', label: 'Generating', icon: '✍️' },
+    { key: 'searching', label: t('research.searching') },
+    { key: 'analyzing', label: t('research.analyzing') },
+    { key: 'generating', label: t('research.generating') },
   ];
 
   const currentIndex = phases.findIndex((p) => p.key === phase);
 
   return (
-    <div className="rounded-xl border border-[#383838] bg-[#2a2a2a] overflow-hidden my-4">
-      <div className="px-6 py-4 bg-[#1a1a1a] border-b border-[#383838]">
+    <div className="my-4 overflow-hidden rounded-xl border border-border bg-card">
+      <div className="border-b border-border bg-muted px-6 py-4">
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-          <span className="text-sm font-medium text-gray-300">{title}</span>
+          <TimelineStatusIcon status="running" size={16} />
+          <span className="text-sm font-medium text-foreground">{title}</span>
         </div>
       </div>
       <div className="px-6 py-6">
@@ -144,21 +144,23 @@ function ResearchProgress({ phase, title }: { phase: string; title: string }) {
           {phases.map((p, i) => (
             <React.Fragment key={p.key}>
               <div className="flex items-center gap-2">
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
-                  i < currentIndex ? 'bg-green-100 text-green-600' :
-                  i === currentIndex ? 'bg-blue-100 text-blue-600 animate-pulse' :
-                  'bg-[#2a2a2a] text-gray-400'
+                <div className={`flex h-6 w-6 items-center justify-center rounded-full text-xs ${
+                  i < currentIndex ? 'bg-status-success/10' :
+                  i === currentIndex ? 'bg-status-info/10' :
+                  'bg-muted'
                 }`}>
-                  {i < currentIndex ? '✓' : i + 1}
+                  {i <= currentIndex
+                    ? <TimelineStatusIcon status={i < currentIndex ? 'completed' : 'running'} />
+                    : i + 1}
                 </div>
                 <span className={`text-xs ${
-                  i <= currentIndex ? 'text-gray-700 font-medium' : 'text-gray-400'
+                  i <= currentIndex ? 'font-medium text-foreground' : 'text-muted-foreground'
                 }`}>
                   {p.label}
                 </span>
               </div>
               {i < phases.length - 1 && (
-                <div className={`flex-1 h-px ${i < currentIndex ? 'bg-green-300' : 'bg-gray-200'}`} />
+                <div className={`h-px flex-1 ${i < currentIndex ? 'bg-status-success' : 'bg-border'}`} />
               )}
             </React.Fragment>
           ))}

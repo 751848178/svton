@@ -5,8 +5,12 @@ import type { InternalLike } from '../service/provider';
 import type { SessionService } from '../service/session.service';
 import { SessionTransitionQueue } from '../service/session-transition-queue.service';
 import { setFlushFn } from '../service/provider';
-import { deriveTitle, displayToStoredMessages } from './session-message-conversion.utils';
+import { displayToStoredMessages } from './session-message-conversion.utils';
 import { prepareBackgroundMessagesForSave } from './use-session-background-save.utils';
+import { isTerminalRunState } from '../service/session-activity.reducer';
+import type { SessionRunState } from '../service/chat-run.types';
+import type { SessionTerminalIdentity } from '../service/session-activity.types';
+import { resolveSessionTitle } from '../service/session-title-policy';
 
 interface SessionPersistenceParams {
   chatService: ChatService;
@@ -26,32 +30,43 @@ export function useSessionPersistence({
   const saveSessionMessages = useCallback((
     sessionId: string,
     messages: DisplayMessage[],
+    terminal?: SessionRunState,
   ): Promise<void> => {
-    if (messages.length === 0) return Promise.resolve();
+    if (messages.length === 0 && !terminal) return Promise.resolve();
+    const terminalCandidate = terminal ?? null;
+    const durableTerminal = isTerminalRunState(terminalCandidate)
+      ? terminalCandidate
+      : undefined;
     const snapshot = [...messages];
     const storedMessages = displayToStoredMessages(snapshot);
     return saveQueue.run(async () => {
       const existing = await sessionService.loadSession(sessionId);
       if (existing) {
+        const title = resolveSessionTitle(existing, snapshot);
         await sessionService.saveSession({
           ...existing,
-          title: deriveTitle(existing.title, snapshot),
+          ...title,
           messages: storedMessages,
           updatedAt: Date.now(),
-        });
+        }, durableTerminal);
         return;
       }
       const info = sessionService.sessions.find((session) => session.id === sessionId);
       if (!info) return;
+      const title = resolveSessionTitle(info, snapshot);
       await sessionService.saveSession({
+        schemaVersion: info.schemaVersion,
         id: info.id,
-        title: deriveTitle(info.title, snapshot),
+        ...title,
         model: info.model || '',
         messages: storedMessages,
         createdAt: info.createdAt || Date.now(),
         updatedAt: Date.now(),
         projectId: info.projectId,
-      });
+        isPinned: info.isPinned,
+        archivedAt: info.archivedAt,
+        recencyAt: info.recencyAt,
+      }, durableTerminal);
     });
   }, [saveQueue, sessionService]);
 
@@ -69,8 +84,9 @@ export function useSessionPersistence({
   ) => saveQueue.run(async () => {
     const info = sessionService.sessions.find((session) => session.id === sessionId);
     if (!info) return;
+    const title = resolveSessionTitle(info, messages);
     await sessionService.updateSessionInfo(sessionId, {
-      title: deriveTitle(info.title, messages),
+      ...title,
       projectId,
       messageCount: messages.length,
     });
@@ -79,9 +95,18 @@ export function useSessionPersistence({
   useEffect(() => {
     chatService.onBackgroundStreamEnd = (sessionId: string) => {
       void saveBackgroundSessionMessages(sessionId);
-      void chatService.syncRuntimeToActiveSession();
     };
-    return () => { chatService.onBackgroundStreamEnd = null; };
+    chatService.onRunDisplayPersist = async (sessionId, _phase, state) => {
+      await saveSessionMessages(
+        sessionId,
+        chatService.forcePrepareForSessionSave(sessionId),
+        state,
+      );
+    };
+    return () => {
+      chatService.onBackgroundStreamEnd = null;
+      chatService.onRunDisplayPersist = undefined;
+    };
   }, [chatService, saveBackgroundSessionMessages]);
 
   useEffect(() => {
@@ -89,8 +114,10 @@ export function useSessionPersistence({
     const unsubscribe = chatInternal.subscribe('status', () => {
       const status = chatInternal.getState('status');
       const sessionId = chatService.activeSessionId;
-      const ownsRuntime = sessionId && chatService.runtimeSessionId === sessionId;
-      if (status === 'idle' && previousStatus !== 'idle' && ownsRuntime) {
+      if (status === 'waiting_approval' && previousStatus !== 'waiting_approval' && sessionId) {
+        void saveSessionMessages(sessionId, chatService.forcePrepareForSave());
+      }
+      if (status === 'idle' && previousStatus !== 'idle' && sessionId) {
         void saveSessionMessages(sessionId, chatService.getMessagesForSave());
       }
       previousStatus = status;
@@ -101,14 +128,8 @@ export function useSessionPersistence({
   useEffect(() => {
     const saveOnHide = () => {
       if (document.visibilityState !== 'hidden') return;
-      if (chatService.activeSessionId) {
-        void saveSessionMessages(
-          chatService.activeSessionId,
-          chatService.forcePrepareForSave(),
-        );
-      }
-      if (chatService.backgroundSessionId) {
-        void saveBackgroundSessionMessages(chatService.backgroundSessionId);
+      for (const sessionId of sessionIdsForSave(chatService)) {
+        void saveSessionMessages(sessionId, chatService.forcePrepareForSessionSave(sessionId));
       }
     };
     document.addEventListener('visibilitychange', saveOnHide);
@@ -116,14 +137,9 @@ export function useSessionPersistence({
   }, [chatService, saveBackgroundSessionMessages, saveSessionMessages]);
 
   const flush = useCallback(async () => {
-    if (chatService.activeSessionId) {
-      await saveSessionMessages(
-        chatService.activeSessionId,
-        chatService.forcePrepareForSave(),
-      );
-    }
-    if (chatService.backgroundSessionId) {
-      await saveBackgroundSessionMessages(chatService.backgroundSessionId);
+    for (const sessionId of sessionIdsForSave(chatService)) {
+      await saveSessionMessages(sessionId, chatService.forcePrepareForSessionSave(sessionId));
+      await chatService.flushRunJournal(sessionId);
     }
   }, [chatService, saveBackgroundSessionMessages, saveSessionMessages]);
 
@@ -135,14 +151,8 @@ export function useSessionPersistence({
   useEffect(() => {
     if (platform.type !== 'tauri') return;
     const saveBeforeClose = () => {
-      if (chatService.activeSessionId) {
-        void saveSessionMessages(
-          chatService.activeSessionId,
-          chatService.forcePrepareForSave(),
-        );
-      }
-      if (chatService.backgroundSessionId) {
-        void saveBackgroundSessionMessages(chatService.backgroundSessionId);
+      for (const sessionId of sessionIdsForSave(chatService)) {
+        void saveSessionMessages(sessionId, chatService.forcePrepareForSessionSave(sessionId));
       }
     };
     window.addEventListener('beforeunload', saveBeforeClose);
@@ -153,5 +163,28 @@ export function useSessionPersistence({
     };
   }, [platform.type, chatService, saveBackgroundSessionMessages, saveSessionMessages]);
 
-  return { saveSessionMessages, updateSessionPreview, flush };
+  const markSessionRead = useCallback((
+    sessionId: string,
+    terminal: SessionTerminalIdentity,
+    shouldCommit: () => boolean,
+  ) => saveQueue.run(async () => {
+    if (!shouldCommit()) return false;
+    return sessionService.markRead(sessionId, terminal);
+  }), [saveQueue, sessionService]);
+
+  return {
+    saveSessionMessages,
+    updateSessionPreview,
+    markSessionRead,
+    flushSessionWrites: () => saveQueue.flush(),
+    runSessionMutation: <T,>(mutation: () => Promise<T>) => saveQueue.run(mutation),
+    flush,
+  };
+}
+
+function sessionIdsForSave(chatService: ChatService): string[] {
+  return [...new Set([
+    ...(chatService.activeSessionId ? [chatService.activeSessionId] : []),
+    ...chatService.getRunningSessionIds(),
+  ])];
 }

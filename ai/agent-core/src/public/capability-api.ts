@@ -7,6 +7,7 @@ export type {
   PermissionDecision,
 } from '../permission/types';
 export { PermissionManager } from '../permission/manager';
+export type { PermissionCheckContext } from '../permission/manager';
 export type {
   HookEvent,
   HookContext,

@@ -15,18 +15,24 @@ export class ProjectService {
   @observable() ready: boolean = false;
 
   private storage: IStorage | null = null;
+  private initGeneration = 0;
   // Injectable for deterministic tests.
   private clock: IClock = SYSTEM_CLOCK;
   private idGen: IIdGenerator = RANDOM_ID_GENERATOR;
 
   @action()
   async init(storage: IStorage, opts?: { clock?: IClock; idGen?: IIdGenerator }): Promise<void> {
-    if (this.ready) return;
+    if (this.ready && this.storage === storage) return;
+    const generation = ++this.initGeneration;
+    this.ready = false;
     this.storage = storage;
     if (opts?.clock) this.clock = opts.clock;
     if (opts?.idGen) this.idGen = opts.idGen;
-    await this.loadProjects();
-    await this.loadCurrentProject();
+    const projects = await loadProjects(storage);
+    const currentProjectId = await loadCurrentProject(storage, projects);
+    if (generation !== this.initGeneration) return;
+    this.projects = projects;
+    this.currentProjectId = currentProjectId;
     this.ready = true;
   }
 
@@ -78,27 +84,24 @@ export class ProjectService {
     return this.projects.find((p) => p.id === id);
   }
 
-  private async loadProjects(): Promise<void> {
-    const raw = await this.storage!.get<unknown>(LIST_KEY);
-    if (raw == null || !Array.isArray(raw)) {
-      this.projects = [];
-      return;
-    }
-    const list = raw as Project[];
-    this.projects = list.filter(
-      (p): p is Project =>
-        p != null &&
-        typeof p === 'object' &&
-        typeof p.id === 'string' &&
-        typeof p.name === 'string' &&
-        typeof p.path === 'string',
-    );
-  }
+}
 
-  private async loadCurrentProject(): Promise<void> {
-    const id = await this.storage!.get<string>(CURRENT_KEY);
-    if (id && this.projects.some((p) => p.id === id)) {
-      this.currentProjectId = id;
-    }
-  }
+async function loadProjects(storage: IStorage): Promise<Project[]> {
+  const raw = await storage.get<unknown>(LIST_KEY);
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (project): project is Project => project != null
+      && typeof project === 'object'
+      && typeof (project as Project).id === 'string'
+      && typeof (project as Project).name === 'string'
+      && typeof (project as Project).path === 'string',
+  );
+}
+
+async function loadCurrentProject(
+  storage: IStorage,
+  projects: Project[],
+): Promise<string | null> {
+  const id = await storage.get<string>(CURRENT_KEY);
+  return id && projects.some((project) => project.id === id) ? id : null;
 }

@@ -1,5 +1,7 @@
 import React, { ReactNode } from 'react';
 import { cn } from '../../lib/utils';
+import { CompletedIcon, ErrorIcon } from '../../icons';
+import { useI18n } from '../../i18n';
 
 export interface ProgressStateProps {
   percent: number;
@@ -11,6 +13,7 @@ export interface ProgressStateProps {
 }
 
 export function ProgressState(props: ProgressStateProps) {
+  const { translate } = useI18n();
   const { percent, status = 'active', text, showPercent = true, className, align = 'center' } = props;
   const clampedPercent = Math.min(100, Math.max(0, percent));
 
@@ -40,15 +43,10 @@ export function ProgressState(props: ProgressStateProps) {
       </div>
       <div className="flex items-center gap-2">
         {status === 'success' && (
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2">
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
+          <CompletedIcon size={16} className="text-success" role="img" aria-label={translate('status.success')} />
         )}
         {status === 'error' && (
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2">
-            <line x1="18" y1="6" x2="6" y2="18" />
-            <line x1="6" y1="6" x2="18" y2="18" />
-          </svg>
+          <ErrorIcon size={16} className="text-destructive" role="img" aria-label={translate('status.failed')} />
         )}
         {showPercent && <span className="text-sm text-muted-foreground">{clampedPercent}%</span>}
         {text && <span className="text-sm text-muted-foreground">{text}</span>}

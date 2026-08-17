@@ -117,11 +117,12 @@ describe('initAgent tool registration', () => {
   });
 
   it('filters out disabled tools', async () => {
-    await storage.set('agent:disabled_tools', ['bash']);
+    await storage.set('agent:disabled_tools', ['bash', 'request_user_input']);
     const result = await initAgent(makePlatform(storage));
     if (result.kind !== 'ready') throw new Error('expected ready');
     const toolNames = result.config.toolRegistry.listDefinitions().map((t) => t.name);
     expect(toolNames).not.toContain('bash');
+    expect(toolNames).toContain('request_user_input');
   });
 
   it('registers core tools (file_read, file_write, file_edit, grep, glob, memory_*)', async () => {
@@ -135,5 +136,6 @@ describe('initAgent tool registration', () => {
     expect(toolNames).toContain('glob');
     expect(toolNames).toContain('memory_save');
     expect(toolNames).toContain('memory_recall');
+    expect(toolNames).toContain('request_user_input');
   });
 });

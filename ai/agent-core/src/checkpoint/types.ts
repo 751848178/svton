@@ -18,6 +18,8 @@ export interface SerializedRuntime {
   planId?: string;
   /** Timestamp of this checkpoint */
   updatedAt: number;
+  /** Monotonic client run revision represented by this checkpoint. */
+  runRevision?: number;
 }
 
 /**
@@ -30,4 +32,5 @@ export interface CheckpointMeta {
   model: string;
   updatedAt: number;
   planId?: string;
+  runRevision?: number;
 }

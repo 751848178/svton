@@ -1,4 +1,6 @@
 import type { ToolResult } from '@svton/agent-core';
+import type { TimelineTurn } from './timeline/types';
+import type { PublicComposerAttachment } from './service/chat-prepared-input.types';
 
 export type ChatStatus = 'idle' | 'running' | 'waiting_approval' | 'error';
 
@@ -74,6 +76,7 @@ export interface DisplayMessage {
   thinking?: string;
   error?: string;
   images?: Array<{ data: string; mimeType?: string }>;
+  publicAttachments?: PublicComposerAttachment[];
   toolCalls?: DisplayToolCall[];
   /** Ordered content blocks — the authoritative source for rendering assistant messages in execution order */
   blocks?: ContentBlock[];
@@ -85,8 +88,12 @@ export interface DisplayMessage {
   activeSkills?: string[];
   /** Canonical provider/message metadata retained across checkpoint restore. */
   metadata?: Record<string, unknown>;
+  /** Versioned normalized process/decision/outcome state for this assistant turn. */
+  timeline?: TimelineTurn;
   /** Pi canonical history index immediately before this user turn was added. */
   runtimeMessageIndex?: number;
+  /** Exact run owner used for durable interrupted-display reconciliation. */
+  runId?: string;
   timestamp: number;
 }
 

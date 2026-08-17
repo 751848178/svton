@@ -35,24 +35,24 @@ describe('ChatMessage — User Messages', () => {
 
   it('shows Copy button with correct title', () => {
     render(<ChatMessage id="m1" role="user" content="Test" />);
-    expect(screen.getByTitle('Copy')).toBeInTheDocument();
+    expect(screen.getByTitle(/Copy|复制/)).toBeInTheDocument();
   });
 
   it('shows Retry button when onRetry provided', () => {
     const onRetry = vi.fn();
     render(<ChatMessage id="m1" role="user" content="Test" onRetry={onRetry} />);
-    expect(screen.getByTitle('Retry')).toBeInTheDocument();
+    expect(screen.getByTitle(/Retry|重新生成/)).toBeInTheDocument();
   });
 
   it('hides Retry button when onRetry not provided', () => {
     render(<ChatMessage id="m1" role="user" content="Test" />);
-    expect(screen.queryByTitle('Retry')).not.toBeInTheDocument();
+    expect(screen.queryByTitle(/Retry|重新生成/)).not.toBeInTheDocument();
   });
 
   it('shows Edit button when onEdit provided', () => {
     render(<ChatMessage id="m1" role="user" content="Test" onEdit={vi.fn()} />);
     // Edit button title comes from t('chat.editMessage') or falls back to "Edit"
-    const editButtons = screen.getAllByText('Edit');
+    const editButtons = screen.getAllByText(/Edit|编辑/);
     expect(editButtons.length).toBeGreaterThanOrEqual(1);
   });
 
@@ -60,7 +60,7 @@ describe('ChatMessage — User Messages', () => {
     const onRetry = vi.fn();
     render(<ChatMessage id="m1" role="user" content="Test" onRetry={onRetry} />);
 
-    const retryBtn = screen.getByTitle('Retry');
+    const retryBtn = screen.getByTitle(/Retry|重新生成/);
     fireEvent.click(retryBtn);
     expect(onRetry).toHaveBeenCalledWith('m1');
   });
@@ -70,7 +70,7 @@ describe('ChatMessage — User Messages', () => {
     render(<ChatMessage id="m1" role="user" content="Original text" onEdit={onEdit} />);
 
     // Find the user message Edit button (there may be an assistant one too)
-    const editButtons = screen.getAllByText('Edit');
+    const editButtons = screen.getAllByText(/Edit|编辑/);
     fireEvent.click(editButtons[0]);
 
     // Should show textarea with current content
@@ -79,8 +79,8 @@ describe('ChatMessage — User Messages', () => {
     expect(textarea).toHaveValue('Original text');
 
     // Should show submit and cancel buttons
-    expect(screen.getByText('发送')).toBeInTheDocument();
-    expect(screen.getByText('取消')).toBeInTheDocument();
+    expect(screen.getByText(/发送|Send/)).toBeInTheDocument();
+    expect(screen.getByText(/取消|Cancel/)).toBeInTheDocument();
   });
 
   it('calls onEdit with new content when submitted', async () => {
@@ -89,7 +89,7 @@ describe('ChatMessage — User Messages', () => {
     render(<ChatMessage id="m1" role="user" content="Original" onEdit={onEdit} />);
 
     // Click Edit
-    const editButtons = screen.getAllByText('Edit');
+    const editButtons = screen.getAllByText(/Edit|编辑/);
     await user.click(editButtons[0]);
 
     // Clear and type new content
@@ -98,7 +98,7 @@ describe('ChatMessage — User Messages', () => {
     await user.type(textarea, 'New content');
 
     // Submit
-    await user.click(screen.getByText('发送'));
+    await user.click(screen.getByText(/发送|Send/));
     expect(onEdit).toHaveBeenCalledWith('m1', 'New content');
   });
 
@@ -107,24 +107,35 @@ describe('ChatMessage — User Messages', () => {
     const onEdit = vi.fn();
     render(<ChatMessage id="m1" role="user" content="Original" onEdit={onEdit} />);
 
-    const editButtons = screen.getAllByText('Edit');
+    const editButtons = screen.getAllByText(/Edit|编辑/);
     await user.click(editButtons[0]);
 
-    await user.click(screen.getByText('取消'));
+    await user.click(screen.getByText(/取消|Cancel/));
     expect(onEdit).not.toHaveBeenCalled();
     // Textarea should be gone
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
   });
 
-  it('renders images', () => {
+  it('renders raw local image data with an accessible attachment name', () => {
     render(
       <ChatMessage
         id="m1" role="user" content="Look at this"
-        images={[{ data: 'data:image/png;base64,abc123', mimeType: 'image/png' }]}
+        images={[{ data: 'abc123', mimeType: 'image/png' }]}
       />,
     );
-    const img = screen.getByRole('img');
-    expect(img).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'User attachment 1' }))
+      .toHaveAttribute('src', 'data:image/png;base64,abc123');
+  });
+
+  it('renders URL images without rewriting their source', () => {
+    render(
+      <ChatMessage
+        id="m1" role="user" content="Look at this"
+        images={[{ data: 'https://example.com/photo.png', mimeType: 'image/png' }]}
+      />,
+    );
+    expect(screen.getByRole('img', { name: 'User attachment 1' }))
+      .toHaveAttribute('src', 'https://example.com/photo.png');
   });
 });
 
@@ -136,29 +147,31 @@ describe('ChatMessage — Assistant Messages', () => {
 
   it('shows Copy button for completed assistant message', () => {
     render(<ChatMessage id="m2" role="assistant" content="Response" isLast />);
-    expect(screen.getByTitle('Copy')).toBeInTheDocument();
+    expect(screen.getByTitle(/Copy|复制/)).toBeInTheDocument();
   });
 
   it('shows Regenerate button for last assistant message when onRetry provided', () => {
     render(<ChatMessage id="m2" role="assistant" content="Response" isLast onRetry={vi.fn()} />);
-    expect(screen.getByTitle('Regenerate')).toBeInTheDocument();
+    expect(screen.getByTitle(/Retry|重新生成/)).toBeInTheDocument();
   });
 
   it('hides Regenerate for non-last assistant message', () => {
     render(<ChatMessage id="m2" role="assistant" content="Response" isLast={false} onRetry={vi.fn()} />);
-    expect(screen.queryByTitle('Regenerate')).not.toBeInTheDocument();
+    expect(screen.queryByTitle(/Retry|重新生成/)).not.toBeInTheDocument();
   });
 
   it('calls onRetry without message ID when Regenerate clicked', () => {
     const onRetry = vi.fn();
     render(<ChatMessage id="m2" role="assistant" content="Response" isLast onRetry={onRetry} />);
-    fireEvent.click(screen.getByTitle('Regenerate'));
+    fireEvent.click(screen.getByTitle(/Retry|重新生成/));
     expect(onRetry).toHaveBeenCalledWith(); // no args
   });
 
-  it('shows Edit (openEditor) button when onOpenEditor provided', () => {
-    render(<ChatMessage id="m2" role="assistant" content="Code" isLast onOpenEditor={vi.fn()} />);
-    expect(screen.getByTitle('Edit')).toBeInTheDocument();
+  it('keeps the legacy openEditor callback behind the content-panel action', () => {
+    const onOpenEditor = vi.fn();
+    render(<ChatMessage id="m2" role="assistant" content="Code" isLast onOpenEditor={onOpenEditor} />);
+    fireEvent.click(screen.getByTitle(/Open content panel|打开内容面板/));
+    expect(onOpenEditor).toHaveBeenCalledWith('Code');
   });
 
   it('renders error message', () => {
@@ -180,7 +193,7 @@ describe('ChatMessage — Assistant Messages', () => {
     // text and the "已处理" expand toggle are visible.
     expect(screen.queryByText('Let me analyze this...')).not.toBeInTheDocument();
     expect(screen.getByText('Here is my answer')).toBeInTheDocument();
-    expect(screen.getByText('已处理')).toBeInTheDocument();
+    expect(screen.getByText(/已处理|Processed/)).toBeInTheDocument();
   });
 
   it('renders tool calls via blocks', () => {
@@ -194,7 +207,23 @@ describe('ChatMessage — Assistant Messages', () => {
     );
     // Tool call is collapsed by default — the "已处理" toggle shows instead.
     expect(screen.queryByText('read_file')).not.toBeInTheDocument();
-    expect(screen.getByText('已处理')).toBeInTheDocument();
+    expect(screen.getByText(/已处理|Processed/)).toBeInTheDocument();
+  });
+
+  it('keeps assistant action commands visible while process details are collapsed', () => {
+    render(
+      <ChatMessage
+        id="m2" role="assistant" content=""
+        blocks={[
+          { type: 'thinking', text: 'Preparing action' },
+          { type: 'command', label: 'Deploy', action: 'deploy' },
+        ]}
+        resolveCommandCapability={() => ({ supported: false, reason: '未注册' })}
+      />,
+    );
+    expect(screen.getByRole('button', { name: /Deploy/ })).toBeDisabled();
+    expect(screen.queryByText('Preparing action')).not.toBeInTheDocument();
+    expect(screen.getByText(/已处理|Processed/)).toBeInTheDocument();
   });
 
   it('renders error blocks', () => {
@@ -206,9 +235,8 @@ describe('ChatMessage — Assistant Messages', () => {
         ]}
       />,
     );
-    // Error blocks are process blocks — collapsed by default.
-    expect(screen.queryByText('Tool execution failed')).not.toBeInTheDocument();
-    expect(screen.getByText('已处理')).toBeInTheDocument();
+    expect(screen.getByTestId('message-error')).toHaveTextContent('Tool execution failed');
+    expect(screen.queryByText(/已处理|Processed/)).not.toBeInTheDocument();
   });
 
   it('renders legacy thinking + toolCalls when no blocks', () => {
@@ -255,6 +283,6 @@ describe('ChatMessage — System Messages', () => {
       <ChatMessage id="m3" role="system" content="" systemType="context_compacted" />,
     );
     // Should render the compacted divider style
-    expect(container.querySelector('.text-gray-300')).toBeInTheDocument();
+    expect(container.querySelector('.bg-border')).toBeInTheDocument();
   });
 });

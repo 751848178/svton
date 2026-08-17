@@ -151,7 +151,7 @@ describe('session isolation', () => {
     await expect(restoreMessagesIntoRuntime(
       runtime,
       'session-b',
-    )).resolves.toBe('empty');
+    )).resolves.toEqual({ kind: 'empty', checkpoint: null });
     expect(setMessages).not.toHaveBeenCalled();
     expect(reset).toHaveBeenCalledOnce();
   });
@@ -162,37 +162,43 @@ describe('session isolation', () => {
     const { config } = buildPiAgentConfig();
     const service = new ChatService();
     await service.init(platform, config);
-    const runtime = (service as unknown as { runtime: { getMessages(): unknown[]; setMessages(messages: unknown[]): void } }).runtime;
-
-    runtime.setMessages([{ role: 'user', content: 'SESSION_A_SECRET' }]);
     service.bindSession('session-a');
+    await service.clearMessages();
+    const registry = (service as any).runtimeRegistry;
+    const runtimeA = registry.get('session-a');
+    runtimeA.setMessages([{ role: 'user', content: 'SESSION_A_SECRET' }]);
     service.bindSession('session-b');
     await service.loadMessages([
       { id: 'stale', role: 'user', content: 'STALE_DISPLAY_ONLY', timestamp: 1 },
     ]);
 
-    expect(runtime.getMessages()).toEqual([]);
+    expect(registry.get('session-b').getMessages()).toEqual([]);
+    expect(runtimeA.getMessages()).toEqual([{ role: 'user', content: 'SESSION_A_SECRET' }]);
     expect(service.messages).toEqual([]);
   });
 
-  it('does not start a second turn while another session owns the runtime stream', async () => {
+  it('starts B on its independent runtime while A still owns a live run', async () => {
     const storage = new DelayedStorage();
     const platform = makeBrowserPlatform(storage);
     const { config } = buildPiAgentConfig();
     const service = new ChatService();
     await service.init(platform, config);
     service.bindSession('session-a');
-    (service as unknown as { backgroundSessionId: string | null }).backgroundSessionId = 'session-a';
+    await service.clearMessages();
+    const addressA = { sessionId: 'session-a', runId: 'run-a' };
+    (service as any).runs.start(addressA, 1);
+    (service as any).runOwnership.begin(addressA, 'assistant-a');
     service.bindSession('session-b');
-    service.status = 'idle';
+    await service.clearMessages();
 
-    const runtime = (service as unknown as { runtime: { run: (...args: unknown[]) => AsyncGenerator<unknown> } }).runtime;
-    const run = vi.spyOn(runtime, 'run').mockImplementation(async function* () {});
+    const runtimeB = (service as any).runtimeRegistry.get('session-b');
+    const run = vi.spyOn(runtimeB, 'run').mockImplementation(async function* () {});
 
     await service.sendMessage('SESSION_B_MESSAGE');
 
-    expect(run).not.toHaveBeenCalled();
-    expect(service.messages).toEqual([]);
+    expect(run).toHaveBeenCalledOnce();
+    expect(service.messages.map((message) => message.role)).toEqual(['user', 'assistant']);
+    expect(service.isSessionStreaming('session-a')).toBe(true);
   });
 
   it('serializes first-message title and transcript persistence', async () => {
@@ -289,6 +295,7 @@ describe('session isolation', () => {
       { id: 'session-c', title: 'C', model: 'test-model', messageCount: 1, createdAt: 3, updatedAt: 3 },
     ];
     await storage.set('agent:session_list', sessions);
+    await storage.set('agent:session_current', 'session-a');
     await storage.set('agent:session:session-a', storedSession('session-a', 'ONLY_A', 1));
     await storage.set('agent:session:session-b', storedSession('session-b', 'ONLY_B', 2));
     await storage.set('agent:session:session-c', storedSession('session-c', 'ONLY_C', 3));

@@ -1,6 +1,7 @@
 import React, { useState, ReactNode } from 'react';
 import { cn } from '../../lib/utils';
 import { cva, type VariantProps } from 'class-variance-authority';
+import { AgentIcon } from '../../icons';
 
 const avatarVariants = cva('flex items-center justify-center overflow-hidden shrink-0 bg-muted text-muted-foreground', {
   variants: {
@@ -38,15 +39,16 @@ export function Avatar(props: AvatarProps) {
     }
     if (icon) return icon;
     if (children) return <span className="font-medium">{children}</span>;
-    return (
-      <svg width="60%" height="60%" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-      </svg>
-    );
+    return <AgentIcon width="60%" height="60%" aria-hidden="true" />;
   };
 
+  const labelledFallback = Boolean(alt) && (!src || imgError) && !icon && !children;
   return (
-    <div className={cn(avatarVariants({ size, shape }), className)}>
+    <div
+      className={cn(avatarVariants({ size, shape }), className)}
+      role={labelledFallback ? 'img' : undefined}
+      aria-label={labelledFallback ? alt : undefined}
+    >
       {renderContent()}
     </div>
   );

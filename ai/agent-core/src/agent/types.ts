@@ -3,7 +3,15 @@
  */
 
 import type { ReasoningEffort } from '../provider/types';
-import type { ToolCall } from '../tool/types';
+import type { UserInputAnswers, UserInputRequest, UserInputSettlement } from './user-input.types';
+import type {
+  PendingApproval,
+  ToolApprovalDecision,
+  ToolApprovalRequest,
+  ToolApprovalResultMetadata,
+  ToolApprovalSettlement,
+  ToolApprovalSettlementDecision,
+} from './tool-approval.types';
 import type { Models, Model, UserMessage } from '@earendil-works/pi-ai';
 import type {
   AgentEvent as PiAgentEvent,
@@ -21,6 +29,9 @@ export interface IRuntime {
   setMessages?(messages: AgentMessage[]): void;
   reset(): void;
   abort(): void;
+  respondToUserInput?(sessionId: string, requestId: string, answers: UserInputAnswers): boolean;
+  resolveUserInputRequest?(sessionId: string, requestId: string): boolean;
+  settleToolApproval?(sessionId: string, requestId: string, decision: ToolApprovalDecision): boolean;
 }
 
 // ============================================================
@@ -33,7 +44,10 @@ export interface IRuntime {
  * settlement lifecycle.
  */
 export type SvtonCapabilityEvent =
-  | { type: 'tool_approval_needed'; call: ToolCall; metadata?: Record<string, unknown> }
+  | { type: 'tool_approval_needed'; request: ToolApprovalRequest }
+  | { type: 'tool_approval_settled'; settlement: ToolApprovalSettlement }
+  | { type: 'user_input_requested'; request: UserInputRequest }
+  | { type: 'user_input_settled'; sessionId: string; requestId: string; settlement: UserInputSettlement }
   | { type: 'context_compacted'; summary: string }
   | { type: 'warning'; text: string; source?: string }
   | { type: 'skill_activated'; skills: string[] };
@@ -53,6 +67,8 @@ export interface RunOptions {
   maxIterations?: number;
   /** Session ID for checkpoint/resume. Passed to SessionResumeManager. */
   sessionId?: string;
+  /** Monotonic session turn revision mirrored by the client run journal. */
+  runRevision?: number;
 }
 
 // ============================================================
@@ -90,6 +106,8 @@ export interface AgentConfig {
    * seam to exercise the thinking show/hide path without a UI control.
    */
   reasoningEffort?: ReasoningEffort;
+  /** Optional bound for hidden post-turn memory extraction. */
+  postTurnMemoryTimeoutMs?: number;
 }
 
 // ============================================================
@@ -124,8 +142,11 @@ export interface AgentCapabilities {
 // Tool Approval
 // ============================================================
 
-export interface PendingApproval {
-  call: ToolCall;
-  resolve: (approved: boolean) => void;
-  timestamp: number;
-}
+export type {
+  PendingApproval,
+  ToolApprovalDecision,
+  ToolApprovalRequest,
+  ToolApprovalResultMetadata,
+  ToolApprovalSettlement,
+  ToolApprovalSettlementDecision,
+};

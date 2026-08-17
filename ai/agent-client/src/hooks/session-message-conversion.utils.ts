@@ -1,5 +1,9 @@
 import type { ContentBlock, DisplayMessage, DisplayToolCall } from '../types';
 import { backfillAutoReviewBlocks } from './session-auto-review-block.utils';
+import { migrateLegacyMessageTimeline } from '../timeline/legacy-compatibility';
+import { deserializeTimeline, serializeTimeline } from '../timeline/serialization';
+import { deserializePublicAttachments, serializePublicAttachments } from '../service/chat-public-attachments';
+export { deriveTitle } from '../service/session-title-policy';
 
 interface StoredToolCall {
   id: string;
@@ -17,26 +21,25 @@ interface StoredToolResult {
   metadata?: Record<string, unknown>;
 }
 
-export function deriveTitle(currentTitle: string, messages: DisplayMessage[]): string {
-  if (!currentTitle.startsWith('Chat ')) return currentTitle;
-  const first = messages.find((m) => m.role === 'user');
-  if (!first?.content) return currentTitle;
-  const text = first.content.replace(/\n/g, ' ').trim();
-  return text.length > 40 ? text.slice(0, 40) + '...' : text;
-}
-
 export function displayToStoredMessages(msgs: DisplayMessage[]): unknown[] {
   return msgs
     .filter((m) => m.role === 'user' || m.role === 'assistant')
     .map((m) => ({
       role: m.role,
+      id: m.id,
       content: m.content,
+      error: m.error || undefined,
       thinking: m.thinking || undefined,
       images: m.images || undefined,
+      publicAttachments: serializePublicAttachments(m.publicAttachments),
       duration: m.duration || undefined,
       activeSkills: m.activeSkills?.length ? m.activeSkills : undefined,
       toolCalls: m.toolCalls?.length ? m.toolCalls.map(toStoredToolCall) : undefined,
-      blocks: m.blocks?.length ? m.blocks.map(toStoredBlock) : undefined,
+      blocks: readPersistableBlocks(m.blocks),
+      timeline: serializeTimeline(m.timeline),
+      runtimeMessageIndex: m.runtimeMessageIndex,
+      runId: m.runId,
+      timestamp: m.timestamp,
     }));
 }
 
@@ -51,18 +54,27 @@ export function storedToDisplayMessages(msgs: unknown[]): DisplayMessage[] {
     const tc = m.toolCalls as StoredToolCall[] | undefined;
     const restoredTc = tc?.map(toDisplayToolCall) || [];
     const blocks = restoreBlocks(m, restoredTc);
-    out.push({
-      id: `restored_${++c}_${Date.now()}`,
+    const restored: DisplayMessage = {
+      id: typeof m.id === 'string' ? m.id : `restored_${++c}_${Date.now()}`,
       role: m.role as 'user' | 'assistant',
       content,
+      error: m.error as string | undefined,
       thinking: m.thinking as string | undefined,
       images: m.images as Array<{ data: string; mimeType?: string }> | undefined,
+      publicAttachments: deserializePublicAttachments(m.publicAttachments),
       toolCalls: restoredTc,
       blocks,
       duration: m.duration as number | undefined,
       activeSkills: Array.isArray(m.activeSkills) ? (m.activeSkills as string[]) : undefined,
-      timestamp: Date.now(),
-    });
+      timeline: deserializeTimeline(m.timeline),
+      runtimeMessageIndex: Number.isInteger(m.runtimeMessageIndex)
+        ? m.runtimeMessageIndex as number
+        : undefined,
+      runId: typeof m.runId === 'string' ? m.runId : undefined,
+      timestamp: typeof m.timestamp === 'number' ? m.timestamp : Date.now(),
+    };
+    restored.timeline ??= migrateLegacyMessageTimeline(restored);
+    out.push(restored);
   }
   return out;
 }
@@ -89,7 +101,10 @@ function restoreBlocks(
 ): ContentBlock[] | undefined {
   const rawBlocks = message.blocks as Array<Record<string, unknown>> | undefined;
   if (rawBlocks && rawBlocks.length > 0) {
-    const blocks = rawBlocks.map(toDisplayBlock).filter((b) => b.type !== 'tool_call' || (b as any).call);
+    const blocks = rawBlocks
+      .map(toDisplayBlock)
+      .filter((block) => block.type !== 'code_review')
+      .filter((block) => block.type !== 'tool_call' || block.call);
     return backfillAutoReviewBlocks(blocks);
   }
   if (!message.thinking && restoredTc.length === 0) return undefined;
@@ -100,6 +115,15 @@ function restoreBlocks(
     blocks.push({ type: 'tool_call', call: t });
   }
   return backfillAutoReviewBlocks(blocks);
+}
+
+function readPersistableBlocks(
+  blocks: ContentBlock[] | undefined,
+): Array<ContentBlock | { type: 'tool_call'; call: StoredToolCall }> | undefined {
+  const persistable = blocks
+    ?.filter((block) => block.type !== 'code_review')
+    .map(toStoredBlock);
+  return persistable?.length ? persistable : undefined;
 }
 
 function toDisplayBlock(block: Record<string, unknown>): ContentBlock {

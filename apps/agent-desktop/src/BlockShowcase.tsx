@@ -129,8 +129,8 @@ export function BlockShowcase() {
         <section>
           <h2 className="text-sm text-gray-400 mb-2">13. command (操作按钮)</h2>
           <div className="flex gap-2 flex-wrap">
-            <CommandBlockView label="运行测试" action="run_tests" icon="▶" onCommand={() => {}} />
-            <CommandBlockView label="查看结果" action="view_results" icon="📋" onCommand={() => {}} />
+            <CommandBlockView label="运行测试" action="run_tests" capability={{ supported: false, reason: '展示模式不执行操作。' }} />
+            <CommandBlockView label="查看结果" action="view_results" capability={{ supported: false, reason: '展示模式不执行操作。' }} />
           </div>
         </section>
 

@@ -31,18 +31,16 @@ describe("BlockIcon", () => {
     const { container: fileC } = render(<BlockIcon type="file" />);
     const { container: subC } = render(<BlockIcon type="subagent" />);
     const { container: warnC } = render(<BlockIcon type="warning" />);
-    expect(planC.textContent).toBeTruthy();
-    expect(fileC.textContent).toBeTruthy();
-    expect(subC.textContent).toBeTruthy();
-    expect(warnC.textContent).toBeTruthy();
+    expect(planC.querySelector('svg[aria-hidden="true"]')).toBeInTheDocument();
+    expect(fileC.querySelector('svg[aria-hidden="true"]')).toBeInTheDocument();
+    expect(subC.querySelector('svg[aria-hidden="true"]')).toBeInTheDocument();
+    expect(warnC.querySelector('svg[aria-hidden="true"]')).toBeInTheDocument();
   });
 
   it("applies a status colour class when status provided", () => {
     const { container } = render(<BlockIcon type="plan" status="running" />);
     // running status should add a colour class somewhere in the rendered tree
-    expect(container.innerHTML).toMatch(
-      /text-(yellow|amber|blue|green|red|gray)-\d+/,
-    );
+    expect(container.innerHTML).toContain('text-status-info');
   });
 });
 
@@ -50,19 +48,27 @@ describe("BlockIcon", () => {
 // CommandBlockView
 // ============================================================
 describe("CommandBlockView", () => {
-  it("renders label and icon", () => {
+  it("renders label with a shared action icon and ignores text-symbol input", () => {
     render(<CommandBlockView label="Run tests" action="run-tests" icon="🧪" />);
     expect(screen.getByText("Run tests")).toBeInTheDocument();
-    expect(screen.getByText("🧪")).toBeInTheDocument();
+    expect(screen.queryByText("🧪")).not.toBeInTheDocument();
+    expect(document.querySelector('.lucide-play')).toHaveAttribute('aria-hidden', 'true');
   });
 
-  it("fires onCommand with action on click", () => {
-    const onCommand = vi.fn();
+  it("fires a capability-resolved command and shows the typed result", async () => {
+    const onCommand = vi.fn(async () => ({ id: 'op-1', kind: 'succeeded' as const, message: '完成' }));
     render(
-      <CommandBlockView label="Deploy" action="deploy" onCommand={onCommand} />,
+      <CommandBlockView label="Deploy" action="deploy" capability={{ supported: true }} onCommand={onCommand} />,
     );
     fireEvent.click(screen.getByText("Deploy"));
-    expect(onCommand).toHaveBeenCalledWith("deploy");
+    expect(await screen.findByText('完成')).toBeInTheDocument();
+    expect(onCommand).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders an unregistered assistant action as visibly unsupported', () => {
+    render(<CommandBlockView label="Deploy" action="deploy" capability={{ supported: false, reason: '未注册' }} />);
+    expect(screen.getByRole('button', { name: 'Deploy' })).toBeDisabled();
+    expect(screen.getByText('未注册')).toBeInTheDocument();
   });
 });
 
@@ -92,8 +98,8 @@ describe("FileChangeView", () => {
     // After expand, the DiffView renders diff lines (parsed from "+x").
     // DiffView splits lines into spans, so check for the parsed 'x' content.
     expect(container.textContent).toContain("x");
-    // The toggle flips to ▾
-    expect(container.textContent).toContain("▾");
+    // The text-only toggle exposes the expanded state without a fake glyph.
+    expect(container.textContent).toContain("Collapse");
   });
 
   it("renders nothing when changes is empty", () => {
@@ -284,8 +290,8 @@ describe("SubagentBlockView", () => {
 
   it("renders failed status distinctly from completed", () => {
     render(<SubagentBlockView agentId="a1" task="Research" status="failed" />);
-    expect(screen.getByText("✗ 失败")).toBeInTheDocument();
-    expect(screen.queryByText("✓ 完成")).not.toBeInTheDocument();
+    expect(screen.getByText(/Subagent failed|子代理执行失败/)).toBeInTheDocument();
+    expect(screen.queryByText(/Subagent completed|子代理已完成/)).not.toBeInTheDocument();
   });
 });
 

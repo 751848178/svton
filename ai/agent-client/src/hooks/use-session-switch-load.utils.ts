@@ -7,12 +7,18 @@ export async function loadSessionMessagesForSwitch(
   chatService: ChatService,
   sessionService: SessionService,
   sessionId: string,
-  preservePendingToolCalls: boolean,
+  preserveLiveApprovals: boolean,
 ): Promise<void> {
   const cached = chatService.getCachedMessages(sessionId);
   if (cached) {
+    const preserveTargetApproval = shouldPreservePending(
+      chatService,
+      sessionId,
+      cached,
+    );
     await chatService.loadMessages(cached, {
-      preservePendingToolCalls: shouldPreservePending(chatService, sessionId, cached, preservePendingToolCalls),
+      preservePendingToolCalls: preserveTargetApproval,
+      preserveLiveApprovals,
     });
     return;
   }
@@ -21,13 +27,14 @@ export async function loadSessionMessagesForSwitch(
   const messages = data?.messages?.length
     ? storedToDisplayMessages(data.messages)
     : [];
+  const preserveTargetApproval = shouldPreservePending(
+    chatService,
+    sessionId,
+    messages,
+  );
   await chatService.loadMessages(messages, {
-    preservePendingToolCalls: shouldPreservePending(
-      chatService,
-      sessionId,
-      messages,
-      preservePendingToolCalls,
-    ),
+    preservePendingToolCalls: preserveTargetApproval,
+    preserveLiveApprovals,
   });
 }
 
@@ -35,8 +42,7 @@ function shouldPreservePending(
   chatService: ChatService,
   sessionId: string,
   messages: DisplayMessage[],
-  preservePendingToolCalls: boolean,
 ): boolean {
-  return preservePendingToolCalls
-    || (chatService.isSessionStreaming(sessionId) && hasVisiblePendingToolCalls(messages));
+  return chatService.hasPendingApprovalsForSession(sessionId)
+    && (chatService.isSessionStreaming(sessionId) || hasVisiblePendingToolCalls(messages));
 }

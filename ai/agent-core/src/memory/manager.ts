@@ -112,6 +112,7 @@ export class MemoryManager {
     messages: Array<{ role: string; content: string }>,
     provider?: { chat: (msgs: any[], opts?: any) => AsyncGenerator<any> },
     model?: string,
+    signal?: AbortSignal,
   ): Promise<number> {
     if (!provider || !model || messages.length < 4) return 0;
 
@@ -121,6 +122,7 @@ export class MemoryManager {
         provider,
         model,
         this.getAutoMemoryText(),
+        signal,
       );
 
       let saved = 0;

@@ -13,6 +13,7 @@ import { ChatMessage } from '../src/components/chat/ChatMessage';
 import { ToolCallCard } from '../src/components/chat/ToolCallCard';
 import type { ToolCallInfo } from '../src/components/chat/ToolCallCard';
 import { getToolDisplayName, getMcpServerName } from '../src/components/chat/tool-names';
+import { createTranslator } from '@svton/ui/i18n';
 
 // ============================================================
 // User message layout (Codex-style: no bubble, left-aligned, › prefix)
@@ -30,9 +31,9 @@ describe('User message bubble layout', () => {
     expect(screen.getByText('Hello AI')).toBeInTheDocument();
   });
 
-  it('has dark background bubble (#2a2a2a)', () => {
+  it('uses the semantic muted background token', () => {
     const { container } = render(<ChatMessage id="m1" role="user" content="Hi" />);
-    expect(container.innerHTML).toContain('bg-[#2a2a2a]');
+    expect(container.innerHTML).toContain('bg-muted');
   });
 });
 
@@ -55,15 +56,14 @@ describe('ToolCallCard render path selection', () => {
     expect(container.innerHTML).toMatch(/green|red/);
   });
 
-  it('routes shell output through ShellOutput (dim text-gray-600)', () => {
+  it('routes shell output through ShellOutput with the muted semantic token', () => {
     const { container } = render(<ToolCallCard toolCall={makeTool({
       name: 'bash',
       arguments: { command: 'echo hi' },
       result: { output: 'line1\nline2\nline3' },
     })} />);
     fireEvent.click(container.querySelector('button')!);
-    // ShellOutput uses text-gray-600 (dim)
-    expect(container.innerHTML).toContain('text-gray-600');
+    expect(container.innerHTML).toContain('text-muted-foreground');
   });
 
   it('routes image output through ScreenshotView', () => {
@@ -94,8 +94,8 @@ describe('ToolCallCard render path selection', () => {
       result: { output: '-rw-r--r-- file1\n-rw-r--r-- file2\n1. first item\n' },
     })} />);
     fireEvent.click(container.querySelector('button')!);
-    // Should be ShellOutput (text-gray-600), not MarkdownRenderer
-    expect(container.innerHTML).toContain('text-gray-600');
+    // Should be ShellOutput, not MarkdownRenderer.
+    expect(container.innerHTML).toContain('text-muted-foreground');
     // Should NOT have markdown-specific spacing
     expect(container.querySelectorAll('h1, h2, h3').length).toBe(0);
   });
@@ -176,8 +176,9 @@ describe('MCP tool name display', () => {
   });
 
   it('getToolDisplayName shows server/tool for MCP tools', () => {
-    expect(getToolDisplayName('mcp__playwright__navigate')).toBe('playwright/navigate');
-    expect(getToolDisplayName('bash')).toBe('bash');
+    const translate = createTranslator('en');
+    expect(getToolDisplayName('mcp__playwright__navigate', translate)).toBe('playwright/navigate');
+    expect(getToolDisplayName('bash', translate)).toBe('bash');
   });
 
   it('renders MCP badge in tool card header', () => {
@@ -191,14 +192,14 @@ describe('MCP tool name display', () => {
     expect(container.innerHTML).toContain('myserver/search');
   });
 
-  it('renders MCP badge in purple, not cyan', () => {
+  it('renders MCP state with the semantic info token', () => {
     const { container } = render(<ToolCallCard toolCall={{
       id: 'tc1', name: 'mcp__myserver__search',
       arguments: { query: 'test' },
       status: 'completed',
       result: { output: 'results' },
     }} />);
-    expect(container.innerHTML).toContain('text-purple-');
+    expect(container.innerHTML).toContain('text-status-info');
   });
 });
 
@@ -206,14 +207,14 @@ describe('MCP tool name display', () => {
 // Error styling
 // ============================================================
 describe('Error state styling', () => {
-  it('uses red text for error output', () => {
+  it('uses the destructive semantic token for error output', () => {
     const { container } = render(<ToolCallCard toolCall={{
       id: 'tc1', name: 'bash',
       arguments: { command: 'false' },
       status: 'error',
       result: { output: 'Command failed', isError: true },
     }} />);
-    expect(container.innerHTML).toContain('text-red');
+    expect(container.innerHTML).toContain('text-destructive');
   });
 
   it('ChatMessage error renders with visible error text', () => {

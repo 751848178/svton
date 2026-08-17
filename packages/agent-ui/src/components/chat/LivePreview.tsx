@@ -10,6 +10,14 @@ export interface LivePreviewProps {
   className?: string;
 }
 
+export function supportsLivePreview(code: string, language?: string): boolean {
+  const normalized = language?.toLowerCase();
+  return normalized === 'html' || normalized === 'css'
+    || normalized === 'javascript' || normalized === 'js'
+    || code.trim().toLowerCase().startsWith('<!doctype')
+    || code.trim().toLowerCase().startsWith('<html');
+}
+
 /**
  * Live preview for generated HTML/CSS/JS code.
  * Renders the code in a sandboxed iframe.
@@ -25,7 +33,7 @@ export function LivePreview({ code, language, className }: LivePreviewProps) {
     }
 
     // Wrap JS/CSS in a minimal HTML document
-    if (language === 'javascript' || language === 'js' || language === 'typescript' || language === 'ts') {
+    if (language === 'javascript' || language === 'js') {
       return `<!DOCTYPE html>
 <html><head><style>body{font-family:system-ui;margin:1rem;color:#1a1a1a;}</style></head>
 <body><div id="output"></div>

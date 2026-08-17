@@ -6,6 +6,7 @@
 
 import type { AgentTool } from '@earendil-works/pi-agent-core';
 import type { IPlatform, SandboxProfile } from '@svton/agent-platform';
+import type { UserInputRequester } from '../agent/user-input.types';
 
 export interface SvtonToolAnnotations {
   readOnlyHint?: boolean;
@@ -49,6 +50,7 @@ export interface ToolContext {
   sandboxRequired?: boolean;
   signal?: AbortSignal;
   onProgress?: (message: string) => void;
+  requestUserInput?: UserInputRequester;
 }
 
 export interface IToolExecutor {
