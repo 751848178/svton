@@ -18,6 +18,14 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm install --frozen-lockfile --store-dir=/pnpm/store --ignore-scripts \
       --filter @svton/devpilot-web...
 RUN pnpm rebuild --filter @svton/devpilot-web...
+# Workspace packages publish from dist; build the exact Web runtime closure in
+# dependency order so this image never relies on host-side build artifacts.
+RUN pnpm --filter @svton/api-client build \
+ && pnpm --filter @svton/hooks build \
+ && pnpm --filter @svton/logger build \
+ && pnpm --filter @svton/nestjs-http build \
+ && pnpm --filter @svton/service build \
+ && pnpm --filter @svton/ui build
 
 # ---- local-web: self-contained local Docker build ----
 FROM base AS local-web
