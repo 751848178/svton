@@ -1,28 +1,18 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { REPOSITORY_ANALYSIS_STAGES } from './repository-analysis.constants';
+import {
+  lockWritableRunProject,
+  lockWritableScopedRun,
+} from '../project/project-writable-lock.repository';
+import {
+  REPOSITORY_ANALYSIS_STAGES,
+  REPOSITORY_ANALYSIS_WORKER_LEASE_MS,
+} from './repository-analysis.constants';
+import {
+  CreateRepositoryRunInput,
+  REPOSITORY_ANALYSIS_RUN_INCLUDE,
+} from './repository-analysis-run.data';
 import { repositoryError } from './repository-analysis-validation.utils';
-import {
-  RepositoryAnalysisResult,
-  RepositorySuggestionDraft,
-} from './repository-parser.types';
-import {
-  optionalRepositorySafeJson,
-  repositorySafeJson,
-} from './repository-analysis-storage.utils';
-
-export interface CreateRepositoryRunInput {
-  teamId: string;
-  projectId: string;
-  connectionId: string;
-  triggeredById: string;
-  retryOfId?: string;
-  repositoryUrl: string;
-  branch: string;
-  commitSha: string;
-  idempotencyKey: string;
-  parserVersion: string;
-}
 
 @Injectable()
 export class RepositoryAnalysisRunRepository {
@@ -30,13 +20,13 @@ export class RepositoryAnalysisRunRepository {
   findIdempotent(projectId: string, idempotencyKey: string) {
     return this.prisma.repositoryAnalysisRun.findUnique({
       where: { projectId_idempotencyKey: { projectId, idempotencyKey } },
-      include: runInclude,
+      include: REPOSITORY_ANALYSIS_RUN_INCLUDE,
     });
   }
   findActive(teamId: string, projectId: string) {
     return this.prisma.repositoryAnalysisRun.findFirst({
       where: { teamId, projectId, status: { in: ['queued', 'running'] } },
-      include: runInclude,
+      include: REPOSITORY_ANALYSIS_RUN_INCLUDE,
     });
   }
   create(input: CreateRepositoryRunInput) {
@@ -53,7 +43,7 @@ export class RepositoryAnalysisRunRepository {
           })),
         },
       },
-      include: runInclude,
+      include: REPOSITORY_ANALYSIS_RUN_INCLUDE,
     });
   }
   list(teamId: string, projectId: string) {
@@ -70,7 +60,7 @@ export class RepositoryAnalysisRunRepository {
   async findScoped(teamId: string, projectId: string, runId: string) {
     const run = await this.prisma.repositoryAnalysisRun.findFirst({
       where: { id: runId, teamId, projectId },
-      include: runInclude,
+      include: REPOSITORY_ANALYSIS_RUN_INCLUDE,
     });
     if (!run) throw new NotFoundException(repositoryError(
       'REPOSITORY_ANALYSIS_NOT_FOUND',
@@ -85,23 +75,70 @@ export class RepositoryAnalysisRunRepository {
       include: { connection: true },
     });
   }
-  start(runId: string) {
-    return this.prisma.repositoryAnalysisRun.update({
-      where: { id: runId },
+  start(runId: string, workerLeaseToken: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const run = await lockWritableRunProject(tx, runId);
+      const now = new Date();
+      const current = await tx.repositoryAnalysisRun.findUniqueOrThrow({
+        where: { id: runId },
+        select: { status: true, workerLeaseToken: true, workerLeaseExpiresAt: true },
+      });
+      const recoverable = current.status === 'running'
+        && current.workerLeaseExpiresAt !== null
+        && current.workerLeaseExpiresAt.getTime() <= now.getTime();
+      if (run.status !== 'queued' && !recoverable) {
+        return current.status === 'running' && current.workerLeaseExpiresAt
+          ? { state: 'leased' as const, retryAt: current.workerLeaseExpiresAt }
+          : { state: 'terminal' as const };
+      }
+      const claimed = await tx.repositoryAnalysisRun.updateMany({
+        where: {
+          id: runId,
+          OR: [
+            { status: 'queued', workerLeaseToken: null },
+            { status: 'running', workerLeaseExpiresAt: { lte: now } },
+          ],
+        },
+        data: {
+          status: 'running',
+          startedAt: current.status === 'queued' ? now : undefined,
+          workerLeaseToken,
+          workerLeaseExpiresAt: new Date(now.getTime() + REPOSITORY_ANALYSIS_WORKER_LEASE_MS),
+          errorCode: null,
+          errorMessage: null,
+          errorAction: null,
+        },
+      });
+      if (claimed.count !== 1) {
+        const latest = await tx.repositoryAnalysisRun.findUniqueOrThrow({
+          where: { id: runId },
+          select: { status: true, workerLeaseExpiresAt: true },
+        });
+        return latest.status === 'running' && latest.workerLeaseExpiresAt
+          ? { state: 'leased' as const, retryAt: latest.workerLeaseExpiresAt }
+          : { state: 'terminal' as const };
+      }
+      return { state: 'claimed' as const };
+    }, { isolationLevel: 'Serializable' });
+  }
+
+  extendWorkerLease(runId: string, workerLeaseToken: string) {
+    return this.prisma.repositoryAnalysisRun.updateMany({
+      where: { id: runId, status: 'running', workerLeaseToken },
       data: {
-        status: 'running',
-        startedAt: new Date(),
-        errorCode: null,
-        errorMessage: null,
-        errorAction: null,
+        workerLeaseExpiresAt: new Date(Date.now() + REPOSITORY_ANALYSIS_WORKER_LEASE_MS),
       },
     });
   }
   requestCancel(teamId: string, projectId: string, runId: string) {
-    return this.prisma.repositoryAnalysisRun.updateMany({
-      where: { id: runId, teamId, projectId, status: { in: ['queued', 'running'] } },
-      data: { cancelRequestedAt: new Date() },
-    });
+    return this.prisma.$transaction(async (tx) => {
+      const run = await lockWritableScopedRun(tx, teamId, projectId, runId);
+      if (!['queued', 'running'].includes(run.status)) return { count: 0 };
+      return tx.repositoryAnalysisRun.updateMany({
+        where: { id: runId, status: { in: ['queued', 'running'] } },
+        data: { cancelRequestedAt: new Date() },
+      });
+    }, { isolationLevel: 'Serializable' });
   }
   async isCancelRequested(runId: string): Promise<boolean> {
     return Boolean((await this.prisma.repositoryAnalysisRun.findUnique({
@@ -109,78 +146,6 @@ export class RepositoryAnalysisRunRepository {
       select: { cancelRequestedAt: true },
     }))?.cancelRequestedAt);
   }
-  async succeed(
-    runId: string,
-    result: RepositoryAnalysisResult,
-    drafts: RepositorySuggestionDraft[],
-  ) {
-    const now = new Date();
-    const run = await this.prisma.repositoryAnalysisRun.findUniqueOrThrow({
-      where: { id: runId },
-      select: { startedAt: true },
-    });
-    return this.prisma.$transaction(async (tx) => {
-      if (drafts.length) {
-        await tx.repositoryAnalysisSuggestion.createMany({
-          data: drafts.map((draft) => ({
-            runId,
-            key: draft.key,
-            kind: draft.kind,
-            confidence: draft.confidence,
-            conflict: draft.conflict,
-            impact: draft.impact,
-            currentValue: optionalRepositorySafeJson(draft.currentValue),
-            proposedValue: repositorySafeJson(draft.proposedValue),
-            evidence: repositorySafeJson(draft.evidence),
-            warnings: repositorySafeJson(draft.warnings),
-          })),
-        });
-      }
-      return tx.repositoryAnalysisRun.update({
-        where: { id: runId },
-        data: {
-          status: 'succeeded',
-          activeKey: null,
-          summary: repositorySafeJson({
-            services: result.services.length,
-            deployableServices: result.services.filter((item) => item.deployable).length,
-            suggestions: drafts.length,
-            warnings: result.warnings.length,
-          }),
-          result: repositorySafeJson(result),
-          warnings: repositorySafeJson(result.warnings),
-          finishedAt: now,
-          durationMs: run.startedAt ? now.getTime() - run.startedAt.getTime() : 0,
-        },
-        include: runInclude,
-      });
-    });
-  }
-
-  async terminal(
-    runId: string,
-    status: 'failed' | 'cancelled',
-    error?: { code: string; message: string; action: string },
-  ) {
-    const now = new Date();
-    const run = await this.prisma.repositoryAnalysisRun.findUniqueOrThrow({
-      where: { id: runId },
-      select: { startedAt: true },
-    });
-    return this.prisma.repositoryAnalysisRun.update({
-      where: { id: runId },
-      data: {
-        status,
-        activeKey: null,
-        errorCode: error?.code,
-        errorMessage: error?.message,
-        errorAction: error?.action,
-        finishedAt: now,
-        durationMs: run.startedAt ? now.getTime() - run.startedAt.getTime() : 0,
-      },
-    });
-  }
-
   recoverActiveIds() {
     return this.prisma.repositoryAnalysisRun.findMany({
       where: { status: { in: ['queued', 'running'] } },
@@ -188,8 +153,3 @@ export class RepositoryAnalysisRunRepository {
     });
   }
 }
-
-const runInclude = {
-  stages: { orderBy: { ordinal: 'asc' as const } },
-  suggestions: { orderBy: { createdAt: 'asc' as const } },
-};

@@ -25,6 +25,9 @@ export type ResourceReferenceInput = {
 
 export type SafeResourceReference = ResourceReferenceInput & {
   name: string;
+  stateful: boolean;
+  resourceTypeKey?: string;
+  resourceTypeCategory?: string | null;
 };
 
 export type SafeSecretReference = {
@@ -54,7 +57,7 @@ export type RouteEntry = {
   serviceId: string | null;
   component: string;
   port: number | null;
-  tlsMode: "managed_cert" | "existing_cert_asset";
+  tlsMode: "none" | "managed_cert" | "existing_cert_asset";
 };
 
 export type EnvironmentConfigSnapshot = {
@@ -63,4 +66,5 @@ export type EnvironmentConfigSnapshot = {
   resourceReferences: SafeResourceReference[];
   routeSnapshot: Record<string, unknown>;
   policyReferences: SafePolicyReference[];
+  observabilitySnapshot?: import("./environment-observability-snapshot.policy").EnvironmentObservabilitySnapshot | Record<string, never>;
 };

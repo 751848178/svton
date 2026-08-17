@@ -1,75 +1,33 @@
+import { projectDeliverySummaryRecord } from "../release-delivery/project-delivery-summary.fixture";
 import type { ProjectDirectoryRecord } from "./project-directory.repository";
-import { frozenRepositoryIntakeFinalization } from "../project-intake/repository-intake-summary.fixture";
 
 export function projectDirectoryRecord(
   overrides: Partial<ProjectDirectoryRecord> = {},
 ): ProjectDirectoryRecord {
   const projectId = overrides.id ?? "project-1";
+  const source = projectDeliverySummaryRecord({ id: projectId });
+  source.name = "Payments";
+  if (source.repositoryIdentity) {
+    source.repositoryIdentity.projectId = projectId;
+    if (source.repositoryIdentity.currentRevision) {
+      source.repositoryIdentity.currentRevision.projectId = projectId;
+    }
+  }
+  source.environments = [
+    projectDirectoryEnvironment("env-staging", "staging", "staging", true, projectId),
+    projectDirectoryEnvironment("env-production", "production", "production", true, projectId),
+  ];
+  source.sites = [projectDirectorySite({ projectId })];
   return {
-    id: projectId,
-    teamId: "team-1",
-    name: "Payments",
+    ...source,
     onboardingStatus: "ready",
     onboardingRevision: 4,
     onboardingFinalizedAt: new Date("2026-08-03T01:00:00.000Z"),
     createdAt: new Date("2026-08-01T00:00:00.000Z"),
     updatedAt: new Date("2026-08-03T00:00:00.000Z"),
-    repositoryIdentity: {
-      id: "identity-1",
-      projectId,
-      provider: "github",
-      canonicalKey: "github.com/example/payments",
-      canonicalUrl: "https://github.com/example/payments",
-      lockedAt: new Date("2026-08-03T01:00:00.000Z"),
-      currentRevision: {
-        id: "identity-revision-1",
-        identityId: "identity-1",
-        projectId,
-        revision: 1,
-        defaultBranch: "main",
-        reason: "initial",
-        createdAt: new Date("2026-08-03T01:00:00.000Z"),
-      },
-    },
-    repositoryConnection: {
-      provider: "github",
-      repositoryUrl: "git@github.com:example/payments.git",
-      defaultBranch: "main",
-      selectedBranch: "main",
-      commitSha: "a".repeat(40),
-      status: "connected",
-    },
-    intakeFinalizations: [
-      frozenRepositoryIntakeFinalization(
-        projectId,
-        intakeDecisions(),
-        new Date("2026-08-03T01:15:00.000Z"),
-      ),
-    ],
-    environments: [
-      projectDirectoryEnvironment(
-        "env-staging",
-        "staging",
-        "staging",
-        false,
-        projectId,
-      ),
-      projectDirectoryEnvironment(
-        "env-production",
-        "production",
-        "production",
-        true,
-        projectId,
-      ),
-    ],
-    sites: [projectDirectorySite({ projectId })],
     recentActivity: {
-      id: projectId,
-      projectId,
-      activityType: "project",
-      status: "ready",
-      summary: null,
-      occurredAt: new Date("2026-08-03T00:00:00.000Z"),
+      id: projectId, projectId, activityType: "project", status: "ready",
+      summary: null, occurredAt: new Date("2026-08-03T00:00:00.000Z"),
     },
     ...overrides,
   } as ProjectDirectoryRecord;
@@ -79,13 +37,9 @@ export function projectDirectorySite(
   overrides: Partial<ProjectDirectoryRecord["sites"][number]> = {},
 ): ProjectDirectoryRecord["sites"][number] {
   return {
-    id: "site-1",
-    teamId: "team-1",
-    projectId: "project-1",
-    primaryDomain: "payments.example.com",
-    status: "active",
-    environmentId: "env-production",
-    ...overrides,
+    id: "site-1", teamId: "team-1", projectId: "project-1",
+    primaryDomain: "payments.example.com", status: "active",
+    environmentId: "env-production", ...overrides,
   };
 }
 
@@ -96,89 +50,34 @@ export function projectDirectoryEnvironment(
   online = false,
   projectId = "project-1",
 ): ProjectDirectoryRecord["environments"][number] {
-  return {
-    id,
-    teamId: "team-1",
-    projectId,
-    key,
-    name: key,
-    status: "active",
-    baselineRole,
-    identityLockedAt: new Date("2026-08-03T01:00:00.000Z"),
-    currentConfigRevisionId: `revision-${id}`,
-    currentEnvironmentVersionId: online ? "environment-version-1" : null,
-    currentEnvironmentVersion: online
-      ? {
-          id: "environment-version-1",
-          teamId: "team-1",
-          projectId,
-          environmentId: id,
-          releaseOrderId: "release-order-1",
-          artifactManifestId: "manifest-1",
-          deploymentRunId: "deployment-1",
-          effectiveAt: new Date("2026-08-03T02:00:00.000Z"),
-          releaseOrder: {
-            id: "release-order-1",
-            teamId: "team-1",
-            projectId,
-            releaseVersion: "2.3.2",
-          },
-          artifactManifest: {
-            id: "manifest-1",
-            teamId: "team-1",
-            projectId,
-            releaseOrderId: "release-order-1",
-          },
-          deploymentRun: {
-            id: "deployment-1",
-            teamId: "team-1",
-            projectId,
-            environmentId: id,
-            artifactManifestId: "manifest-1",
-            source: "release_order",
-            status: "completed",
-            dryRun: false,
-          },
-        }
-      : null,
-  };
-}
-
-function intakeConfig() {
-  return {
-    repositoryAnalysis: {
-      intakeContract: {
-        version: 1,
-        overview: {
-          projectType: "web_application",
-          architecture: "monorepo",
-        },
-      },
-    },
-  };
-}
-
-function intakeDecisions() {
-  const component = (name: string, path: string) => ({
-    kind: "application_service",
-    decision: "accept",
-    reviewedValue: {
-      metadata: {
-        repositoryAnalysis: {
-          intakeContract: { name, path, type: "backend_service" },
-        },
-      },
-    },
-  });
-  return [
-    {
-      kind: "project_repository",
-      decision: "accept",
-      reviewedValue: {
-        intakeContract: intakeConfig().repositoryAnalysis.intakeContract,
-      },
-    },
-    component("web", "apps/web"),
-    component("api", "apps/api"),
+  const source = projectDeliverySummaryRecord().environments[
+    baselineRole === "production" ? 1 : 0
   ];
+  const environment = structuredClone(source);
+  environment.id = id;
+  environment.teamId = "team-1";
+  environment.projectId = projectId;
+  environment.key = key;
+  environment.name = key;
+  environment.baselineRole = baselineRole;
+  environment.currentConfigRevisionId = `revision-${id}`;
+  if (environment.currentConfigRevision) {
+    environment.currentConfigRevision.id = `revision-${id}`;
+    environment.currentConfigRevision.projectId = projectId;
+    environment.currentConfigRevision.environmentId = id;
+  }
+  environment.currentEnvironmentVersionId = online
+    ? `${id}-environment-version` : null;
+  if (!online) environment.currentEnvironmentVersion = null;
+  if (environment.currentEnvironmentVersion) {
+    const version = environment.currentEnvironmentVersion;
+    version.id = `${id}-environment-version`;
+    version.projectId = projectId;
+    version.environmentId = id;
+    version.releaseOrder.projectId = projectId;
+    version.artifactManifest.projectId = projectId;
+    version.deploymentRun.projectId = projectId;
+    version.deploymentRun.environmentId = id;
+  }
+  return environment;
 }

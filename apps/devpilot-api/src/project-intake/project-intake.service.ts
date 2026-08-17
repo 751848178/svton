@@ -1,8 +1,4 @@
-import {
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from "@nestjs/common";
+import { ConflictException, Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import type { StartRepositoryAnalysisDto } from "../repository-analysis/dto/repository-analysis.dto";
 import type { ConnectRepositoryDto } from "../repository-analysis/dto/repository-connection.dto";
@@ -19,6 +15,11 @@ import { ProjectIntakeFinalizationService } from "./project-intake-finalization.
 import { intakeError } from "./project-intake-errors.utils";
 import type { ProjectIntakeStatus } from "./project-intake.types";
 import { ProjectRepositoryDuplicateGuardService } from "./project-repository-duplicate-guard.service";
+import {
+  assertProjectIntakeMutable,
+  findProjectIntake,
+  transitionProjectIntake,
+} from "./project-intake-project.repository";
 
 @Injectable()
 export class ProjectIntakeService {
@@ -58,7 +59,7 @@ export class ProjectIntakeService {
   }
 
   async state(teamId: string, actorId: string, projectId: string) {
-    const project = await this.findProject(teamId, projectId);
+    const project = await findProjectIntake(this.prisma, teamId, projectId);
     const [repository, runs] = await Promise.all([
       this.connections.getState(teamId, actorId, projectId),
       this.runs.list(teamId, projectId),
@@ -83,8 +84,8 @@ export class ProjectIntakeService {
       actorId,
       projectId,
       dto,
+      (tx) => transitionProjectIntake(tx, teamId, projectId, "analyzing"),
     );
-    await this.transition(teamId, projectId, "analyzing");
     return connection;
   }
 
@@ -126,8 +127,8 @@ export class ProjectIntakeService {
       projectId,
       runId,
       dto,
+      (tx) => transitionProjectIntake(tx, teamId, projectId, "review"),
     );
-    await this.transition(teamId, projectId, "review");
     return result;
   }
 
@@ -135,45 +136,25 @@ export class ProjectIntakeService {
     return this.contracts.read(teamId, projectId, runId);
   }
 
-  finalize(
+  async finalize(
     teamId: string,
     actorId: string,
     projectId: string,
     dto: FinalizeProjectIntakeDto,
   ) {
+    await this.assertMutable(teamId, projectId);
     return this.finalization.finalize(teamId, actorId, projectId, dto);
-  }
-
-  private async findProject(teamId: string, projectId: string) {
-    const project = await this.prisma.project.findFirst({
-      where: { id: projectId, teamId },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        onboardingStatus: true,
-        onboardingRevision: true,
-        onboardingFinalizedAt: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
-    if (!project)
-      throw new NotFoundException(
-        intakeError(
-          "PROJECT_NOT_FOUND",
-          "项目不存在",
-          "请返回项目接入列表并重新选择。",
-        ),
-      );
-    return project;
   }
 
   private async assertMutable(
     teamId: string,
     projectId: string,
   ): Promise<void> {
-    const project = await this.findProject(teamId, projectId);
+    const project = await assertProjectIntakeMutable(
+      this.prisma,
+      teamId,
+      projectId,
+    );
     if (project.onboardingStatus === "ready")
       throw new ConflictException(
         intakeError(
@@ -189,9 +170,6 @@ export class ProjectIntakeService {
     projectId: string,
     status: ProjectIntakeStatus,
   ): Promise<void> {
-    await this.prisma.project.updateMany({
-      where: { id: projectId, teamId, onboardingStatus: { not: "ready" } },
-      data: { onboardingStatus: status, onboardingRevision: { increment: 1 } },
-    });
+    await transitionProjectIntake(this.prisma, teamId, projectId, status);
   }
 }

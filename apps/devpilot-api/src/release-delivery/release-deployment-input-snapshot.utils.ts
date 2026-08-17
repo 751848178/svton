@@ -9,6 +9,7 @@ import {
   effectiveResourceBindings,
   environmentKeysFromTemplate,
 } from "../project-environment/environment-variable-binding.utils";
+import { frozenRouteTargets } from "./release-deployment-route-snapshot.utils";
 
 export function buildReleaseDeploymentInputSnapshot(
   state: ReleaseDeploymentInputState,
@@ -29,6 +30,9 @@ export function buildReleaseDeploymentInputSnapshot(
         resourceReferences: state.revision.resourceReferences,
       }),
     },
+    routeTargets: frozenRouteTargets(state.revision.routeSnapshot),
+    observabilitySnapshot: record(state.revision.observabilitySnapshot),
+    routeSnapshot: record(state.revision.routeSnapshot),
     plainVariableKeys: Object.keys(
       record(state.revision.plainVariables),
     ).sort(),

@@ -68,7 +68,7 @@ describe("F454 isolated parity compose stack", () => {
     );
     for (const expected of [
       'RELEASE_BUILD_EXECUTION_ENABLED: "true"',
-      "RELEASE_BUILD_EXECUTOR_PROFILE: controlled-local-v1",
+      "RELEASE_BUILD_EXECUTOR_PROFILE: controlled-local-acceptance-v2",
       "RELEASE_BUILD_WORK_ROOT: /var/lib/devpilot/release-build/work",
       "RELEASE_BUILD_ARTIFACT_ROOT: /var/lib/devpilot/release-build/artifacts",
       'RELEASE_BUILD_RUN_TIMEOUT_MS: "180000"',
@@ -89,6 +89,8 @@ describe("F454 isolated parity compose stack", () => {
       "dockerfile: scripts/parity-deploy-target.Dockerfile",
       "dockerfile: scripts/parity-target-workload.Dockerfile",
       "image: ${PARITY_ROUTE_CONTROL_IMAGE:-devpilot-parity-route-control:local}",
+      "devpilot-parity-route-control:/var/lib/route-control",
+      "ROUTE_CONTROL_STATE_FILE: /var/lib/route-control/state.json",
       "image: ${PARITY_DEPLOY_TARGET_IMAGE:-devpilot-parity-deploy-target:local}",
       "image: ${PARITY_TARGET_WORKLOAD_IMAGE:-devpilot-parity-target-workload:local}",
       'command: ["node", "/app/parity-route-control-provider.mjs"]',
@@ -106,6 +108,9 @@ describe("F454 isolated parity compose stack", () => {
     );
     expect(routeDockerfile).toContain(
       "COPY scripts/lib/parity-route-control-domain.mjs /app/lib/parity-route-control-domain.mjs",
+    );
+    expect(routeDockerfile).toContain(
+      "COPY scripts/lib/parity-route-control-state-store.mjs /app/lib/parity-route-control-state-store.mjs",
     );
     // The parity deploy target must NOT mount the host docker socket.
     expect(source).not.toContain("docker.sock");

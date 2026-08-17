@@ -13,6 +13,9 @@ const dockerfile = await readFile(
 
 for (const helper of [
   "parity-route-control-domain.mjs",
+  "parity-route-control-http.mjs",
+  "parity-route-control-policy.mjs",
+  "parity-route-control-state-store.mjs",
   "parity-route-control-upstream.mjs",
 ]) {
   assert.match(provider, new RegExp(`\\./lib/${helper}`));

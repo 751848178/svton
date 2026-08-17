@@ -45,8 +45,7 @@ export function useProjectIntakeResume(options: Options) {
         branch: state.repository.connection?.selectedBranch || '',
         visibility: state.repository.connection?.visibility === 'private' ? 'private' : 'public',
         credentialMode: 'managed',
-        teamCredentialId: state.repository.connection?.teamCredentialId
-          || state.repository.connection?.gitConnectionId || '',
+        managedCredential: managedCredential(state.repository.connection),
         credentialSecret: '',
       }));
       options.setStep(2);
@@ -60,4 +59,12 @@ export function useProjectIntakeResume(options: Options) {
     url.searchParams.set('runId', options.run.id);
     window.history.replaceState(null, '', url);
   }, [options.projectId, options.run?.id]);
+}
+
+function managedCredential(connection: ProjectIntakeConnection | null) {
+  if (connection?.gitConnectionId) return { id: connection.gitConnectionId,
+    source: 'git_connection' as const, provider: connection.provider };
+  if (connection?.teamCredentialId) return { id: connection.teamCredentialId,
+    source: 'team_credential' as const };
+  return null;
 }

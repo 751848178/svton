@@ -15,6 +15,7 @@ import {
   type ReleaseGateCapabilityProvider,
   unavailable,
 } from "./release-gate-provider.types";
+import { evaluateResourceConnectivity } from "./release-gate-resource-connectivity.policy";
 
 const CONNECTIVITY_TTL_MS = 15 * 60 * 1000;
 const METRIC_TTL_MS = 5 * 60 * 1000;
@@ -48,7 +49,7 @@ export class ReleaseGateRuntimeCapabilityProvider implements ReleaseGateCapabili
       return evaluateReleaseGateDeploymentTarget(context, now);
     }
     if (definition.id === "D07") return this.server(context, now);
-    if (definition.id === "D08") return this.resources(context, now);
+    if (definition.id === "D08") return evaluateResourceConnectivity(context, now);
     return unavailable(
       "network_policy_provider_missing",
       "未连接网络策略与服务发现 Provider",
@@ -96,68 +97,6 @@ export class ReleaseGateRuntimeCapabilityProvider implements ReleaseGateCapabili
         : "The environment-bound server is not online",
       evidenceRef: `server-binding:${binding.id};server:${binding.server.id};provider:${providerKey}`,
       checkedAt: binding.server.updatedAt,
-      ttlMs: CONNECTIVITY_TTL_MS,
-      now,
-    });
-  }
-
-  private resources(context: ReleaseGateEvidenceContext, now: Date) {
-    const environment = context.deploy?.environment;
-    const resources =
-      context.deploy?.resources.filter(
-        (item) => item.kind === "managed_resource",
-      ) ?? [];
-    if (!environment || resources.length === 0) {
-      return unavailable(
-        "resource_connectivity_not_applicable",
-        "当前配置没有可探测的数据库或中间件资源引用",
-        "Current config has no database or middleware resource reference to probe",
-      );
-    }
-    const runs = resources.map((resource) =>
-      context.deploy?.connections.find((run) => run.resourceId === resource.id),
-    );
-    if (runs.some((run) => !run)) {
-      return unavailable(
-        "resource_connection_run_missing",
-        "至少一个资源引用没有真实连接探测运行",
-        "At least one resource reference has no real connection probe run",
-      );
-    }
-    const invalidScope = runs.some(
-      (run) => run?.environmentId !== environment.id,
-    );
-    const failed = runs.some(
-      (run) => run?.status === "failed" || run?.status === "blocked",
-    );
-    const dryRun = runs.some((run) => run?.dryRun);
-    const status: ReleaseGateStatus =
-      invalidScope || failed ? "blocked" : dryRun ? "unchecked" : "checked";
-    const checkedAt = runs.reduce((oldest, run) => {
-      const value = run?.finishedAt ?? run?.createdAt ?? oldest;
-      return value.getTime() < oldest.getTime() ? value : oldest;
-    }, new Date(8640000000000000));
-    return evaluated({
-      status,
-      reasonCode: invalidScope
-        ? "resource_environment_mismatch"
-        : failed
-          ? "resource_connection_failed"
-          : dryRun
-            ? "resource_connection_dry_run"
-            : "resource_connections_succeeded",
-      zh:
-        status === "checked"
-          ? `${resources.length} 个资源连接真实探测成功`
-          : "资源连接探测失败、dry-run 或环境归属不符",
-      en:
-        status === "checked"
-          ? `${resources.length} resource connection probe(s) succeeded`
-          : "A resource connection probe failed, is dry-run, or has wrong environment ownership",
-      evidenceRef: runs
-        .map((run) => `resource-connection:${run?.id}`)
-        .join(";"),
-      checkedAt,
       ttlMs: CONNECTIVITY_TTL_MS,
       now,
     });

@@ -1,9 +1,13 @@
 import { Injectable } from "@nestjs/common";
 import { EnvironmentVersionRecoveryRepository } from "./environment-version-recovery.repository";
+import { ReleaseStagingExecutorPort } from "./release-staging.types";
 
 @Injectable()
 export class EnvironmentVersionRecoveryService {
-  constructor(private readonly repository: EnvironmentVersionRecoveryRepository) {}
+  constructor(
+    private readonly repository: EnvironmentVersionRecoveryRepository,
+    private readonly executor: ReleaseStagingExecutorPort,
+  ) {}
 
   preview(input: {
     teamId: string;
@@ -11,7 +15,9 @@ export class EnvironmentVersionRecoveryService {
     environmentId: string;
     sourceVersionId: string;
   }) {
-    return this.repository.preview(input);
+    return this.repository.preview({
+      ...input, providerKey: this.executor.providerKey,
+    });
   }
 
   confirm(input: {
@@ -23,6 +29,8 @@ export class EnvironmentVersionRecoveryService {
     expectedInputHash: string;
     idempotencyKey: string;
   }) {
-    return this.repository.confirm(input);
+    return this.repository.confirm({
+      ...input, providerKey: this.executor.providerKey,
+    });
   }
 }

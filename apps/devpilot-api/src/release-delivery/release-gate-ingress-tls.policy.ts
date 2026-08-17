@@ -1,6 +1,7 @@
 import type { ReleaseGateEvidenceContext } from "./release-gate-evidence.repository";
 import { releaseGateIngressObservation } from "./release-gate-ingress-observation";
 import { evaluated, record, unavailable } from "./release-gate-provider.types";
+import { hashCanonicalReleaseValue } from "./release-canonical-hash.utils";
 
 const INGRESS_TTL_MS = 60 * 60 * 1000;
 
@@ -42,6 +43,18 @@ export function evaluateIngressTls(
   }
   const probe = record(tls.probe);
   const probeCheckedAt = probe.checkedAt;
+  const probeHostname = typeof probe.host === "string"
+    ? probe.host.toLowerCase() : "";
+  const exactHostname = observation.route?.domains.some((domain) =>
+    domain.toLowerCase() === probeHostname) &&
+    probe.servername === probe.host;
+  if (Object.keys(probe).length > 0 && !exactHostname) {
+    return unavailable(
+      "tls_probe_scope_mismatch",
+      "TLS 探测 SNI/域名与冻结路由不一致",
+      "The TLS probe SNI/hostname does not match the frozen route",
+    );
+  }
   if (
     typeof probeCheckedAt === "string" &&
     !stale(probeCheckedAt, now, INGRESS_TTL_MS)
@@ -56,6 +69,7 @@ export function evaluateIngressTls(
         checkedAt: new Date(probeCheckedAt),
         ttlMs: INGRESS_TTL_MS,
         now,
+        evidenceIdentity: ingressIdentity(environment, site, probeHostname),
       });
     }
     if (probe.status === "valid") {
@@ -68,6 +82,7 @@ export function evaluateIngressTls(
         checkedAt: new Date(probeCheckedAt),
         ttlMs: INGRESS_TTL_MS,
         now,
+        evidenceIdentity: ingressIdentity(environment, site, probeHostname),
       });
     }
     return unavailable(
@@ -76,63 +91,58 @@ export function evaluateIngressTls(
       "Production real TLS probe is unavailable; not counted as a pass",
     );
   }
+  if (typeof probeCheckedAt === "string") {
+    return evaluated({
+      status: "checked",
+      reasonCode: "tls_certificate_valid",
+      zh: "TLS 真实握手证据已过期",
+      en: "The real TLS handshake evidence is stale",
+      evidenceRef: `site:${site.id}#tls.probe`,
+      checkedAt: new Date(probeCheckedAt),
+      ttlMs: INGRESS_TTL_MS,
+      now,
+      evidenceIdentity: ingressIdentity(environment, site, probeHostname),
+    });
+  }
   const expiresAt = dateValue(tls.expiresAt);
   const expired = Boolean(expiresAt && expiresAt.getTime() < now.getTime());
-  const certValid =
-    site.environmentId === environment.id &&
-    (tls.status === "valid" || tls.status === "active") &&
-    !expired;
-  if (!certValid) {
-    if (
-      site.environmentId !== environment.id ||
-      expired ||
-      tls.status === "invalid"
-    ) {
-      return evaluated({
-        status: "blocked",
-        reasonCode:
-          site.environmentId !== environment.id
-            ? "site_environment_mismatch"
-            : expired
-              ? "tls_certificate_expired"
-              : "tls_certificate_invalid",
-        zh: expired ? "TLS 证书已过期" : "TLS 证书状态无效",
-        en: expired
-          ? "TLS certificate is expired"
-          : "TLS certificate status is invalid",
-        evidenceRef: `site:${site.id}#tls`,
-        checkedAt: site.lastSyncAt ?? site.updatedAt,
-        ttlMs: INGRESS_TTL_MS,
-        now,
-      });
-    }
+  if (site.environmentId !== environment.id || expired || tls.status === "invalid") {
     return evaluated({
-      status: "unchecked",
-      reasonCode: "tls_certificate_unverified",
-      zh: "TLS 证书状态未验证",
-      en: "TLS certificate status is unverified",
+      status: "blocked",
+      reasonCode: site.environmentId !== environment.id
+        ? "site_environment_mismatch"
+        : expired ? "tls_certificate_expired" : "tls_certificate_invalid",
+      zh: expired ? "TLS 证书已过期" : "TLS 证书状态无效",
+      en: expired ? "TLS certificate is expired" : "TLS certificate status is invalid",
       evidenceRef: `site:${site.id}#tls`,
       checkedAt: site.lastSyncAt ?? site.updatedAt,
       ttlMs: INGRESS_TTL_MS,
       now,
     });
   }
-  return evaluated({
-    status: "checked",
-    reasonCode: "tls_certificate_valid",
-    zh: "TLS 证书状态和有效期已验证",
-    en: "TLS certificate status and expiry are verified",
-    evidenceRef: `site:${site.id}#tls`,
-    checkedAt: site.lastSyncAt ?? site.updatedAt,
-    ttlMs: INGRESS_TTL_MS,
-    now,
-  });
+  return unavailable(
+    "tls_certificate_unverified",
+    "TLS 必须由服务端真实握手探测验证，配置状态不作为发布证据",
+    "TLS requires a server-owned handshake probe; configured status is not release evidence",
+  );
 }
 
 function dateValue(value: unknown) {
   if (typeof value !== "string") return null;
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function ingressIdentity(
+  environment: NonNullable<ReleaseGateEvidenceContext["promote"]>["environment"],
+  site: { id: string; environmentId: string | null; primaryDomain: string },
+  hostname: string,
+) {
+  return { siteId: site.id, environmentId: environment!.id,
+    hostname,
+    routeHash: hashCanonicalReleaseValue(record(
+      environment!.currentConfigRevision?.routeSnapshot,
+    )) };
 }
 
 function stale(iso: string, now: Date, ttlMs: number) {

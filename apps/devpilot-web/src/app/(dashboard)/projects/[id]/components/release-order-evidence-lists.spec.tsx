@@ -316,6 +316,7 @@ function productionRun(): ReleaseEvidenceProductionRun {
       consumedAt: null,
       expiresAt: null,
     },
+    legacyPromotionRecovery: null,
     stagingProof: {
       deploymentRunId: 'staging-proof-1',
       environmentId: 'staging-env',

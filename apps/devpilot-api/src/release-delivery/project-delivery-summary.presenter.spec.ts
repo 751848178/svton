@@ -6,10 +6,11 @@ describe("project delivery summary presenter", () => {
     const result = presentProjectDeliverySummary(
       projectDeliverySummaryRecord(),
       "actor-1",
+      "ssh-v1",
     );
 
     expect(result).toMatchObject({
-      version: 1,
+      version: 2,
       scope: { teamId: "team-1", actorId: "actor-1", projectId: "project-1" },
       repository: {
         provider: "github",
@@ -22,7 +23,11 @@ describe("project delivery summary presenter", () => {
         componentCount: 1,
       },
       baselines: { staging: { ready: true }, production: { ready: true } },
-      resources: { bound: 4, total: 6 },
+      resources: {
+        bound: 4,
+        total: 6,
+        byEnvironment: { staging: 1, production: 3 },
+      },
       entries: {
         active: 1,
         total: 2,
@@ -57,7 +62,7 @@ describe("project delivery summary presenter", () => {
     staging.deploymentRun.source = "manual";
     production.deploymentRun.dryRun = true;
 
-    const result = presentProjectDeliverySummary(record, "actor-1");
+    const result = presentProjectDeliverySummary(record, "actor-1", "ssh-v1");
 
     expect(result.repository).toBeNull();
     expect(result.currentVersions).toEqual({ staging: null, production: null });
@@ -71,9 +76,13 @@ describe("project delivery summary presenter", () => {
     record.sites[0].projectId = "project-other";
     stagingConfig.projectId = "project-other";
 
-    const result = presentProjectDeliverySummary(record, "actor-2");
+    const result = presentProjectDeliverySummary(record, "actor-2", "ssh-v1");
 
-    expect(result.resources).toEqual({ bound: 2, total: 4 });
+    expect(result.resources).toEqual({
+      bound: 2,
+      total: 4,
+      byEnvironment: { staging: 0, production: 2 },
+    });
     expect(result.entries).toEqual({
       active: 0,
       total: 1,
@@ -88,10 +97,115 @@ describe("project delivery summary presenter", () => {
     const record = projectDeliverySummaryRecord();
     record.intakeFinalizations[0].teamId = "team-other";
 
-    expect(presentProjectDeliverySummary(record, "actor-1").intake).toEqual({
+    expect(presentProjectDeliverySummary(record, "actor-1", "ssh-v1").intake).toEqual({
       projectType: null,
       architecture: null,
       componentCount: null,
     });
+  });
+
+  it("reports unresolved legacy component identity instead of filtering null", () => {
+    const record = projectDeliverySummaryRecord();
+    record.environments[0].applicationServices[0].releaseComponentKey = null;
+    const result = presentProjectDeliverySummary(record, "actor-1", "ssh-v1");
+    expect(result.checkpoints.find((item) => item.id === "services")).toMatchObject({
+      status: "action_required",
+      reasonCodes: ["legacy_component_identity_unresolved"],
+      action: { href: "/projects/project-1/settings?section=repository" },
+    });
+    expect(result.baselines).toMatchObject({
+      staging: { ready: false }, production: { ready: false },
+    });
+  });
+
+  it("uses exact provider readiness and environment settings deep links", () => {
+    const record = projectDeliverySummaryRecord();
+    record.environments[1].serverBindings[0].metadata = {
+      releaseDeployment: { providerKey: "local-filesystem-v1", targetRef: "local" },
+    };
+    const result = presentProjectDeliverySummary(record, "actor-1", "ssh-v1");
+    expect(result.checkpoints.find((item) =>
+      item.id === "targets" && item.scope === "production")).toMatchObject({
+      status: "blocked",
+      reasonCodes: ["PROVIDER_MISMATCH"],
+      action: {
+        href: "/projects/project-1/settings?section=environments&env=production&envTab=targets",
+      },
+    });
+  });
+
+  it("maps each environment blocker to its exact five-step settings deep link", () => {
+    const cases: Array<{
+      tab: "variables" | "resources" | "routes" | "protection";
+      mutate: (record: ReturnType<typeof projectDeliverySummaryRecord>) => void;
+    }> = [
+      {
+        tab: "variables",
+        mutate: (record) => { record.environments[1].currentConfigRevision = null; },
+      },
+      {
+        tab: "resources",
+        mutate: (record) => {
+          record.environments[1].currentConfigRevision!.resourceReferences = [{
+            id: "missing-resource",
+            kind: "managed_resource",
+            sharedEnvironmentIds: ["env-production"],
+          }];
+        },
+      },
+      {
+        tab: "routes",
+        mutate: (record) => { record.environments[1].applicationServices[0].ports = [4000]; },
+      },
+      {
+        tab: "protection",
+        mutate: (record) => {
+          record.environments[1].currentConfigRevision!.environmentId = "env-staging";
+        },
+      },
+    ];
+    for (const value of cases) {
+      const record = projectDeliverySummaryRecord();
+      value.mutate(record);
+      const result = presentProjectDeliverySummary(record, "actor-1", "ssh-v1");
+      const checkpointId = value.tab === "routes" ? "routes" : "config";
+      expect(result.checkpoints.find((item) =>
+        item.id === checkpointId && item.scope === "production")?.action?.href).toBe(
+        `/projects/project-1/settings?section=environments&env=production&envTab=${value.tab}`,
+      );
+    }
+  });
+
+  it("exposes open_release only as the server-owned current checkpoint", () => {
+    const record = projectDeliverySummaryRecord();
+    record.environments[1].currentEnvironmentVersion = null;
+    const result = presentProjectDeliverySummary(record, "actor-1", "ssh-v1");
+    expect(result.nextAction).toEqual({
+      kind: "open_release",
+      href: "/projects/project-1",
+    });
+    expect(result.checkpoints.find((item) => item.id === "release")?.action).toEqual(
+      result.nextAction,
+    );
+    expect(result.baselines).toMatchObject({
+      staging: { ready: true }, production: { ready: false },
+    });
+  });
+
+  it("fails frozen config hash and exact route target drift closed", () => {
+    const record = projectDeliverySummaryRecord();
+    const production = record.environments[1];
+    production.currentConfigRevision!.snapshotHash = "0".repeat(64);
+    const entries = (production.currentConfigRevision!.routeSnapshot as any).entries;
+    entries[0].port = 9999;
+    const result = presentProjectDeliverySummary(record, "actor-1", "ssh-v1");
+    expect(result.checkpoints.find((item) =>
+      item.id === "config" && item.scope === "production")?.reasonCodes).toEqual([
+      "config_revision_hash_invalid",
+    ]);
+    expect(result.checkpoints.find((item) =>
+      item.id === "routes" && item.scope === "production")?.reasonCodes).toEqual([
+      "route_service_port_invalid",
+    ]);
   });
 });

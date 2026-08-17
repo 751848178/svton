@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { createTestCryptoService } from "../common/crypto/crypto.test-helpers";
+import { managedCommandWorkloadConfig } from "./release-workload.integration-fixtures";
 
 export async function seedReleaseStagingProviderScope(
   prisma: PrismaClient,
@@ -50,13 +51,7 @@ export async function seedReleaseStagingProviderScope(
       environmentId: staging.id,
       name: "api",
       kind: "static",
-      deployConfig: {
-        workingDirectory: ".",
-        workloadExecutionMode: "managed-command-v1",
-        deployCommand: "test -f dist/app.txt",
-        statusCommand: "test -f dist/app.txt",
-        failureCleanupCommand: "true",
-      },
+      deployConfig: managedCommandWorkloadConfig(),
     },
   });
   const crypto = createTestCryptoService();

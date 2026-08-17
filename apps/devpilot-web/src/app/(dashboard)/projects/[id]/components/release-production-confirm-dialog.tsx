@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { Dialog } from '@svton/ui';
+import { Button, Modal } from '@/components/ui';
 import type { ProductionReleaseSnapshot } from '../types/release-order.types';
 import { releaseEnvironmentValueLabelKey } from '../utils/release-copy.model';
 
@@ -38,18 +38,36 @@ export function ReleaseProductionConfirmDialog(props: Props) {
   };
 
   return (
-    <Dialog
+    <Modal
       open={open}
       onClose={onClose}
       title={t('releaseProductionConfirmTitle')}
-      confirmText={t('releaseProductionConfirmAction')}
-      cancelText={t('releaseGateCancel')}
-      onConfirm={handleConfirm}
-      loading={confirming}
-      confirmDisabled={confirming}
+      ariaCloseLabel={t('releaseGateCancel')}
+      ariaDescriptionId="production-release-confirm-warning"
+      maskClosable={!confirming}
+      footer={(
+        <>
+          <Button
+            className="min-h-11"
+            variant="secondary"
+            disabled={confirming}
+            onClick={onClose}
+          >
+            {t('releaseGateCancel')}
+          </Button>
+          <Button
+            className="min-h-11"
+            loading={confirming}
+            disabled={confirming || !snapshot}
+            onClick={() => void handleConfirm()}
+          >
+            {t('releaseProductionConfirmAction')}
+          </Button>
+        </>
+      )}
     >
       <div className="space-y-3">
-        <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800">
+        <p id="production-release-confirm-warning" className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800">
           {t('releaseProductionConfirmWarning')}
         </p>
         {snapshot ? (
@@ -93,7 +111,7 @@ export function ReleaseProductionConfirmDialog(props: Props) {
           </p>
         ) : null}
       </div>
-    </Dialog>
+    </Modal>
   );
 }
 

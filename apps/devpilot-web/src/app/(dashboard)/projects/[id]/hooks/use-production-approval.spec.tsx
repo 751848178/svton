@@ -157,6 +157,7 @@ function run(): ReleaseEvidenceProductionRun {
       consumedAt: null,
       expiresAt: null,
     },
+    legacyPromotionRecovery: null,
     stagingProof: null,
     deploymentRuns: [],
   };

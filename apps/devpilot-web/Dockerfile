@@ -1,5 +1,5 @@
 # ---- base: shared install layer (must stay identical to apps/devpilot-api/Dockerfile base) ----
-FROM node:20 AS base
+FROM node:20@sha256:8f693eaa7e0a8e71560c9a82b55fd54c2ae920a2ba5d2cde28bac7d1c01c9ba5 AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable && corepack prepare pnpm@8.12.0 --activate
@@ -18,6 +18,14 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm install --frozen-lockfile --store-dir=/pnpm/store --ignore-scripts \
       --filter @svton/devpilot-web...
 RUN pnpm rebuild --filter @svton/devpilot-web...
+# Workspace packages publish from dist; build the exact Web runtime closure in
+# dependency order so this image never relies on host-side build artifacts.
+RUN pnpm --filter @svton/api-client build \
+ && pnpm --filter @svton/hooks build \
+ && pnpm --filter @svton/logger build \
+ && pnpm --filter @svton/nestjs-http build \
+ && pnpm --filter @svton/service build \
+ && pnpm --filter @svton/ui build
 
 # ---- local-web: self-contained local Docker build ----
 FROM base AS local-web

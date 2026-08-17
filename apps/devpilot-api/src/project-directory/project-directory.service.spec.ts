@@ -7,6 +7,7 @@ import {
 } from "./project-directory.fixture";
 import { ProjectDirectoryRepository } from "./project-directory.repository";
 import { ProjectDirectoryService } from "./project-directory.service";
+import { ConfigService } from "@nestjs/config";
 
 function createService(records: ReturnType<typeof projectDirectoryRecord>[]) {
   const repository = {
@@ -16,7 +17,10 @@ function createService(records: ReturnType<typeof projectDirectoryRecord>[]) {
     canRead: jest.fn().mockResolvedValue(true),
   } as unknown as ControlAccessPolicyService;
   return {
-    service: new ProjectDirectoryService(repository, access),
+    service: new ProjectDirectoryService(repository, access, new ConfigService({
+      RELEASE_STAGING_DEPLOYMENT_ENABLED: true,
+      RELEASE_DEPLOYMENT_PROVIDER_PROFILE: "ssh-v1",
+    })),
     repository,
     access,
   };
@@ -50,9 +54,9 @@ describe("project directory service", () => {
       service.list("team-1", "user-1", query),
     ).resolves.toMatchObject({
       scope: { teamId: "team-1", actorId: "user-1" },
-      items: [{ id: "project-needs-config" }],
-      total: 1,
-      summary: { total: 2, online: 1, needsConfiguration: 1 },
+      items: [{ id: "project-needs-config" }, { id: "project-online" }],
+      total: 2,
+      summary: { total: 2, online: 0, needsConfiguration: 2 },
     });
     expect(repository.list).toHaveBeenCalledWith("team-1");
   });

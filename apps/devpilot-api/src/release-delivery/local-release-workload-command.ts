@@ -1,12 +1,13 @@
-import { runControlledBuildCommand } from "./release-build-command-runner";
+import { runReleaseBuildArgv } from "./release-build-argv-command-runner";
 import type { ReleaseWorkloadCommandResult } from "./release-staging-workload.types";
 
 export async function executeLocalReleaseWorkloadCommand(
   script: string,
   timeoutMs: number,
 ): Promise<ReleaseWorkloadCommandResult> {
-  const result = await runControlledBuildCommand({
-    command: script,
+  const result = await runReleaseBuildArgv({
+    executable: "/bin/sh",
+    args: ["-c", script],
     cwd: "/",
     env: {
       PATH: process.env.PATH,

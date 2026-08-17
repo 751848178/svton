@@ -10,6 +10,10 @@ import {
   type ReleaseGateCapabilityProvider,
   unavailable,
 } from "./release-gate-provider.types";
+import {
+  resolveEnvironmentVariableRequirements,
+  unresolvedEnvironmentVariableRequirements,
+} from "../project-environment/environment-variable-requirement.resolver";
 
 type CurrentConfigRevision = NonNullable<
   NonNullable<
@@ -77,13 +81,25 @@ implements ReleaseGateCapabilityProvider {
         && (!row?.environmentId || ids.includes(row.environmentId));
     });
     const hashValid = /^[a-f0-9]{64}$/i.test(revision.snapshotHash);
+    const unresolved = unresolvedEnvironmentVariableRequirements({
+      requirements: resolveEnvironmentVariableRequirements(
+        context.deploy?.environment?.applicationServices ?? [],
+      ),
+      plainVariables: revision.plainVariables,
+      secretReferences: revision.secretReferences,
+      resourceReferences: revision.resourceReferences,
+    }).filter((item) => !item.secret);
     const valid = revision.environmentId === environmentId
       && variablesValid && routeValid && resourcesValid
       && policies && secrets.length === (revision.secretReferences as unknown[]).length
-      && hashValid;
+      && hashValid && unresolved.length === 0;
     return evaluated({
       status: valid ? "checked" : "blocked",
-      reasonCode: valid ? "config_revision_complete" : "config_revision_invalid",
+      reasonCode: valid
+        ? "config_revision_complete"
+        : unresolved.length
+          ? "required_plain_variables_unresolved"
+          : "config_revision_invalid",
       zh: valid
         ? `Staging 配置 R${revision.revision} 完整，${references.length} 个资源引用均绑定当前环境范围`
         : "配置修订结构、快照 Hash 或资源环境归属无效",
@@ -113,13 +129,26 @@ implements ReleaseGateCapabilityProvider {
         && (!row?.projectId || row.projectId === revision.projectId)
         && (!row?.environmentId || row.environmentId === environmentId);
     });
+    const unresolved = unresolvedEnvironmentVariableRequirements({
+      requirements: resolveEnvironmentVariableRequirements(
+        context.deploy?.environment?.applicationServices ?? [],
+      ),
+      plainVariables: revision.plainVariables,
+      secretReferences: revision.secretReferences,
+      resourceReferences: revision.resourceReferences,
+    }).filter((item) => item.secret);
+    const resolved = complete && unresolved.length === 0;
     return evaluated({
-      status: complete ? "checked" : "blocked",
-      reasonCode: complete ? "secret_references_resolved" : "secret_reference_invalid",
-      zh: complete
+      status: resolved ? "checked" : "blocked",
+      reasonCode: resolved
+        ? "secret_references_resolved"
+        : unresolved.length
+          ? "required_secret_variables_unresolved"
+          : "secret_reference_invalid",
+      zh: resolved
         ? `${references.length} 个 Secret 仅以引用解析，未读取或返回明文`
         : "Secret 引用缺失、跨项目/环境或包含明文字段",
-      en: complete
+      en: resolved
         ? `${references.length} Secret reference(s) resolved without reading or returning plaintext`
         : "A Secret reference is missing, cross-project/environment, or contains plaintext fields",
       evidenceRef: `environment-config-revision:${revision.id}#secret-references`,

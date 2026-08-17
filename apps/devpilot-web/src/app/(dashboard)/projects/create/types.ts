@@ -5,19 +5,22 @@ export interface ProjectIntakeForm {
   branch: string;
   visibility: 'public' | 'private';
   credentialMode: 'managed' | 'inline';
-  teamCredentialId: string;
+  managedCredential: ProjectIntakeManagedCredentialSelection | null;
   credentialType: 'https_token' | 'ssh_key';
   credentialName: string;
   credentialUsername: string;
   credentialSecret: string;
 }
 
-export interface ProjectIntakeCredentialOption {
+export interface ProjectIntakeManagedCredentialSelection {
   id: string;
   source: 'git_connection' | 'team_credential';
+  provider?: string;
+}
+export interface ProjectIntakeCredentialOption
+  extends ProjectIntakeManagedCredentialSelection {
   type: 'https_token' | 'ssh_key';
   label: string;
-  provider?: string;
 }
 
 export interface ProjectIntakeProject {
@@ -166,7 +169,7 @@ export const INITIAL_INTAKE_FORM: ProjectIntakeForm = {
   branch: '',
   visibility: 'public',
   credentialMode: 'managed',
-  teamCredentialId: '',
+  managedCredential: null,
   credentialType: 'https_token',
   credentialName: '',
   credentialUsername: '',

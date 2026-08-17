@@ -8,7 +8,7 @@ await writeFile(
 <head><meta charset="utf-8" /><title>Parity Web</title></head>
 <body>
   <h1>Parity Web</h1>
-  <p>Built by the F454 parity fixture monorepo under the controlled-local-v1 executor.</p>
+  <p>Built by the parity fixture monorepo under controlled-local-acceptance-v2.</p>
 </body>
 </html>
 `,

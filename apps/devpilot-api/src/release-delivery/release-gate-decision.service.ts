@@ -1,14 +1,20 @@
 import { Injectable, UnprocessableEntityException } from "@nestjs/common";
 import { buildReleaseGateDecision } from "./release-gate-decision.model";
+import { buildReleaseGatePreviewDecision } from "./release-gate-preview.model";
+import { defaultCheckpointForStage } from "./release-gate-checkpoint.policy";
 import { ReleaseGateDecisionRepository } from "./release-gate-decision.repository";
 import {
   RELEASE_GATE_DECISION_STAGES,
+  type ReleaseGateCheckpoint,
   type ReleaseGateDecision,
   type ReleaseGateDecisionInput,
-  type ReleaseGateDecisionStage,
   type ReleaseGateDecisionTarget,
 } from "./release-gate-decision.types";
 import { ReleaseGateEvaluationService } from "./release-gate-evaluation.service";
+import {
+  releaseGateActionIdentity,
+  type ReleaseGateActionIdentity,
+} from "./release-gate-action-identity.policy";
 
 type DecisionScope = {
   teamId: string;
@@ -35,51 +41,104 @@ export class ReleaseGateDecisionService {
   ) {}
 
   async catalog(scope: DecisionScope, buildInput: ReleaseGateDecisionInput) {
-    const evaluation = await this.evaluator.evaluate(scope, buildInput.target);
+    const buildCheckpoint = defaultCheckpointForStage("build");
+    const buildIdentity = releaseGateActionIdentity({
+      checkpoint: buildCheckpoint,
+      actionInput: buildInput.actionInput,
+      requesterActorId: scope.actorId,
+    });
+    const evaluation = await this.evaluator.evaluate(
+      scope,
+      buildInput.target,
+      buildCheckpoint,
+      buildIdentity,
+    );
     const entries = await Promise.all(
-      RELEASE_GATE_DECISION_STAGES.map(
-        async (stage) =>
-          [
+      RELEASE_GATE_DECISION_STAGES.filter((stage) => stage !== "production").map(
+        async (stage) => {
+          const checkpoint = defaultCheckpointForStage(stage);
+          const actionInput = stage === "build"
+            ? buildInput.actionInput
+            : { source: "catalog" };
+          return [
             stage,
             await this.persist(
               scope,
-              stage,
+              checkpoint,
               evaluation.checks,
-              stage === "build"
-                ? buildInput.actionInput
-                : { source: "catalog" },
+              actionInput,
+              releaseGateActionIdentity({
+                checkpoint,
+                actionInput,
+                requesterActorId: scope.actorId,
+              }),
             ),
-          ] as const,
+          ] as const;
+        },
       ),
     );
-    return { evaluation, decisions: Object.fromEntries(entries) };
+    return { evaluation, decisions: {
+      ...Object.fromEntries(entries),
+      production: null,
+    } };
+  }
+
+  async preview(input: DecisionScope & {
+    checkpoint: ReleaseGateCheckpoint;
+    target?: ReleaseGateDecisionTarget;
+    actionInput?: Record<string, string | null>;
+    requestKey?: string;
+  }) {
+    const { checkpoint, target, actionInput, requestKey, ...scope } = input;
+    const actionIdentity = releaseGateActionIdentity({ checkpoint, actionInput,
+      requesterActorId: scope.actorId });
+    void requestKey;
+    const evaluation = await this.evaluator.evaluateTransient(
+      scope,
+      target,
+      checkpoint,
+    );
+    const decision = buildReleaseGatePreviewDecision({
+      checkpoint,
+      checks: evaluation.evaluated,
+      actionIdentity,
+    });
+    return { decision, checks: evaluation.evaluated };
   }
 
   async assertAllowed(
     input: DecisionScope & {
-      stage: ReleaseGateDecisionStage;
+      checkpoint: ReleaseGateCheckpoint;
       target?: ReleaseGateDecisionTarget;
       actionInput?: Record<string, string | null>;
       requestKey?: string;
-      deferredReasons?: Record<string, string[]>;
     },
   ) {
     const {
-      stage,
+      checkpoint,
       target,
       actionInput,
       requestKey,
-      deferredReasons,
       ...scope
     } = input;
-    const evaluation = await this.evaluator.evaluate(scope, target);
+    const actionIdentity = releaseGateActionIdentity({
+      checkpoint,
+      actionInput,
+      requesterActorId: scope.actorId,
+    });
+    const evaluation = await this.evaluator.evaluate(
+      scope,
+      target,
+      checkpoint,
+      actionIdentity,
+    );
     const decision = await this.persist(
       scope,
-      stage,
+      checkpoint,
       evaluation.checks,
       actionInput,
+      actionIdentity,
       requestKey,
-      deferredReasons,
     );
     if (!decision.allowed) {
       throw new ReleaseGateBlockedException(decision);
@@ -89,19 +148,23 @@ export class ReleaseGateDecisionService {
 
   private persist(
     scope: DecisionScope,
-    stage: ReleaseGateDecisionStage,
+    checkpoint: ReleaseGateCheckpoint,
     checks: Parameters<typeof buildReleaseGateDecision>[0]["checks"],
     actionInput?: Record<string, string | null>,
+    actionIdentity?: ReleaseGateActionIdentity,
     requestKey?: string,
-    deferredReasons?: Record<string, string[]>,
   ) {
     return this.decisions.persist(
       scope,
       buildReleaseGateDecision({
-        stage,
+        checkpoint,
         checks,
         actionInput,
-        deferredReasons,
+        actionIdentity: actionIdentity ?? releaseGateActionIdentity({
+          checkpoint,
+          actionInput,
+          requesterActorId: scope.actorId,
+        }),
       }),
       requestKey,
     );

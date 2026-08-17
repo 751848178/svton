@@ -38,6 +38,9 @@ volumes:
   devpilot-parity-deploy-target-data:
     name: ${PARITY_COMPOSE_PROJECT:-devpilot-parity}-deploy-target-data
     labels: *runtime-labels
+  devpilot-parity-route-control:
+    name: ${PARITY_COMPOSE_PROJECT:-devpilot-parity}-route-control
+    labels: *runtime-labels
 
 networks:
   default:
@@ -81,7 +84,7 @@ services:
     build:
       context: .
       dockerfile: apps/devpilot-api/Dockerfile
-      target: api
+      target: api-acceptance
       labels: *runtime-labels
     image: ${PARITY_API_IMAGE:-devpilot-parity-api:local}
     labels: *runtime-labels
@@ -106,7 +109,7 @@ services:
       DEVPILOT_BOOTSTRAP_ADMIN_PASSWORD: ParityDemo123!
       # ----- Controlled-local build executor (AC-E2E-005; see parity-switches.md) -----
       RELEASE_BUILD_EXECUTION_ENABLED: "true"
-      RELEASE_BUILD_EXECUTOR_PROFILE: controlled-local-v1
+      RELEASE_BUILD_EXECUTOR_PROFILE: controlled-local-acceptance-v2
       RELEASE_BUILD_WORK_ROOT: /var/lib/devpilot/release-build/work
       RELEASE_BUILD_ARTIFACT_ROOT: /var/lib/devpilot/release-build/artifacts
       RELEASE_BUILD_RUN_TIMEOUT_MS: "180000"
@@ -202,6 +205,9 @@ services:
     environment:
       PORT: ${PARITY_ROUTE_CONTROL_PORT:-43993}
       ROUTE_CONTROL_TOKEN: ${PARITY_ROUTE_CONTROL_TOKEN:-devpilot-parity-route-control-token-0001}
+      ROUTE_CONTROL_STATE_FILE: /var/lib/route-control/state.json
+    volumes:
+      - devpilot-parity-route-control:/var/lib/route-control
     command: ["node", "/app/parity-route-control-provider.mjs"]
     networks:
       default:

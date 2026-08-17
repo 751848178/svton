@@ -83,6 +83,14 @@ export class LocalReleaseStagingExecutorService extends ReleaseStagingExecutorPo
       throw error;
     }
   }
+
+  refreshPromotionEvidence(input: {
+    projectId: string; environmentId: string; deploymentRunId: string;
+    workload: NonNullable<StagingArtifactInput["workload"]>;
+  }) {
+    return this.provider.refreshExactCandidate?.(input) ??
+      Promise.resolve(undefined);
+  }
 }
 
 function assertReceipt(

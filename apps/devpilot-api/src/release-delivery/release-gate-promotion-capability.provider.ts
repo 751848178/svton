@@ -37,7 +37,39 @@ implements ReleaseGateCapabilityProvider {
   }
 
   private healthConfig(context: ReleaseGateEvidenceContext, now: Date) {
-    const deployment = context.promote?.releaseRun?.deploymentRuns[0];
+    if (context.decisionCheckpoint === "production_pre_execution") {
+      const target = context.decisionTarget;
+      const revision = context.deploy?.environment?.currentConfigRevision;
+      if (
+        !target?.workloadInputHash ||
+        !target.workloadServiceCount ||
+        target.workloadHealthConfigured !== true ||
+        !revision || revision.id !== target.configRevisionId
+      ) {
+        return unavailable(
+          "production_workload_probe_config_missing",
+          "冻结工作负载缺少服务或健康探针配置",
+          "The frozen workload has no service or complete health-probe configuration",
+        );
+      }
+      return evaluated({
+        status: "checked",
+        reasonCode: "production_workload_probe_configured",
+        zh: "冻结工作负载的启动与健康探针配置完整",
+        en: "The frozen workload has complete startup and health-probe configuration",
+        evidenceRef: `config-revision:${revision.id};workload-snapshot:${target.workloadInputHash}`,
+        checkedAt: revision.createdAt,
+        now,
+        evidenceIdentity: {
+          configRevisionId: revision.id,
+          configSnapshotHash: revision.snapshotHash,
+          deploymentInputHash: target.deploymentInputHash ?? null,
+          workloadInputHash: target.workloadInputHash,
+          workloadServiceCount: target.workloadServiceCount,
+        },
+      });
+    }
+    const deployment = exactDeployment(context);
     if (!deployment) {
       return unavailable("production_deployment_missing", "没有 Production DeploymentRun", "No Production DeploymentRun exists");
     }
@@ -67,13 +99,12 @@ implements ReleaseGateCapabilityProvider {
   private workload(context: ReleaseGateEvidenceContext, now: Date) {
     const environment = context.promote?.environment;
     const run = context.promote?.releaseRun;
-    const deployment = run?.deploymentRuns[0];
-    const version = environment?.currentEnvironmentVersion;
-    if (!environment || !run || !deployment || !version) {
+    const deployment = exactDeployment(context);
+    if (!environment || !run || !deployment) {
       return unavailable(
         "production_workload_evidence_missing",
-        "Production 当前版本或部署运行证据不完整",
-        "Production current-version or deployment-run evidence is incomplete",
+        "Production 候选部署运行证据不完整",
+        "Production candidate deployment-run evidence is incomplete",
       );
     }
     const readiness = record(record(deployment.result).workloadReady);
@@ -85,24 +116,23 @@ implements ReleaseGateCapabilityProvider {
       );
     }
     const scoped = deployment.environmentId === environment.id
-      && version.deploymentRunId === deployment.id
-      && version.artifactManifestId === run.artifactManifestId;
-    const checked = scoped && run.status === "succeeded"
-      && deployment.status === "completed" && !deployment.dryRun
+      && deployment.artifactManifestId === run.artifactManifestId;
+    const checked = scoped && ["running", "completed"].includes(deployment.status)
+      && !deployment.dryRun
       && (readiness.status === "passed" || readiness.status === "succeeded");
     return evaluated({
       status: checked ? "checked" : "blocked",
       reasonCode: checked ? "production_workload_ready" : "production_workload_mismatch",
-      zh: checked ? "Production 工作负载已由成功精确制品运行生成当前版本" : "Production 工作负载、制品或当前版本不一致",
-      en: checked ? "Production workload current version comes from a successful exact-artifact run" : "Production workload, artifact, or current version is inconsistent",
-      evidenceRef: `environment-version:${version.id};deployment-run:${deployment.id}`,
-      checkedAt: version.effectiveAt,
+      zh: checked ? "Production 候选工作负载已由本次精确制品运行并就绪" : "Production 候选工作负载或制品不一致",
+      en: checked ? "The exact-artifact Production candidate workload is ready" : "Production candidate workload or artifact is inconsistent",
+      evidenceRef: `release-run:${run.id};deployment-run:${deployment.id}`,
+      checkedAt: deployment.finishedAt ?? deployment.createdAt,
       now,
     });
   }
 
   private http(context: ReleaseGateEvidenceContext, now: Date) {
-    const deployment = context.promote?.releaseRun?.deploymentRuns[0];
+    const deployment = exactDeployment(context);
     const probe = record(record(deployment?.result).httpProbe);
     if (!deployment || Object.keys(probe).length === 0) {
       return unavailable(
@@ -125,8 +155,10 @@ implements ReleaseGateCapabilityProvider {
   }
 
   private businessValidation(context: ReleaseGateEvidenceContext, now: Date) {
-    const deployment = context.promote?.releaseRun?.deploymentRuns[0];
-    if (!deployment) {
+    const deployment = exactDeployment(context);
+    const releaseRunId = context.promote?.releaseRun?.id;
+    const candidateHash = context.decisionTarget?.candidateHash;
+    if (!deployment || !releaseRunId || !candidateHash) {
       return unavailable("business_validation_target_missing", "没有可验证的 Production 工作负载", "No Production workload exists for business validation");
     }
     return evaluated({
@@ -137,9 +169,24 @@ implements ReleaseGateCapabilityProvider {
       evidenceRef: `deployment-run:${deployment.id}#business-validation`,
       checkedAt: deployment.finishedAt ?? deployment.createdAt,
       now,
+      evidenceIdentity: {
+        releaseRunId,
+        deploymentRunId: deployment.id,
+        candidateHash,
+      },
     });
   }
 
+}
+
+function exactDeployment(context: ReleaseGateEvidenceContext) {
+  const id = context.decisionTarget?.deploymentRunId;
+  if (!context.decisionCheckpoint) {
+    return context.promote?.releaseRun?.deploymentRuns[0];
+  }
+  return context.promote?.releaseRun?.deploymentRuns.find(
+    (deployment) => deployment.id === id,
+  );
 }
 
 function normalizeTechnicalStatus(value: unknown): ReleaseGateStatus {

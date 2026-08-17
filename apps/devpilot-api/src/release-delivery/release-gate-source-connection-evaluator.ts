@@ -1,5 +1,9 @@
 import type { ReleaseGateEvidenceContext } from "./release-gate-evidence.repository";
 import { evaluated, record, unavailable } from "./release-gate-provider.types";
+import {
+  evaluateReleaseMergeState,
+  evaluateReleaseRequiredChecks,
+} from "./release-gate-source-state-evaluator";
 
 const SOURCE_TTL_MS = 24 * 60 * 60 * 1000;
 
@@ -16,20 +20,8 @@ export function evaluateReleaseGateSource(
       "The project has no repository connection",
     );
   }
-  if (id !== "C01") {
-    const mergeState = id === "C02";
-    return unavailable(
-      mergeState
-        ? "merge_state_provider_missing"
-        : "required_checks_provider_missing",
-      mergeState
-        ? "未连接合并、落后和冲突状态 Provider"
-        : "未连接必需 CI 和代码审批 Provider",
-      mergeState
-        ? "No merge, behind, or conflict-state provider is connected"
-        : "No required CI and code-review provider is connected",
-    );
-  }
+  if (id === "C02") return evaluateReleaseMergeState(context, now);
+  if (id === "C03") return evaluateReleaseRequiredChecks(context, now);
   const checkedAt = connection.verifiedAt ?? connection.updatedAt;
   const reference = `repository-connection:${connection.id}`;
   if (connection.status === "failed") {

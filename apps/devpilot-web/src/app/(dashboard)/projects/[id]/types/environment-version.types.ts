@@ -5,6 +5,16 @@ import type {
 } from './release-copy.types';
 import type { ReleaseDeploymentTargetReadiness } from './release-gate.types';
 
+export interface LegacyPromotionRecovery {
+  status: 'required' | 'ambiguous';
+  commandIds: string[];
+  phase: string | null;
+  reason: string | null;
+  reasonCode:
+    | 'legacy_promotion_reconciliation_required'
+    | 'legacy_promotion_reconciliation_ambiguous';
+}
+
 export interface EnvironmentVersionItem {
   id: string;
   environmentId: string;
@@ -34,6 +44,19 @@ export interface EnvironmentVersionEnvironment {
   currentEnvironmentVersionId: string | null;
   targetReadiness: ReleaseDeploymentTargetReadiness;
   environmentVersions: EnvironmentVersionItem[];
+  releaseRuns?: Array<{
+    id: string;
+    mode: string;
+    status: string;
+    artifactManifestId: string;
+    legacyPromotionRecovery: LegacyPromotionRecovery | null;
+    deploymentRuns: Array<{
+      id: string;
+      status: string;
+      result: unknown;
+      createdAt: string;
+    }>;
+  }>;
 }
 
 export interface EnvironmentVersionCandidate {
@@ -65,6 +88,12 @@ export interface EnvironmentVersionsResponse {
 export interface EnvironmentVersionActionResult {
   run: { id: string; status: string; artifactManifestId: string };
   version: EnvironmentVersionItem | null;
+}
+
+export interface ProductionPromotionResumeInput {
+  releaseRunId: string;
+  deploymentRunId: string;
+  candidateHash: string;
 }
 
 export interface EnvironmentVersionRecoveryPreview {

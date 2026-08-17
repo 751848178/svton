@@ -2,6 +2,8 @@
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { createServer } from "node:http";
+import { mkdtemp, rm } from "node:fs/promises";
+import { join } from "node:path";
 import { createRouteControlServer } from "../parity-route-control-provider.mjs";
 import { captureRouteControlReadback } from "./parity-route-control-readback.mjs";
 
@@ -10,7 +12,9 @@ const target = createServer((_request, response) =>
   response.end("<h1>Parity Target Workload</h1>"),
 );
 await listen(target);
-const provider = createRouteControlServer({ token });
+const stateRoot = await mkdtemp(join(process.cwd(), ".route-readback-self-test-"));
+const provider = createRouteControlServer({ token,
+  stateFile: join(stateRoot, "state.json") });
 await listen(provider);
 
 try {
@@ -36,6 +40,8 @@ try {
         ...expected,
         primaryDomain: "parity.example.test",
         domains: ["parity.example.test"],
+        teamId: "team", projectId: "project", environmentId: "environment",
+        releaseRunId: null, entries: [], expectedCurrent: null, version: 1,
       }),
     },
   );
@@ -69,6 +75,7 @@ try {
 } finally {
   provider.close();
   target.close();
+  await rm(stateRoot, { recursive: true, force: true });
 }
 
 async function listen(server) {

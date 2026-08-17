@@ -1,15 +1,22 @@
 import { Injectable } from "@nestjs/common";
 import { mkdir, realpath, rm } from "node:fs/promises";
-import { join, relative, resolve } from "node:path";
+import { join } from "node:path";
 import { ReleaseBuildArtifactService } from "./release-build-artifact.service";
 import {
   assertControlledBuildCommand,
   controlledBuildEnvironment,
 } from "./release-build-command-policy";
 import { runControlledBuildCommand } from "./release-build-command-runner";
-import { ReleaseBuildExecutionError } from "./release-build-execution.error";
+import { releaseBuildExecutionFailure } from "./release-build-execution-failure";
 import { sanitizeBuildLogs } from "./release-build-log.utils";
 import { ReleaseBuildRuntimeProfileService } from "./release-build-runtime-profile.service";
+import { ReleaseBuildPackageEvidenceService } from "./release-build-package-evidence.service";
+import { ReleaseBuildPreScriptSecurityService } from "./release-build-pre-script-security.service";
+import { releaseBuildGateSummary } from "./release-build-gate-summary";
+import {
+  assertReleaseBuildCheckoutRoot,
+  confinedReleaseBuildDirectory,
+} from "./release-build-workspace.policy";
 import {
   ReleaseBuildExecutionInput,
   ReleaseBuildExecutionResult,
@@ -21,6 +28,8 @@ export class LocalReleaseBuildExecutorService extends ReleaseBuildExecutorPort {
   constructor(
     private readonly runtime: ReleaseBuildRuntimeProfileService,
     private readonly artifacts: ReleaseBuildArtifactService,
+    private readonly packages: ReleaseBuildPackageEvidenceService,
+    private readonly preScript: ReleaseBuildPreScriptSecurityService,
   ) {
     super();
   }
@@ -31,7 +40,7 @@ export class LocalReleaseBuildExecutorService extends ReleaseBuildExecutorPort {
   ): Promise<ReleaseBuildExecutionResult> {
     this.runtime.assertAvailable();
     if (input.components.length === 0) {
-      throw failure(
+      throw releaseBuildExecutionFailure(
         "BUILD_COMMAND_MISSING",
         "项目没有可执行的构建命令",
         [],
@@ -40,8 +49,8 @@ export class LocalReleaseBuildExecutorService extends ReleaseBuildExecutorPort {
     }
 
     const logs: string[] = [];
-    const root = await realpath(input.checkoutRoot);
-    await assertConfinedRoot(this.runtime.workRoot, root);
+    const sourceRoot = await realpath(input.checkoutRoot);
+    await assertReleaseBuildCheckoutRoot(this.runtime.workRoot, sourceRoot);
     const runtimeRoot = join(
       this.runtime.workRoot,
       "runtime",
@@ -52,8 +61,56 @@ export class LocalReleaseBuildExecutorService extends ReleaseBuildExecutorPort {
     await mkdir(home, { recursive: true, mode: 0o700 });
     await mkdir(temporary, { recursive: true, mode: 0o700 });
     try {
+      const profile = this.runtime.registeredProfile;
+      if (!profile) {
+        throw releaseBuildExecutionFailure(
+          "BUILD_PROFILE_NOT_REGISTERED",
+          "构建 profile 未注册",
+          logs,
+          "选择服务端注册的 controlled-local-acceptance-v2 profile。",
+        );
+      }
+      const environment = controlledBuildEnvironment(
+        this.runtime.commandPath,
+        home,
+        temporary,
+      );
+      const prepared = await this.preScript.prepare({
+        projectId: input.projectId,
+        releaseOrderId: input.releaseOrderId,
+        buildRunId: input.buildRunId,
+        sourceCommitSha: input.sourceCommitSha,
+        sourceRoot,
+        runtimeRoot,
+        workRoot: this.runtime.workRoot,
+        profile,
+        env: environment,
+        timeoutMs: this.runtime.commandTimeoutMs,
+        cancelGraceMs: this.runtime.cancelGraceMs,
+        signal,
+      });
+      const root = prepared.buildRoot;
+      const packageEvidence = await this.packages.execute({
+        projectId: input.projectId,
+        releaseOrderId: input.releaseOrderId,
+        buildRunId: input.buildRunId,
+        sourceCommitSha: input.sourceCommitSha,
+        sourceSnapshotDigest: prepared.sourceSnapshot.snapshotDigest,
+        checkoutRoot: root,
+        dependencyStoreRoot: input.dependencyStoreRoot,
+        components: input.components,
+        profile,
+        env: environment,
+        timeoutMs: this.runtime.commandTimeoutMs,
+        cancelGraceMs: this.runtime.cancelGraceMs,
+        signal,
+      });
+      logs.push(...packageEvidence.logs);
       for (const component of input.components) {
-        const cwd = await confinedDirectory(root, component.workingDirectory);
+        const cwd = await confinedReleaseBuildDirectory(
+          root,
+          component.workingDirectory,
+        );
         logs.push(`[${component.name}] $ ${component.buildCommand}`);
         const result = await runControlledBuildCommand({
           command: component.buildCommand,
@@ -72,7 +129,7 @@ export class LocalReleaseBuildExecutorService extends ReleaseBuildExecutorPort {
         assertControlledBuildCommand(component.name, result, logs);
       }
       if (signal?.aborted) {
-        throw failure(
+        throw releaseBuildExecutionFailure(
           "BUILD_COMMAND_CANCELED",
           "构建已取消",
           logs,
@@ -97,34 +154,13 @@ export class LocalReleaseBuildExecutorService extends ReleaseBuildExecutorPort {
       return {
         artifact,
         logs: sanitizeBuildLogs(logs),
-        gateSummary: {
-          source: { status: "passed", checkout: "exact_commit" },
-          build: { status: "passed", components: input.components.length },
-          artifact: {
-            status: "passed",
-            contractVersion: 1,
-            collection: "declared-outputs-only",
-            components: artifact.items.length,
-            environmentBoundComponents: artifact.items.filter(
-              (item) => item.environment.mode === "baked",
-            ).length,
-          },
-          tests: { status: "not_configured", blocking: false },
-          security: {
-            executionControls: {
-              status: "passed",
-              profile: "controlled-local-v1",
-              trustBoundary: "disposable-api-container",
-              untrustedSandbox: false,
-              controls: [
-                "minimal_environment",
-                "working_directory_confinement",
-                "bounded_process_group",
-              ],
-              limitations: ["shared_api_process", "shared_container_network"],
-            },
-          },
-        },
+        gateSummary: releaseBuildGateSummary({
+          profile,
+          packageEvidence,
+          prepared,
+          artifact,
+          componentCount: input.components.length,
+        }),
       };
     } finally {
       await rm(runtimeRoot, { recursive: true, force: true }).catch(
@@ -140,50 +176,4 @@ export class LocalReleaseBuildExecutorService extends ReleaseBuildExecutorPort {
   }) {
     return this.artifacts.discard(input);
   }
-}
-
-async function assertConfinedRoot(parent: string, requested: string) {
-  const root = await realpath(parent);
-  const child = relative(root, requested);
-  if (child === "" || child.startsWith("..") || child.startsWith("/")) {
-    throw failure(
-      "BUILD_WORKSPACE_OUTSIDE_ROOT",
-      "构建检出目录不属于受控工作卷",
-      [],
-      "请检查验收 runtime profile 的工作目录配置。",
-    );
-  }
-}
-
-async function confinedDirectory(root: string, requested: string) {
-  const candidate = await realpath(resolve(root, requested));
-  const child = relative(root, candidate);
-  if (child.startsWith("..") || child.startsWith("/")) {
-    throw failure(
-      "BUILD_WORKDIR_OUTSIDE_CHECKOUT",
-      "构建工作目录越过隔离检出边界",
-      [],
-      "请将工作目录改为仓库内的相对路径。",
-    );
-  }
-  return candidate;
-}
-
-function failure(
-  code: string,
-  message: string,
-  logs: string[],
-  action: string,
-  status: "failed" | "canceled" = "failed",
-) {
-  return new ReleaseBuildExecutionError({
-    code,
-    message,
-    logs: sanitizeBuildLogs([
-      ...logs,
-      `result ${status === "canceled" ? "canceled" : "failed"}: ${code} ${message}`,
-    ]),
-    gateSummary: { build: { status: "failed" }, action },
-    status,
-  });
 }

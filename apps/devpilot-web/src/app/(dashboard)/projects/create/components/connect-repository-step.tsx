@@ -16,53 +16,49 @@ export function ConnectRepositoryStep({ intake }: { intake: ProjectIntakeHook })
           {t('intakeDraftRetained')}
         </div>
       ) : null}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label={t('intakeVisibility')}>
-          <Select
-            value={form.visibility}
-            onChange={(event) =>
-              updateForm({ visibility: event.target.value as 'public' | 'private' })
-            }
-            options={[
-              { label: t('intakeVisibilityPublic'), value: 'public' },
-              { label: t('intakeVisibilityPrivate'), value: 'private' },
-            ]}
-          />
-        </Field>
-        <Field
-          label={t('intakeProjectName')}
-          helper={t('intakeNameHelper')}
-        >
-          <Input
-            value={form.name}
-            onChange={(event) => updateForm({ name: event.target.value })}
-            placeholder={t('intakeNamePlaceholder')}
-          />
-        </Field>
-        <Field
-          label={t('branchLabel')}
-          helper={t('intakeBranchHelper')}
-        >
-          <Input
-            value={form.branch}
-            onChange={(event) => updateForm({ branch: event.target.value })}
-            placeholder={t('intakeBranchPlaceholder')}
-          />
-        </Field>
-        <div className="sm:col-span-2">
-          <Field
-            label={t('intakeRepositoryAddress')}
-            helper={t('intakeRepositoryHelper')}
-          >
+      <Field label={t('intakeRepositoryAddress')} helper={t('intakeRepositoryHelper')}>
+        <Input
+          required
+          autoFocus
+          value={form.repositoryUrl}
+          onChange={(event) => updateForm({ repositoryUrl: event.target.value })}
+          placeholder="https://github.com/organization/repository.git"
+        />
+      </Field>
+      <Field label={t('intakeVisibility')}>
+        <Select
+          value={form.visibility}
+          onChange={(event) =>
+            updateForm({ visibility: event.target.value as 'public' | 'private' })
+          }
+          options={[
+            { label: t('intakeVisibilityPublic'), value: 'public' },
+            { label: t('intakeVisibilityPrivate'), value: 'private' },
+          ]}
+        />
+      </Field>
+      {form.visibility === 'private' ? (
+        <PrivateCredentialFields intake={intake} />
+      ) : null}
+      <details className="rounded-lg border bg-muted/20">
+        <summary className="flex min-h-11 cursor-pointer items-center px-4 text-sm font-medium">
+          {t('intakeOptionalDetails')}
+        </summary>
+        <div className="grid gap-4 border-t p-4 sm:grid-cols-2">
+          <Field label={t('intakeProjectName')} helper={t('intakeNameHelper')}>
             <Input
-              required
-              value={form.repositoryUrl}
-              onChange={(event) => updateForm({ repositoryUrl: event.target.value })}
-              placeholder="https://github.com/organization/repository.git"
+              value={form.name}
+              onChange={(event) => updateForm({ name: event.target.value })}
+              placeholder={t('intakeNamePlaceholder')}
             />
           </Field>
-        </div>
-        <div className="sm:col-span-2">
+          <Field label={t('branchLabel')} helper={t('intakeBranchHelper')}>
+            <Input
+              value={form.branch}
+              onChange={(event) => updateForm({ branch: event.target.value })}
+              placeholder={t('intakeBranchPlaceholder')}
+            />
+          </Field>
           <Field label={t('descriptionLabel')}>
             <textarea
               value={form.description}
@@ -72,8 +68,7 @@ export function ConnectRepositoryStep({ intake }: { intake: ProjectIntakeHook })
             />
           </Field>
         </div>
-      </div>
-      {form.visibility === 'private' ? <PrivateCredentialFields intake={intake} /> : null}
+      </details>
     </div>
   );
 }
@@ -82,11 +77,15 @@ function PrivateCredentialFields({ intake }: { intake: ProjectIntakeHook }) {
   const t = useTranslations('projects');
   const { form, updateForm } = intake;
   return (
-    <div className="space-y-4 rounded-lg border p-4">
-      <p className="text-sm text-muted-foreground">{t('intakePrivateCredentialHint')}</p>
+    <fieldset className="space-y-4 rounded-lg border p-4">
+      <legend className="px-1 text-sm font-medium">{t('intakeVisibilityPrivate')}</legend>
+      <p id="private-repository-credential-hint" className="text-sm text-muted-foreground">
+        {t('intakePrivateCredentialHint')}
+      </p>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label={t('intakeCredentialMode')}>
           <Select
+            aria-describedby="private-repository-credential-hint"
             value={form.credentialMode}
             onChange={(event) =>
               updateForm({ credentialMode: event.target.value as 'managed' | 'inline' })
@@ -101,13 +100,16 @@ function PrivateCredentialFields({ intake }: { intake: ProjectIntakeHook }) {
           <Field label={t('intakeCredentialReference')}>
             <Select
               required
-              value={form.teamCredentialId}
-              onChange={(event) => updateForm({ teamCredentialId: event.target.value })}
+              value={form.managedCredential
+                ? `${form.managedCredential.source}:${form.managedCredential.id}` : ''}
+              onChange={(event) => updateForm({ managedCredential:
+                intake.credentialOptions.find((option) =>
+                  `${option.source}:${option.id}` === event.target.value) ?? null })}
               options={[
                 { label: t('intakeCredentialSelect'), value: '' },
                 ...intake.credentialOptions.map((option) => ({
                   label: option.label,
-                  value: option.id,
+                  value: `${option.source}:${option.id}`,
                 })),
               ]}
             />
@@ -144,6 +146,8 @@ function PrivateCredentialFields({ intake }: { intake: ProjectIntakeHook }) {
               <Input
                 required
                 type="password"
+                autoComplete="off"
+                aria-describedby="private-repository-credential-hint"
                 value={form.credentialSecret}
                 onChange={(event) => updateForm({ credentialSecret: event.target.value })}
               />
@@ -151,7 +155,7 @@ function PrivateCredentialFields({ intake }: { intake: ProjectIntakeHook }) {
           </>
         ) : null}
       </div>
-    </div>
+    </fieldset>
   );
 }
 

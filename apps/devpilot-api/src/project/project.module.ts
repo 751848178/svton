@@ -10,6 +10,7 @@ import { GeneratedProjectDraftService } from "./generated-project-draft.service"
 import { ProjectGovernanceFinalizationService } from "./project-governance-finalization.service";
 import { ProjectGovernanceBaselineService } from "./project-governance-baseline.service";
 import { ProjectDuplicateGuardService } from "./project-duplicate-guard.service";
+import { ProjectGovernanceServiceTopologyService } from "./project-governance-service-topology.service";
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { ProjectDuplicateGuardService } from "./project-duplicate-guard.service"
     GeneratedProjectDraftService,
     ProjectGovernanceBaselineService,
     ProjectGovernanceFinalizationService,
+    ProjectGovernanceServiceTopologyService,
     ProjectDuplicateGuardService,
   ],
   exports: [

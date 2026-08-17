@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { AuditEventService } from '../audit-event/audit-event.service';
 import { redactRepositoryValue } from './repository-analysis-redact.utils';
 
-interface RepositoryAuditInput {
+export interface RepositoryAuditInput {
   teamId: string;
   userId?: string | null;
   projectId: string;
@@ -19,7 +20,7 @@ interface RepositoryAuditInput {
 export class RepositoryAnalysisAuditService {
   constructor(private readonly audit: AuditEventService) {}
 
-  record(input: RepositoryAuditInput) {
+  record(input: RepositoryAuditInput, tx?: Prisma.TransactionClient) {
     return this.audit.create({
       teamId: input.teamId,
       actorId: input.userId,
@@ -32,6 +33,6 @@ export class RepositoryAnalysisAuditService {
       status: input.status || 'completed',
       summary: input.summary,
       metadata: redactRepositoryValue(input.metadata || {}) as Record<string, unknown>,
-    });
+    }, tx);
   }
 }

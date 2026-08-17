@@ -3,6 +3,7 @@ import type { ReleaseDeploymentInputService } from "./release-deployment-input.s
 import type { ReleaseProductionWorkloadService } from "./release-production-workload.service";
 import type { ReleaseStagingWorkloadService } from "./release-staging-workload.service";
 import { hashCanonicalReleaseValue } from "./release-canonical-hash.utils";
+import { assertFrozenRoutesMatchWorkload } from "./release-deployment-route-snapshot.utils";
 
 export async function freezeEnvironmentVersionInput(
   deps: {
@@ -51,6 +52,10 @@ export async function freezeEnvironmentVersionInput(
       `资源绑定组件 ${unknownComponent} 不属于冻结工作负载`,
     );
   }
+  assertFrozenRoutesMatchWorkload(
+    deploymentInput.snapshot.routeTargets,
+    workload,
+  );
   const actionInputHash = hashCanonicalReleaseValue({
     environmentId: input.environmentId,
     kind: input.kind,

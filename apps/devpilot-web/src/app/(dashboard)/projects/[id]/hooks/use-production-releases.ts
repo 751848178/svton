@@ -11,6 +11,7 @@ interface ProductionState {
   preview: ProductionReleasePreview | null;
   loading: boolean;
   confirming: boolean;
+  refreshing: boolean;
   error: string;
 }
 
@@ -48,7 +49,8 @@ export function useProductionReleases(
         setState(failedState(scope, 'releaseProductionPreviewScopeMismatch'));
         return;
       }
-      setState({ scope, preview, loading: false, confirming: false, error: '' });
+      setState({ scope, preview, loading: false, confirming: false,
+        refreshing: false, error: '' });
     } catch (caught) {
       if (isCurrent(request)) setState(failedState(scope, message(caught)));
     }
@@ -99,14 +101,43 @@ export function useProductionReleases(
     }
   }, [active, begin, isCurrent, manifestId, onChanged, projectId, releaseOrderId, scope, state]);
 
+  const refreshPreflight = useCallback(async () => {
+    const preview = state.scope === scope ? state.preview : null;
+    if (!active || !preview || !ownsPreview(preview, projectId, releaseOrderId, manifestId)) {
+      return null;
+    }
+    const request = begin('preflight-refresh');
+    if (!isCurrent(request)) return null;
+    setState((current) => current.scope === scope
+      ? { ...current, refreshing: true, error: '' }
+      : current);
+    try {
+      const refreshed = await apiRequest<ProductionReleasePreview>(
+        `POST:/projects/${projectId}/delivery/releases/${releaseOrderId}/production-preflight-refresh`,
+        { manifestId },
+      );
+      if (!isCurrent(request) || !ownsPreview(refreshed, projectId, releaseOrderId, manifestId)) {
+        return null;
+      }
+      setState({ scope, preview: refreshed, loading: false, confirming: false,
+        refreshing: false, error: '' });
+      return refreshed;
+    } catch (caught) {
+      if (isCurrent(request)) setState(failedState(scope, message(caught)));
+      return null;
+    }
+  }, [active, begin, isCurrent, manifestId, projectId, releaseOrderId, scope, state]);
+
   const ownsState = state.scope === scope;
   return {
     preview: ownsState ? state.preview : null,
     loading: !ownsState || state.loading,
     confirming: ownsState && state.confirming,
+    refreshing: ownsState && state.refreshing,
     error: ownsState ? state.error : '',
     load,
     confirm,
+    refreshPreflight,
   };
 }
 
@@ -124,7 +155,8 @@ function ownsPreview(
 }
 
 function loadingState(scope: string): ProductionState {
-  return { scope, preview: null, loading: true, confirming: false, error: '' };
+  return { scope, preview: null, loading: true, confirming: false,
+    refreshing: false, error: '' };
 }
 
 function inactiveState(scope: string): ProductionState {

@@ -49,6 +49,7 @@ describe("ReleaseStagingService", () => {
       id: "decision-staging-1",
       stage: "staging",
       inputHash: "decision-hash",
+      actionInputHash: "action-hash",
     });
     inputs.prepare.mockResolvedValue({
       snapshot: deploymentInputSnapshot(),
@@ -84,6 +85,7 @@ describe("ReleaseStagingService", () => {
           id: "decision-staging-1",
           stage: "staging",
           inputHash: "decision-hash",
+          actionInputHash: "action-hash",
         },
       }),
     );
@@ -182,7 +184,7 @@ describe("ReleaseStagingService", () => {
     await service.deploy(input());
     expect(gates.assertAllowed).toHaveBeenCalledWith(
       expect.objectContaining({
-        stage: "staging",
+        checkpoint: "staging_pre_execution",
       }),
     );
     expect(gates.assertAllowed.mock.calls[0][0]).not.toHaveProperty(

@@ -4,6 +4,7 @@ type RevisionJsonFields = {
   resourceReferences: unknown;
   routeSnapshot: unknown;
   policyReferences: unknown;
+  observabilitySnapshot?: unknown;
 };
 
 type RevisionList = {
@@ -27,6 +28,7 @@ export function normalizeEnvironmentConfigRevisionList<
       ),
       routeSnapshot: recordOrEmpty(revision.routeSnapshot),
       policyReferences: arrayOrEmpty(revision.policyReferences),
+      observabilitySnapshot: recordOrEmpty(revision.observabilitySnapshot),
     })),
   };
 }

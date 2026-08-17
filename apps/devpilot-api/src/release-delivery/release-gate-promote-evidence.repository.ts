@@ -1,7 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import type { ReleaseGatePromoteEvidence } from "./release-gate-promote-evidence.types";
-
 @Injectable()
 export class ReleaseGatePromoteEvidenceRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -11,6 +10,7 @@ export class ReleaseGatePromoteEvidenceRepository {
     projectId: string,
     releaseOrderId: string,
     releaseRunId?: string,
+    dnsProbeReceiptId?: string,
   ): Promise<ReleaseGatePromoteEvidence> {
     const environment = await this.prisma.projectEnvironment.findFirst({
       where: {
@@ -58,7 +58,7 @@ export class ReleaseGatePromoteEvidenceRepository {
     });
     if (!environment) return emptyPromoteEvidence();
     const where = { teamId, projectId, environmentId: environment.id };
-    const [releaseRun, sites, alerts, logRuns, metrics] = await Promise.all([
+    const [releaseRun, sites, alerts, logRuns, metrics, routeSwitchRuns, dnsReceipts] = await Promise.all([
       this.prisma.releaseRun.findFirst({
         where: {
           ...where,
@@ -163,18 +163,38 @@ export class ReleaseGatePromoteEvidenceRepository {
           raw: true,
         },
       }),
+      this.prisma.siteRouteSwitchRun.findMany({
+        where: { teamId, projectId, ...(releaseRunId ? { releaseRunId } : {}) },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: 1,
+        select: {
+          id: true, operationId: true, releaseRunId: true, deploymentRunId: true,
+          targetRef: true, status: true, result: true, applyReceipt: true,
+          promotionCandidateHash: true, promotionObservedAt: true,
+          promotionProbeHash: true, promotionObservation: true, updatedAt: true,
+        },
+      }),
+      this.prisma.siteDnsProbeReceipt.findMany({
+        where: { ...where, id: dnsProbeReceiptId ?? "__missing_dns_receipt__" },
+        orderBy: [{ probedAt: "desc" }, { id: "desc" }],
+        take: 1,
+        select: {
+          id: true, configRevisionId: true, providerKey: true,
+          providerProfile: true,
+          routeHash: true, deploymentInputHash: true, workloadInputHash: true,
+          status: true, resultHash: true, result: true, probedAt: true,
+          expiresAt: true,
+        },
+      }),
     ]);
-    return { environment, releaseRun, sites, alerts, logRuns, metrics };
+    return { environment, releaseRun, sites, alerts, logRuns, metrics,
+      routeSwitchRuns, dnsReceipts };
   }
 }
 
 function emptyPromoteEvidence(): ReleaseGatePromoteEvidence {
   return {
-    environment: null,
-    releaseRun: null,
-    sites: [],
-    alerts: [],
-    logRuns: [],
-    metrics: [],
+    environment: null, releaseRun: null, sites: [], alerts: [], logRuns: [],
+    metrics: [], routeSwitchRuns: [], dnsReceipts: [],
   };
 }

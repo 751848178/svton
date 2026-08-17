@@ -7,10 +7,17 @@ import { loadProductionReleaseContext } from "./release-production-context.repos
 import { lockActionableReleaseOrder } from "./release-order-action-boundary";
 import {
   assertNoActiveReleaseRunForEnvironment,
-  lockProductionEnvironmentForRelease,
 } from "./release-run-concurrency.utils";
 import { releaseOperationApprovalSelect } from "./release-operation-approval.select";
-import { assertNoActiveProductionRouteSaga } from "../site/production-route-saga.guard";
+import { assertNoActiveProductionRouteSaga, routeSagaScope,
+} from "../site/production-route-saga.guard";
+import { releaseProductionPolicySnapshot } from "./release-production-policy-snapshot";
+import { assertProductionAdmissionProof,
+  type ProductionAdmissionProof } from "./release-production-admission.policy";
+import {
+  lockProductionDeploymentInputs,
+  resolveAndLockProductionEnvironment,
+} from "./release-production-input-lock.repository";
 
 const releaseRunInclude = {
   operationApproval: {
@@ -66,9 +73,14 @@ export class ReleaseProductionRepository {
     expectedInputHash: string;
     idempotencyKey: string;
     strategy?: ReleaseStrategy;
+    providerKey?: string;
+    admissionProof?: ProductionAdmissionProof;
   }) {
     return this.prisma.$transaction(async (tx) => {
       await lockActionableReleaseOrder(tx, input);
+      const productionEnvironmentId = await resolveAndLockProductionEnvironment(
+        tx, input,
+      );
       const preview = productionPreview(
         await loadProductionReleaseContext(
           tx,
@@ -103,21 +115,35 @@ export class ReleaseProductionRepository {
         return existing;
       }
       const snapshot = preview.snapshot;
-      await lockProductionEnvironmentForRelease(tx, {
+      if (snapshot.environment.id !== productionEnvironmentId) {
+        throw new ConflictException("Production 环境作用域已漂移");
+      }
+      if (input.admissionProof) {
+        await lockProductionDeploymentInputs(tx, {
+          teamId: input.teamId,
+          projectId: input.projectId,
+          environmentId: productionEnvironmentId,
+        }, input.admissionProof.deploymentSnapshot);
+      }
+      await assertNoActiveProductionRouteSaga(tx, routeSagaScope({
         teamId: input.teamId,
         projectId: input.projectId,
         environmentId: snapshot.environment.id,
-      });
-      await assertNoActiveProductionRouteSaga(tx, {
-        teamId: input.teamId,
-        projectId: input.projectId,
-        environmentId: snapshot.environment.id,
-      });
+      }));
       await assertNoActiveReleaseRunForEnvironment(tx, {
         teamId: input.teamId,
         projectId: input.projectId,
         environmentId: snapshot.environment.id,
       });
+      if (input.admissionProof) {
+        await assertProductionAdmissionProof(tx, input.admissionProof, {
+          teamId: input.teamId, projectId: input.projectId,
+          environmentId: preview.snapshot.environment.id,
+          previewInputHash: preview.inputHash,
+          deploymentInputHash: input.admissionProof.deploymentInputHash,
+          workloadInputHash: preview.snapshot.workload.inputHash,
+        });
+      }
       const run = await tx.releaseRun.create({
         data: {
           teamId: input.teamId,
@@ -133,14 +159,12 @@ export class ReleaseProductionRepository {
           resourceSnapshot: snapshot.config
             .resourceSnapshot as Prisma.InputJsonValue,
           routeSnapshot: snapshot.config.routeSnapshot as Prisma.InputJsonValue,
-          policySnapshot: {
-            releasePolicy: snapshot.releasePolicy,
-            environmentPolicyReferences: snapshot.config.policySnapshot,
-            releaseProtection: releaseProtection(
-              snapshot.config.policySnapshot,
-              snapshot.releasePolicy.synthetic,
-            ),
-          } as Prisma.InputJsonValue,
+          policySnapshot: releaseProductionPolicySnapshot(
+            snapshot,
+            input.providerKey,
+          ) as Prisma.InputJsonValue,
+          observabilitySnapshot: snapshot.config
+            .observabilitySnapshot as Prisma.InputJsonValue,
           inputHash: preview.inputHash,
           idempotencyKey: input.idempotencyKey,
         },
@@ -170,27 +194,6 @@ export class ReleaseProductionRepository {
         data: { operationApprovalId: approval.id },
         include: releaseRunInclude,
       });
-    });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
-}
-
-function releaseProtection(value: unknown, synthetic: boolean) {
-  const record =
-    value && typeof value === "object" && !Array.isArray(value)
-      ? (value as Record<string, unknown>)
-      : {};
-  const candidate = record.releaseProtection;
-  if (candidate && typeof candidate === "object" && !Array.isArray(candidate)) {
-    const protection = candidate as Record<string, unknown>;
-    return {
-      changeWindowVerified: protection.changeWindowVerified === true,
-      freezeVerified: protection.freezeVerified === true,
-    };
-  }
-  return {
-    // Standard 发布策略的默认合成策略将变更窗口与冻结期视为已验证；
-    // 若存在真实策略行却缺少显式结论则 fail closed（两项均为 false）。
-    changeWindowVerified: synthetic === true,
-    freezeVerified: synthetic === true,
-  };
 }

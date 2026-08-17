@@ -15,12 +15,16 @@ export async function completeVersionedDeployment(
     logs: string[];
     result?: Record<string, unknown>;
     error?: string;
+    expectedStatus?: "running" | "awaiting_validation";
   },
   onTransition?: (tx: Prisma.TransactionClient) => Promise<void>,
 ) {
   const finishedAt = new Date();
   const transitioned = await tx.deploymentRun.updateMany({
-    where: { id: input.deploymentRunId, status: "running" },
+    where: {
+      id: input.deploymentRunId,
+      status: input.expectedStatus ?? "running",
+    },
     data: {
       status: input.status,
       logs: input.logs,
@@ -61,7 +65,12 @@ export async function completeVersionedDeployment(
     await onTransition?.(tx);
     if (run.releaseRunId) {
       await tx.releaseRun.updateMany({
-        where: { id: run.releaseRunId, status: "running" },
+        where: {
+          id: run.releaseRunId,
+          status: input.expectedStatus === "awaiting_validation"
+            ? "awaiting_validation"
+            : "running",
+        },
         data: {
           status: "failed",
           errorCode:
@@ -109,12 +118,17 @@ export async function completeVersionedDeployment(
   });
   if (run.releaseRunId) {
     const releaseRun = await tx.releaseRun.update({
-      where: { id: run.releaseRunId },
+      where: {
+        id: run.releaseRunId,
+        status: input.expectedStatus === "awaiting_validation"
+          ? "awaiting_validation"
+          : "running",
+      },
       data: { status: "succeeded", finishedAt },
       select: { operationApprovalId: true },
     });
     if (releaseRun.operationApprovalId) {
-      await tx.operationApproval.updateMany({
+      const consumed = await tx.operationApproval.updateMany({
         where: {
           id: releaseRun.operationApprovalId,
           status: "approved",
@@ -122,6 +136,9 @@ export async function completeVersionedDeployment(
         },
         data: { consumedAt: finishedAt },
       });
+      if (consumed.count !== 1) {
+        throw new Error("PRODUCTION_OPERATION_APPROVAL_CONSUME_CONFLICT");
+      }
     }
   }
   return { version, transitioned: true };

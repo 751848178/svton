@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { LocalReleaseBuildExecutorService } from "./local-release-build-executor.service";
 import { ReleaseBuildArtifactService } from "./release-build-artifact.service";
 import { ReleaseBuildRuntimeProfileService } from "./release-build-runtime-profile.service";
+import { releaseBuildEvidenceStubs } from "./release-build-executor-evidence.spec-utils";
 
 describe("LocalReleaseBuildExecutorService", () => {
   let scope: string;
@@ -22,7 +23,9 @@ describe("LocalReleaseBuildExecutorService", () => {
         (key: string) =>
           ({
             RELEASE_BUILD_EXECUTION_ENABLED: true,
-            RELEASE_BUILD_EXECUTOR_PROFILE: "controlled-local-v1",
+            RELEASE_BUILD_EXECUTOR_PROFILE: "controlled-local-acceptance-v2",
+            NODE_ENV: "test",
+            RELEASE_BUILD_TRUSTED_TEST_FIXTURE: true,
             RELEASE_BUILD_WORK_ROOT: work,
             RELEASE_BUILD_COMMAND_TIMEOUT_MS: 5_000,
             RELEASE_BUILD_CANCEL_GRACE_MS: 100,
@@ -32,9 +35,12 @@ describe("LocalReleaseBuildExecutorService", () => {
           })[key],
       ),
     } as unknown as ConfigService;
+    const evidence = releaseBuildEvidenceStubs();
     executor = new LocalReleaseBuildExecutorService(
       new ReleaseBuildRuntimeProfileService(config),
       new ReleaseBuildArtifactService(config),
+      evidence.packages,
+      evidence.preScript,
     );
   });
 
@@ -140,6 +146,7 @@ function input(checkoutRoot: string, command: string) {
     buildRunId: "run-1",
     projectId: "project-1",
     releaseOrderId: "order-1",
+    sourceCommitSha: "a".repeat(40),
     checkoutRoot,
     components: [
       {

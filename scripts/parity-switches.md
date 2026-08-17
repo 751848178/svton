@@ -10,6 +10,17 @@ switches are double-consent: both the `*_ENABLED` flag AND the matching
 `*_PROFILE` must be set before execution happens. Route switching stays on its
 `disabled` profile unless an exact provider endpoint and token are configured.
 
+## Acceptance boundary (authoritative)
+
+The parity stack proves **local technical acceptance only**. Its
+`local-filesystem-v1`, local resolver, local capacity, local observability, and
+isolated route-control receipts must never be presented as external
+Production Ready evidence. Any older section below that calls a parity action
+“REAL” means that the repository code path and process actually ran; it does
+not mean that public DNS, external capacity/reservation, external
+observability, or a production-grade route Provider was proven. Those external
+Provider gates remain fail-closed until their exact receipts exist.
+
 ## Base fail-closed defaults (docker-compose.devpilot-app.yml)
 
 ```yaml
@@ -31,7 +42,7 @@ regardless of evidence. Pinned by `release-build-compose-profile.spec.ts`
 | env                                | parity value                                                                    | base default                   | effect                                               |
 | ---------------------------------- | ------------------------------------------------------------------------------- | ------------------------------ | ---------------------------------------------------- |
 | `RELEASE_BUILD_EXECUTION_ENABLED`  | `true`                                                                          | `false`                        | master switch; without it `assertAvailable()` throws |
-| `RELEASE_BUILD_EXECUTOR_PROFILE`   | `controlled-local-v1`                                                           | `disabled`                     | selects `LocalReleaseBuildExecutorService`           |
+| `RELEASE_BUILD_EXECUTOR_PROFILE`   | `controlled-local-acceptance-v2`                                                | `disabled`                     | selects the registered acceptance toolchain          |
 | `RELEASE_BUILD_WORK_ROOT`          | `/var/lib/devpilot/release-build/work` (volume `devpilot-parity-release-build`) | unset → `.`                    | checkout + runtime dirs must live under this root    |
 | `RELEASE_BUILD_ARTIFACT_ROOT`      | `/var/lib/devpilot/release-build/artifacts` (same volume)                       | unset → `.`                    | artifact bundle root                                 |
 | `RELEASE_BUILD_RUN_TIMEOUT_MS`     | `180000`                                                                        | `900000`                       | whole-run timeout                                    |
@@ -72,6 +83,20 @@ production provider.
 | `REPOSITORY_ANALYSIS_LOCAL_ROOTS`             | `/read-only-repositories`               | allows the committed parity fixture repo mount to be connected/analyzed through the real git executor |
 | `RELEASE_BUILD_COMMAND_PATH`                  | includes `/pnpm`                        | fixture builds run under the API image's pnpm (fixture has ZERO deps → no network installs)           |
 | `DEVPILOT_BOOTSTRAP_ADMIN_EMAIL` / `PASSWORD` | `admin@parity.local` / `ParityDemo123!` | bootstrap admin for the runtime API flow                                                              |
+
+The release parity seed also provisions three independent, login-capable team
+admins. Their subjects are intentionally distinct so requester/executor,
+independent source reviewer, and Production confirmer evidence cannot collapse
+onto the bootstrap admin or one actor:
+
+| release role | email | default parity-only password | override |
+| --- | --- | --- | --- |
+| requester | `parity-requester@parity.test` | `ParityRequester123!` | `PARITY_REQUESTER_PASSWORD` |
+| independent reviewer | `parity-reviewer@parity.test` | `ParityReviewer123!` | `PARITY_REVIEWER_PASSWORD` |
+| Production confirmer | `parity-confirmer@parity.test` | `ParityConfirmer123!` | `PARITY_CONFIRMER_PASSWORD` |
+
+These credentials belong only to the disposable parity database and are
+re-hashed on every idempotent seed. They are not application defaults.
 
 ### Build-stage gate admission (concrete gap fixed in F454)
 
@@ -125,14 +150,14 @@ succeeded) and B09 (immutable Manifest digest bound to the exact commit) only
 pass for a real successful build. Pinned by `release-staging.service.spec.ts`
 (deferral contract test added in F455).
 
-### Production-stage gates: fixture evidence rows (F455, parity seed)
+### Production-stage gates: historical fixture facts (technical acceptance only)
 
-The production stage evaluates the deploy-phase gates D01..D20. F437's
-production evidence came from MySQL fixture rows (capacity snapshot, managed
-resource + connection run, migration evidence, backup run, observability
-coverage, previous versions). The parity seed (`scripts/parity-seed.mjs`)
-carries the same F437-style fixture evidence so the gates evaluate genuinely
-checked rows instead of deferring:
+The production stage evaluates D01..D20. The rows below are deterministic local
+fixtures used to exercise ownership and exact-scope evaluation. They are not
+external Provider receipts and cannot establish Production Ready. Current
+local-profile results carry `acceptanceOnly=true` and technical-only reason
+codes; external D05/D14/D18 capabilities stay blocked without their real
+capacity, DNS, and observability Providers.
 
 | gate                | parity evidence row                                                                                          | checked via                                                  |
 | ------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
@@ -158,12 +183,12 @@ production deferral list itself is unchanged (D06/D09/D17/D20/D14/D15).
   outputs are distinct, so one Manifest contains exact components for both
   environments without Production borrowing Staging services. Empty
   Production services remain empty and the workload policy fails closed.
-- **Workload execution mode**: both services run `managed-command-v1` with the
-  safe `test -f dist/{index.html,server.js}` predicates (F433/F437 pattern) —
-  the runtime genuinely verifies the materialized artifacts. A persistent
-  process (`node dist/server.js` on port 4300) was tried first and collided
-  with the same-container second deployment (`EADDRINUSE`), so no persistent
-  processes are started; reachability evidence comes from the site probe.
+- **Workload execution mode**: the Production API runs the exact built
+  `dist-production/server.js` as `managed-process-v1` on its dedicated port
+  4301 and supplies the sole candidate HTTP `/health` probe. The web component
+  keeps an exact managed-command status predicate. The API endpoint is not
+  reused as fake evidence for every component. This runtime proof feeds only
+  the local technical P02/P04/P05/P06 path and remains `acceptanceOnly`.
 - **Site probe / route reachability (F455/F658 finding)**: the probe runs INSIDE
   the parity-api container. Production revisions freeze `tlsRequired: false`
   and the C5-only `parity-hosts-v1` profile rewrites the exact

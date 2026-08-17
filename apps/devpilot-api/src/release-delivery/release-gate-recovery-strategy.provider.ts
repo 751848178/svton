@@ -99,27 +99,30 @@ implements ReleaseGateCapabilityProvider {
     const environment = context.promote?.environment;
     const run = context.promote?.releaseRun;
     const approval = run?.operationApproval;
-    const deployment = run?.deploymentRuns[0];
-    const version = environment?.currentEnvironmentVersion;
-    if (!environment || !run || !approval || !deployment || !version) {
+    const deployment = context.decisionCheckpoint
+      ? run?.deploymentRuns.find(
+          (item) => item.id === context.decisionTarget?.deploymentRunId,
+        )
+      : run?.deploymentRuns[0];
+    if (!environment || !run || !approval || !deployment) {
       return unavailable(
         "release_evidence_incomplete",
         "发布运行、审批、部署或环境版本证据不完整",
         "Release run, approval, deployment, or environment-version evidence is incomplete",
       );
     }
-    const checked = run.status === "succeeded"
-      && approval.status === "approved"
-      && deployment.status === "completed"
-      && version.releaseRunId === run.id
-      && version.deploymentRunId === deployment.id;
+    const checked = approval.status === "approved"
+      && ["running", "completed"].includes(deployment.status)
+      && !deployment.dryRun
+      && deployment.artifactManifestId === run.artifactManifestId
+      && Boolean(deployment.result);
     return evaluated({
       status: checked ? "checked" : "blocked",
       reasonCode: checked ? "release_evidence_retained" : "release_evidence_inconsistent",
       zh: checked ? "发布、审批、制品、部署与当前版本证据均已留存" : "发布证据链不完整或不一致",
       en: checked ? "Release, approval, artifact, deployment, and current-version evidence is retained" : "Release evidence chain is incomplete or inconsistent",
-      evidenceRef: `release-run:${run.id};operation-approval:${approval.id};environment-version:${version.id}`,
-      checkedAt: run.finishedAt ?? run.createdAt,
+      evidenceRef: `release-run:${run.id};operation-approval:${approval.id};deployment-run:${deployment.id}`,
+      checkedAt: deployment.finishedAt ?? deployment.createdAt,
       now,
     });
   }

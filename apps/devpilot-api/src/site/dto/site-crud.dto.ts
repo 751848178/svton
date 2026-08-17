@@ -18,6 +18,7 @@ export class ListSitesQueryDto {
   @IsOptional()
   @IsString()
   status?: string;
+
 }
 
 export class CreateSiteDto {
@@ -38,10 +39,6 @@ export class CreateSiteDto {
   @IsOptional()
   @IsObject()
   runtimeConfig?: Record<string, unknown>;
-
-  @IsOptional()
-  @IsObject()
-  tls?: Record<string, unknown>;
 
   @IsOptional()
   @IsObject()
@@ -87,10 +84,6 @@ export class UpdateSiteDto {
 
   @IsOptional()
   @IsObject()
-  tls?: Record<string, unknown>;
-
-  @IsOptional()
-  @IsObject()
   accessPolicy?: Record<string, unknown>;
 
   @IsOptional()
@@ -108,8 +101,4 @@ export class UpdateSiteDto {
   @IsOptional()
   @IsString()
   proxyConfigId?: string;
-
-  @IsOptional()
-  @IsString()
-  status?: string;
 }

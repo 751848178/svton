@@ -1,5 +1,6 @@
 import type { ReleaseGateEvidenceContext } from "./release-gate-evidence.repository";
 import { evaluated, record, unavailable } from "./release-gate-provider.types";
+import { evaluateReleaseHighRiskPaths } from "./release-gate-source-state-evaluator";
 
 const ANALYSIS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -8,6 +9,7 @@ export function evaluateReleaseGateAnalysis(
   context: ReleaseGateEvidenceContext,
   now: Date,
 ) {
+  if (id === "C06") return evaluateReleaseHighRiskPaths(context, now);
   const analysis = context.project.repositoryAnalysisRuns[0];
   if (!analysis) {
     return unavailable(
@@ -46,8 +48,7 @@ export function evaluateReleaseGateAnalysis(
     });
   }
   const result = record(analysis.result);
-  if (id === "C05") return componentScope(result, reference, checkedAt, now);
-  return changeImpact(result, reference, checkedAt, now);
+  return componentScope(result, reference, checkedAt, now);
 }
 
 function componentScope(
@@ -70,41 +71,6 @@ function componentScope(
       services > 0
         ? `Exact-Commit analysis identified ${services} component(s) (monorepo: ${repository.monorepo === true ? "yes" : "no"})`
         : "Analysis did not identify any deliverable component",
-    evidenceRef,
-    checkedAt,
-    ttlMs: ANALYSIS_TTL_MS,
-    now,
-  });
-}
-
-function changeImpact(
-  result: Record<string, unknown>,
-  evidenceRef: string,
-  checkedAt: Date,
-  now: Date,
-) {
-  const impact = record(result.changeImpact);
-  const directories = Array.isArray(impact.highRiskDirectories)
-    ? impact.highRiskDirectories
-    : null;
-  if (!directories) {
-    return unavailable(
-      "change_diff_provider_missing",
-      "仓库拓扑已分析，但未连接基线差异和高风险目录 Provider",
-      "Repository topology was analyzed, but no baseline diff or high-risk directory provider is connected",
-    );
-  }
-  return evaluated({
-    status: directories.length ? "manual" : "checked",
-    reasonCode: directories.length
-      ? "high_risk_changes_need_review"
-      : "no_high_risk_changes",
-    zh: directories.length
-      ? `检测到 ${directories.length} 个高风险目录，需要人工复核`
-      : "未检测到高风险目录变更",
-    en: directories.length
-      ? `${directories.length} high-risk directorie(s) require review`
-      : "No high-risk directory changes were detected",
     evidenceRef,
     checkedAt,
     ttlMs: ANALYSIS_TTL_MS,

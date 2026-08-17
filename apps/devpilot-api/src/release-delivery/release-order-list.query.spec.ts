@@ -44,7 +44,9 @@ describe("releaseOrderListRowsQuery", () => {
     expect(sql).toContain("pdr.source = 'release_order'");
     expect(sql).toContain("pdr.dryRun = FALSE");
     expect(sql).toContain("pdr.status = 'completed'");
-    expect(sql).toContain("drr.status IN ('running', 'succeeded')");
+    expect(sql).toContain(
+      "drr.status IN ('running', 'awaiting_validation', 'succeeded')",
+    );
     expect(sql).toContain("doa.status = 'approved'");
     expect(sql).toContain("ld.productionEvidenceValid");
     expect(

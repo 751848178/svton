@@ -17,6 +17,7 @@ import {
 } from '../types';
 import { useRepositoryIntakeReview } from './use-repository-intake-review';
 import { useProjectIntakeResume } from './use-project-intake-resume';
+import { projectIntakeRepositoryInput } from '../project-intake-repository-input';
 
 export function useProjectIntake() {
   const [step, setStep] = useState(1);
@@ -73,23 +74,7 @@ export function useProjectIntake() {
       }
       const nextConnection = await apiRequest<ProjectIntakeConnection>(
         `POST:/project-intake/${draftId}/repository`,
-        {
-          repositoryUrl: form.repositoryUrl.trim(),
-          branch: form.branch.trim() || undefined,
-          visibility: form.visibility,
-          ...(form.visibility === 'private' && form.credentialMode === 'managed'
-            ? { teamCredentialId: form.teamCredentialId }
-            : form.visibility === 'private'
-            ? {
-                credential: {
-                  type: form.credentialType,
-                  name: form.credentialName.trim(),
-                  username: form.credentialUsername.trim() || undefined,
-                  secret: form.credentialSecret,
-                },
-              }
-            : {}),
-        },
+        projectIntakeRepositoryInput(form),
       );
       setConnection(nextConnection);
       updateForm({ credentialSecret: '' });

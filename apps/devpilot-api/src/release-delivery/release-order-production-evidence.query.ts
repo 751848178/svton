@@ -26,7 +26,7 @@ export function governedProductionDeploymentExists() {
       AND doa.inputHash = drr.inputHash
       AND doa.status = 'approved' AND doa.reviewedAt IS NOT NULL
     WHERE drr.id = dr.releaseRunId
-      AND drr.status IN ('running', 'succeeded')
+      AND drr.status IN ('running', 'awaiting_validation', 'succeeded')
       AND drr.releaseOrderId = am.releaseOrderId
       AND drr.artifactManifestId = dr.artifactManifestId
       AND drr.environmentId = dr.environmentId

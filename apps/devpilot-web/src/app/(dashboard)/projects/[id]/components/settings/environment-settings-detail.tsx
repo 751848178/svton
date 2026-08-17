@@ -44,7 +44,7 @@ type RouteDraft = {
     path: string;
     component: string;
     port: number | null;
-    tlsMode: 'managed_cert' | 'existing_cert_asset';
+    tlsMode: 'none' | 'managed_cert' | 'existing_cert_asset';
   }>;
 };
 
@@ -71,13 +71,21 @@ export function EnvironmentSettingsDetail({
   const tablistId = useId();
   const panelId = `${tablistId}-${envTab}-panel`;
   const summaryInputId = useId();
-  const governance = useEnvironmentConfigGovernance(environment, projectId, detail.loadProject);
-  const targets = useEnvironmentDeploymentTargets(environment.id);
+  const governance = useEnvironmentConfigGovernance(
+    environment,
+    projectId,
+    detail.loadProject,
+    envTab === 'protection',
+  );
+  const targets = useEnvironmentDeploymentTargets(environment.id, envTab === 'targets');
   const [secrets, setSecrets] = useState<EnvironmentConfigSecretReference[]>([]);
   const [policyIds, setPolicyIds] = useState<string[]>([]);
   const [resources, setResources] = useState<EnvironmentConfigResourceReference[]>([]);
   const [route, setRoute] = useState<RouteDraft>(EMPTY_ROUTE);
   const [summary, setSummary] = useState('');
+  const [observability, setObservability] = useState<
+    '' | 'local_acceptance_v1'
+  >('');
 
   useEffect(() => {
     const draft = settingsDraftFromRevision(governance.current);
@@ -86,6 +94,7 @@ export function EnvironmentSettingsDetail({
     setPolicyIds(draft.policyIds);
     setResources(draft.resources);
     setRoute(draft.route);
+    setObservability(draft.observability.profile);
     setSummary('');
     // 草稿只从当前修订初始化；修订推进由 governance Hook 自身刷新历史。
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -100,7 +109,10 @@ export function EnvironmentSettingsDetail({
 
   const save = async () => {
     try {
-      await governance.save(toConfigRevisionDraft({ secrets, policyIds, resources, route, summary }));
+      await governance.save(toConfigRevisionDraft({
+        secrets, policyIds, resources, route, summary,
+        observability: { profile: observability },
+      }));
       setSummary('');
       feedback.success(t('configRevisionSaveSuccess'));
     } catch (cause) {
@@ -127,6 +139,8 @@ export function EnvironmentSettingsDetail({
     setResources,
     route,
     setRoute,
+    observability,
+    setObservability,
     revision: governance.current,
     revisions: governance.data?.revisions ?? [],
     environments: detail.project?.environments ?? [],
@@ -134,33 +148,39 @@ export function EnvironmentSettingsDetail({
 
   return (
     <div className="space-y-4">
-      <EnvironmentSettingsSummary
-        environment={environment}
-        revision={governance.current}
-        policyCount={governance.policies.length}
-        deploymentRunCount={environment._count?.deploymentRuns ?? 0}
-        versionsHref={deliveryHref(projectId, 'environment-versions', searchParams)}
-        deploymentsHref={deliveryHref(projectId, 'deployments', searchParams)}
-        currentTarget={targets.data?.currentTarget ?? null}
-      />
-
-      <EnvironmentSettingsRevisionBar
-        inputId={summaryInputId}
-        summary={summary}
-        revisionCount={governance.data?.revisions.length ?? 0}
-        saving={governance.saving}
-        loading={governance.loading}
-        invalid={draftInvalid}
-        onSummaryChange={setSummary}
-        onSave={save}
-      />
-
       <EnvironmentSettingsTablist
         tablistId={tablistId}
         panelId={panelId}
         selected={envTab}
         onSelect={selectTab}
       />
+
+      <details className="rounded-lg border bg-muted/20">
+        <summary className="flex min-h-11 cursor-pointer items-center px-4 text-sm font-medium">
+          {t('environmentSettingsRevisionDetails')}
+        </summary>
+        <div className="space-y-4 border-t p-4">
+          <EnvironmentSettingsSummary
+            environment={environment}
+            revision={governance.current}
+            policyCount={governance.policies.length}
+            deploymentRunCount={environment._count?.deploymentRuns ?? 0}
+            versionsHref={deliveryHref(projectId, 'environment-versions', searchParams)}
+            deploymentsHref={deliveryHref(projectId, 'deployments', searchParams)}
+            currentTarget={targets.data?.currentTarget ?? null}
+          />
+          <EnvironmentSettingsRevisionBar
+            inputId={summaryInputId}
+            summary={summary}
+            revisionCount={governance.data?.revisions.length ?? 0}
+            saving={governance.saving}
+            loading={governance.loading}
+            invalid={draftInvalid}
+            onSummaryChange={setSummary}
+            onSave={save}
+          />
+        </div>
+      </details>
 
       <div
         id={panelId}

@@ -49,6 +49,11 @@ function ApplicationsContent() {
 
   const pageState = useApplicationsPageState({
     shouldCreate: searchParams.get('create') === '1',
+    deploymentDeepLink: searchParams.get('action') === 'edit-deployment' ? {
+      projectId: queryProjectId,
+      environmentId: queryEnvironmentId,
+      serviceId: queryServiceId,
+    } : null,
     applications,
     environments,
     sites,

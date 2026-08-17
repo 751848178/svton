@@ -4,6 +4,7 @@ import {
   IsString,
   MaxLength,
   MinLength,
+  Matches,
 } from "class-validator";
 
 export class CreateEnvironmentVersionActionDto {
@@ -32,4 +33,37 @@ export class CreateEnvironmentVersionActionDto {
   @MinLength(1)
   @MaxLength(100)
   releaseRunId?: string;
+}
+
+export class ResumeProductionPromotionDto {
+  @IsString()
+  @MinLength(8)
+  @MaxLength(100)
+  idempotencyKey: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  releaseRunId: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  deploymentRunId: string;
+
+  @IsString()
+  @Matches(/^[a-f0-9]{64}$/)
+  candidateHash: string;
+}
+
+export class ReconcileProductionPromotionDto {
+  @IsString()
+  @MinLength(8)
+  @MaxLength(100)
+  idempotencyKey: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  promotionCommandId: string;
 }

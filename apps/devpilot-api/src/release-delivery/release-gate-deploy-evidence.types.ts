@@ -6,6 +6,7 @@ export type ReferencedResource = {
   status: string;
   observedAt: Date | null;
   resourceKind?: string;
+  mappedManagedResourceIds?: string[];
 };
 
 export type ReleaseGateDeployEvidence = {
@@ -25,6 +26,7 @@ export type ReleaseGateDeployEvidence = {
       resourceReferences: unknown;
       routeSnapshot: unknown;
       policyReferences: unknown;
+      observabilitySnapshot: unknown;
       createdAt: Date;
     } | null;
     serverBindings: Array<{
@@ -40,6 +42,11 @@ export type ReleaseGateDeployEvidence = {
         username: string | null;
         updatedAt: Date;
       };
+    }>;
+    applicationServices: Array<{
+      id: string;
+      releaseComponentKey: string | null;
+      metadata: unknown;
     }>;
   } | null;
   secrets: Array<{
@@ -86,5 +93,21 @@ export type ReleaseGateDeployEvidence = {
     dryRun: boolean;
     finishedAt: Date | null;
     createdAt: Date;
+  }>;
+  capacities: Array<{
+    id: string;
+    configRevisionId: string;
+    buildRunId: string;
+    manifestId: string;
+    providerKey: string;
+    bindingId: string;
+    deploymentInputHash: string;
+    workloadInputHash: string;
+    requirementHash: string;
+    measurementHash: string;
+    status: string;
+    reasonCode: string | null;
+    sampledAt: Date;
+    expiresAt: Date;
   }>;
 };

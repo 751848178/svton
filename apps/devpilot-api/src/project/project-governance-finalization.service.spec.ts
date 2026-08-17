@@ -1,5 +1,6 @@
 import { ProjectGovernanceBaselineService } from "./project-governance-baseline.service";
 import { ProjectGovernanceFinalizationService } from "./project-governance-finalization.service";
+import { ProjectGovernanceServiceTopologyService } from "./project-governance-service-topology.service";
 
 describe("ProjectGovernanceFinalizationService", () => {
   it("owns READY transition, baselines and governance audit in one transaction", async () => {
@@ -37,6 +38,7 @@ describe("ProjectGovernanceFinalizationService", () => {
     const service = new ProjectGovernanceFinalizationService(
       prisma as never,
       baselines,
+      { materialize: jest.fn() } as unknown as ProjectGovernanceServiceTopologyService,
     );
 
     const result = await service.finalize({

@@ -2,7 +2,7 @@
   "name": "parity-app",
   "private": true,
   "version": "1.0.0",
-  "description": "F454 committed parity fixture monorepo: zero-dependency pnpm workspace that really builds under the controlled-local-v1 executor",
+  "description": "Committed parity fixture monorepo for the controlled-local-acceptance-v2 executor",
   "packageManager": "pnpm@8.12.0",
   "engines": {
     "node": ">=18"

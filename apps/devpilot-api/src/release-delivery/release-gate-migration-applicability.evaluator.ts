@@ -8,7 +8,7 @@ export function evaluateMigrationApplicability(input: {
   now: Date;
   ttlMs: number;
 }) {
-  if (!notApplicable(input.evidence)) return null;
+  if (!isMigrationNotApplicable(input.evidence)) return null;
   return evaluated({
     status: "checked",
     reasonCode:
@@ -24,7 +24,7 @@ export function evaluateMigrationApplicability(input: {
   });
 }
 
-function notApplicable(evidence: Record<string, unknown>) {
+export function isMigrationNotApplicable(evidence: Record<string, unknown>) {
   return (
     evidence.providerKey === "repository_inventory_v1" &&
     evidence.applicable === false &&

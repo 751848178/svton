@@ -11,6 +11,9 @@ describe("ProjectDirectoryRepository", () => {
 
     await repository.list("team-1");
 
+    expect(prisma.project.findMany).toHaveBeenCalledTimes(1);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+
     const query = (prisma.project.findMany as jest.Mock).mock.calls[0][0];
     expect(query.where).toEqual({ teamId: "team-1", archivedAt: null });
     expect(query.orderBy).toEqual([{ id: "asc" }]);
@@ -63,7 +66,6 @@ describe("ProjectDirectoryRepository", () => {
       },
     });
     expect(query.select.sites).toMatchObject({
-      where: { status: "active" },
       select: { teamId: true, projectId: true, environmentId: true },
     });
     expect(JSON.stringify(query.select)).not.toContain('logs"');

@@ -16,6 +16,11 @@ export type ProductionRouteSagaScope = {
   environmentId: string;
 };
 
+export function routeSagaScope(scope: ProductionRouteSagaScope) {
+  return { teamId: scope.teamId, projectId: scope.projectId,
+    environmentId: scope.environmentId };
+}
+
 type Client = PrismaService | Prisma.TransactionClient;
 
 @Injectable()
@@ -31,21 +36,25 @@ export async function lockAndAssertNoActiveProductionRouteSaga(
   tx: Prisma.TransactionClient,
   scope: ProductionRouteSagaScope,
 ) {
+  const exact = routeSagaScope(scope);
   await tx.$queryRaw`SELECT id FROM ProjectEnvironment
-    WHERE id = ${scope.environmentId}
-      AND teamId = ${scope.teamId}
-      AND projectId = ${scope.projectId}
+    WHERE id = ${exact.environmentId}
+      AND teamId = ${exact.teamId}
+      AND projectId = ${exact.projectId}
     FOR UPDATE`;
-  return assertNoActiveProductionRouteSaga(tx, scope);
+  return assertNoActiveProductionRouteSaga(tx, exact);
 }
 
 export async function assertNoActiveProductionRouteSaga(
   client: Client,
   scope: ProductionRouteSagaScope,
 ) {
+  const exact = routeSagaScope(scope);
   const active = await client.siteRouteSwitchRun.findFirst({
     where: {
-      ...scope,
+      teamId: exact.teamId,
+      projectId: exact.projectId,
+      environmentId: exact.environmentId,
       status: { in: [...ACTIVE_ROUTE_SAGA_STATUSES] },
     },
     select: { operationId: true, status: true },

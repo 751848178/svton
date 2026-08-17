@@ -14,17 +14,18 @@ import { LocalReleaseBuildExecutorService } from "./local-release-build-executor
 import { ReleaseBuildArtifactService } from "./release-build-artifact.service";
 import { ReleaseBuildRuntimeProfileService } from "./release-build-runtime-profile.service";
 import type { ReleaseBuildExecutionInput } from "./release-build.types";
+import { releaseBuildEvidenceStubs } from "./release-build-executor-evidence.spec-utils";
 
 const git = promisify(execFile);
 
 // F454 (b): the committed parity fixture monorepo really builds under the
-// controlled-local-v1 executor. This is a hermetic spec: it materializes the
+// controlled-local-acceptance-v2 executor. This legacy artifact-contract spec
 // committed fixtures/parity-app files into a temp work root, pins them as a
 // real git checkout, and runs the REAL LocalReleaseBuildExecutorService with
 // the exact buildCommand/artifactPaths contract the parity seed declares.
 // The full booted-stack runtime verification (API -> git -> executor ->
 // Manifest) is additionally exercised at runtime (see F454 evidence).
-describe("F454 parity fixture build (controlled-local-v1)", () => {
+describe("F454 parity fixture artifact build under the v2 runtime", () => {
   const workRoot = join(tmpdir(), "parity-fixture-build");
   const checkoutRoot = join(workRoot, "devpilot-release-build-parity-fixture");
   const artifactRoot = join(tmpdir(), "parity-fixture-artifacts");
@@ -53,8 +54,10 @@ describe("F454 parity fixture build (controlled-local-v1)", () => {
     const canonicalArtifactRoot = await realpath(artifactRoot);
     const nodeBin = dirname(process.execPath);
     const config = new ConfigService({
+      NODE_ENV: "test",
+      RELEASE_BUILD_TRUSTED_TEST_FIXTURE: true,
       RELEASE_BUILD_EXECUTION_ENABLED: true,
-      RELEASE_BUILD_EXECUTOR_PROFILE: "controlled-local-v1",
+      RELEASE_BUILD_EXECUTOR_PROFILE: "controlled-local-acceptance-v2",
       RELEASE_BUILD_WORK_ROOT: await realpath(workRoot),
       RELEASE_BUILD_ARTIFACT_ROOT: canonicalArtifactRoot,
       // The fixture builds run plain `node scripts/build.mjs`; put the
@@ -62,9 +65,12 @@ describe("F454 parity fixture build (controlled-local-v1)", () => {
       RELEASE_BUILD_COMMAND_PATH: `${nodeBin}:/usr/local/bin:/usr/bin:/bin`,
     });
     runtime = new ReleaseBuildRuntimeProfileService(config);
+    const evidence = releaseBuildEvidenceStubs();
     executor = new LocalReleaseBuildExecutorService(
       runtime,
       new ReleaseBuildArtifactService(config),
+      evidence.packages,
+      evidence.preScript,
     );
     runtime.assertAvailable();
   });
@@ -81,6 +87,7 @@ describe("F454 parity fixture build (controlled-local-v1)", () => {
       buildRunId: "parity-fixture-build-0001",
       projectId: "parity-project-0001",
       releaseOrderId: "parity-order-0001",
+      sourceCommitSha: "a".repeat(40),
       checkoutRoot: canonicalCheckoutRoot,
       components: [
         {

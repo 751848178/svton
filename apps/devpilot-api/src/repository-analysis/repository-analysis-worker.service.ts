@@ -1,11 +1,10 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { randomUUID } from 'crypto';
+import { isArchivedProjectWriteError } from '../project/project-archived-write.error';
 import { REPOSITORY_ANALYSIS_DEFAULTS } from './repository-analysis.constants';
-import { RepositoryAnalysisAuditService } from './repository-analysis-audit.service';
-import {
-  RepositoryAnalysisExecutionError,
-  repositoryAnalysisErrorDetail,
-} from './repository-analysis-execution.error';
+import { RepositoryAnalysisCompletionRepository } from './repository-analysis-completion.repository';
+import { RepositoryAnalysisExecutionError } from './repository-analysis-execution.error';
 import { RepositoryAnalysisRunRepository } from './repository-analysis-run.repository';
 import { RepositoryAnalysisStageRepository } from './repository-analysis-stage.repository';
 import { RepositoryCredentialService } from './repository-credential.service';
@@ -13,6 +12,14 @@ import { RepositoryGitExecutorService } from './repository-git-executor.service'
 import { RepositoryInventoryService } from './repository-inventory.service';
 import { RepositoryParserService } from './repository-parser.service';
 import { RepositorySuggestionBuilderService } from './repository-suggestion-builder.service';
+import {
+  isRepositoryWorkerLeaseFailure,
+  runRepositoryWorkerDetached,
+  scheduleRepositoryWorkerLeaseRetry,
+  startRepositoryWorkerLeaseHeartbeat,
+} from './repository-analysis-worker-lease.utils';
+import { repositorySuccessAudit } from './repository-analysis-worker-audit.utils';
+import { RepositoryAnalysisWorkerFinalizationService } from './repository-analysis-worker-finalization.service';
 
 @Injectable()
 export class RepositoryAnalysisWorkerService implements OnModuleInit {
@@ -28,10 +35,11 @@ export class RepositoryAnalysisWorkerService implements OnModuleInit {
     private readonly inventoryService: RepositoryInventoryService,
     private readonly parser: RepositoryParserService,
     private readonly suggestionBuilder: RepositorySuggestionBuilderService,
-    private readonly audit: RepositoryAnalysisAuditService,
+    private readonly completion: RepositoryAnalysisCompletionRepository,
+    private readonly finalization: RepositoryAnalysisWorkerFinalizationService,
   ) {
-    this.timeoutMs = Number(config.get('REPOSITORY_ANALYSIS_TIMEOUT_MS'))
-      || REPOSITORY_ANALYSIS_DEFAULTS.analysisTimeoutMs;
+    this.timeoutMs = Number(config.get('REPOSITORY_ANALYSIS_TIMEOUT_MS')) ||
+      REPOSITORY_ANALYSIS_DEFAULTS.analysisTimeoutMs;
   }
 
   async onModuleInit(): Promise<void> {
@@ -39,14 +47,12 @@ export class RepositoryAnalysisWorkerService implements OnModuleInit {
   }
 
   enqueue(runId: string): void {
-    if (this.controllers.has(runId)) return;
-    setImmediate(() => void this.execute(runId));
+    if (!this.controllers.has(runId)) runRepositoryWorkerDetached(
+      runId, (id) => this.execute(id), (id) => this.enqueue(id),
+    );
   }
 
-  cancel(runId: string): void {
-    this.controllers.get(runId)?.abort();
-  }
-
+  cancel(runId: string): void { this.controllers.get(runId)?.abort(); }
   private async execute(runId: string): Promise<void> {
     if (this.controllers.has(runId)) return;
     const controller = new AbortController();
@@ -57,18 +63,27 @@ export class RepositoryAnalysisWorkerService implements OnModuleInit {
       timedOut = true;
       controller.abort();
     }, this.timeoutMs);
-    const run = await this.runs.findWorkerRun(runId);
-    if (!run) {
-      clearTimeout(timeout);
-      this.controllers.delete(runId);
-      return;
-    }
+    let run: Awaited<ReturnType<RepositoryAnalysisRunRepository['findWorkerRun']>> | undefined;
     let checkout: Awaited<ReturnType<RepositoryGitExecutorService['checkout']>> | undefined;
     let currentStage = 'resolve';
+    const workerLeaseToken = randomUUID();
+    let claimed = false;
+    let stopHeartbeat: (() => void) | undefined;
     try {
+      run = await this.runs.findWorkerRun(runId) ?? undefined;
+      if (!run) return;
+      const claim = await this.runs.start(runId, workerLeaseToken);
+      if (claim.state === 'leased') {
+        return scheduleRepositoryWorkerLeaseRetry(runId, claim.retryAt, (id) => this.enqueue(id));
+      }
+      if (claim.state === 'terminal') return;
+      claimed = true;
+      stopHeartbeat = startRepositoryWorkerLeaseHeartbeat(
+        runId, workerLeaseToken, (id, token) => this.runs.extendWorkerLease(id, token),
+        controller,
+      );
       await this.assertNotCancelled(runId, controller.signal);
-      await this.runs.start(runId);
-      await this.stages.start(runId, 'resolve');
+      await this.stages.start(runId, 'resolve', workerLeaseToken);
       await this.stages.succeed(runId, 'resolve', [
         `已固定 ${run.branch}@${run.commitSha.slice(0, 12)}`,
       ], [{
@@ -76,12 +91,12 @@ export class RepositoryAnalysisWorkerService implements OnModuleInit {
         kind: 'git_snapshot',
         detail: `${run.branch}@${run.commitSha}`,
         confidence: 'high',
-      }]);
+      }], workerLeaseToken);
       const credential = await this.credentials.resolveStored(run.connection);
       await this.assertNotCancelled(runId, controller.signal);
 
       currentStage = 'checkout';
-      await this.stages.start(runId, currentStage);
+      await this.stages.start(runId, currentStage, workerLeaseToken);
       checkout = await this.git.checkout(
         run.repositoryUrl,
         run.branch,
@@ -89,10 +104,12 @@ export class RepositoryAnalysisWorkerService implements OnModuleInit {
         credential,
         controller.signal,
       );
-      await this.stages.succeed(runId, currentStage, ['精确 commit 已检出到隔离临时目录。']);
+      await this.stages.succeed(
+        runId, currentStage, ['精确 commit 已检出到隔离临时目录。'], [], workerLeaseToken,
+      );
 
       currentStage = 'inventory';
-      await this.stages.start(runId, currentStage);
+      await this.stages.start(runId, currentStage, workerLeaseToken);
       const inventory = await this.inventoryService.inventory(
         checkout.root,
         deadline,
@@ -104,18 +121,18 @@ export class RepositoryAnalysisWorkerService implements OnModuleInit {
         file,
         kind: 'inventory',
         detail: '仓库文件',
-      })));
+      })), workerLeaseToken);
       await this.assertNotCancelled(runId, controller.signal);
 
       currentStage = 'detect';
-      await this.stages.start(runId, currentStage);
+      await this.stages.start(runId, currentStage, workerLeaseToken);
       const result = this.parser.parse(inventory);
       await this.stages.succeed(runId, currentStage, [
         `检测到 ${result.services.length} 个单元，${result.composeCandidates.length} 份 Compose。`,
-      ], result.evidence);
+      ], result.evidence, workerLeaseToken);
 
       currentStage = 'suggest';
-      await this.stages.start(runId, currentStage);
+      await this.stages.start(runId, currentStage, workerLeaseToken);
       const drafts = await this.suggestionBuilder.build(
         run.teamId,
         run.projectId,
@@ -124,54 +141,40 @@ export class RepositoryAnalysisWorkerService implements OnModuleInit {
       );
       await this.stages.succeed(runId, currentStage, [
         `生成 ${drafts.length} 条待确认建议。`,
-      ], drafts.flatMap((item) => item.evidence).slice(0, 100));
+      ], drafts.flatMap((item) => item.evidence).slice(0, 100), workerLeaseToken);
+      await this.assertNotCancelled(runId, controller.signal);
 
       currentStage = 'cleanup';
-      await this.cleanup(runId, checkout);
+      await this.stages.start(runId, 'cleanup', workerLeaseToken);
+      await checkout.cleanup();
       checkout = undefined;
-      await this.runs.succeed(runId, result, drafts);
-      await this.audit.record({
-        teamId: run.teamId,
-        userId: run.triggeredById,
-        projectId: run.projectId,
-        action: 'repository.analysis.succeed',
-        targetType: 'repository_analysis_run',
-        targetId: run.id,
-        summary: `仓库解析完成：${result.services.length} 个单元，${drafts.length} 条建议`,
-        metadata: { branch: run.branch, commitSha: run.commitSha, parserVersion: run.parserVersion },
+      await this.completion.succeed({
+        runId,
+        workerLeaseToken,
+        result,
+        drafts,
+        audit: repositorySuccessAudit(run, result.services.length, drafts.length),
       });
     } catch (error) {
-      const cancelRequested = await this.runs.isCancelRequested(runId);
-      const cancelled = !timedOut && (controller.signal.aborted || cancelRequested);
-      const detail = repositoryAnalysisErrorDetail(error, cancelled, timedOut);
-      await this.stages.fail(runId, currentStage, detail.code, detail.message);
+      if (isArchivedProjectWriteError(error)) return;
+      if (!run || !claimed) throw error;
+      if (isRepositoryWorkerLeaseFailure(error, controller.signal)) {
+        if (checkout) await this.retryCleanup(checkout);
+        scheduleRepositoryWorkerLeaseRetry(runId, new Date(), (id) => this.enqueue(id));
+        return;
+      }
       if (checkout) await this.retryCleanup(checkout);
-      await this.stages.cancelRemaining(runId);
-      await this.runs.terminal(runId, cancelled ? 'cancelled' : 'failed', detail);
-      await this.audit.record({
-        teamId: run.teamId,
-        userId: run.triggeredById,
-        projectId: run.projectId,
-        action: cancelled ? 'repository.analysis.cancel' : 'repository.analysis.fail',
-        targetType: 'repository_analysis_run',
-        targetId: run.id,
-        status: cancelled ? 'completed' : 'failed',
-        summary: detail.message,
-        metadata: { errorCode: detail.code, stage: currentStage },
+      const cancelRequested = await this.runs.isCancelRequested(runId);
+      await this.finalization.fail({
+        run, runId, workerLeaseToken, currentStage, error, timedOut,
+        aborted: controller.signal.aborted,
+        cancelRequested,
       });
     } finally {
+      stopHeartbeat?.();
       clearTimeout(timeout);
       this.controllers.delete(runId);
     }
-  }
-
-  private async cleanup(
-    runId: string,
-    checkout: { cleanup: () => Promise<void> },
-  ): Promise<void> {
-    await this.stages.start(runId, 'cleanup');
-    await checkout.cleanup();
-    await this.stages.succeed(runId, 'cleanup', ['隔离临时目录已清理。']);
   }
 
   private async retryCleanup(

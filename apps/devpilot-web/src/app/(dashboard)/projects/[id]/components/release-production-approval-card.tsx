@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Button, LinkButton, StatusTag } from '@/components/ui';
+import { Button, StatusTag } from '@/components/ui';
 import type { ReleaseEvidenceProductionRun } from '../types/release-order-evidence.types';
 import {
   releaseApprovalStatusLabelKey,
@@ -19,11 +19,10 @@ interface Props {
   projectId: string;
   run: ReleaseEvidenceProductionRun;
   onChanged: () => Promise<unknown>;
-  recoveryHref: string;
 }
 
 /** Production 审批卡：就地审阅、执行，拒绝或失败时引导版本恢复。 */
-export function ReleaseProductionApprovalCard({ projectId, run, onChanged, recoveryHref }: Props) {
+export function ReleaseProductionApprovalCard({ projectId, run, onChanged }: Props) {
   const t = useTranslations('projects');
   const approval = run.operationApproval;
   const isRecovery = run.mode === 'recovery';
@@ -40,7 +39,6 @@ export function ReleaseProductionApprovalCard({ projectId, run, onChanged, recov
     !approval.consumedAt &&
     !expired;
   const errorKey = error ? releaseProductionErrorLabelKey(error) : null;
-  const needsRecovery = approval.status === 'rejected' || run.status === 'failed';
 
   return (
     <section
@@ -159,16 +157,6 @@ export function ReleaseProductionApprovalCard({ projectId, run, onChanged, recov
         ) : null}
         {approval.status === 'approved' && !approval.consumedAt && expired ? (
           <span className="text-xs text-amber-700">{t('releaseProductionApprovalExpired')}</span>
-        ) : null}
-        {needsRecovery ? (
-          <LinkButton
-            data-primary="true"
-            href={recoveryHref}
-            variant="outline"
-            size="sm"
-          >
-            {t('releaseProductionRecoveryLink')}
-          </LinkButton>
         ) : null}
       </div>
 

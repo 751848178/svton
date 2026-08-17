@@ -1,10 +1,11 @@
-import { ConflictException, Injectable } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { RepositoryGitExecutorService } from "../repository-analysis/repository-git-executor.service";
 import { releaseBuildFailureDetail } from "./release-build-failure.utils";
-import { ReleaseBuildExecutionError } from "./release-build-execution.error";
+import { discardUncommittedBuildArtifact } from "./release-build-artifact-cleanup";
 import { buildLogReference, buildLogSummary } from "./release-build-log.utils";
 import { ReleaseBuildResultRepository } from "./release-build-result.repository";
 import { ReleaseBuildRuntimeProfileService } from "./release-build-runtime-profile.service";
+import { ReleaseGateDecisionService } from "./release-gate-decision.service";
 import { presentBuild } from "./release-build.presenter";
 import type {
   ReleaseBuildComponent,
@@ -26,6 +27,7 @@ export class ReleaseBuildRunnerService {
     private readonly git: RepositoryGitExecutorService,
     private readonly executor: ReleaseBuildExecutorPort,
     private readonly runtime: ReleaseBuildRuntimeProfileService,
+    private readonly gates: ReleaseGateDecisionService,
   ) {}
 
   async abort(buildRunId: string, signal: AbortSignal) {
@@ -38,6 +40,7 @@ export class ReleaseBuildRunnerService {
   async run(input: {
     buildRun: ReservedBuildRun;
     teamId: string;
+    actorId: string;
     projectId: string;
     releaseOrderId: string;
     source: ReleaseBuildResolvedSource;
@@ -63,6 +66,7 @@ export class ReleaseBuildRunnerService {
           buildRunId: input.buildRun.id,
           projectId: input.projectId,
           releaseOrderId: input.releaseOrderId,
+          sourceCommitSha: input.source.commitSha,
           checkoutRoot: checkout.root,
           components: input.components,
         },
@@ -71,6 +75,30 @@ export class ReleaseBuildRunnerService {
       artifactPackaged = true;
       artifactDigest = result.artifact.digest;
       if (input.signal.aborted) throw input.signal.reason;
+      await this.results.recordCandidateEvidence({
+        buildRunId: input.buildRun.id,
+        logReference: buildLogReference(input.buildRun.id),
+        logSummary: buildLogSummary(result.logs),
+        gateSummary: result.gateSummary,
+      });
+      const postDecision = await this.gates.assertAllowed({
+        teamId: input.teamId,
+        actorId: input.actorId,
+        projectId: input.projectId,
+        releaseOrderId: input.releaseOrderId,
+        checkpoint: "build_post_execution",
+        target: {
+          buildRunId: input.buildRun.id,
+          sourceBranch: input.buildRun.sourceBranch,
+          sourceCommitSha: input.buildRun.sourceCommitSha,
+        },
+        actionInput: {
+          buildRunId: input.buildRun.id,
+          inputHash: input.buildRun.inputHash,
+          sourceCommitSha: input.buildRun.sourceCommitSha,
+        },
+        requestKey: `post:build:${input.buildRun.id}:${input.buildRun.inputHash}`,
+      });
       persistenceStarted = true;
       const persisted = await this.results.succeed({
         buildRunId: input.buildRun.id,
@@ -92,21 +120,28 @@ export class ReleaseBuildRunnerService {
         logReference: buildLogReference(input.buildRun.id),
         logSummary: buildLogSummary(result.logs),
         gateSummary: result.gateSummary,
+        actorId: input.actorId,
+        gateDecision: {
+          id: postDecision.id,
+          stage: postDecision.stage,
+          inputHash: postDecision.inputHash,
+          actionInputHash: postDecision.actionInputHash,
+        },
       });
       artifactCommitted = true;
       return presentBuild(persisted);
     } catch (error) {
       if (artifactPackaged && !artifactCommitted) {
-        await this.discardDefinitelyUncommittedArtifact(
-          {
-            projectId: input.projectId,
-            releaseOrderId: input.releaseOrderId,
-            buildRunId: input.buildRun.id,
-            digest: artifactDigest,
-            persistenceStarted,
-          },
+        await discardUncommittedBuildArtifact({
+          results: this.results,
+          executor: this.executor,
+          projectId: input.projectId,
+          releaseOrderId: input.releaseOrderId,
+          buildRunId: input.buildRun.id,
+          digest: artifactDigest,
+          persistenceStarted,
           error,
-        );
+        });
       }
       return this.persistFailure(
         input.buildRun.id,
@@ -138,37 +173,5 @@ export class ReleaseBuildRunnerService {
         status: detail.status,
       }),
     );
-  }
-
-  private async discardDefinitelyUncommittedArtifact(
-    input: {
-      projectId: string;
-      releaseOrderId: string;
-      buildRunId: string;
-      digest: string;
-      persistenceStarted: boolean;
-    },
-    error: unknown,
-  ) {
-    const committed = await this.results
-      .hasCommittedArtifact({
-        buildRunId: input.buildRunId,
-        digest: input.digest,
-      })
-      .catch(() => undefined);
-    if (committed !== false) return;
-    if (
-      input.persistenceStarted &&
-      !(error instanceof ConflictException) &&
-      !(error instanceof ReleaseBuildExecutionError)
-    )
-      return;
-    await this.executor
-      .discardArtifact({
-        projectId: input.projectId,
-        releaseOrderId: input.releaseOrderId,
-        buildRunId: input.buildRunId,
-      })
-      .catch(() => undefined);
   }
 }

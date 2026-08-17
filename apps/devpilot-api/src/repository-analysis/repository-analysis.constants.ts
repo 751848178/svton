@@ -15,6 +15,11 @@ export const REPOSITORY_ANALYSIS_TERMINAL_STATUSES = [
   'cancelled',
 ] as const;
 
+export const REPOSITORY_ANALYSIS_ACTIVE_STATUSES = [
+  'queued',
+  'running',
+] as const;
+
 export const REPOSITORY_ANALYSIS_DEFAULTS = {
   gitTimeoutMs: 30_000,
   analysisTimeoutMs: 120_000,
@@ -24,6 +29,8 @@ export const REPOSITORY_ANALYSIS_DEFAULTS = {
   maxFileBytes: 512 * 1024,
   maxBranches: 200,
 } as const;
+
+export const REPOSITORY_ANALYSIS_WORKER_LEASE_MS = 5 * 60 * 1000;
 
 export const REPOSITORY_SECRET_KEY_PATTERN =
   /token|password|secret|(?:private|api|access).?key|authorization|credential/i;

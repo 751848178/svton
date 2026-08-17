@@ -22,7 +22,14 @@ export interface ReleaseBuildArtifactItem {
 }
 
 export interface ReleaseBuildRuntimeDescriptor {
-  profile: "controlled-local-v1";
+  profile: "controlled-local-v1" | "controlled-local-acceptance-v2";
+  profileVersion?: number;
+  runnerVersion?: string;
+  scannerRules?: Array<{
+    id: string;
+    toolVersion: string;
+    rulesDigest: string;
+  }>;
   runTimeoutMs: number;
   commandTimeoutMs: number;
   cancelGraceMs: number;
@@ -30,6 +37,11 @@ export interface ReleaseBuildRuntimeDescriptor {
   concurrencyScope: "single-process";
   workspacePolicy: "dedicated-build-root";
   environmentKeys: readonly string[];
+  workerIsolation: {
+    contractVersion: "release-build-untrusted-worker-v1";
+    provider: "missing" | "test-fixture-only" | "external-oci-launcher-v1";
+    untrustedRepositories: boolean;
+  };
 }
 
 interface ReleaseBuildInputSnapshotBase {
@@ -78,7 +90,12 @@ export interface ReleaseBuildResolvedSource {
         id: string;
         name: string;
         repoPath: string | null;
-        services: Array<{ id: string; name: string; deployConfig: unknown }>;
+        services: Array<{
+          id: string;
+          releaseComponentKey: string | null;
+          name: string;
+          deployConfig: unknown;
+        }>;
       }>;
     };
   };
@@ -94,13 +111,16 @@ export interface ReleaseBuildResolvedSource {
     branch: string;
   };
   commitSha: string;
+  sourceEvidence: import("./release-build-source-evidence.types").ReleaseBuildSourceEvidence;
 }
 
 export interface ReleaseBuildExecutionInput {
   buildRunId: string;
   projectId: string;
   releaseOrderId: string;
+  sourceCommitSha: string;
   checkoutRoot: string;
+  dependencyStoreRoot?: string;
   components: ReleaseBuildComponent[];
 }
 
@@ -114,6 +134,8 @@ export interface ReleaseBuildExecutionResult {
   };
   logs: string[];
   gateSummary: Record<string, unknown>;
+  dependencyStore?: { fetchRunId: string; combinationHash: string;
+    cacheGeneration: number; storeDigest: string };
 }
 
 export abstract class ReleaseBuildExecutorPort {

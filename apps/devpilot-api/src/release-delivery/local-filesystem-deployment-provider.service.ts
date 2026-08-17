@@ -23,6 +23,7 @@ import {
   cleanupReleaseWorkloads,
   runReleaseWorkloads,
 } from "./release-workload-runtime";
+import { probeReleaseWorkloads } from "./release-workload-probe-runtime";
 
 @Injectable()
 export class LocalFilesystemDeploymentProviderService extends ReleaseDeploymentProviderPort {
@@ -43,7 +44,16 @@ export class LocalFilesystemDeploymentProviderService extends ReleaseDeploymentP
     this.timeoutMs =
       Number(config.get("RELEASE_STAGING_DEPLOYMENT_TIMEOUT_MS")) || 120_000;
   }
-
+  refreshExactCandidate(input: {
+    projectId: string; environmentId: string; deploymentRunId: string;
+    workload: NonNullable<ExactManifestDeploymentInput["workload"]>;
+  }) {
+    const releaseRoot = join(this.root, input.projectId, input.environmentId,
+      "releases", input.deploymentRunId);
+    return probeReleaseWorkloads({
+      snapshot: input.workload, releaseRoot, execute: executeLocalReleaseWorkloadCommand,
+    });
+  }
   async deployExactManifest(input: ExactManifestDeploymentInput) {
     if (input.targetRef !== this.targetRef) {
       throw localReleaseFailure(

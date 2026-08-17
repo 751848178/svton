@@ -3,6 +3,7 @@ import type {
   ReleaseEnvironmentRole,
   ReleaseExecutionStatus,
 } from './release-copy.types';
+import type { LegacyPromotionRecovery } from './environment-version.types';
 
 export interface ReleaseEvidenceManifest {
   id: string;
@@ -144,6 +145,24 @@ export interface ReleaseEvidenceProductionRun {
     reviewedAt: string | null;
     consumedAt: string | null;
     expiresAt: string | null;
+  };
+  legacyPromotionRecovery: LegacyPromotionRecovery | null;
+  acceptanceMode?: 'technical_acceptance' | 'production';
+  promotionBlocker?: null | {
+    commandId: string;
+    errorCode: string | null;
+    errorMessage: string | null;
+    checkpoint: string | null;
+    decisionId: string | null;
+    manualChecks: Array<{
+      gateId: string;
+      evaluationId: string;
+      status: string;
+      reasonCode: string;
+      reason: { zh: string; en: string };
+      providerKey?: string | null;
+      confirmed?: boolean;
+    }>;
   };
   stagingProof: {
     deploymentRunId: string;

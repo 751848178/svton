@@ -10,6 +10,8 @@ import type {
 import { EnvironmentVersionSummary } from './environment-version-summary';
 import { environmentVersionTargetReadiness } from './environment-version-target-readiness.model';
 import { settingsEnvironmentTabHref } from '../utils/settings-environment-route';
+import type { ProductionPromotionResumeInput } from '../types/environment-version.types';
+import { EnvironmentAwaitingPromotion } from './environment-awaiting-promotion';
 
 export function EnvironmentVersionCard(props: {
   environment: EnvironmentVersionEnvironment;
@@ -21,6 +23,8 @@ export function EnvironmentVersionCard(props: {
   onSelect: (id: string) => void;
   onUpgrade: () => unknown;
   onRecovery: (sourceVersionId: string) => unknown;
+  onResumePromotion: (input: ProductionPromotionResumeInput) => Promise<unknown>;
+  onReconcilePromotion: (promotionCommandId: string) => Promise<unknown>;
 }) {
   const t = useTranslations('projects');
   const locale = useLocale();
@@ -38,6 +42,9 @@ export function EnvironmentVersionCard(props: {
     ? env.environmentVersions.find((item) => item.id === current.previousVersionId)
     : null;
   const currentManifestSelected = current?.artifactManifestId === props.selectedId;
+  const awaitingValidation = env.releaseRuns?.some(
+    (run) => run.status === 'awaiting_validation',
+  );
   return (
     <article className="space-y-4 rounded-lg border p-5">
       <div className="flex items-center justify-between gap-3">
@@ -61,8 +68,20 @@ export function EnvironmentVersionCard(props: {
           {t('environmentVersionUnavailableDescription')}
         </p>
       )}
-      <div className="flex flex-col gap-2 rounded-md bg-muted/30 p-3 sm:flex-row sm:items-end">
-        <label className="min-w-56 flex-1 text-sm">
+      <EnvironmentAwaitingPromotion
+        projectId={props.projectId}
+        environment={env}
+        candidate={props.candidates.find(
+          (item) => item.id === env.releaseRuns?.find(
+            (run) => run.status === 'awaiting_validation',
+          )?.artifactManifestId,
+        )}
+        executing={props.executing}
+        onResume={props.onResumePromotion}
+        onReconcile={props.onReconcilePromotion}
+      />
+      <div className="grid grid-cols-2 gap-2 rounded-md bg-muted/30 p-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end">
+        <label className="col-span-2 min-w-0 text-sm sm:col-span-1">
           <span className="mb-1 block font-medium">{t('environmentVersionUpgradeTarget')}</span>
           <select
             className="min-h-11 w-full rounded-md border bg-background px-3 py-2"
@@ -89,7 +108,7 @@ export function EnvironmentVersionCard(props: {
           </select>
         </label>
         <Button
-          className="min-h-11"
+          className="min-h-11 w-full sm:w-auto"
           onClick={props.onUpgrade}
           loading={props.executing}
           disabled={
@@ -97,15 +116,16 @@ export function EnvironmentVersionCard(props: {
             props.executing ||
             currentManifestSelected ||
             props.productionBlocked ||
+            awaitingValidation ||
             !target.ready
           }
         >
           {t('environmentVersionUpgradeShort')}
         </Button>
         <Button
-          className="min-h-11"
+          className="min-h-11 w-full sm:w-auto"
           variant="outline"
-          disabled={props.executing || !previous || !target.ready}
+          disabled={props.executing || awaitingValidation || !previous || !target.ready}
           onClick={() => (previous ? props.onRecovery(previous.id) : undefined)}
         >
           {t('environmentVersionRollback')}
@@ -114,6 +134,16 @@ export function EnvironmentVersionCard(props: {
       {props.productionBlocked ? (
         <p className="text-xs text-amber-800">
           {t('environmentVersionProductionApprovalRequired')}
+        </p>
+      ) : null}
+      {!awaitingValidation && props.candidates.length === 0 ? (
+        <p className="text-xs text-muted-foreground" role="status">
+          {t('environmentVersionDisabledNoCandidate')}
+        </p>
+      ) : null}
+      {!awaitingValidation && currentManifestSelected ? (
+        <p className="text-xs text-muted-foreground" role="status">
+          {t('environmentVersionDisabledCurrentSelected')}
         </p>
       ) : null}
       {!target.ready ? (

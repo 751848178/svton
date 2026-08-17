@@ -1,4 +1,5 @@
 import "reflect-metadata";
+import { Prisma } from "@prisma/client";
 import { EnvironmentVersionPolicyService } from "./environment-version-policy.service";
 import { EnvironmentVersionReadRepository } from "./environment-version-read.repository";
 import { EnvironmentVersionRecoveryRepository } from "./environment-version-recovery.repository";
@@ -10,7 +11,6 @@ import { productionGateTestDouble } from "./release-gate-test-decision.spec-util
 import {
   environmentVersionExecutorTestDouble,
   environmentVersionInputTestDouble,
-  productionWorkloadTestDouble,
 } from "./release-staging-executor.spec-utils";
 import {
   cleanupProductionFixture,
@@ -23,6 +23,10 @@ import { SiteRouteSwitchSagaOrchestrator } from "../site/site-route-switch-saga.
 import { SiteRouteSwitchSagaRepository } from "../site/site-route-switch-saga.repository";
 import { siteRouteSwitchTestDouble } from "../site/site-route-switch.spec-utils";
 import { EnvironmentVersionCompletionRepository } from "./environment-version-completion.repository";
+import { ReleaseProductionWorkloadService } from "./release-production-workload.service";
+import { ReleaseStagingWorkloadService } from "./release-staging-workload.service";
+import { ReleaseStagingWorkloadStateRepository } from "./release-staging-workload-state.repository";
+import { ProductionPromotionAwaitingRepository } from "./production-promotion-awaiting.repository";
 
 const describeIntegration =
   process.env.RUN_ENVIRONMENT_VERSION_RECOVERY_INTEGRATION === "1"
@@ -32,6 +36,8 @@ const describeIntegration =
 interface ServiceBundle {
   versions: EnvironmentVersionService;
   recovery: EnvironmentVersionRecoveryService;
+  completion: EnvironmentVersionCompletionRepository;
+  providerKey: string;
 }
 
 describeIntegration(
@@ -46,6 +52,15 @@ describeIntegration(
     });
 
     afterAll(async () => cleanupProductionFixture(fixture));
+    afterEach(async () => {
+      await fixture.prisma.releaseRun.updateMany({
+        where: {
+          environmentId: fixture.productionEnvironmentId,
+          status: { in: ["awaiting_approval", "running", "awaiting_validation"] },
+        },
+        data: { status: "failed", finishedAt: new Date() },
+      });
+    });
 
     it("creates a recovery ReleaseRun + fresh approval and executes to a new recovery EnvironmentVersion", async () => {
       const f = fixture;
@@ -74,6 +89,14 @@ describeIntegration(
       expect(confirmed.mode).toBe("recovery");
       expect(confirmed.status).toBe("awaiting_approval");
       expect(confirmed.sourceReleaseRunId).toBe(firstReleaseRunId);
+      const frozenPolicy = await f.prisma.releaseRun.findUniqueOrThrow({
+        where: { id: confirmed.id }, select: { policySnapshot: true },
+      });
+      expect(frozenPolicy.policySnapshot).toMatchObject({
+        acceptanceMode: "technical_acceptance",
+        deploymentProviderKey: "local-filesystem-v1",
+        approvedWorkload: { identityHash: expect.any(String) },
+      });
       expect(confirmed.operationApproval).toMatchObject({
         status: "pending",
         action: "project.release_order.deploy_production_recovery",
@@ -97,7 +120,7 @@ describeIntegration(
           reviewedAt: new Date(),
         },
       });
-      const executed = await bundle.versions.execute({
+      const executed = await executeAcceptedPromotion(f, bundle, {
         ...baseInput(f, f.productionEnvironmentId),
         kind: "recovery",
         releaseRunId: confirmed.id,
@@ -130,9 +153,11 @@ describeIntegration(
 
     it("rejects a recovery backed by a consumed or non-recovery ReleaseRun", async () => {
       const f = fixture;
+      const current = await currentVersionId(f);
       const historical = await f.prisma.environmentVersion.findFirst({
         where: {
           environmentId: f.productionEnvironmentId,
+          id: { not: current },
           kind: "upgrade",
           NOT: { releaseRunId: null },
         },
@@ -410,37 +435,243 @@ describeIntegration(
   },
 );
 
-function buildServices(fixture: ProductionFixture): ServiceBundle {
+describeIntegration("Production standard/recovery lock-order barrier", () => {
+  let fixture: ProductionFixture;
+  let bundle: ServiceBundle;
+
+  beforeAll(async () => {
+    fixture = await createProductionFixture();
+    bundle = buildServices(fixture);
+  });
+  afterAll(async () => cleanupProductionFixture(fixture));
+
+  it("serializes concurrent standard and recovery confirms without a deadlock", async () => {
+    const f = fixture;
+    const first = await approvedUpgrade(f, bundle, "barrier-a");
+    await approvedUpgrade(f, bundle, "barrier-b");
+    const sourceVersionId = first.version!.id;
+    const [standardPreview, recoveryPreview] = await Promise.all([
+      f.repository.preview(f.teamId, f.projectId, f.orderId, f.manifestId),
+      bundle.recovery.preview({ ...baseInput(f, f.productionEnvironmentId),
+        sourceVersionId }),
+    ]);
+    const locked = deferred();
+    const release = deferred();
+    const holder = f.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM ProjectEnvironment
+        WHERE id = ${f.productionEnvironmentId} FOR UPDATE`);
+      locked.resolve();
+      await release.promise;
+    });
+    await locked.promise;
+    let attempts: Promise<unknown>[] = [];
+    try {
+      const standard = f.repository.confirm({
+        teamId: f.teamId, projectId: f.projectId,
+        releaseOrderId: f.orderId, manifestId: f.manifestId,
+        actorId: f.userId, expectedInputHash: standardPreview.inputHash,
+        idempotencyKey: `barrier-standard-${f.suffix}`,
+      });
+      await waitForRowLock(f, "ReleaseOrder", f.orderId);
+      const recovery = bundle.recovery.confirm({
+        ...baseInput(f, f.productionEnvironmentId), actorId: f.userId,
+        sourceVersionId, expectedInputHash: recoveryPreview.inputHash,
+        idempotencyKey: `barrier-recovery-${f.suffix}`,
+      });
+      attempts = [standard, recovery];
+      release.resolve();
+      await holder;
+      const results = await Promise.allSettled(attempts);
+      expect(results.filter((item) => item.status === "fulfilled")).toHaveLength(1);
+      const rejected = results.find((item) => item.status === "rejected");
+      expect(rejected).toMatchObject({ status: "rejected",
+        reason: expect.objectContaining({ message: expect.stringContaining(
+          "同一环境同时只允许一个运行",
+        ) }) });
+      const active = await f.prisma.releaseRun.findMany({ where: {
+        environmentId: f.productionEnvironmentId,
+        status: { in: ["awaiting_approval", "running", "awaiting_validation"] },
+      } });
+      expect(active).toHaveLength(1);
+      await f.prisma.releaseRun.update({ where: { id: active[0].id },
+        data: { status: "failed" } });
+    } finally {
+      release.resolve();
+      await Promise.allSettled([holder, ...attempts]);
+    }
+  }, 30_000);
+});
+
+describeIntegration("Production execution/confirm lock-order barrier", () => {
+  let fixture: ProductionFixture;
+
+  beforeAll(async () => { fixture = await createProductionFixture(); });
+  afterAll(async () => cleanupProductionFixture(fixture));
+
+  it("lets execution reserve first and rejects concurrent confirm without P2034", async () => {
+    const f = fixture;
+    const deployStarted = deferred();
+    const releaseDeploy = deferred();
+    const baseExecutor = environmentVersionExecutorTestDouble();
+    const bundle = buildServices(f, {
+      ...baseExecutor,
+      deploy: async (input: Parameters<typeof baseExecutor.deploy>[0]) => {
+        deployStarted.resolve();
+        await releaseDeploy.promise;
+        return baseExecutor.deploy(input);
+      },
+    });
+    const preview = await f.repository.preview(
+      f.teamId, f.projectId, f.orderId, f.manifestId,
+    );
+    const approved = await f.repository.confirm({
+      teamId: f.teamId, projectId: f.projectId,
+      releaseOrderId: f.orderId, manifestId: f.manifestId,
+      actorId: f.userId, expectedInputHash: preview.inputHash,
+      idempotencyKey: `execution-barrier-approved-${f.suffix}`,
+      providerKey: bundle.providerKey,
+    });
+    await f.prisma.operationApproval.update({
+      where: { id: approved.operationApproval!.id },
+      data: { status: "approved", reviewerId: f.userId, reviewedAt: new Date() },
+    });
+    const environmentLocked = deferred();
+    const releaseEnvironment = deferred();
+    const holder = f.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM ProjectEnvironment
+        WHERE id = ${f.productionEnvironmentId} FOR UPDATE`);
+      environmentLocked.resolve();
+      await releaseEnvironment.promise;
+    });
+    await environmentLocked.promise;
+    let execution: Promise<unknown> | undefined;
+    let competing: Promise<unknown> | undefined;
+    try {
+      execution = bundle.versions.execute({
+        ...baseInput(f, f.productionEnvironmentId), kind: "upgrade",
+        manifestId: f.manifestId, releaseRunId: approved.id,
+      });
+      await waitForRowLock(f, "ReleaseOrder", f.orderId);
+      competing = f.repository.confirm({
+        teamId: f.teamId, projectId: f.projectId,
+        releaseOrderId: f.orderId, manifestId: f.manifestId,
+        actorId: f.userId, expectedInputHash: preview.inputHash,
+        idempotencyKey: `execution-barrier-standard-${f.suffix}`,
+      });
+      releaseEnvironment.resolve();
+      await holder;
+      await stage(deployStarted.promise, execution, "execution deploy start");
+      await expect(competing).rejects.toThrow("同一环境同时只允许一个运行");
+      releaseDeploy.resolve();
+      await expect(execution).resolves.toMatchObject({
+        run: { status: "awaiting_validation" },
+      });
+    } finally {
+      releaseEnvironment.resolve();
+      releaseDeploy.resolve();
+      await Promise.allSettled([
+        holder,
+        ...(execution ? [execution] : []),
+        ...(competing ? [competing] : []),
+      ]);
+    }
+  }, 30_000);
+});
+
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+async function stage(
+  signal: Promise<void>,
+  operation: Promise<unknown>,
+  label: string,
+) {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      signal,
+      operation.then(() => Promise.reject(new Error(
+        `${label}: operation completed before stage`,
+      ))),
+      operation.catch((error) => Promise.reject(error)),
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error(`${label}: timeout`)), 5_000);
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
+async function waitForRowLock(
+  fixture: ProductionFixture,
+  table: "ReleaseOrder",
+  id: string,
+) {
+  const deadline = Date.now() + 5_000;
+  while (Date.now() < deadline) {
+    try {
+      await fixture.prisma.$transaction((tx) => tx.$queryRaw(
+        Prisma.sql`SELECT id FROM ${Prisma.raw(table)}
+          WHERE id = ${id} FOR UPDATE NOWAIT`,
+      ));
+    } catch (error) {
+      if (lockUnavailable(error)) return;
+      throw error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  throw new Error(`${table}:${id} lock stage timeout`);
+}
+
+function lockUnavailable(error: unknown) {
+  const value = error as { message?: string; meta?: { code?: string } };
+  return value.meta?.code === "3572" || /3572|NOWAIT/i.test(value.message ?? "");
+}
+
+function buildServices(
+  fixture: ProductionFixture,
+  executor = localExecutor(),
+): ServiceBundle {
   const repository = new EnvironmentVersionRepository(fixture.prisma as never);
+  const workloadState = new ReleaseStagingWorkloadStateRepository(
+    fixture.prisma as never,
+  );
   const routeSwitch = siteRouteSwitchTestDouble();
   const routeSagaRepository = new SiteRouteSwitchSagaRepository(
     fixture.prisma as never,
   );
+  const completion = new EnvironmentVersionCompletionRepository(
+    fixture.prisma as never,
+    routeSagaRepository,
+  );
   const versions = new EnvironmentVersionService(
     repository,
-    new EnvironmentVersionCompletionRepository(
-      fixture.prisma as never,
-      routeSagaRepository,
-    ),
+    completion,
     new EnvironmentVersionReadRepository(fixture.prisma as never),
     new EnvironmentVersionPolicyService(repository),
-    environmentVersionExecutorTestDouble() as never,
+    executor as never,
     productionGateTestDouble(fixture.prisma) as never,
     new EnvironmentVersionGateEvidenceRepository(fixture.prisma as never),
-    environmentVersionInputTestDouble() as never,
+    environmentVersionInputTestDouble(executor.providerKey) as never,
     {} as never,
-    productionWorkloadTestDouble() as never,
-    productionWorkloadTestDouble() as never,
+    new ReleaseStagingWorkloadService(workloadState),
+    new ReleaseProductionWorkloadService(workloadState),
     new SiteRouteActivationService(fixture.prisma as never),
     routeSwitch,
     new SiteRouteSwitchSagaOrchestrator(routeSagaRepository, routeSwitch),
     { assertClear: jest.fn() } as never,
     new SiteFinalProbeService(),
+    new ProductionPromotionAwaitingRepository(fixture.prisma as never),
   );
   const recovery = new EnvironmentVersionRecoveryService(
     new EnvironmentVersionRecoveryRepository(fixture.prisma as never),
+    executor as never,
   );
-  return { versions, recovery };
+  return { versions, recovery, completion, providerKey: executor.providerKey };
 }
 
 async function approvedUpgrade(
@@ -462,16 +693,45 @@ async function approvedUpgrade(
     actorId: f.userId,
     expectedInputHash: preview.inputHash,
     idempotencyKey: `upgrade-${label}-${f.suffix}`,
+    providerKey: bundle.providerKey,
   });
   await f.prisma.operationApproval.update({
     where: { id: run.operationApproval!.id },
     data: { status: "approved", reviewerId: f.userId, reviewedAt: new Date() },
   });
-  return bundle.versions.execute({
+  return executeAcceptedPromotion(f, bundle, {
     ...baseInput(f, f.productionEnvironmentId),
     kind: "upgrade",
     manifestId: f.manifestId,
     releaseRunId: run.id,
+  });
+}
+
+function localExecutor() {
+  return {
+    ...environmentVersionExecutorTestDouble(),
+    providerKey: "local-filesystem-v1",
+  };
+}
+
+async function executeAcceptedPromotion(
+  f: ProductionFixture,
+  bundle: ServiceBundle,
+  input: Parameters<EnvironmentVersionService["execute"]>[0],
+) {
+  const awaiting = await bundle.versions.execute(input);
+  expect(awaiting.run.status).toBe("awaiting_validation");
+  return bundle.completion.complete({
+    deploymentRunId: awaiting.run.id,
+    kind: input.kind,
+    teamId: f.teamId,
+    actorId: f.userId,
+    projectId: f.projectId,
+    releaseOrderId: f.orderId,
+    status: "completed",
+    expectedStatus: "awaiting_validation",
+    logs: ["fixture promotion accepted"],
+    result: { fixturePromotionAccepted: true },
   });
 }
 

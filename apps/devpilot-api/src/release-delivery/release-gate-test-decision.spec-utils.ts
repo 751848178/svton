@@ -1,7 +1,9 @@
 import type { PrismaClient } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { stableHash } from "../release-orchestration/utils/release-hash.utils";
+import { releaseGateCheckpointPolicy } from "./release-gate-checkpoint.policy";
 import type {
+  ReleaseGateCheckpoint,
   ReleaseGateDecision,
   ReleaseGateDecisionStage,
 } from "./release-gate-decision.types";
@@ -15,14 +17,22 @@ type Scope = {
 
 export async function persistAllowedTestDecision(
   prisma: PrismaClient,
-  input: Scope & { stage: ReleaseGateDecisionStage; inputHash?: string },
+  input: Scope & {
+    stage: ReleaseGateDecisionStage;
+    checkpoint?: ReleaseGateCheckpoint;
+    inputHash?: string;
+  },
 ): Promise<ReleaseGateDecision> {
   const inputHash = input.inputHash || randomUUID();
-  const phase = {
+  const actionInputHash = stableHash({ scope: "test-action", inputHash });
+  const approvalSubjectHash = stableHash({ scope: "test-subject", inputHash });
+  const phase = input.checkpoint
+    ? releaseGateCheckpointPolicy(input.checkpoint).phase
+    : ({
     build: "commit",
     staging: "build",
     production: "deploy",
-  }[input.stage] as "commit" | "build" | "deploy";
+  }[input.stage] as "commit" | "build" | "deploy");
   const row = await prisma.releaseGateDecision.create({
     data: {
       teamId: input.teamId,
@@ -34,7 +44,12 @@ export async function persistAllowedTestDecision(
       allowed: true,
       definitionVersion: "test",
       inputHash,
-      inputSnapshot: {},
+      inputSnapshot: {
+        version: 4,
+        approvalSubjectHash,
+        actionInputHash,
+        requesterActorId: input.actorId,
+      },
       blockerGateIds: [],
       manualGateIds: [],
       confirmedManualGateIds: [],
@@ -47,7 +62,16 @@ export async function persistAllowedTestDecision(
   return {
     id: row.id,
     stage: input.stage,
+    checkpoint: input.checkpoint ?? (
+      input.stage === "build"
+        ? "build_pre_execution"
+        : input.stage === "staging"
+          ? "staging_pre_execution"
+          : "production_pre_execution"),
     phase,
+    approvalSubjectHash,
+    actionInputHash,
+    requesterActorId: input.actorId,
     allowed: true,
     blockerGateIds: [],
     manualGateIds: [],
@@ -64,9 +88,10 @@ export async function persistAllowedTestDecision(
 export function gatePolicyTestDouble(prisma: PrismaClient) {
   return {
     assertAllowed: jest.fn(
-      (input: Scope & { stage: ReleaseGateDecisionStage }) =>
+      (input: Scope & { checkpoint: ReleaseGateCheckpoint }) =>
         persistAllowedTestDecision(prisma, {
           ...input,
+          stage: releaseGateCheckpointPolicy(input.checkpoint).stage,
           inputHash: stableHash(input),
         }),
     ),

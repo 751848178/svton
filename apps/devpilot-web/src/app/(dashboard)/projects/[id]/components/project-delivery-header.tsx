@@ -7,12 +7,8 @@ import type { ProjectDeliverySummary } from '../types/project-delivery-summary.t
 
 export function ProjectDeliveryHeader({
   summary,
-  showCreate,
-  onCreate,
 }: {
   summary: ProjectDeliverySummary;
-  showCreate: boolean;
-  onCreate: () => void;
 }) {
   const t = useTranslations('projects');
   const router = useRouter();
@@ -24,6 +20,7 @@ export function ProjectDeliveryHeader({
           <Button
             variant="ghost"
             size="icon"
+            className="min-h-11 min-w-11"
             aria-label={t('backToProjects')}
             onClick={() => router.push('/projects')}
           >
@@ -48,6 +45,7 @@ export function ProjectDeliveryHeader({
       <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
         {summary.entries.productionDomain ? (
           <LinkButton
+            className="min-h-11"
             href={`https://${summary.entries.productionDomain}`}
             target="_blank"
             rel="noopener noreferrer"
@@ -57,12 +55,12 @@ export function ProjectDeliveryHeader({
           </LinkButton>
         ) : null}
         <LinkButton
+          className="min-h-11"
           href={`/projects/${encodeURIComponent(projectId)}/settings`}
           variant="outline"
         >
           {t('manageProject')}
         </LinkButton>
-        {showCreate ? <Button onClick={onCreate}>{t('createReleaseOrder')}</Button> : null}
       </div>
     </header>
   );

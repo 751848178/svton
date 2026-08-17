@@ -13,10 +13,15 @@ import {
   EnvironmentVersionRecoveryConfirmDto,
   EnvironmentVersionRecoveryPreviewDto,
 } from "./dto/environment-version-recovery.dto";
-import { CreateEnvironmentVersionActionDto } from "./dto/environment-version.dto";
+import {
+  CreateEnvironmentVersionActionDto,
+  ReconcileProductionPromotionDto,
+  ResumeProductionPromotionDto,
+} from "./dto/environment-version.dto";
 import { EnvironmentVersionRecoveryService } from "./environment-version-recovery.service";
 import { EnvironmentVersionService } from "./environment-version.service";
 import { ReleaseOrderAccessService } from "./release-order-access.service";
+import { ProductionPromotionReconcileService } from "./production-promotion-reconcile.service";
 
 interface AuthRequest {
   user: { id: string };
@@ -31,6 +36,7 @@ export class EnvironmentVersionController {
     private readonly versions: EnvironmentVersionService,
     private readonly recovery: EnvironmentVersionRecoveryService,
     private readonly access: ReleaseOrderAccessService,
+    private readonly promotionReconcile: ProductionPromotionReconcileService,
   ) {}
 
   @Get()
@@ -40,6 +46,37 @@ export class EnvironmentVersionController {
   ) {
     await this.access.assertRead(this.scope(req, projectId));
     return this.versions.list(req.teamId, projectId);
+  }
+
+  @Post(":environmentId/production-promotion/reconcile")
+  async reconcileProductionPromotion(
+    @Request() req: AuthRequest,
+    @Param("projectId") projectId: string,
+    @Param("environmentId") environmentId: string,
+    @Body() dto: ReconcileProductionPromotionDto,
+  ) {
+    await this.access.assertConfirmProduction(this.scope(req, projectId));
+    return this.promotionReconcile.reconcile({
+      ...dto, teamId: req.teamId, projectId,
+      environmentId, actorId: req.user.id,
+    });
+  }
+
+  @Post(":environmentId/production-promotion/resume")
+  async resumeProductionPromotion(
+    @Request() req: AuthRequest,
+    @Param("projectId") projectId: string,
+    @Param("environmentId") environmentId: string,
+    @Body() dto: ResumeProductionPromotionDto,
+  ) {
+    await this.access.assertConfirmProduction(this.scope(req, projectId));
+    return this.versions.resumeProductionPromotion({
+      ...dto,
+      teamId: req.teamId,
+      projectId,
+      actorId: req.user.id,
+      environmentId,
+    });
   }
 
   @Post(":environmentId/actions")

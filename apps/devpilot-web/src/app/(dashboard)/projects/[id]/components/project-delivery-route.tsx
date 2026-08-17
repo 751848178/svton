@@ -30,6 +30,7 @@ export function ProjectDeliveryRoute({
   const orders = useReleaseOrders(delivery.summary ? projectId : '');
   const [createOpen, setCreateOpen] = useState(false);
   const isHome = !searchParams.get('releaseOrderId')?.trim();
+  const canOpenRelease = delivery.summary?.nextAction?.kind === 'open_release';
 
   if (delivery.loading) return <LoadingState text={tc('loading')} />;
   if (!delivery.summary) {
@@ -53,21 +54,19 @@ export function ProjectDeliveryRoute({
 
   return (
     <div className="space-y-6">
-      <ProjectDeliveryHeader
-        summary={delivery.summary}
-        showCreate={isHome}
-        onCreate={() => setCreateOpen(true)}
-      />
+      <ProjectDeliveryHeader summary={delivery.summary} />
       {isHome ? (
         <>
-          <ProjectDeliveryWeakSummary summary={delivery.summary} />
+          <ProjectDeliveryWeakSummary
+            summary={delivery.summary}
+            onOpenRelease={canOpenRelease ? () => setCreateOpen(true) : undefined}
+          />
           <ProjectDeliveryEnvironmentStrip summary={delivery.summary} />
         </>
       ) : null}
       <ProjectDeliveryContent
         projectId={projectId}
         orders={orders}
-        onCreate={() => setCreateOpen(true)}
       />
       <ReleaseOrderCreateModal
         open={createOpen}

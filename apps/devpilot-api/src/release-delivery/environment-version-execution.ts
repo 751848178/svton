@@ -22,7 +22,11 @@ import type {
   EnvironmentVersionExecuteInput,
   EnvironmentVersionExecutionContext,
 } from "./environment-version-execution.types";
-
+import type { ReleaseServerCapacityService } from "./release-server-capacity.service";
+import type { ReleaseProductionDnsProbeService } from "./release-production-dns-probe.service";
+import { collectEnvironmentVersionPreflightEvidence } from "./environment-version-preflight-evidence";
+import { assertEnvironmentVersionApprovedWorkload } from "./environment-version-approved-workload";
+import { workloadReadinessConfigured } from "./release-workload-readiness.policy";
 interface Dependencies {
   repository: EnvironmentVersionRepository;
   policy: EnvironmentVersionPolicyService;
@@ -31,13 +35,12 @@ interface Dependencies {
   inputs: ReleaseDeploymentInputService;
   stagingWorkloads: ReleaseStagingWorkloadService;
   productionWorkloads: ReleaseProductionWorkloadService;
+  capacity?: ReleaseServerCapacityService;
+  dns?: ReleaseProductionDnsProbeService;
   routeSwitch: SiteRouteSwitchPort;
   routeSagaGuard: ProductionRouteSagaGuard;
-  run(
-    context: EnvironmentVersionExecutionContext,
-  ): ReturnType<EnvironmentVersionCompletionRepository["complete"]>;
+  run(context: EnvironmentVersionExecutionContext): ReturnType<EnvironmentVersionCompletionRepository["complete"]>;
 }
-
 export async function executeEnvironmentVersion(
   deps: Dependencies,
   requestedInput: EnvironmentVersionExecuteInput,
@@ -51,9 +54,7 @@ export async function executeEnvironmentVersion(
     input.projectId,
     input.environmentId,
   );
-  if (!environment) {
-    throw new NotFoundException("目标环境不存在或不属于当前项目");
-  }
+  if (!environment) throw new NotFoundException("目标环境不存在或不属于当前项目");
   if (
     environment.baselineRole !== "staging" &&
     environment.baselineRole !== "production"
@@ -69,9 +70,7 @@ export async function executeEnvironmentVersion(
     idempotencyKey: input.idempotencyKey,
     requestHash,
   });
-  if (replay) {
-    return { run: replay, version: replay.environmentVersion ?? null };
-  }
+  if (replay) return { run: replay, version: replay.environmentVersion ?? null };
   if (environment.baselineRole === "production") {
     await deps.routeSagaGuard.assertClear(input);
     await deps.routeSwitch.verifyProductionCapability();
@@ -117,6 +116,18 @@ export async function executeEnvironmentVersion(
       releaseRunId,
     },
   );
+  assertEnvironmentVersionApprovedWorkload(
+    productionRun, frozenInput, deps.executor.providerKey,
+  );
+  const preflight = environment.baselineRole === "production"
+    ? await collectEnvironmentVersionPreflightEvidence(deps, {
+        teamId: input.teamId, projectId: input.projectId,
+        environmentId: environment.id, configRevisionId: frozenConfigRevisionId!,
+        buildRunId: manifest.buildRun.id, manifestId: manifest.id,
+        providerKey: deps.executor.providerKey,
+        deployment: frozenInput.deploymentInput, workload: frozenInput.workload,
+      })
+    : {};
   const gateContext = {
     teamId: input.teamId,
     actorId: input.actorId,
@@ -130,6 +141,10 @@ export async function executeEnvironmentVersion(
     providerKey: deps.executor.providerKey,
     bindingId: frozenInput.deploymentInput.snapshot.target.bindingId,
     deploymentInputHash: frozenInput.deploymentInput.snapshot.inputHash,
+    workloadInputHash: frozenInput.workload.inputHash,
+    workloadServiceCount: frozenInput.workload.services.length,
+    workloadHealthConfigured: workloadReadinessConfigured(frozenInput.workload),
+    ...preflight,
     idempotencyKey: input.idempotencyKey,
   };
   const admissionDecision = await deps.productionGates.admit(
@@ -166,9 +181,7 @@ export async function executeEnvironmentVersion(
     providerKey: deps.executor.providerKey,
     gateDecision: gateDecisionReference(admissionDecision),
   });
-  if (run.idempotentReplay) {
-    return { run, version: run.environmentVersion ?? null };
-  }
+  if (run.idempotentReplay) return { run, version: run.environmentVersion ?? null };
   return deps.run({
     input,
     environment:

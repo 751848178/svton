@@ -35,6 +35,7 @@ export function ProjectCard({ project }: ProjectCardProps) {
   const readyBaselines = [project.baselines.staging, project.baselines.production].filter(
     (baseline) => baseline?.ready,
   ).length;
+  const actionHref = project.nextAction?.href || `/projects/${project.id}`;
   return (
     <article className="px-4 py-4 transition-colors hover:bg-muted/20">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(11rem,.8fr)] lg:items-center">
@@ -108,10 +109,11 @@ export function ProjectCard({ project }: ProjectCardProps) {
             </p>
           </div>
           <Link
-            href={`/projects/${project.id}`}
-            className="inline-flex whitespace-nowrap rounded-md px-2 py-1 text-sm font-medium text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring lg:mt-2"
+            href={actionHref}
+            data-current-action={project.nextAction?.kind || 'open_project'}
+            className="inline-flex min-h-11 items-center whitespace-nowrap rounded-md px-2 text-sm font-medium text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring lg:mt-2"
           >
-            {t('enterProject')} →
+            {t(project.nextAction ? 'projectDeliveryFixNow' : 'enterProject')} →
           </Link>
         </div>
       </div>

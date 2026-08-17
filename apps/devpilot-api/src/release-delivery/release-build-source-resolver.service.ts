@@ -4,6 +4,7 @@ import { RepositoryIdentityReadRepository } from "../repository-identity/reposit
 import { RepositoryCredentialService } from "../repository-analysis/repository-credential.service";
 import { RepositoryGitExecutorService } from "../repository-analysis/repository-git-executor.service";
 import type { ReleaseBuildResolvedSource } from "./release-build.types";
+import { ReleaseBuildSourceEvidenceService } from "./release-build-source-evidence.service";
 
 @Injectable()
 export class ReleaseBuildSourceResolverService {
@@ -11,6 +12,7 @@ export class ReleaseBuildSourceResolverService {
     private readonly identities: RepositoryIdentityReadRepository,
     private readonly credentials: RepositoryCredentialService,
     private readonly git: RepositoryGitExecutorService,
+    private readonly sourceEvidence: ReleaseBuildSourceEvidenceService,
   ) {}
 
   async resolve(
@@ -42,6 +44,17 @@ export class ReleaseBuildSourceResolverService {
       credential,
       signal,
     );
+    const sourceEvidence = await this.sourceEvidence.inspect({
+      teamId,
+      projectId,
+      releaseOrderId,
+      repositoryUrl: connection.repositoryUrl,
+      branch: revision.defaultBranch,
+      exactCommit: ref.commitSha,
+      baselineCommit: connection.commitSha,
+      credential,
+      signal,
+    });
     return {
       context,
       connection,
@@ -56,6 +69,7 @@ export class ReleaseBuildSourceResolverService {
         branch: revision.defaultBranch,
       },
       commitSha: ref.commitSha,
+      sourceEvidence,
     };
   }
 }

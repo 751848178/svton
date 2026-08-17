@@ -16,6 +16,13 @@ const source = {
     branch: "main",
   },
   commitSha: "a".repeat(40),
+  sourceEvidence: {
+    status: "passed",
+    reasonCode: "source_state_verified",
+    checkedAt: "2026-08-11T00:00:00.000Z",
+    evidenceRef: "release-evidence://source/report.json",
+    evidenceHash: "source-hash",
+  },
 };
 
 describe("release build gate admission", () => {
@@ -31,7 +38,11 @@ describe("release build gate admission", () => {
     );
 
     expect(preview).toEqual({
-      target: { sourceBranch: "main", sourceCommitSha: "a".repeat(40) },
+      target: {
+        sourceBranch: "main",
+        sourceCommitSha: "a".repeat(40),
+        sourceEvidence: source.sourceEvidence,
+      },
       actionInput: {
         repositoryIdentityRevisionId: "revision-1",
         sourceBranch: "main",
@@ -40,7 +51,7 @@ describe("release build gate admission", () => {
     });
     expect(gates.assertAllowed).toHaveBeenCalledWith({
       ...scope,
-      stage: "build",
+      checkpoint: "build_pre_execution",
       ...preview,
     });
     expect(admitted).toEqual({ source, decision });
@@ -76,7 +87,7 @@ describe("release build gate admission", () => {
     ).rejects.toBe(gateError);
     expect(gates.assertAllowed).toHaveBeenCalledWith({
       ...scope,
-      stage: "build",
+      checkpoint: "build_pre_execution",
       target: { sourceResolution: "unavailable" },
       actionInput: { sourceResolution: "unavailable" },
     });

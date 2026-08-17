@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { ConnectRepositoryDto } from './dto/repository-connection.dto';
 import { RepositoryIdentityConnectionRepository } from '../repository-identity/repository-identity-connection.repository';
 import { identityConflict } from '../repository-identity/repository-identity.errors';
@@ -6,6 +7,7 @@ import { RepositoryIdentityReadRepository } from '../repository-identity/reposit
 import { normalizeRepositoryIdentity } from '../repository-identity/repository-identity.utils';
 import { assertIdentityCandidate } from '../repository-identity/repository-identity-policy.utils';
 import { RepositoryAnalysisAuditService } from './repository-analysis-audit.service';
+import { recordVerifiedRepositoryConnection } from './repository-connection-audit.utils';
 import { RepositoryConnectionRepository } from './repository-connection.repository';
 import { RepositoryCredentialService } from './repository-credential.service';
 import { RepositoryGitError } from './repository-git-error.utils';
@@ -77,6 +79,7 @@ export class RepositoryConnectionService {
     userId: string,
     projectId: string,
     dto: ConnectRepositoryDto,
+    afterVerified?: (tx: Prisma.TransactionClient) => Promise<void>,
   ) {
     await this.connections.assertProject(teamId, projectId);
     const repositoryUrl = validateRepositoryUrl(
@@ -133,7 +136,7 @@ export class RepositoryConnectionService {
           '仓库连接失败',
           '请检查仓库地址、分支和只读凭据后重试。',
         );
-      const failed = await this.identityConnections.saveFailureIfUnlocked({
+      await this.identityConnections.saveFailureIfUnlocked({
         teamId,
         projectId,
         userId,
@@ -146,8 +149,11 @@ export class RepositoryConnectionService {
         selectedBranch: dto.branch,
         errorCode: detail.code,
         errorMessage: detail.message,
+      }, async (tx, failed) => {
+        await this.recordFailure(
+          teamId, userId, projectId, failed.id, detail, normalized.provider, tx,
+        );
       });
-      await this.recordFailure(teamId, userId, projectId, failed?.id, detail, normalized.provider);
       throw new BadRequestException(detail);
     }
     const connection = await this.identityConnections.saveVerified({
@@ -161,22 +167,15 @@ export class RepositoryConnectionService {
       gitConnectionId: material.kind === 'https_token' ? material.gitConnectionId : undefined,
       teamCredentialId: material.kind === 'none' ? undefined : material.teamCredentialId,
       ...ref,
-    }, (tx) => this.credentials.persistInline(teamId, material, tx));
-      await this.audit.record({
-        teamId,
-        userId,
-        projectId,
-        action: 'repository.connect',
-        targetType: 'repository_connection',
-        targetId: connection.id,
-        summary: `已验证只读仓库 ${ref.selectedBranch}@${ref.commitSha.slice(0, 12)}`,
-        metadata: {
-          provider: connection.provider,
-          branch: ref.selectedBranch,
-          commitSha: ref.commitSha,
-          credentialSource: connection.credentialSource,
-        },
+    }, (tx) => this.credentials.persistInline(teamId, material, tx), async (tx, stored) => {
+      await afterVerified?.(tx);
+      await recordVerifiedRepositoryConnection(this.audit, tx, {
+        teamId, userId, projectId,
+        branch: ref.selectedBranch,
+        commitSha: ref.commitSha,
+        connection: stored,
       });
+    });
       return connection;
   }
 
@@ -187,6 +186,7 @@ export class RepositoryConnectionService {
     targetId: string | undefined,
     detail: { code: string; message: string },
     provider: string,
+    tx?: Prisma.TransactionClient,
   ) {
     return this.audit.record({
       teamId, userId, projectId, targetId,
@@ -195,6 +195,6 @@ export class RepositoryConnectionService {
       status: 'failed',
       summary: detail.message,
       metadata: { errorCode: detail.code, provider },
-    });
+    }, tx);
   }
 }

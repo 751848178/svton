@@ -81,8 +81,8 @@ export function EnvironmentSettingsArea({ detail }: { detail: DetailHook }) {
                   aria-pressed={activeEnv?.id === env.id}
                   className={
                     activeEnv?.id === env.id
-                      ? 'rounded-md border border-primary bg-primary/10 px-3 py-1.5 text-sm font-medium text-blue-800'
-                      : 'rounded-md border px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground'
+                      ? 'min-h-11 rounded-md border border-primary bg-primary/10 px-3 py-2 text-sm font-medium text-blue-800'
+                      : 'min-h-11 rounded-md border px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground'
                   }
                 >
                   <span>{env.key} · {env.name}</span>

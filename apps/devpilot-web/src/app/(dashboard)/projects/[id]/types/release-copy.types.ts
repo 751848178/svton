@@ -9,7 +9,8 @@ export type ReleaseExecutionStatus =
   | 'cancelled'
   | 'blocked'
   | 'pending'
-  | 'awaiting_approval';
+  | 'awaiting_approval'
+  | 'awaiting_validation';
 
 export type ReleaseApprovalStatus = 'pending' | 'approved' | 'rejected' | 'canceled' | 'cancelled';
 

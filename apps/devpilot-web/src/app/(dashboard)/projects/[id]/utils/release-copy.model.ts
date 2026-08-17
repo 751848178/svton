@@ -29,6 +29,7 @@ const EXECUTION_STATUS_KEYS: Record<ReleaseExecutionStatus, string> = {
   blocked: 'releaseExecutionStatusBlocked',
   pending: 'releaseExecutionStatusPending',
   awaiting_approval: 'releaseExecutionStatusAwaitingApproval',
+  awaiting_validation: 'releaseExecutionStatusAwaitingValidation',
 };
 
 const RUN_STATUS_KEYS: Record<string, string> = {
@@ -41,6 +42,7 @@ const RUN_STATUS_KEYS: Record<string, string> = {
   blocked: 'runStatusBlocked',
   pending: 'runStatusPending',
   awaiting_approval: 'runStatusAwaitingApproval',
+  awaiting_validation: 'releaseExecutionStatusAwaitingValidation',
   canceled: 'runStatusCancelled',
   cancelled: 'runStatusCancelled',
 };

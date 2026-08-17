@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 
 /**
  * 环境级并发守卫（AC-POLICY-006）：同一生产环境同时最多允许 1 个
- * 进行中的 ReleaseRun（awaiting_approval | running）。
+ * 进行中的 ReleaseRun（awaiting_approval | running | awaiting_validation）。
  *
  * 两条写路径（ReleaseProductionRepository.confirm 与
  * EnvironmentVersionRecoveryRepository.confirm）必须先对目标环境行加
@@ -14,6 +14,7 @@ import { Prisma } from "@prisma/client";
 export const ACTIVE_RELEASE_RUN_STATUSES = [
   "awaiting_approval",
   "running",
+  "awaiting_validation",
 ] as const;
 
 export async function lockProductionEnvironmentForRelease(

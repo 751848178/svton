@@ -2,6 +2,10 @@ import { PrismaClient } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { ReleaseProductionRepository } from "./release-production.repository";
+import {
+  managedCommandWorkloadConfig,
+  stagingArtifactProofParams,
+} from "./release-workload.integration-fixtures";
 
 export interface ProductionFixture {
   prisma: PrismaClient;
@@ -14,7 +18,8 @@ export interface ProductionFixture {
   manifestId: string;
   productionEnvironmentId: string;
   stagingEnvironmentId: string;
-  itemId: string;
+  bundleItemId: string;
+  componentItemId: string;
 }
 
 export async function createProductionFixture(): Promise<ProductionFixture> {
@@ -90,6 +95,23 @@ export async function createProductionFixture(): Promise<ProductionFixture> {
       status: "succeeded",
     },
   });
+  const application = await prisma.application.create({
+    data: {
+      teamId, projectId, createdById: userId,
+      name: "api", repoPath: "apps/api", status: "active",
+    },
+  });
+  const componentKey = `component-${suffix}`;
+  await prisma.applicationService.create({
+    data: {
+      teamId, projectId, applicationId: application.id,
+      environmentId: production.id, name: "api", status: "active",
+      releaseComponentKey: componentKey,
+      deployConfig: managedCommandWorkloadConfig({
+        healthCheckUrl: "http://127.0.0.1:3000/health",
+      }),
+    },
+  });
   const manifest = await prisma.artifactManifest.create({
     data: {
       teamId,
@@ -104,6 +126,12 @@ export async function createProductionFixture(): Promise<ProductionFixture> {
             artifactType: "zip",
             uri: `release-artifact://${build.id}/bundle.zip`,
             digest: `sha256:${"b".repeat(64)}`,
+          },
+          {
+            componentKey,
+            artifactType: "zip",
+            uri: `release-artifact://${build.id}/${componentKey}.zip`,
+            digest: `sha256:${"c".repeat(64)}`,
           },
         ],
       },
@@ -122,6 +150,7 @@ export async function createProductionFixture(): Promise<ProductionFixture> {
       status: "completed",
       dryRun: false,
       finishedAt: new Date(),
+      params: stagingArtifactProofParams(manifest),
       result: {
         artifactVerified: true,
         manifestId: manifest.id,
@@ -140,7 +169,10 @@ export async function createProductionFixture(): Promise<ProductionFixture> {
     manifestId: manifest.id,
     productionEnvironmentId: production.id,
     stagingEnvironmentId: staging.id,
-    itemId: manifest.items[0].id,
+    bundleItemId: manifest.items.find((item) =>
+      item.componentKey === "project-bundle")!.id,
+    componentItemId: manifest.items.find((item) =>
+      item.componentKey === componentKey)!.id,
   };
 }
 

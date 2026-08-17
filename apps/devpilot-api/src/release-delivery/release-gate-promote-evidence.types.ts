@@ -102,4 +102,33 @@ export type ReleaseGatePromoteEvidence = {
     sampledAt: Date;
     raw: unknown;
   }>;
+  routeSwitchRuns: Array<{
+    id: string;
+    operationId: string;
+    releaseRunId: string | null;
+    deploymentRunId: string | null;
+    targetRef: string | null;
+    status: string;
+    result: unknown;
+    applyReceipt: unknown;
+    promotionCandidateHash: string | null;
+    promotionObservedAt: Date | null;
+    promotionProbeHash: string | null;
+    promotionObservation: unknown;
+    updatedAt: Date;
+  }>;
+  dnsReceipts: Array<{
+    id: string;
+    configRevisionId: string;
+    providerKey: string;
+    providerProfile: string;
+    routeHash: string;
+    deploymentInputHash: string;
+    workloadInputHash: string;
+    status: string;
+    resultHash: string;
+    result: unknown;
+    probedAt: Date;
+    expiresAt: Date;
+  }>;
 };

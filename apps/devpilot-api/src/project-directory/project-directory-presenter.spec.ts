@@ -5,16 +5,40 @@ import {
   projectDirectorySite,
 } from "./project-directory.fixture";
 import { toProjectDirectoryItem } from "./project-directory-presenter.utils";
+import { presentProjectDeliverySummary } from "../release-delivery/project-delivery-summary.presenter";
+
+const present = (record: ReturnType<typeof projectDirectoryRecord>) =>
+  toProjectDirectoryItem(record, "ssh-v1");
 
 describe("project directory presenter", () => {
+  it("projects the exact detail readiness checkpoints and next action", () => {
+    const record = projectDirectoryRecord();
+    const directory = present(record);
+    const detail = presentProjectDeliverySummary(record, "actor-1", "ssh-v1");
+
+    expect(directory.checkpoints).toEqual(detail.checkpoints);
+    expect(directory.nextAction).toEqual(detail.nextAction);
+    expect(directory.baselines).toEqual(detail.baselines);
+  });
+
+  it("keeps directory and detail baseline readiness closed without a current version", () => {
+    const record = projectDirectoryRecord();
+    record.environments[0].currentEnvironmentVersion = null;
+    record.environments[0].currentEnvironmentVersionId = null;
+    const directory = present(record);
+    const detail = presentProjectDeliverySummary(record, "actor-1", "ssh-v1");
+    expect(directory.baselines.staging?.ready).toBe(false);
+    expect(directory.baselines).toEqual(detail.baselines);
+  });
+
   it("presents exact F415 shape and real Production evidence as online", () => {
-    const item = toProjectDirectoryItem(projectDirectoryRecord());
+    const item = present(projectDirectoryRecord());
 
     expect(item.status).toBe("online");
     expect(item.intake).toEqual({
       projectType: "web_application",
       architecture: "monorepo",
-      componentCount: 2,
+      componentCount: 1,
     });
     expect(item.baselines).toMatchObject({
       staging: { ready: true },
@@ -37,7 +61,7 @@ describe("project directory presenter", () => {
     current.deploymentRun.dryRun = true;
     current.deploymentRun.environmentId = "other-env";
 
-    const item = toProjectDirectoryItem(
+    const item = present(
       projectDirectoryRecord({
         environments: [
           projectDirectoryEnvironment("env-staging", "staging", "staging"),
@@ -51,7 +75,7 @@ describe("project directory presenter", () => {
   });
 
   it("uses only the exact active Production-scoped domain", () => {
-    const item = toProjectDirectoryItem(
+    const item = present(
       projectDirectoryRecord({
         sites: [
           projectDirectorySite({
@@ -88,10 +112,10 @@ describe("project directory presenter", () => {
       [projectDirectorySite({ environmentId: "env-staging" })],
     ],
     ["blank Site domain", [projectDirectorySite({ primaryDomain: "  " })]],
-  ])("fails online closed for %s", (_label, sites) => {
-    const item = toProjectDirectoryItem(projectDirectoryRecord({ sites }));
+  ])("keeps canonical readiness while omitting unverified directory domain for %s", (_label, sites) => {
+    const item = present(projectDirectoryRecord({ sites }));
 
-    expect(item.status).toBe("needs_configuration");
+    expect(item.status).toBe("online");
     expect(item.production).toEqual({
       currentVersion: "2.3.2",
       domain: null,
@@ -109,7 +133,7 @@ describe("project directory presenter", () => {
     current.releaseOrder.teamId = "other-team";
     current.deploymentRun.projectId = "other-project";
 
-    const item = toProjectDirectoryItem(
+    const item = present(
       projectDirectoryRecord({
         environments: [
           projectDirectoryEnvironment("env-staging", "staging", "staging"),
@@ -132,7 +156,7 @@ describe("project directory presenter", () => {
     requireCurrentVersion(production).deploymentRun.artifactManifestId =
       "other-manifest";
 
-    const item = toProjectDirectoryItem(
+    const item = present(
       projectDirectoryRecord({
         environments: [
           projectDirectoryEnvironment("env-staging", "staging", "staging"),
@@ -146,7 +170,7 @@ describe("project directory presenter", () => {
   });
 
   it("makes legacy intake and identity gaps explicit instead of inventing values", () => {
-    const item = toProjectDirectoryItem(
+    const item = present(
       projectDirectoryRecord({
         repositoryIdentity: null,
         intakeFinalizations: [],
@@ -170,7 +194,7 @@ describe("project directory presenter", () => {
       reviewSnapshotHash: "drifted",
     };
 
-    expect(toProjectDirectoryItem(record).intake).toEqual({
+    expect(present(record).intake).toEqual({
       projectType: null,
       architecture: null,
       componentCount: null,

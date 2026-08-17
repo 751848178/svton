@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { ApplyRepositorySuggestionsDto } from './dto/repository-analysis.dto';
 import { RepositoryDecision } from './repository-apply.types';
 import { redactRepositoryValue } from './repository-analysis-redact.utils';
@@ -22,6 +23,7 @@ export class RepositorySuggestionApplyService {
     runId: string,
     dto: ApplyRepositorySuggestionsDto,
     snapshot?: { version: number; inputHash: string },
+    afterApply?: (tx: Prisma.TransactionClient) => Promise<void>,
   ) {
     const run = await this.repository.load(teamId, projectId, runId);
     if (!run) throw new NotFoundException(repositoryError(
@@ -82,6 +84,7 @@ export class RepositorySuggestionApplyService {
         markConnectionApplied: required.every((item) => item.status !== 'rejected'),
         decisions,
         snapshot,
+        afterApply,
       });
     } catch (error) {
       if (!(error instanceof RepositoryIntakeSnapshotLockedError)) throw error;

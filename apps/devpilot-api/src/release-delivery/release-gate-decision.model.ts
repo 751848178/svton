@@ -1,27 +1,25 @@
 import { RELEASE_GATE_DEFINITIONS } from "./release-gate-definition.catalog";
+import { releaseGateCheckpointPolicy } from "./release-gate-checkpoint.policy";
 import type {
   PersistedReleaseGateEvaluation,
+  ReleaseGateCheckpoint,
   ReleaseGateDecisionDraft,
-  ReleaseGateDecisionStage,
 } from "./release-gate-decision.types";
-
-const STAGE_PHASE = {
-  build: "commit",
-  staging: "build",
-  production: "deploy",
-} as const;
+import type { ReleaseGateActionIdentity } from "./release-gate-action-identity.policy";
+import { hasRequiredManualApprovals } from "./release-gate-manual-approval.policy";
 const EVIDENCE_ONLY_GATE_IDS = new Set(["P03"]);
 
 export function buildReleaseGateDecision(input: {
-  stage: ReleaseGateDecisionStage;
+  checkpoint: ReleaseGateCheckpoint;
   checks: PersistedReleaseGateEvaluation[];
   actionInput?: Record<string, string | null>;
-  deferredReasons?: Record<string, string[]>;
+  actionIdentity: ReleaseGateActionIdentity;
   now?: Date;
 }): ReleaseGateDecisionDraft {
-  const phase = STAGE_PHASE[input.stage];
+  const policy = releaseGateCheckpointPolicy(input.checkpoint);
+  const requiredIds = new Set(policy.requiredGateIds);
   const definitions = RELEASE_GATE_DEFINITIONS.filter(
-    (definition) => definition.phase === phase && definition.delivery === "mvp",
+    (definition) => requiredIds.has(definition.id),
   );
   const byId = new Map<string, PersistedReleaseGateEvaluation[]>();
   for (const check of input.checks) {
@@ -50,12 +48,12 @@ export function buildReleaseGateDecision(input: {
       integrityErrors.push(`${definition.id}:definition_drift`);
       continue;
     }
-    if (input.deferredReasons?.[check.id]?.includes(check.reasonCode)) {
-      deferredGateIds.push(check.id);
-      continue;
-    }
     if (check.status === "manual") {
-      if (hasManualConfirmation(check, now))
+      if (hasRequiredManualApprovals({
+        check,
+        actionIdentity: input.actionIdentity,
+        now,
+      }))
         confirmedManualGateIds.push(check.id);
       else if (definition.dispositions.includes("manual"))
         manualGateIds.push(check.id);
@@ -72,8 +70,12 @@ export function buildReleaseGateDecision(input: {
   }
 
   return {
-    stage: input.stage,
-    phase,
+    stage: policy.stage,
+    checkpoint: input.checkpoint,
+    phase: policy.phase,
+    approvalSubjectHash: input.actionIdentity.approvalSubjectHash,
+    actionInputHash: input.actionIdentity.actionInputHash,
+    requesterActorId: input.actionIdentity.requesterActorId,
     allowed:
       integrityErrors.length === 0 &&
       blockerGateIds.length === 0 &&
@@ -88,10 +90,15 @@ export function buildReleaseGateDecision(input: {
       .map((check) => check.id),
     integrityErrors,
     snapshot: {
-      version: 1,
-      stage: input.stage,
-      phase,
+      version: 4,
+      stage: policy.stage,
+      checkpoint: input.checkpoint,
+      phase: policy.phase,
+      requiredGateIds: [...policy.requiredGateIds],
       actionInput: input.actionInput ?? {},
+      approvalSubjectHash: input.actionIdentity.approvalSubjectHash,
+      actionInputHash: input.actionIdentity.actionInputHash,
+      requesterActorId: input.actionIdentity.requesterActorId,
       evaluations: requiredChecks.map(snapshotEvaluation),
     },
   };
@@ -118,27 +125,6 @@ function isFreshProviderFact(check: PersistedReleaseGateEvaluation, now: Date) {
   );
 }
 
-function hasManualConfirmation(
-  check: PersistedReleaseGateEvaluation,
-  now: Date,
-) {
-  if (
-    !check.dispositions.includes("manual") ||
-    !isFreshProviderFact(check, now)
-  ) {
-    return false;
-  }
-  const waiver = record(check.waiver);
-  return (
-    waiver.kind === "manual_confirmation" &&
-    waiver.evaluationInputHash === check.evaluationInputHash &&
-    typeof waiver.actorId === "string" &&
-    typeof waiver.confirmedAt === "string" &&
-    (!check.waiverExpiresAt ||
-      new Date(check.waiverExpiresAt).getTime() >= now.getTime())
-  );
-}
-
 function snapshotEvaluation(check: PersistedReleaseGateEvaluation) {
   return {
     gateId: check.id,
@@ -147,17 +133,13 @@ function snapshotEvaluation(check: PersistedReleaseGateEvaluation) {
     status: check.status,
     providerKey: check.providerKey,
     reasonCode: check.reasonCode,
+    reason: check.reason,
     evidenceRef: check.evidenceRef,
     checkedAt: check.checkedAt,
     expiresAt: check.expiresAt,
     fresh: check.fresh,
     waiver: check.waiver,
     waiverExpiresAt: check.waiverExpiresAt,
+    manualApprovals: check.manualApprovals,
   };
-}
-
-function record(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
 }

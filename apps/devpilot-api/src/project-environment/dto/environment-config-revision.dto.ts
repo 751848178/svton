@@ -80,6 +80,10 @@ export class CreateEnvironmentConfigRevisionDto {
   routeSnapshot?: Record<string, unknown>;
 
   @IsOptional()
+  @IsObject()
+  observabilitySnapshot?: Record<string, unknown>;
+
+  @IsOptional()
   @IsArray()
   @IsString({ each: true })
   policyReferenceIds?: string[];

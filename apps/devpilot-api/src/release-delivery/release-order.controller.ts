@@ -164,6 +164,7 @@ export class ReleaseOrderController {
       releaseOrderId,
       query.manifestId,
       query.strategy,
+      req.user.id,
     );
   }
 

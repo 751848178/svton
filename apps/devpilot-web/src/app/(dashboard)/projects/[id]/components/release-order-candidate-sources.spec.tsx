@@ -13,7 +13,8 @@ const mocks = vi.hoisted(() => ({
   staging: {} as Record<string, unknown>,
   production: {} as Record<string, unknown>,
 }));
-vi.mock('next-intl', () => ({ useTranslations: () => (key: string) => key }));
+vi.mock('next-intl', () => ({ useLocale: () => 'zh',
+  useTranslations: () => (key: string) => key }));
 vi.mock('../hooks/use-release-builds', () => ({ useReleaseBuilds: () => mocks.builds }));
 vi.mock('../hooks/use-release-staging-deployments', () => ({
   useReleaseStagingDeployments: () => mocks.staging,

@@ -5,22 +5,9 @@ import type {
   ProjectDirectoryItem,
   ProjectDirectoryStatus,
 } from "./project-directory.types";
+import type { ProjectDeliveryCheckpoint } from "../release-delivery/project-delivery-summary.types";
 
 type DirectoryEnvironment = ProjectDirectoryRecord["environments"][number];
-
-export function baselineSummary(
-  environment: DirectoryEnvironment,
-): ProjectDirectoryEnvironmentSummary {
-  return {
-    id: environment.id,
-    key: environment.key,
-    name: environment.name,
-    ready:
-      environment.status === "active" &&
-      environment.identityLockedAt !== null &&
-      environment.currentConfigRevisionId !== null,
-  };
-}
 
 export function productionSummary(
   project: ProjectDirectoryRecord,
@@ -43,23 +30,10 @@ export function productionSummary(
 }
 
 export function projectDirectoryStatus(
-  project: ProjectDirectoryRecord,
-  proof: {
-    repositoryReady: boolean;
-    stagingReady: boolean;
-    productionReady: boolean;
-    productionOnline: boolean;
-  },
+  checkpoints: ProjectDeliveryCheckpoint[],
+  baselines: Array<ProjectDirectoryEnvironmentSummary | null>,
 ): ProjectDirectoryStatus {
-  const finalized =
-    project.onboardingStatus === "ready" &&
-    project.onboardingFinalizedAt !== null &&
-    (project.onboardingRevision ?? 0) > 0;
-  return finalized &&
-    proof.repositoryReady &&
-    proof.stagingReady &&
-    proof.productionReady &&
-    proof.productionOnline
-    ? "online"
-    : "needs_configuration";
+  return baselines.every((baseline) => baseline?.ready === true) &&
+    checkpoints.every((checkpoint) => checkpoint.status === "ready")
+    ? "online" : "needs_configuration";
 }

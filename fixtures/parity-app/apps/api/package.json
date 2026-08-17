@@ -4,6 +4,9 @@
   "version": "1.0.0",
   "scripts": {
     "build": "node scripts/build.mjs",
+    "test": "node ../../scripts/verify.mjs test",
+    "lint": "node ../../scripts/verify.mjs lint",
+    "typecheck": "node ../../scripts/verify.mjs typecheck",
     "start": "node dist/server.js"
   }
 }

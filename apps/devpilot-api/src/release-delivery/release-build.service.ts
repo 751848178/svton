@@ -90,6 +90,7 @@ export class ReleaseBuildService {
           id: decision.id,
           stage: decision.stage,
           inputHash: decision.inputHash,
+          actionInputHash: decision.actionInputHash,
         },
         runtime: this.runtime.descriptor(),
         artifactContract: {
@@ -113,6 +114,7 @@ export class ReleaseBuildService {
       return this.runner.run({
         buildRun,
         teamId,
+        actorId,
         projectId,
         releaseOrderId,
         source,
@@ -142,7 +144,11 @@ function hashSnapshot(snapshot: ReleaseBuildInputSnapshotV4) {
   const input = {
     ...stable,
     gateDecision: gateDecision
-      ? { stage: gateDecision.stage, inputHash: gateDecision.inputHash }
+      ? {
+          stage: gateDecision.stage,
+          inputHash: gateDecision.inputHash,
+          actionInputHash: gateDecision.actionInputHash,
+        }
       : undefined,
   };
   return createHash("sha256").update(JSON.stringify(input)).digest("hex");

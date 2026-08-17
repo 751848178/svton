@@ -40,4 +40,5 @@ export type ReleaseGateEvaluation = ReleaseGateDefinition & {
   checkedAt: string | null;
   expiresAt: string | null;
   fresh: boolean | null;
+  evidenceIdentity?: Record<string, string | number | null>;
 };

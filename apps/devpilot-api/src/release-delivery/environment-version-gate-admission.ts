@@ -11,9 +11,17 @@ export type EnvironmentVersionGateContext = {
   buildRunId: string;
   releaseRunId?: string;
   deploymentRunId?: string;
+  candidateHash?: string;
   providerKey?: string;
   bindingId?: string;
   deploymentInputHash?: string;
+  workloadInputHash?: string;
+  workloadServiceCount?: number;
+  workloadHealthConfigured?: boolean;
+  capacitySnapshotId?: string;
+  capacitySnapshotHash?: string;
+  dnsProbeReceiptId?: string;
+  dnsProbeResultHash?: string;
   idempotencyKey?: string;
 };
 
@@ -24,7 +32,10 @@ export function admitEnvironmentVersion(
 ) {
   return gates.assertAllowed({
     ...scope(context),
-    stage,
+    checkpoint:
+      stage === "staging"
+        ? "staging_pre_execution"
+        : "production_pre_execution",
     target: target(context),
     actionInput: {
       checkpoint: "pre_execution",
@@ -36,6 +47,17 @@ export function admitEnvironmentVersion(
       providerKey: context.providerKey ?? null,
       bindingId: context.bindingId ?? null,
       deploymentInputHash: context.deploymentInputHash ?? null,
+      workloadInputHash: context.workloadInputHash ?? null,
+      workloadServiceCount: context.workloadServiceCount === undefined
+        ? null
+        : String(context.workloadServiceCount),
+      workloadHealthConfigured: context.workloadHealthConfigured === undefined
+        ? null
+        : String(context.workloadHealthConfigured),
+      capacitySnapshotId: context.capacitySnapshotId ?? null,
+      capacitySnapshotHash: context.capacitySnapshotHash ?? null,
+      dnsProbeReceiptId: context.dnsProbeReceiptId ?? null,
+      dnsProbeResultHash: context.dnsProbeResultHash ?? null,
       idempotencyKey: context.idempotencyKey ?? null,
     },
     requestKey: `pre:${stage}:${context.idempotencyKey ?? context.releaseRunId ?? context.manifestId}`,
@@ -45,14 +67,13 @@ export function admitEnvironmentVersion(
 export function finalEnvironmentVersionDecision(
   gates: ReleaseGateDecisionService,
   context: EnvironmentVersionGateContext & { deploymentRunId: string },
-  checkpoint: "post_execution" | "execution_failed",
 ) {
   return gates.assertAllowed({
     ...scope(context),
-    stage: "production",
+    checkpoint: "production_post_deploy",
     target: target(context),
     actionInput: {
-      checkpoint,
+      checkpoint: "post_deploy",
       deploymentRunId: context.deploymentRunId,
       environmentId: context.environmentId,
       configRevisionId: context.configRevisionId,
@@ -62,9 +83,65 @@ export function finalEnvironmentVersionDecision(
       providerKey: context.providerKey ?? null,
       bindingId: context.bindingId ?? null,
       deploymentInputHash: context.deploymentInputHash ?? null,
+      workloadInputHash: context.workloadInputHash ?? null,
+      workloadServiceCount: context.workloadServiceCount === undefined
+        ? null
+        : String(context.workloadServiceCount),
+      workloadHealthConfigured: context.workloadHealthConfigured === undefined
+        ? null
+        : String(context.workloadHealthConfigured),
+      candidateHash: context.candidateHash ?? null,
       idempotencyKey: context.idempotencyKey ?? null,
     },
     requestKey: `final:${context.releaseRunId}:${context.deploymentRunId}`,
+  });
+}
+
+export function promoteEnvironmentVersionDecision(
+  gates: ReleaseGateDecisionService,
+  context: EnvironmentVersionGateContext & {
+    deploymentRunId: string;
+    candidateHash: string;
+    promotionCommandId?: string;
+  },
+) {
+  return gates.assertAllowed({
+    ...scope(context),
+    checkpoint: "production_promote_pre_route",
+    target: target(context),
+    actionInput: {
+      checkpoint: "promote_pre_route",
+      deploymentRunId: context.deploymentRunId,
+      releaseRunId: context.releaseRunId ?? null,
+      manifestId: context.manifestId,
+      deploymentInputHash: context.deploymentInputHash ?? null,
+      candidateHash: context.candidateHash,
+      promotionCommandId: context.promotionCommandId ?? null,
+    },
+  });
+}
+
+export function postRouteEnvironmentVersionDecision(
+  gates: ReleaseGateDecisionService,
+  context: EnvironmentVersionGateContext & {
+    deploymentRunId: string;
+    candidateHash: string;
+    promotionCommandId: string;
+    routeSwitchOperationId: string;
+  },
+) {
+  return gates.assertAllowed({
+    ...scope(context),
+    checkpoint: "production_post_route",
+    target: target(context),
+    actionInput: {
+      checkpoint: "post_route",
+      deploymentRunId: context.deploymentRunId,
+      releaseRunId: context.releaseRunId ?? null,
+      candidateHash: context.candidateHash,
+      promotionCommandId: context.promotionCommandId,
+      routeSwitchOperationId: context.routeSwitchOperationId,
+    },
   });
 }
 
@@ -83,10 +160,18 @@ function target(context: EnvironmentVersionGateContext) {
     manifestId: context.manifestId,
     releaseRunId: context.releaseRunId,
     deploymentRunId: context.deploymentRunId,
+    candidateHash: context.candidateHash,
     environmentId: context.environmentId,
     configRevisionId: context.configRevisionId,
     providerKey: context.providerKey,
     bindingId: context.bindingId,
     deploymentInputHash: context.deploymentInputHash,
+    workloadInputHash: context.workloadInputHash,
+    workloadServiceCount: context.workloadServiceCount,
+    workloadHealthConfigured: context.workloadHealthConfigured,
+    capacitySnapshotId: context.capacitySnapshotId,
+    capacitySnapshotHash: context.capacitySnapshotHash,
+    dnsProbeReceiptId: context.dnsProbeReceiptId,
+    dnsProbeResultHash: context.dnsProbeResultHash,
   };
 }

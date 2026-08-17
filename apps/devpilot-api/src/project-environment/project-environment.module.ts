@@ -11,6 +11,8 @@ import {
 } from "./project-environment.controller";
 import { EnvironmentConfigReferenceResolverService } from "./environment-config-reference-resolver.service";
 import { EnvironmentConfigRevisionService } from "./environment-config-revision.service";
+import { EnvironmentConfigIdentityService } from "./environment-config-identity.service";
+import { EnvironmentConfigCopyService } from "./environment-config-copy.service";
 import { ProjectEnvironmentService } from "./project-environment.service";
 import { ProjectEnvironmentRepository } from "./project-environment.repository";
 import { ProjectEnvironmentCopySiteService } from "./project-environment-copy-site.service";
@@ -56,6 +58,8 @@ import { ProjectEnvironmentWriteAccessPolicyService } from "./project-environmen
     ProjectEnvironmentCopyAccessPolicyService,
     EnvironmentConfigReferenceResolverService,
     EnvironmentConfigRevisionService,
+    EnvironmentConfigIdentityService,
+    EnvironmentConfigCopyService,
   ],
   exports: [ProjectEnvironmentService],
 })

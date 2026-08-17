@@ -133,6 +133,7 @@ export function SettingsEnvEntryModal(props: Props) {
         <label className="block space-y-1 text-xs">
           <span className="font-medium">{t('envRoutesTlsLabel')}</span>
           <select className="min-h-11 w-full rounded-md border bg-background px-3 py-2 text-sm" value={form.tlsMode} onChange={(event) => update('tlsMode', event.target.value as RouteEntryForm['tlsMode'])}>
+            <option value="none">{t('envRoutesTlsNone')}</option>
             <option value="managed_cert">{t('envRoutesTlsManaged')}</option>
             <option value="existing_cert_asset">{t('envRoutesTlsExisting')}</option>
           </select>

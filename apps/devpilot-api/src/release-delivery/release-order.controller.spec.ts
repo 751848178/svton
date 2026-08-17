@@ -162,6 +162,7 @@ describe("ReleaseOrderController", () => {
       "order-1",
       "manifest-1",
       undefined,
+      "user-1",
     );
 
     const confirmDto = {

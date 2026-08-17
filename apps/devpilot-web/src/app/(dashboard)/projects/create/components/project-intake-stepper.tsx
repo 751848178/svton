@@ -19,7 +19,7 @@ export function ProjectIntakeStepper({ step }: { step: number }) {
             <li
               key={label}
               aria-current={current ? 'step' : undefined}
-              className={`flex items-center gap-3 rounded-lg border p-3 ${
+              className={`${current ? 'flex' : 'hidden'} min-h-11 items-center gap-3 rounded-lg border p-3 sm:flex ${
                 current ? 'border-primary bg-primary/5' : completed ? 'bg-muted/40' : ''
               }`}
             >

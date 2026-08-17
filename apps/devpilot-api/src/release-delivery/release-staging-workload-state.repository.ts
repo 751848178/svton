@@ -7,14 +7,16 @@ type WorkloadStateClient = Pick<
   "artifactManifest" | "projectEnvironment"
 >;
 
-const WORKLOAD_SERVICE_SELECT = {
+export const WORKLOAD_SERVICE_SELECT = {
   where: { status: "active", application: { status: "active" } },
   orderBy: { id: "asc" as const },
   select: {
     id: true,
+    releaseComponentKey: true,
     applicationId: true,
     name: true,
     kind: true,
+    ports: true,
     deployConfig: true,
   },
 } as const;

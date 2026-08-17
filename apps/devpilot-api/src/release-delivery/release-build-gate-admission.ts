@@ -50,7 +50,7 @@ export async function admitReleaseBuild(
   } catch (error) {
     await gates.assertAllowed({
       ...scope,
-      stage: "build",
+      checkpoint: "build_pre_execution",
       ...unresolvedDecisionInput(),
     });
     throw error;
@@ -60,7 +60,7 @@ export async function admitReleaseBuild(
     source,
     decision: await gates.assertAllowed({
       ...scope,
-      stage: "build",
+      checkpoint: "build_pre_execution",
       ...input,
     }),
   };
@@ -73,6 +73,7 @@ function decisionInput(
     target: {
       sourceBranch: source.identity.branch,
       sourceCommitSha: source.commitSha,
+      sourceEvidence: source.sourceEvidence,
     },
     actionInput: {
       repositoryIdentityRevisionId: source.identity.revisionId,

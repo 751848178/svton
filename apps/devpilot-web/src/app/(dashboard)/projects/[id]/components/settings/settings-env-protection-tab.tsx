@@ -17,6 +17,7 @@ import { EnvironmentSyncPanel } from '../environment-sync-panel';
 import { EnvironmentWriteActions } from '../environment-write-actions';
 import { environmentIdentityLabelKey } from './settings-env.model';
 import { SubtabShell } from './settings-subtab-shell';
+import type { SettingsObservabilityDraft } from './settings-env.model';
 
 type DetailHook = ReturnType<typeof useProjectDetail>;
 
@@ -28,12 +29,16 @@ export function EnvProtectionTab({
   policies,
   policyIds,
   onPolicyIdsChange,
+  observability,
+  onObservabilityChange,
 }: {
   environment: ProjectEnvironment;
   detail: DetailHook;
   policies: Policy[];
   policyIds: string[];
   onPolicyIdsChange: (next: string[]) => void;
+  observability?: SettingsObservabilityDraft['profile'];
+  onObservabilityChange?: (next: SettingsObservabilityDraft['profile']) => void;
 }) {
   const t = useTranslations('projects');
   const project = detail.project;
@@ -56,6 +61,30 @@ export function EnvProtectionTab({
       moduleLabel={t('envModuleLinkApprovals')}
     >
       <div className="space-y-4">
+        <section id="observability" className="rounded-md border p-3">
+          <label htmlFor="environment-observability-profile" className="text-xs font-medium">
+            {t('environmentObservabilityTitle')}
+          </label>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            {t('environmentObservabilityHelper')}
+          </p>
+          <select
+            id="environment-observability-profile"
+            className="mt-2 min-h-11 w-full rounded-md border bg-background px-3 text-sm"
+            value={observability ?? ''}
+            onChange={(event) => onObservabilityChange?.(
+              event.target.value as SettingsObservabilityDraft['profile'],
+            )}
+          >
+            <option value="">{t('environmentObservabilityUnconfigured')}</option>
+            <option value="local_acceptance_v1">{t('environmentObservabilityLocal')}</option>
+          </select>
+          {observability === 'local_acceptance_v1' ? (
+            <p className="mt-2 text-xs text-amber-800" role="status">
+              {t('environmentObservabilityAcceptanceOnly')}
+            </p>
+          ) : null}
+        </section>
         <div className="space-y-1">
           <div className="text-xs font-medium">{t('configPolicyReferences')}</div>
           {policies.length === 0 ? (

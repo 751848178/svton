@@ -15,11 +15,13 @@ export function FinalizeBaselineStep({ intake }: { intake: ProjectIntakeHook }) 
           name="Staging"
           tag={t('intakeBaselineDefault')}
           description={t('intakeStagingDescription')}
+          reason={t('intakeStagingBaselineReason')}
         />
         <BaselineCard
           name="Production"
           tag={t('intakeBaselineDefault')}
           description={t('intakeProductionDescription')}
+          reason={t('intakeProductionBaselineReason')}
         />
       </div>
       <dl className="grid gap-3 rounded-lg border bg-muted/20 p-4 text-sm sm:grid-cols-2">
@@ -82,7 +84,9 @@ export function FinalizeBaselineStep({ intake }: { intake: ProjectIntakeHook }) 
 function capitalize(value: string) { return `${value.charAt(0).toUpperCase()}${value.slice(1)}`; }
 function pascal(value: string) { return value.split('_').map(capitalize).join(''); }
 
-function BaselineCard(props: { name: string; tag: string; description: string }) {
+function BaselineCard(props: {
+  name: string; tag: string; description: string; reason: string;
+}) {
   return (
     <article className="rounded-lg border p-5">
       <div className="flex items-center justify-between gap-2">
@@ -90,6 +94,7 @@ function BaselineCard(props: { name: string; tag: string; description: string })
         <Tag color="green">{props.tag}</Tag>
       </div>
       <p className="mt-2 text-sm text-muted-foreground">{props.description}</p>
+      <p className="mt-3 border-t pt-3 text-xs text-muted-foreground">{props.reason}</p>
     </article>
   );
 }

@@ -6,8 +6,11 @@ import { apiRequest } from '@/lib/api-client';
 import type {
   EnvironmentVersionActionResult,
   EnvironmentVersionsResponse,
+  ProductionPromotionResumeInput,
 } from '../types/environment-version.types';
 import { isProjectDeliverySummaryCacheKey } from './use-project-delivery-summary';
+import { promotionActionDomainError, type PromotionActionResult } from
+  '../utils/promotion-action-result.model';
 
 export function useEnvironmentVersions(projectId: string) {
   const { mutate: mutateCache } = useSWRConfig();
@@ -39,6 +42,13 @@ export function useEnvironmentVersions(projectId: string) {
     void load();
   }, [load]);
 
+  const refreshDelivery = useCallback(() => Promise.all([
+    load(),
+    mutateCache((key) => isProjectDeliverySummaryCacheKey(key, projectId), undefined, {
+      revalidate: true,
+    }),
+  ]), [load, mutateCache, projectId]);
+
   const execute = useCallback(
     async (
       environmentId: string,
@@ -57,12 +67,7 @@ export function useEnvironmentVersions(projectId: string) {
           `POST:/projects/${projectId}/delivery/environment-versions/${environmentId}/actions`,
           { ...input, idempotencyKey: input.idempotencyKey ?? crypto.randomUUID() },
         );
-        await Promise.all([
-          load(),
-          mutateCache((key) => isProjectDeliverySummaryCacheKey(key, projectId), undefined, {
-            revalidate: true,
-          }),
-        ]);
+        await refreshDelivery();
         return result;
       } catch (caught) {
         setError(message(caught));
@@ -71,10 +76,55 @@ export function useEnvironmentVersions(projectId: string) {
         setExecuting(false);
       }
     },
-    [load, mutateCache, projectId],
+    [projectId, refreshDelivery],
   );
 
-  return { ...data, loading, executing, error, load, execute };
+  const resumePromotion = useCallback(async (
+    environmentId: string,
+    input: ProductionPromotionResumeInput,
+  ) => {
+    setExecuting(true);
+    setError('');
+    try {
+      const result = await apiRequest<PromotionActionResult>(
+        `POST:/projects/${projectId}/delivery/environment-versions/${environmentId}/production-promotion/resume`,
+        { ...input, idempotencyKey: crypto.randomUUID() },
+      );
+      await refreshDelivery();
+      setError(promotionActionDomainError(result) ?? '');
+      return result;
+    } catch (caught) {
+      setError(message(caught));
+      return null;
+    } finally {
+      setExecuting(false);
+    }
+  }, [projectId, refreshDelivery]);
+
+  const reconcilePromotion = useCallback(async (
+    environmentId: string,
+    promotionCommandId: string,
+  ) => {
+    setExecuting(true);
+    setError('');
+    try {
+      const result = await apiRequest<PromotionActionResult>(
+        `POST:/projects/${projectId}/delivery/environment-versions/${environmentId}/production-promotion/reconcile`,
+        { promotionCommandId, idempotencyKey: crypto.randomUUID() },
+      );
+      await refreshDelivery();
+      setError(promotionActionDomainError(result) ?? '');
+      return result;
+    } catch (caught) {
+      setError(message(caught));
+      return null;
+    } finally {
+      setExecuting(false);
+    }
+  }, [projectId, refreshDelivery]);
+
+  return { ...data, loading, executing, error, load, execute,
+    resumePromotion, reconcilePromotion };
 }
 
 function message(error: unknown) {

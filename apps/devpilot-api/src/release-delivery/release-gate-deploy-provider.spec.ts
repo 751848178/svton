@@ -57,7 +57,7 @@ describe("Deploy release gate providers", () => {
     expect(checks.D01.reasonCode).toBe("deployment_environment_mismatch");
     expect(checks.D08.reasonCode).toBe("resource_environment_mismatch");
     expect(checks.D05.reasonCode).toBe("metric_environment_mismatch");
-    expect(checks.D12.reasonCode).toBe("backup_environment_mismatch");
+    expect(checks.D12.reasonCode).toBe("resource_environment_mismatch");
   });
 
   it("accepts a config revision without optional route domains", () => {
@@ -141,6 +141,43 @@ describe("Deploy release gate providers", () => {
     expect(checks.D10.status).toBe("unavailable");
     expect(checks.D11.status).toBe("unavailable");
     expect(checks.D12.status).toBe("unavailable");
+  });
+
+  it("requires connectivity and restore-point coverage for every mixed resource reference", () => {
+    const context = evidenceContext();
+    const deploy = context.deploy!;
+    const revision = deploy.environment!.currentConfigRevision!;
+    (revision.resourceReferences as Array<Record<string, unknown>>).push({
+      id: "database-instance-2", kind: "resource_instance", stateful: true,
+      sharedEnvironmentIds: [deploy.environment!.id],
+    });
+    deploy.resources.push({
+      id: "database-instance-2", kind: "resource_instance",
+      projectId: "project-1", environmentId: deploy.environment!.id,
+      status: "active", observedAt: NOW,
+      mappedManagedResourceIds: ["database-managed-2"],
+    });
+
+    let checks = evaluate(registry, context);
+    expect(checks.D08.reasonCode).toBe("resource_connection_run_missing");
+    expect(checks.D12.reasonCode).toBe("external_backup_provider_unsupported");
+
+    deploy.connections.push({
+      ...deploy.connections[0], id: "connection-2",
+      resourceId: "database-managed-2",
+    });
+    checks = evaluate(registry, context);
+    expect(checks.D08.status).toBe("checked");
+    expect(checks.D12.reasonCode).toBe("external_backup_provider_unsupported");
+  });
+
+  it("rejects a running connection probe until it reaches a success terminal", () => {
+    const context = evidenceContext();
+    context.deploy!.connections[0].status = "running";
+    expect(evaluate(registry, context).D08).toMatchObject({
+      status: "blocked",
+      reasonCode: "resource_connection_not_succeeded",
+    });
   });
 
   it("D07 blocks when the provider-matched server is offline (AC-SET-022)", () => {
@@ -286,6 +323,7 @@ function evidenceContext() {
               risk: "medium",
               impact: "shared cache",
               sharedEnvironmentIds: [environmentId],
+              stateful: true,
             },
           ],
           routeSnapshot: { domains: ["staging.test"] },

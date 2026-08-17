@@ -11,6 +11,8 @@ import {
   admitEnvironmentVersion,
   type EnvironmentVersionGateContext,
   finalEnvironmentVersionDecision,
+  postRouteEnvironmentVersionDecision,
+  promoteEnvironmentVersionDecision,
 } from "./environment-version-gate-admission";
 import { ProductionRouteSagaGuard } from "../site/production-route-saga.guard";
 
@@ -39,8 +41,30 @@ export class EnvironmentVersionProductionGateService {
     return finalEnvironmentVersionDecision(
       this.gates,
       context,
-      "post_execution",
     );
+  }
+
+  promote(
+    context: EnvironmentVersionGateContext & {
+      deploymentRunId: string;
+      candidateHash: string;
+      promotionCommandId?: string;
+    },
+  ) {
+    if (!context.releaseRunId) return undefined;
+    return promoteEnvironmentVersionDecision(this.gates, context);
+  }
+
+  postRoute(
+    context: EnvironmentVersionGateContext & {
+      deploymentRunId: string;
+      candidateHash: string;
+      promotionCommandId: string;
+      routeSwitchOperationId: string;
+    },
+  ) {
+    if (!context.releaseRunId) return undefined;
+    return postRouteEnvironmentVersionDecision(this.gates, context);
   }
 
   async denied(
@@ -53,7 +77,6 @@ export class EnvironmentVersionProductionGateService {
       return await finalEnvironmentVersionDecision(
         this.gates,
         context,
-        "execution_failed",
       );
     } catch (gateError) {
       return gateError instanceof ReleaseGateBlockedException
@@ -67,6 +90,11 @@ export function gateDecisionReference(
   decision?: ReleaseGateDecision,
 ): ReleaseGateDecisionReference | undefined {
   return decision
-    ? { id: decision.id, stage: decision.stage, inputHash: decision.inputHash }
+    ? {
+        id: decision.id,
+        stage: decision.stage,
+        inputHash: decision.inputHash,
+        actionInputHash: decision.actionInputHash,
+      }
     : undefined;
 }

@@ -5,6 +5,7 @@ import type {
   ReleaseGateStatus,
 } from "./release-gate-catalog.types";
 import type { ReleaseGateEvidenceContext } from "./release-gate-evidence.repository";
+import { evaluateBackupCoverage } from "./release-gate-backup-coverage.policy";
 import { evaluateMigrationApplicability } from "./release-gate-migration-applicability.evaluator";
 import {
   evaluated,
@@ -14,7 +15,6 @@ import {
 } from "./release-gate-provider.types";
 
 const MIGRATION_TTL_MS = 24 * 60 * 60 * 1000;
-const BACKUP_TTL_MS = 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class ReleaseGateMigrationCapabilityProvider implements ReleaseGateCapabilityProvider {
@@ -38,7 +38,7 @@ export class ReleaseGateMigrationCapabilityProvider implements ReleaseGateCapabi
     now: Date,
   ) {
     return definition.id === "D12"
-      ? this.backup(context, now)
+      ? evaluateBackupCoverage(context, now)
       : this.migration(definition.id, context, now);
   }
 
@@ -151,44 +151,6 @@ export class ReleaseGateMigrationCapabilityProvider implements ReleaseGateCapabi
     });
   }
 
-  private backup(context: ReleaseGateEvidenceContext, now: Date) {
-    const environment = context.deploy?.environment;
-    const run = context.deploy?.backups[0];
-    if (!environment || !run) {
-      return unavailable(
-        "backup_run_missing",
-        "没有当前 Staging 环境的真实备份或恢复点运行",
-        "No real backup or restore-point run exists for the current Staging environment",
-      );
-    }
-    const scoped = run.environmentId === environment.id;
-    const checked = scoped && run.status === "completed" && !run.dryRun;
-    const status: ReleaseGateStatus = checked
-      ? "checked"
-      : !scoped || run.status === "failed" || run.status === "blocked"
-        ? "blocked"
-        : "unchecked";
-    return evaluated({
-      status,
-      reasonCode: checked
-        ? "backup_restore_point_available"
-        : !scoped
-          ? "backup_environment_mismatch"
-          : run.dryRun
-            ? "backup_dry_run"
-            : "backup_failed",
-      zh: checked
-        ? "真实备份运行已形成当前环境恢复点"
-        : "备份运行失败、dry-run 或环境归属不符",
-      en: checked
-        ? "A real backup run produced a restore point for the environment"
-        : "The backup run failed, is dry-run, or has wrong environment ownership",
-      evidenceRef: `backup-run:${run.id};environment:${environment.id}`,
-      checkedAt: run.finishedAt ?? run.createdAt,
-      ttlMs: BACKUP_TTL_MS,
-      now,
-    });
-  }
 }
 
 function dateValue(value: unknown) {

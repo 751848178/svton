@@ -16,7 +16,9 @@ describe("Promote release gate providers", () => {
       expect(checks[id]).toMatchObject({ status: "checked", fresh: true });
       expect(checks[id].evidenceRef).toBeTruthy();
     }
-    expect(checks.P03.status).toBe("manual");
+    expect(checks.P03).toMatchObject({
+      status: "unavailable", reasonCode: "business_validation_target_missing",
+    });
     expect(checks.D06.status).toBe("unavailable");
     expect(checks.P08.reasonCode).toBe("traffic_strategy_provider_missing");
     const states = registry.list(context);
@@ -60,6 +62,8 @@ describe("Promote release gate providers", () => {
     const promote = context.promote!;
     promote.sites[0].lastSyncAt = old;
     (promote.sites[0].dns as { checkedAt: string }).checkedAt = old.toISOString();
+    ((promote.sites[0].tls as { probe: { checkedAt: string } }).probe)
+      .checkedAt = old.toISOString();
     promote.releaseRun!.deploymentRuns[0].finishedAt = old;
     promote.logRuns[0].finishedAt = old;
     promote.metrics[0].sampledAt = old;
@@ -94,7 +98,38 @@ describe("Promote release gate providers", () => {
       status: "unchecked",
       reasonCode: "site_not_found",
     });
-    expect(checks.P03.status).toBe("manual");
+    expect(checks.P03.status).toBe("unavailable");
+  });
+
+  it("binds P03 to the exact decision deployment instead of the newest run", () => {
+    const context = evidenceContext();
+    const release = context.promote!.releaseRun!;
+    const exact = release.deploymentRuns[0];
+    exact.result = {
+      ...(exact.result as Record<string, unknown>),
+      productionCandidate: { candidateHash: "candidate-exact" },
+    };
+    release.deploymentRuns.unshift({
+      ...exact,
+      id: "deploy-newest-other",
+      createdAt: new Date("2026-08-03T09:29:30.000Z"),
+    });
+    context.decisionCheckpoint = "production_promote_pre_route";
+    context.decisionTarget = {
+      releaseRunId: release.id,
+      deploymentRunId: exact.id,
+      candidateHash: "candidate-exact",
+    };
+    const p03 = evaluate(registry, context).P03;
+    expect(p03).toMatchObject({
+      status: "manual",
+      evidenceRef: `deployment-run:${exact.id}#business-validation`,
+      evidenceIdentity: {
+        releaseRunId: release.id,
+        deploymentRunId: exact.id,
+        candidateHash: "candidate-exact",
+      },
+    });
   });
 });
 
@@ -177,7 +212,9 @@ function evidenceContext() {
       },
       sites: [{
         id: "site-1", environmentId: env, status: "active", primaryDomain: "prod.test",
-        tls: { status: "valid", expiresAt: "2027-08-03T00:00:00.000Z" },
+        tls: { status: "valid", expiresAt: "2027-08-03T00:00:00.000Z",
+          probe: { status: "valid", host: "prod.test", servername: "prod.test",
+            checkedAt: at.toISOString() } },
         dns: {
           status: "resolved", hostname: "prod.test", records: ["198.18.11.9"],
           checkedAt: at.toISOString(),

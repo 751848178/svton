@@ -8,6 +8,8 @@ import type {
   ReleaseWorkloadExecutionMode,
 } from "./release-staging-workload.types";
 import { assertSafeReleaseWorkloadCommand } from "./release-workload-command-policy";
+import { applicationServicePorts } from "../project-environment/application-service-port.utils";
+import { releaseWorkloadResourceRequirement } from "./release-workload-resource.policy";
 
 const TARGET_LOCAL_HEALTH_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 
@@ -26,9 +28,25 @@ export function buildReleaseStagingWorkloadSnapshot(
   const items = new Map(
     state.manifest.items.map((item) => [item.componentKey, item]),
   );
-  const services = state.environment.applicationServices.map((service) =>
-    workload(service, items.get(service.id)),
-  );
+  const componentKeys = state.environment.applicationServices.map((service) =>
+    service.releaseComponentKey ?? service.id);
+  const manifestKeys = state.manifest.items
+    .map((item) => item.componentKey)
+    .filter((key) => key !== "project-bundle");
+  if (
+    new Set(manifestKeys).size !== manifestKeys.length ||
+    new Set(componentKeys).size !== componentKeys.length ||
+    [...new Set([...manifestKeys, ...componentKeys])].some((key) =>
+      !manifestKeys.includes(key) || !componentKeys.includes(key))
+  ) {
+    throw new UnprocessableEntityException(
+      `${label} 服务拓扑与 exact Manifest 组件集合不一致`,
+    );
+  }
+  const services = state.environment.applicationServices.map((service) => {
+    const componentKey = service.releaseComponentKey ?? service.id;
+    return workload(service, items.get(componentKey), componentKey);
+  });
   const base = {
     version: 1 as const,
     environmentId: state.environment.id,
@@ -46,6 +64,7 @@ function workload(
   item:
     | NonNullable<ReleaseStagingWorkloadState["manifest"]>["items"][number]
     | undefined,
+  componentKey: string,
 ): ReleaseStagingWorkload {
   if (!/^[A-Za-z0-9_-]+$/.test(service.id)) {
     throw new UnprocessableEntityException("工作负载服务标识无效");
@@ -85,12 +104,14 @@ function workload(
       )
     : undefined;
   const healthCheck = health(config);
+  const resources = releaseWorkloadResourceRequirement(config.resourceRequirements);
   const base = {
     serviceId: service.id,
     applicationId: service.applicationId,
-    componentKey: item.componentKey,
+    componentKey,
     name: service.name,
     kind: service.kind,
+    ports: applicationServicePorts(service.ports, service.deployConfig),
     artifactDigest: item.digest,
     workingDirectory: workingDirectory(config.workingDirectory),
     executionMode,
@@ -99,6 +120,7 @@ function workload(
     ...(failureCleanupCommand ? { failureCleanupCommand } : {}),
     startTimeoutMs: bounded(config.startTimeoutMs, 120_000, 1_000, 600_000),
     statusTimeoutMs: bounded(config.statusTimeoutMs, 10_000, 500, 60_000),
+    ...(resources ? { resources } : {}),
     ...(healthCheck ? { health: healthCheck } : {}),
   };
   return { ...base, stateHash: hashCanonicalReleaseValue(base) };

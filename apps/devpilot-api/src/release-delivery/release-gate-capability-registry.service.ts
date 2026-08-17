@@ -18,6 +18,7 @@ import type {
 import type { ReleaseGateEvidenceContext } from "./release-gate-evidence.repository";
 import type { ReleaseGateCapabilityProvider } from "./release-gate-provider.types";
 import { ReleaseGateSourceCapabilityProvider } from "./release-gate-source-capability.provider";
+import { ReleaseGateProductionApplicabilityProvider } from "./release-gate-production-applicability.provider";
 
 const PROVIDER_UNAVAILABLE = {
   zh: "尚未连接真实 Provider，未执行检查",
@@ -45,6 +46,7 @@ export class ReleaseGateCapabilityRegistryService {
     promotion: ReleaseGatePromotionCapabilityProvider,
     observability: ReleaseGateObservabilityCapabilityProvider,
     recovery: ReleaseGateRecoveryStrategyProvider,
+    private readonly productionApplicability: ReleaseGateProductionApplicabilityProvider,
   ) {
     this.providers = [
       source, build, artifact, config, runtime, migration,
@@ -64,6 +66,18 @@ export class ReleaseGateCapabilityRegistryService {
     context: ReleaseGateEvidenceContext,
     now: Date,
   ): ReleaseGateEvaluation {
+    const applicability = this.productionApplicability.evaluate(
+      definition,
+      context,
+      now,
+    );
+    if (applicability) {
+      return {
+        ...definition,
+        providerKey: this.productionApplicability.providerKey,
+        ...applicability,
+      };
+    }
     const provider = definition.capabilityId
       ? this.findProvider(definition.capabilityId)
       : null;

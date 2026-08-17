@@ -1,4 +1,7 @@
-import { CurrentEnvironmentVersionScope } from "./current-environment-version.utils";
+import {
+  CurrentEnvironmentVersionScope,
+  currentEnvironmentVersionFailureReason,
+} from "./current-environment-version.utils";
 import { currentEnvironmentVersionId } from "./environment-version-read.utils";
 
 const project = { id: "project-1", teamId: "team-1" };
@@ -58,6 +61,31 @@ describe("currentEnvironmentVersionId (AC-ENVVER-006)", () => {
     });
     expect(currentEnvironmentVersionId(project, environment)).toBeNull();
   });
+
+  it.each([
+    "sha256:malformed",
+    `sha256:${"b".repeat(64)}`,
+  ])("fails closed with digest readiness when deployment evidence is %s", (manifestDigest) => {
+    const value = exact();
+    value.deploymentRun.result = {
+      artifactVerified: true, manifestId: value.artifactManifest.id, manifestDigest,
+    };
+    const environment = scope(value);
+    expect(currentEnvironmentVersionId(project, environment)).toBeNull();
+    expect(currentEnvironmentVersionFailureReason(environment))
+      .toBe("current_version_digest_unverified");
+  });
+
+  it("requires the exact succeeded Production ReleaseRun verifiedDigest", () => {
+    const value = exact();
+    value.releaseRunId = "release-1";
+    value.releaseRun = release(value);
+    expect(currentEnvironmentVersionId(project, scope(value))).toBe("version-1");
+    value.releaseRun.verifiedDigest = `sha256:${"b".repeat(64)}`;
+    expect(currentEnvironmentVersionId(project, scope(value))).toBeNull();
+    expect(currentEnvironmentVersionFailureReason(scope(value)))
+      .toBe("current_version_digest_unverified");
+  });
 });
 
 type DeploymentRunFixture = {
@@ -69,6 +97,7 @@ type DeploymentRunFixture = {
   source: string;
   status: string;
   dryRun: boolean;
+  result: unknown;
 };
 
 type VersionFixture = {
@@ -79,6 +108,7 @@ type VersionFixture = {
   releaseOrderId: string;
   artifactManifestId: string;
   deploymentRunId: string;
+  releaseRunId: string | null;
   effectiveAt: Date;
   releaseOrder: { id: string; teamId: string; projectId: string; releaseVersion: string };
   artifactManifest: {
@@ -89,6 +119,11 @@ type VersionFixture = {
     digest: string;
   };
   deploymentRun: DeploymentRunFixture;
+  releaseRun: {
+    id: string; teamId: string; projectId: string; environmentId: string;
+    releaseOrderId: string; artifactManifestId: string;
+    status: string; verifiedDigest: string;
+  } | null;
 };
 
 function exact(): VersionFixture {
@@ -100,6 +135,7 @@ function exact(): VersionFixture {
     releaseOrderId: "order-1",
     artifactManifestId: "manifest-1",
     deploymentRunId: "deployment-1",
+    releaseRunId: null,
     effectiveAt: new Date("2026-08-05T00:00:00Z"),
     releaseOrder: {
       id: "order-1",
@@ -112,7 +148,7 @@ function exact(): VersionFixture {
       teamId: project.teamId,
       projectId: project.id,
       releaseOrderId: "order-1",
-      digest: "sha256:exact",
+      digest: `sha256:${"a".repeat(64)}`,
     },
     deploymentRun: {
       id: "deployment-1",
@@ -123,12 +159,27 @@ function exact(): VersionFixture {
       source: "release_order",
       status: "completed",
       dryRun: false,
+      result: {
+        artifactVerified: true,
+        manifestId: "manifest-1",
+        manifestDigest: `sha256:${"a".repeat(64)}`,
+      },
     },
+    releaseRun: null,
   };
 }
 
 function run(overrides: Partial<DeploymentRunFixture>) {
   return { ...exact(), deploymentRun: { ...exact().deploymentRun, ...overrides } };
+}
+
+function release(value: VersionFixture) {
+  return {
+    id: "release-1", teamId: value.teamId, projectId: value.projectId,
+    environmentId: value.environmentId, releaseOrderId: value.releaseOrderId,
+    artifactManifestId: value.artifactManifestId, status: "succeeded",
+    verifiedDigest: value.artifactManifest.digest,
+  };
 }
 
 function scope(

@@ -7,6 +7,7 @@ import {
   ReleaseDeploymentProviderPort,
 } from "./release-deployment-provider.types";
 import { SshReleaseDeploymentProviderService } from "./ssh-release-deployment-provider.service";
+import { resolveConfiguredReleaseDeploymentProviderKey } from "./release-deployment-provider-profile";
 
 @Injectable()
 export class ConfiguredReleaseDeploymentProviderService extends ReleaseDeploymentProviderPort {
@@ -19,9 +20,8 @@ export class ConfiguredReleaseDeploymentProviderService extends ReleaseDeploymen
     ssh: SshReleaseDeploymentProviderService,
   ) {
     super();
-    this.enabled =
-      config.get<boolean>("RELEASE_STAGING_DEPLOYMENT_ENABLED") === true;
-    const profile = config.get<string>("RELEASE_DEPLOYMENT_PROVIDER_PROFILE");
+    const profile = resolveConfiguredReleaseDeploymentProviderKey(config);
+    this.enabled = profile !== "disabled";
     this.provider =
       profile === local.key ? local : profile === ssh.key ? ssh : undefined;
   }

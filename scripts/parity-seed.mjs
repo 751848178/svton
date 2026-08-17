@@ -54,6 +54,15 @@ import { seedParityVersionHistory } from "./lib/parity-seed-version-history.mjs"
 import { detachParitySeedProject } from "./lib/parity-seed-bootstrap.mjs";
 import { buildRuntimeImagesSequentially } from "./lib/parity-runtime-image-build.mjs";
 import { cleanupC5WebBuildOutput } from "./lib/parity-isolated-c5-web-build-output.mjs";
+import {
+  PARITY_RELEASE_ACTORS,
+  seedParityReleaseActors,
+} from "./lib/parity-seed-release-actors.mjs";
+import {
+  isCurrentParityFixtureMarker,
+  parityFixtureGitEnvironment,
+  parityFixtureMarker,
+} from "./lib/parity-fixture-author-marker.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const composeFile = resolve(root, "docker-compose.devpilot-parity.yml");
@@ -70,6 +79,8 @@ let verifiedRuntimeImageIds;
 // seed, the DB, the API and the runtime evidence.
 const IDS = {
   user: "parity-user-0001",
+  reviewerUser: "parity-reviewer-0001",
+  confirmerUser: "parity-confirmer-0001",
   team: "parity-team-0001",
   project: "parity-project-0001",
   envStaging: "parity-env-staging",
@@ -255,23 +266,24 @@ async function ensureFixtureRepo() {
   const markerPath = join(fixtureGitRoot, ".parity-pinned-commit.json");
   try {
     const existing = JSON.parse(await readFile(markerPath, "utf8"));
-    console.log(
-      `[parity-seed] fixture repo already materialized at ${fixtureGitRoot} (pinned ${existing.pinnedCommit})`,
-    );
-    return existing.pinnedCommit;
+    if (isCurrentParityFixtureMarker(
+      existing,
+      PARITY_RELEASE_ACTORS.confirmer.email,
+    )) {
+      console.log(
+        `[parity-seed] fixture repo already materialized at ${fixtureGitRoot} (pinned ${existing.pinnedCommit})`,
+      );
+      return existing.pinnedCommit;
+    }
   } catch {
     // fall through to materialization
   }
   const stamp = "2026-08-08T00:00:00Z";
-  const env = {
-    ...process.env,
-    GIT_AUTHOR_NAME: "Parity Fixture",
-    GIT_AUTHOR_EMAIL: "parity@fixture.local",
-    GIT_AUTHOR_DATE: stamp,
-    GIT_COMMITTER_NAME: "Parity Fixture",
-    GIT_COMMITTER_EMAIL: "parity@fixture.local",
-    GIT_COMMITTER_DATE: stamp,
-  };
+  const env = parityFixtureGitEnvironment(
+    PARITY_RELEASE_ACTORS.confirmer,
+    stamp,
+    process.env,
+  );
   const stage = await mkdtemp(join(tmpdir(), "parity-fixture-stage-"));
   try {
     await cp(fixtureSource, stage, { recursive: true });
@@ -284,11 +296,12 @@ async function ensureFixtureRepo() {
     await mkdir(dirname(fixtureGitRoot), { recursive: true });
     await rm(fixtureGitRoot, { recursive: true, force: true });
     await cp(stage, fixtureGitRoot, { recursive: true });
-    const manifest = {
+    const manifest = parityFixtureMarker({
       pinnedCommit: sha,
+      commitAuthorEmail: PARITY_RELEASE_ACTORS.confirmer.email,
       source: fixtureSource,
       materializedAt: new Date().toISOString(),
-    };
+    });
     await writeFile(markerPath, JSON.stringify(manifest, null, 2));
     console.log(
       `[parity-seed] fixture repo materialized at ${fixtureGitRoot} (pinned ${sha})`,
@@ -353,31 +366,22 @@ async function seed() {
   const pinnedCommit = await fixturePinnedCommit();
   const at = new Date();
   try {
-    // 1. User + Team + membership (owner)
-    await prisma.user.upsert({
-      where: { id: IDS.user },
-      create: {
-        id: IDS.user,
-        email: "parity-user-0001@parity.test",
-        name: "Parity Seed User",
-        role: "admin",
-      },
-      update: { name: "Parity Seed User" },
-    });
+    // 1. Team + three distinct, login-capable release actors.
     await prisma.team.upsert({
       where: { id: IDS.team },
       create: { id: IDS.team, name: "Parity Team" },
       update: {},
     });
-    await prisma.teamMember.upsert({
-      where: { teamId_userId: { teamId: IDS.team, userId: IDS.user } },
-      create: {
-        teamId: IDS.team,
-        userId: IDS.user,
-        role: "owner",
-      },
-      update: { role: "owner" },
+    const bcrypt = createRequire(
+      resolve(root, "apps/devpilot-api/package.json"),
+    )("bcrypt");
+    const releaseActors = await seedParityReleaseActors({
+      prisma,
+      ids: IDS,
+      environment: process.env,
+      hashPassword: (password) => bcrypt.hash(password, 10),
     });
+    console.log(`[parity-seed] release actors ${JSON.stringify(releaseActors)}`);
     // The API bootstraps admin@parity.local at startup; make that user a team
     // owner too so the runtime API flow (login as the bootstrap admin) can
     // act on the seeded parity project/order.

@@ -15,8 +15,12 @@ const mocks = vi.hoisted(() => ({
   builds: {} as Record<string, unknown>,
   staging: {} as Record<string, unknown>,
   production: {} as Record<string, unknown>,
+  resume: vi.fn(),
 }));
-vi.mock('next-intl', () => ({ useTranslations: () => (key: string) => key }));
+vi.mock('next-intl', () => ({
+  useLocale: () => 'zh-CN',
+  useTranslations: () => (key: string) => key,
+}));
 vi.mock('@svton/ui', () => ({
   Modal: () => null,
   Drawer: () => null,
@@ -67,10 +71,27 @@ vi.mock('../hooks/use-release-staging-deployments', () => ({
 vi.mock('../hooks/use-production-releases', () => ({
   useProductionReleases: () => mocks.production,
 }));
+vi.mock('../hooks/use-production-promotion-resume', () => ({
+  useProductionPromotionResume: () => ({ resume: mocks.resume, resuming: false, error: '' }),
+}));
 vi.mock('@/components/ui', () => ({
-  Button: (props: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props} />,
+  Button: ({
+    loading: _loading,
+    ...props
+  }: React.ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean }) => <button {...props} />,
   EmptyState: () => null,
   ErrorBanner: () => null,
+  Modal: ({
+    open,
+    title,
+    children,
+    footer,
+  }: {
+    open: boolean;
+    title: string;
+    children: React.ReactNode;
+    footer: React.ReactNode;
+  }) => open ? <section aria-label={title}>{children}{footer}</section> : null,
   LinkButton: ({ href, children }: React.PropsWithChildren<{ href: string }>) => (
     <a href={href}>{children}</a>
   ),
@@ -114,9 +135,13 @@ describe('ReleaseOrderProductionStep confirmation dialog', () => {
     mocks.production = {
       preview: { inputHash: 'input-hash', snapshot: snapshot() },
       confirming: false,
+      refreshing: false,
       error: '',
       confirm: vi.fn().mockResolvedValue({ id: 'run-1' }),
+      refreshPreflight: vi.fn().mockImplementation(async () => refreshedPreview()),
     };
+    mocks.resume.mockReset();
+    mocks.resume.mockResolvedValue({ status: 'succeeded' });
   });
 
   afterEach(async () => act(async () => root.unmount()));
@@ -125,8 +150,10 @@ describe('ReleaseOrderProductionStep confirmation dialog', () => {
     mocks.production = {
       preview: null,
       confirming: false,
+      refreshing: false,
       error: '',
       confirm: vi.fn(),
+      refreshPreflight: vi.fn(),
     };
     await render();
 
@@ -138,14 +165,14 @@ describe('ReleaseOrderProductionStep confirmation dialog', () => {
 
   it('always opens the confirmation dialog on click', async () => {
     await render();
-    act(() => triggerButton()?.click());
+    await act(async () => triggerButton()?.click());
 
     expect(dialogSection()).not.toBeNull();
   });
 
   it('shows environment, version, build/commit, manifest, config and policy fields', async () => {
     await render();
-    act(() => triggerButton()?.click());
+    await act(async () => triggerButton()?.click());
     const dialog = dialogSection()?.textContent || '';
 
     expect(dialog).toContain('releaseProductionEnvironment');
@@ -171,7 +198,7 @@ describe('ReleaseOrderProductionStep confirmation dialog', () => {
     const confirm = vi.fn().mockResolvedValue({ id: 'run-1' });
     mocks.production = { ...mocks.production, confirm };
     await render();
-    act(() => triggerButton()?.click());
+    await act(async () => triggerButton()?.click());
 
     act(() => cancelButton()?.click());
     expect(dialogSection()).toBeNull();
@@ -182,7 +209,7 @@ describe('ReleaseOrderProductionStep confirmation dialog', () => {
     const confirm = vi.fn().mockResolvedValue({ id: 'run-1' });
     mocks.production = { ...mocks.production, confirm };
     await render();
-    act(() => triggerButton()?.click());
+    await act(async () => triggerButton()?.click());
 
     await act(async () => confirmButton()?.click());
     expect(confirm).toHaveBeenCalledTimes(1);
@@ -193,7 +220,7 @@ describe('ReleaseOrderProductionStep confirmation dialog', () => {
     const confirm = vi.fn().mockResolvedValue(null);
     mocks.production = { ...mocks.production, confirm, error: 'releaseProductionRunScopeMismatch' };
     await render();
-    act(() => triggerButton()?.click());
+    await act(async () => triggerButton()?.click());
 
     await act(async () => confirmButton()?.click());
     expect(confirm).toHaveBeenCalledTimes(1);
@@ -324,6 +351,88 @@ describe('ReleaseOrderProductionStep confirmation dialog', () => {
     expect(disabledRequest).not.toBeNull();
   });
 
+  it('shows the exact continue-release task while Production awaits validation', async () => {
+    const awaiting = productionRun('release-awaiting');
+    awaiting.status = 'awaiting_validation';
+    awaiting.operationApproval.status = 'approved';
+    awaiting.deploymentRuns = [{
+      id: 'deployment-awaiting',
+      environmentId: awaiting.environmentId,
+      status: 'awaiting_validation',
+      result: {
+        productionCandidate: {
+          candidateHash: 'a'.repeat(64),
+          releaseOrderId: awaiting.releaseOrderId,
+          manifestId: awaiting.artifactManifestId,
+        },
+      },
+    }] as never;
+    const evidence = {
+      evidence: {
+        buildRuns: { items: [], total: 0, hasMore: false },
+        stagingDeploymentRuns: { items: [], total: 0, hasMore: false },
+        productionReleaseRuns: { items: [awaiting], total: 1, hasMore: false },
+      },
+      loading: false,
+      error: '',
+      load: vi.fn(),
+    } as unknown as ReleaseOrderEvidenceHook;
+    await act(async () => root.render(
+      <ReleaseOrderProductionStep
+        {...props(evidence)}
+        focusedReleaseRunId="release-awaiting"
+        focusedDeploymentRunId={undefined}
+        onFocus={vi.fn()}
+      />,
+    ));
+
+    expect(container.textContent).toContain('environmentVersionAwaitingValidation');
+    const continueButton = Array.from(container.querySelectorAll('button')).find(
+      (item) => item.textContent === 'environmentVersionContinueProduction',
+    );
+    expect(continueButton).not.toBeNull();
+    await act(async () => continueButton?.click());
+    expect(mocks.resume).toHaveBeenCalledWith({
+      releaseRunId: 'release-awaiting',
+      deploymentRunId: 'deployment-awaiting',
+      candidateHash: 'a'.repeat(64),
+    });
+  });
+
+  it('fails closed with one recovery task for a quarantined legacy promotion', async () => {
+    const legacy = productionRun('release-legacy');
+    legacy.status = 'awaiting_validation';
+    legacy.legacyPromotionRecovery = {
+      phase: 'legacy_reconcile_required',
+      reason: 'legacy_phase_unknown',
+    };
+    const evidence = {
+      evidence: {
+        buildRuns: { items: [], total: 0, hasMore: false },
+        stagingDeploymentRuns: { items: [], total: 0, hasMore: false },
+        productionReleaseRuns: { items: [legacy], total: 1, hasMore: false },
+      },
+      loading: false,
+      error: '',
+      load: vi.fn(),
+    } as unknown as ReleaseOrderEvidenceHook;
+    await act(async () => root.render(<ReleaseOrderProductionStep
+      {...props(evidence)}
+      focusedReleaseRunId="release-legacy"
+      focusedDeploymentRunId={undefined}
+      onFocus={vi.fn()}
+    />));
+
+    expect(container.textContent).toContain('releaseProductionLegacyRecoveryTitle');
+    expect(container.textContent).toContain('releaseProductionLegacyRecoveryDescription');
+    const recovery = Array.from(container.querySelectorAll('button')).find(
+      (item) => item.textContent === 'releaseProductionLegacyRecoveryAction',
+    );
+    expect(recovery?.disabled).toBe(true);
+    expect(container.textContent).not.toContain('environmentVersionContinueProduction');
+    expect(mocks.resume).not.toHaveBeenCalled();
+  });
+
   it('does not offer a new production approval after the release artifact is frozen', async () => {
     await act(async () =>
       root.render(
@@ -358,8 +467,10 @@ describe('ReleaseOrderProductionStep confirmation dialog', () => {
     mocks.production = {
       preview: { inputHash: 'input-hash', snapshot: snapshot() },
       confirming: false,
+      refreshing: false,
       error: 'admit 门禁未满足，服务端已拒绝执行',
       confirm: vi.fn(),
+      refreshPreflight: vi.fn().mockImplementation(async () => refreshedPreview()),
     };
     await act(async () =>
       root.render(
@@ -422,6 +533,34 @@ describe('ReleaseOrderProductionStep confirmation dialog', () => {
     expect(text).toContain('releaseStageSummaryPrerequisite');
     expect(container.querySelector('[data-context-strip="true"]')).not.toBeNull();
     expect(container.querySelector('[data-stage-summary="true"]')).not.toBeNull();
+  });
+
+  it('presents terminal technical acceptance without an online-health claim', async () => {
+    const technical = productionRun('release-technical');
+    technical.status = 'succeeded';
+    technical.acceptanceMode = 'technical_acceptance';
+    technical.operationApproval.status = 'approved';
+    const evidence = {
+      evidence: {
+        buildRuns: { items: [], total: 0, hasMore: false },
+        stagingDeploymentRuns: { items: [], total: 0, hasMore: false },
+        productionReleaseRuns: { items: [technical], total: 1, hasMore: false },
+      },
+      loading: false,
+      error: '',
+      load: vi.fn(),
+    } as unknown as ReleaseOrderEvidenceHook;
+    await act(async () => root.render(<ReleaseOrderProductionStep
+      {...props(evidence)}
+      focusedReleaseRunId="release-technical"
+      focusedDeploymentRunId={undefined}
+      onFocus={vi.fn()}
+    />));
+    const text = container.textContent || '';
+    expect(text).toContain('releaseStageCalloutTechnicalAcceptance');
+    expect(text).toContain('releaseContextTechnicalAcceptance');
+    expect(text).not.toContain('releaseStageCalloutOnlineHealthy');
+    expect(text).not.toContain('releaseContextRunningNormally');
   });
 
   function triggerButton() {
@@ -493,6 +632,7 @@ function productionRun(id: string) {
     environmentId: 'prod-env-1',
     artifactManifestId: 'manifest-1',
     status: 'awaiting_approval',
+    acceptanceMode: 'production' as 'production' | 'technical_acceptance',
     verifiedDigest: 'sha256:exact',
     errorCode: null,
     errorMessage: null,
@@ -529,6 +669,7 @@ function productionRun(id: string) {
     },
     stagingProof: null,
     deploymentRuns: [],
+    legacyPromotionRecovery: null as null | { phase: string; reason: string | null },
   };
 }
 
@@ -552,6 +693,7 @@ function snapshot(): ProductionReleaseSnapshot {
       resourceSnapshot: [{ id: 'r1' }, { id: 'r2' }],
       routeSnapshot: [{ id: 'route-1' }],
       policySnapshot: {},
+      observabilitySnapshot: {},
     },
     releasePolicy: {
       revisionId: null,
@@ -560,6 +702,27 @@ function snapshot(): ProductionReleaseSnapshot {
       requireProductionApproval: true,
       snapshotHash: 'hash-policy',
       synthetic: true,
+    },
+    workload: {
+      inputHash: 'workload-hash',
+      services: [{
+        serviceId: 'service-1', componentKey: 'component-1', stateHash: 'state-hash',
+      }],
+    },
+  };
+}
+
+function refreshedPreview() {
+  return {
+    inputHash: 'input-hash',
+    snapshot: snapshot(),
+    preflight: {
+      decision: { preApprovalAllowed: true },
+      checks: [],
+      acceptanceOnly: false,
+      readiness: 'production_ready',
+      repairHref: '/settings',
+      frozen: {},
     },
   };
 }

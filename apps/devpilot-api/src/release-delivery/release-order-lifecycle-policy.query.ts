@@ -16,7 +16,8 @@ export function lifecycleStatusCase() {
     WHEN le.sourceType = 'release_run'
       AND le.sourceStatus IN ('pending', 'awaiting_approval')
       AND le.approvalStatus = 'approved' THEN 'production'
-    WHEN le.sourceType = 'release_run' AND le.sourceStatus = 'running'
+    WHEN le.sourceType = 'release_run'
+      AND le.sourceStatus IN ('running', 'awaiting_validation')
       AND le.approvalStatus = 'approved' THEN 'production'
     WHEN le.sourceType = 'release_run' AND le.sourceStatus = 'succeeded'
       AND le.productionSucceeded = TRUE THEN 'succeeded'
@@ -26,7 +27,7 @@ export function lifecycleStatusCase() {
       AND le.sourceStatus = 'completed'
       AND le.productionSucceeded = TRUE THEN 'succeeded'
     WHEN le.sourceType = 'deployment_run' AND le.phase = 'production'
-      AND le.sourceStatus IN ('running', 'completed') THEN 'production'
+      AND le.sourceStatus IN ('running', 'awaiting_validation', 'completed') THEN 'production'
     ELSE 'failed'
   END`;
 }
@@ -52,7 +53,8 @@ export function lifecycleFailureKindCase() {
     WHEN le.sourceType = 'release_run'
       AND le.sourceStatus IN ('pending', 'awaiting_approval')
       AND le.approvalStatus IS NULL THEN 'evidence_mismatch'
-    WHEN le.sourceType = 'release_run' AND le.sourceStatus = 'running'
+    WHEN le.sourceType = 'release_run'
+      AND le.sourceStatus IN ('running', 'awaiting_validation')
       AND (le.approvalStatus IS NULL OR le.approvalStatus != 'approved')
       THEN 'evidence_mismatch'
     WHEN le.sourceType = 'release_run' AND le.sourceStatus = 'succeeded'

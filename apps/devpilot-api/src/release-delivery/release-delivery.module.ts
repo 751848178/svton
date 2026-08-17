@@ -3,7 +3,6 @@ import { ControlAccessPolicyModule } from "../control-access-policy";
 import { PrismaModule } from "../prisma/prisma.module";
 import { RepositoryAnalysisModule } from "../repository-analysis/repository-analysis.module";
 import { RepositoryIdentityModule } from "../repository-identity/repository-identity.module";
-import { LocalReleaseBuildExecutorService } from "./local-release-build-executor.service";
 import { LocalReleaseStagingExecutorService } from "./local-release-staging-executor.service";
 import { releaseDeploymentProviders } from "./release-deployment.providers";
 import { ReleaseBuildArtifactService } from "./release-build-artifact.service";
@@ -19,14 +18,13 @@ import { ReleaseBuildRuntimeProfileService } from "./release-build-runtime-profi
 import { ReleaseBuildRuntimeSupervisorService } from "./release-build-runtime-supervisor.service";
 import { ReleaseBuildService } from "./release-build.service";
 import { ReleaseBuildSourceResolverService } from "./release-build-source-resolver.service";
-import { ReleaseBuildExecutorPort } from "./release-build.types";
 import { ReleaseStagingRepository } from "./release-staging.repository";
 import { ReleaseStagingService } from "./release-staging.service";
 import { ReleaseStagingExecutorPort } from "./release-staging.types";
 import { ReleaseStagingWorkloadService } from "./release-staging-workload.service";
 import { ReleaseStagingWorkloadStateRepository } from "./release-staging-workload-state.repository";
-import { ReleaseProductionWorkloadService } from "./release-production-workload.service";
-import { ReleaseProductionRepository } from "./release-production.repository";
+import { releaseProductionProviders } from "./release-production.providers";
+import { ReleaseProductionPreflightController } from "./release-production-preflight.controller";
 import { ReleaseProductionService } from "./release-production.service";
 import { ReleaseOrderAccessService } from "./release-order-access.service";
 import { ReleaseOrderController } from "./release-order.controller";
@@ -44,6 +42,7 @@ import { ReleaseOrderListService } from "./release-order-list.service";
 import { EnvironmentVersionController } from "./environment-version.controller";
 import { releaseDeliveryEnvironmentProviders } from "./release-delivery-environment.providers";
 import { ReleaseGateCapabilityRegistryService } from "./release-gate-capability-registry.service";
+import { ReleaseGateProductionApplicabilityProvider } from "./release-gate-production-applicability.provider";
 import { ReleaseGateArtifactCapabilityProvider } from "./release-gate-artifact-capability.provider";
 import { ReleaseGateBuildCapabilityProvider } from "./release-gate-build-capability.provider";
 import { ReleaseGateCatalogController } from "./release-gate-catalog.controller";
@@ -75,9 +74,19 @@ import { ReleaseGateDecisionRepository } from "./release-gate-decision.repositor
 import { ReleaseGateDecisionService } from "./release-gate-decision.service";
 import { ReleaseGateEvaluationService } from "./release-gate-evaluation.service";
 import { ReleaseGateManualConfirmationService } from "./release-gate-manual-confirmation.service";
+import { ProductionPromotionEvidenceRefreshService } from "./production-promotion-evidence-refresh.service";
 import { ProjectDeliverySummaryController } from "./project-delivery-summary.controller";
 import { ProjectDeliverySummaryRepository } from "./project-delivery-summary.repository";
 import { ProjectDeliverySummaryService } from "./project-delivery-summary.service";
+import { LocalReleaseEvidenceArtifactService } from "./local-release-evidence-artifact.service";
+import { ReleaseEvidenceArtifactPort } from "./release-evidence-artifact.port";
+import { ReleaseBuildPackageEvidenceService } from "./release-build-package-evidence.service";
+import {
+  filesystemReleaseBuildExecutorProvider,
+  releaseBuildSecurityProviders,
+} from "./release-build-security.providers";
+import { ReleaseBuildSourceEvidenceService } from "./release-build-source-evidence.service";
+import { SourcePolicyRevisionRepository } from "./source-policy-revision.repository";
 
 @Module({
   imports: [
@@ -88,6 +97,7 @@ import { ProjectDeliverySummaryService } from "./project-delivery-summary.servic
   ],
   controllers: [
     ReleaseOrderController,
+    ReleaseProductionPreflightController,
     ReleaseOrderEvidenceController,
     ReleaseBuildCancellationController,
     ReleaseBuildDetailController,
@@ -116,7 +126,6 @@ import { ProjectDeliverySummaryService } from "./project-delivery-summary.servic
     ReleaseBuildRunnerService,
     ReleaseBuildRuntimeProfileService,
     ReleaseBuildRuntimeSupervisorService,
-    LocalReleaseBuildExecutorService,
     LocalReleaseStagingExecutorService,
     ...releaseDeploymentProviders,
     ReleaseBuildRepository,
@@ -127,9 +136,7 @@ import { ProjectDeliverySummaryService } from "./project-delivery-summary.servic
     ReleaseStagingService,
     ReleaseStagingWorkloadService,
     ReleaseStagingWorkloadStateRepository,
-    ReleaseProductionWorkloadService,
-    ReleaseProductionRepository,
-    ReleaseProductionService,
+    ...releaseProductionProviders,
     ReleasePolicyRepository,
     ReleasePolicyService,
     ReleaseStrategyCapabilityService,
@@ -137,6 +144,7 @@ import { ProjectDeliverySummaryService } from "./project-delivery-summary.servic
     ReleaseDeliveryCompatibilityService,
     ...releaseDeliveryEnvironmentProviders,
     ReleaseGateCapabilityRegistryService,
+    ReleaseGateProductionApplicabilityProvider,
     ReleaseGateArtifactCapabilityProvider,
     ReleaseGateSourceCapabilityProvider,
     ReleaseGateBuildCapabilityProvider,
@@ -160,11 +168,18 @@ import { ProjectDeliverySummaryService } from "./project-delivery-summary.servic
     ReleaseGateDecisionService,
     ReleaseGateEvaluationService,
     ReleaseGateManualConfirmationService,
+    ProductionPromotionEvidenceRefreshService,
     ProjectDeliverySummaryRepository,
     ProjectDeliverySummaryService,
+    LocalReleaseEvidenceArtifactService,
+    ReleaseBuildPackageEvidenceService,
+    ...releaseBuildSecurityProviders,
+    ReleaseBuildSourceEvidenceService,
+    SourcePolicyRevisionRepository,
+    filesystemReleaseBuildExecutorProvider,
     {
-      provide: ReleaseBuildExecutorPort,
-      useExisting: LocalReleaseBuildExecutorService,
+      provide: ReleaseEvidenceArtifactPort,
+      useExisting: LocalReleaseEvidenceArtifactService,
     },
     {
       provide: ReleaseStagingExecutorPort,
@@ -177,5 +192,4 @@ import { ProjectDeliverySummaryService } from "./project-delivery-summary.servic
     ReleaseStagingService,
     ReleaseProductionService,
   ],
-})
-export class ReleaseDeliveryModule {}
+}) export class ReleaseDeliveryModule {}

@@ -41,6 +41,12 @@ export abstract class ReleaseDeploymentProviderPort {
   abstract deployExactManifest(
     input: ExactManifestDeploymentInput,
   ): Promise<ExactManifestDeploymentReceipt>;
+  refreshExactCandidate?(input: {
+    projectId: string;
+    environmentId: string;
+    deploymentRunId: string;
+    workload: ReleaseStagingWorkloadSnapshot;
+  }): Promise<Record<string, unknown> | undefined>;
 }
 
 export class ReleaseDeploymentProviderError extends Error {

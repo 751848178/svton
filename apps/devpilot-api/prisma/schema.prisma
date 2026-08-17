@@ -82,6 +82,10 @@ model User {
   createdReleasePolicyRevisions ReleasePolicyRevision[] @relation("ReleasePolicyRevisionActor")
   gateEvaluations GateEvaluation[] @relation("GateEvaluationActor")
   releaseGateDecisions ReleaseGateDecision[] @relation("ReleaseGateDecisionActor")
+  requestedGateManualApprovals GateManualApproval[] @relation("GateManualApprovalRequester")
+  reviewedGateManualApprovals GateManualApproval[] @relation("GateManualApprovalReviewer")
+  productionPromotionCommands ProductionPromotionCommand[] @relation("ProductionPromotionCommandActor")
+  productionPromotionReconcileCommands ProductionPromotionReconcileCommand[] @relation("ProductionPromotionReconcileCommandActor")
 
   createdAt     DateTime  @default(now())
   updatedAt     DateTime @updatedAt
@@ -160,8 +164,12 @@ model Team {
   releaseRuns ReleaseRun[]
   environmentVersions EnvironmentVersion[]
   releasePolicyRevisions ReleasePolicyRevision[]
+  sourcePolicyRevisions SourcePolicyRevision[]
   gateEvaluations GateEvaluation[]
   releaseGateDecisions ReleaseGateDecision[]
+  gateManualApprovals GateManualApproval[]
+  productionPromotionCommands ProductionPromotionCommand[]
+  productionPromotionReconcileCommands ProductionPromotionReconcileCommand[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -575,6 +583,10 @@ model SiteRouteSwitchRun {
   proxyTarget     String?
   domains         Json?
   result          Json?
+  promotionCandidateHash String?
+  promotionObservedAt DateTime?
+  promotionProbeHash String?
+  promotionObservation Json?
   desiredRoute    Json
   previousRoute   Json?
   applyReceipt    Json?
@@ -607,6 +619,7 @@ model SiteRouteSwitchRun {
   @@index([environmentId])
   @@index([deploymentRunId])
   @@index([releaseRunId])
+  @@index([deploymentRunId, promotionCandidateHash], map: "SiteRouteSwitchRun_deployment_candidate_idx")
   @@index([status])
   @@index([status, updatedAt])
   @@index([status, nextRecoveryAt])
@@ -723,6 +736,7 @@ model Project {
   onboardingFinalizedAt DateTime?
   archivedAt DateTime?
   currentReleasePolicyRevisionId String? @unique
+  currentSourcePolicyRevisionId String? @unique
 
   team         Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
   createdBy    User     @relation(fields: [createdById], references: [id])
@@ -775,8 +789,13 @@ model Project {
   environmentVersions EnvironmentVersion[]
   releasePolicyRevisions ReleasePolicyRevision[] @relation("ProjectReleasePolicyRevisionHistory")
   currentReleasePolicyRevision ReleasePolicyRevision? @relation("CurrentReleasePolicyRevision", fields: [currentReleasePolicyRevisionId], references: [id], onDelete: SetNull)
+  sourcePolicyRevisions SourcePolicyRevision[] @relation("ProjectSourcePolicyRevisionHistory")
+  currentSourcePolicyRevision SourcePolicyRevision? @relation("CurrentSourcePolicyRevision", fields: [currentSourcePolicyRevisionId], references: [id], onDelete: SetNull)
   gateEvaluations GateEvaluation[]
   releaseGateDecisions ReleaseGateDecision[]
+  gateManualApprovals GateManualApproval[]
+  productionPromotionCommands ProductionPromotionCommand[]
+  productionPromotionReconcileCommands ProductionPromotionReconcileCommand[]
   generatedArtifactClaim GeneratedProjectArtifactClaim?
 
   createdAt    DateTime @default(now())
@@ -830,6 +849,32 @@ model ReleasePolicyRevision {
   @@unique([projectId, revision])
   @@index([teamId])
   @@index([createdById])
+  @@index([createdAt])
+}
+
+// 服务端注册的源码门禁策略冻结修订；项目只持有当前不可变修订指针。
+model SourcePolicyRevision {
+  id                           String   @id @default(cuid())
+  teamId                       String
+  projectId                    String
+  revision                     Int
+  profileId                    String
+  profileVersion               Int
+  externalRequiredChecks       Int
+  requiredIndependentApprovals Int
+  snapshotVersion                Int      @default(1)
+  snapshot                       Json
+  snapshotHash                 String
+  createdAt                    DateTime @default(now())
+
+  team                         Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project                      Project  @relation("ProjectSourcePolicyRevisionHistory", fields: [projectId], references: [id], onDelete: Cascade)
+  currentForProject            Project? @relation("CurrentSourcePolicyRevision")
+  manualApprovals              GateManualApproval[]
+
+  @@unique([projectId, revision])
+  @@unique([projectId, profileId, profileVersion, snapshotHash], map: "SourcePolicyRevision_profile_snapshot_key")
+  @@index([teamId])
   @@index([createdAt])
 }
 
@@ -900,6 +945,8 @@ model RepositoryAnalysisRun {
   startedAt        DateTime?
   finishedAt       DateTime?
   durationMs       Int?
+  workerLeaseToken String?  @db.VarChar(64)
+  workerLeaseExpiresAt DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -921,6 +968,7 @@ model RepositoryAnalysisRun {
   @@index([triggeredById])
   @@index([retryOfId])
   @@index([status])
+  @@index([workerLeaseExpiresAt])
   @@index([createdAt])
 }
 
@@ -962,7 +1010,7 @@ model ProjectRepositoryIdentityRevision {
   revision       Int
   expectedRevision Int
   defaultBranch  String
-  verifiedCommitSha String
+  verifiedCommitSha String   @db.VarChar(64)
   reason         String   @db.Text
   idempotencyKey String
   createdAt      DateTime @default(now())
@@ -1174,6 +1222,7 @@ model EnvironmentConfigRevision {
   resourceReferences Json?
   routeSnapshot      Json?
   policyReferences   Json?
+  observabilitySnapshot Json?
   displayName        String?
   displayDescription String?   @db.Text
   changeSummary      String?   @db.Text
@@ -1192,6 +1241,59 @@ model EnvironmentConfigRevision {
   @@index([projectId])
   @@index([createdById])
   @@index([snapshotHash])
+}
+
+model ServerCapacitySnapshot {
+  id                  String   @id @default(cuid())
+  teamId              String
+  projectId           String
+  environmentId       String
+  configRevisionId    String
+  buildRunId          String
+  manifestId          String
+  providerKey         String   @db.VarChar(128)
+  bindingId           String
+  deploymentInputHash String   @db.VarChar(128)
+  workloadInputHash   String   @db.VarChar(128)
+  requirementHash     String   @db.VarChar(128)
+  sampledBucket       DateTime
+  measurementHash     String
+  status              String
+  requirements        Json
+  measurement         Json
+  reasonCode          String?
+  sampledAt           DateTime
+  expiresAt           DateTime
+  createdAt           DateTime @default(now())
+
+  @@index([teamId, projectId, environmentId], map: "SrvCapacity_scope_idx")
+  @@index([workloadInputHash, sampledAt], map: "SrvCapacity_workload_sample_idx")
+  @@unique([deploymentInputHash, workloadInputHash, requirementHash, providerKey, bindingId, sampledBucket], map: "SrvCapacity_subject_bucket_uq")
+}
+
+model SiteDnsProbeReceipt {
+  id                  String   @id @default(cuid())
+  teamId              String
+  projectId           String
+  environmentId       String
+  configRevisionId    String
+  providerKey         String   @db.VarChar(128)
+  providerProfile     String
+  routeHash           String   @db.VarChar(128)
+  deploymentInputHash String   @db.VarChar(128)
+  workloadInputHash   String   @db.VarChar(128)
+  sampledBucket       DateTime
+  status              String
+  resultHash          String
+  result              Json
+  probedAt            DateTime
+  expiresAt           DateTime
+  createdAt           DateTime @default(now())
+
+  @@index([teamId, projectId, environmentId], map: "DnsProbeReceipt_scope_idx")
+  @@index([routeHash, probedAt], map: "DnsProbeReceipt_route_probe_idx")
+  @@index([deploymentInputHash, workloadInputHash], map: "DnsProbeReceipt_input_idx")
+  @@unique([deploymentInputHash, workloadInputHash, routeHash, providerKey, sampledBucket], map: "DnsProbeReceipt_subject_bucket_uq")
 }
 
 // 控制面访问策略：项目/环境/动作级 RBAC
@@ -1311,6 +1413,7 @@ model ApplicationService {
   serverId          String?
   siteId            String?
   managedResourceId String?
+  releaseComponentKey String?
   name              String
   kind              String   @default("docker-compose") // docker-compose | container | static | external
   runtime           String?
@@ -1344,6 +1447,7 @@ model ApplicationService {
   updatedAt         DateTime @updatedAt
 
   @@unique([applicationId, environmentId, name])
+  @@unique([environmentId, releaseComponentKey])
   @@index([teamId])
   @@index([projectId])
   @@index([applicationId])
@@ -1468,7 +1572,7 @@ model DeploymentRun {
   executorKey      String   @default("server-executor")
   adapterKey       String   @default("script-plan")
   dryRun           Boolean  @default(true)
-  status           String   @default("running") // running | completed | failed | blocked
+  status           String   @default("running") // running | awaiting_validation | completed | failed | blocked
   gitRepo          String?
   branch           String?
   commitSha        String?
@@ -1506,6 +1610,8 @@ model DeploymentRun {
   logCollectionRuns LogCollectionRun[]
   releaseStageAttempts ReleaseStageAttempt[]
   siteRouteSwitchRuns SiteRouteSwitchRun[]
+  productionPromotionCommands ProductionPromotionCommand[]
+  productionPromotionReconcileCommands ProductionPromotionReconcileCommand[]
 
   @@index([teamId])
   @@index([projectId])
@@ -2931,6 +3037,9 @@ model ReleaseOrder {
   legacyPlans    ReleasePlan[]
   gateEvaluations GateEvaluation[]
   gateDecisions ReleaseGateDecision[]
+  gateManualApprovals GateManualApproval[]
+  productionPromotionCommands ProductionPromotionCommand[]
+  productionPromotionReconcileCommands ProductionPromotionReconcileCommand[]
 
   @@unique([projectId, releaseVersion])
   @@index([teamId])
@@ -2948,6 +3057,9 @@ model BuildRun {
   triggeredById  String?
   repositoryIdentityId String?
   repositoryIdentityRevisionId String?
+  dependencyFetchRunId String?
+  dependencyStoreDigest String?
+  dependencyStoreGeneration Int?
   revision       Int
   sourceBranch   String
   sourceCommitSha String
@@ -2970,6 +3082,7 @@ model BuildRun {
   triggeredBy    User?    @relation("BuildRunActor", fields: [triggeredById], references: [id], onDelete: SetNull)
   repositoryIdentity ProjectRepositoryIdentity? @relation(fields: [repositoryIdentityId], references: [id], onDelete: Restrict)
   repositoryIdentityRevision ProjectRepositoryIdentityRevision? @relation(fields: [repositoryIdentityRevisionId], references: [id], onDelete: Restrict)
+  dependencyFetchRun ReleaseDependencyFetchRun? @relation(fields: [dependencyFetchRunId], references: [id], onDelete: Restrict)
   manifest       ArtifactManifest?
   stageAttempt   ReleaseStageAttempt?
   gateEvaluations GateEvaluation[]
@@ -2980,9 +3093,48 @@ model BuildRun {
   @@index([triggeredById])
   @@index([repositoryIdentityId])
   @@index([repositoryIdentityRevisionId])
+  @@index([dependencyFetchRunId], map: "BuildRun_dependency_fetch_idx")
   @@index([sourceCommitSha])
   @@index([status])
   @@index([createdAt])
+}
+
+// 公开锁文件依赖的受控预取状态；组合哈希全局唯一且不包含凭据。
+model ReleaseDependencyFetchRun {
+  id                   String   @id @default(cuid())
+  combinationHash      String   @unique(map: "DependencyFetch_combination_key")
+  lockfileDigest       String
+  profileId            String
+  profileVersion       Int
+  profileSnapshotHash  String?
+  supplyChainDigest    String?
+  fetchImage           String?  @db.VarChar(512)
+  jobImage             String?  @db.VarChar(512)
+  pnpmVersion          String
+  platformOs           String
+  platformArch         String
+  platformAbi          String?
+  platformLibc         String?
+  registryPolicyDigest String
+  dependencyNetworkMode String?
+  engineEvidenceDigest String?
+  cacheGeneration      Int      @default(0)
+  status               String   @default("queued") // queued | fetching | verifying | succeeded | invalidated | failed | blocked | unavailable
+  storeDigest          String?
+  leaseTokenHash       String?
+  leasedAt             DateTime?
+  leaseExpiresAt       DateTime?
+  heartbeatAt          DateTime?
+  errorCode            String?
+  errorMessage         String?  @db.Text
+  finishedAt           DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  buildRuns            BuildRun[]
+
+  @@index([status, leaseExpiresAt], map: "DependencyFetch_status_lease_idx")
+  @@index([lockfileDigest], map: "DependencyFetch_lock_digest_idx")
 }
 
 // 成功 BuildRun 产生的不可变制品清单；同一 digest 可来自不同 BuildRun
@@ -3044,11 +3196,12 @@ model ReleaseRun {
   sourceReleaseRunId    String?
   actorId               String?
   mode                  String   @default("standard") // standard | upgrade | recovery
-  status                String   @default("pending") // pending | awaiting_approval | running | succeeded | failed | canceled
+  status                String   @default("pending") // pending | awaiting_approval | running | awaiting_validation | succeeded | failed | canceled
   verifiedDigest        String
   resourceSnapshot      Json?
   routeSnapshot         Json?
   policySnapshot        Json?
+  observabilitySnapshot Json?
   inputHash             String
   idempotencyKey        String
   errorCode             String?
@@ -3075,6 +3228,8 @@ model ReleaseRun {
   stageAttempt          ReleaseStageAttempt?
   gateEvaluations       GateEvaluation[]
   siteRouteSwitchRuns   SiteRouteSwitchRun[]
+  productionPromotionCommands ProductionPromotionCommand[]
+  productionPromotionReconcileCommands ProductionPromotionReconcileCommand[]
 
   @@unique([releaseOrderId, idempotencyKey])
   @@index([teamId])
@@ -3086,6 +3241,109 @@ model ReleaseRun {
   @@index([configRevisionId])
   @@index([operationApprovalId])
   @@index([sourceReleaseRunId])
+  @@index([actorId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// Production provider deploy 后，按精确候选继续 promotion 的幂等命令。
+// GateEvaluation/ReleaseGateDecision 仍是独立的追加式评估历史。
+model ProductionPromotionCommand {
+  id              String   @id @default(cuid())
+  teamId          String
+  projectId       String
+  releaseOrderId  String
+  releaseRunId    String
+  deploymentRunId String
+  actorId         String
+  idempotencyKey  String
+  candidateHash   String
+  inputHash       String
+  status          String   @default("running") // running | completed | failed | blocked
+  phase           String   @default("reserved") // reserved | pre_gate_allowed | route_switched | observed | post_gate_allowed | committing
+  leaseOwner      String?
+  leaseTokenHash  String?
+  leaseExpiresAt  DateTime?
+  heartbeatAt     DateTime?
+  attemptCount    Int      @default(0)
+  preDecisionId   String?
+  preDecisionInputHash String?
+  preDecisionActionHash String?
+  postDecisionId  String?
+  postDecisionInputHash String?
+  postDecisionActionHash String?
+  routeSwitchOperationId String?
+  observationRecordedAt DateTime?
+  legacyReconcileRequired Boolean @default(false)
+  legacyReconcileReason String?
+  result          Json?
+  errorCode       String?
+  errorMessage    String?  @db.Text
+  startedAt       DateTime @default(now())
+  finishedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  team            Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  releaseOrder    ReleaseOrder @relation(fields: [releaseOrderId], references: [id], onDelete: Cascade)
+  releaseRun      ReleaseRun @relation(fields: [releaseRunId], references: [id], onDelete: Cascade)
+  deploymentRun   DeploymentRun @relation(fields: [deploymentRunId], references: [id], onDelete: Cascade)
+  actor           User     @relation("ProductionPromotionCommandActor", fields: [actorId], references: [id], onDelete: Restrict)
+  reconcileCommands ProductionPromotionReconcileCommand[]
+
+  @@unique([deploymentRunId, idempotencyKey])
+  @@index([teamId])
+  @@index([projectId])
+  @@index([releaseOrderId])
+  @@index([releaseRunId])
+  @@index([actorId])
+  @@index([status])
+  @@index([status, leaseExpiresAt], map: "ProductionPromotionCommand_status_lease_idx")
+  @@index([leaseOwner], map: "ProductionPromotionCommand_lease_owner_idx")
+  @@index([routeSwitchOperationId], map: "ProductionPromotionCommand_route_operation_idx")
+  @@index([legacyReconcileRequired, status], map: "ProductionPromotionCommand_legacy_reconcile_idx")
+  @@index([createdAt])
+}
+
+// 对无法证明历史阶段的 Production promotion 进行显式、追加式人工核对。
+model ProductionPromotionReconcileCommand {
+  id                 String   @id @default(cuid())
+  teamId             String
+  projectId          String
+  releaseOrderId     String
+  releaseRunId       String
+  deploymentRunId    String
+  promotionCommandId String
+  actorId            String
+  idempotencyKey     String
+  inputHash          String
+  status             String   @default("running") // running | completed | blocked
+  readbackState      String?
+  routeSwitchOperationId String?
+  routeProviderKey   String?
+  result             Json?
+  errorCode          String?
+  errorMessage       String?  @db.Text
+  startedAt          DateTime @default(now())
+  finishedAt         DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  team               Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project            Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  releaseOrder       ReleaseOrder @relation(fields: [releaseOrderId], references: [id], onDelete: Cascade)
+  releaseRun         ReleaseRun @relation(fields: [releaseRunId], references: [id], onDelete: Cascade)
+  deploymentRun      DeploymentRun @relation(fields: [deploymentRunId], references: [id], onDelete: Cascade)
+  promotionCommand   ProductionPromotionCommand @relation(fields: [promotionCommandId], references: [id], onDelete: Cascade)
+  actor              User @relation("ProductionPromotionReconcileCommandActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@unique([promotionCommandId, idempotencyKey], map: "prod_promo_reconcile_command_idem_key")
+  @@index([teamId])
+  @@index([projectId])
+  @@index([releaseOrderId])
+  @@index([releaseRunId])
+  @@index([deploymentRunId])
   @@index([actorId])
   @@index([status])
   @@index([createdAt])
@@ -3155,6 +3413,7 @@ model GateEvaluation {
   releaseRun        ReleaseRun?  @relation(fields: [releaseRunId], references: [id], onDelete: SetNull)
   buildRun          BuildRun?    @relation(fields: [buildRunId], references: [id], onDelete: SetNull)
   actor             User?        @relation("GateEvaluationActor", fields: [actorId], references: [id], onDelete: SetNull)
+  manualApprovals   GateManualApproval[]
 
   @@unique([releaseOrderId, gateId, inputHash])
   @@index([teamId])
@@ -3163,6 +3422,47 @@ model GateEvaluation {
   @@index([buildRunId])
   @@index([actorId])
   @@index([status])
+  @@index([expiresAt])
+  @@index([createdAt])
+}
+
+// 追加式人工确认；每次确认绑定精确门禁、动作、请求人和冻结源码策略。
+model GateManualApproval {
+  id                       String   @id @default(cuid())
+  teamId                   String
+  projectId                String
+  releaseOrderId           String
+  gateEvaluationId         String
+  evaluationInputHash      String
+  approvalSubjectHash      String?
+  actionInputHash          String
+  requesterActorId         String
+  reviewerActorId          String
+  sourcePolicyRevisionId   String?
+  sourcePolicySnapshotHash String?
+  sourceCommitSha          String?
+  reason                   String   @db.Text
+  confirmedAt              DateTime @default(now())
+  expiresAt                DateTime?
+  createdAt                DateTime @default(now())
+
+  team                 Team                  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  project              Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  releaseOrder         ReleaseOrder          @relation(fields: [releaseOrderId], references: [id], onDelete: Cascade)
+  gateEvaluation       GateEvaluation        @relation(fields: [gateEvaluationId], references: [id], onDelete: Cascade)
+  sourcePolicyRevision SourcePolicyRevision? @relation(fields: [sourcePolicyRevisionId], references: [id], onDelete: SetNull)
+  requester            User                  @relation("GateManualApprovalRequester", fields: [requesterActorId], references: [id], onDelete: Restrict)
+  reviewer             User                  @relation("GateManualApprovalReviewer", fields: [reviewerActorId], references: [id], onDelete: Restrict)
+
+  @@unique([gateEvaluationId, evaluationInputHash, actionInputHash, reviewerActorId], map: "GateManualApproval_evaluation_action_reviewer_key")
+  @@unique([gateEvaluationId, evaluationInputHash, approvalSubjectHash, reviewerActorId], map: "GateManualApproval_subject_reviewer_key")
+  @@index([teamId])
+  @@index([projectId])
+  @@index([releaseOrderId])
+  @@index([sourcePolicyRevisionId])
+  @@index([actionInputHash])
+  @@index([approvalSubjectHash])
+  @@index([releaseOrderId, approvalSubjectHash, requesterActorId], map: "GateManualApproval_subject_requester_idx")
   @@index([expiresAt])
   @@index([createdAt])
 }

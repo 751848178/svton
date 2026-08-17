@@ -8,7 +8,10 @@ import { RepositorySuggestionApplyRepository } from '../repository-analysis/repo
 import { RepositorySuggestionApplyService } from '../repository-analysis/repository-suggestion-apply.service';
 import { RepositoryIntakeContractRepository } from './repository-intake-contract.repository';
 import { RepositoryIntakeContractService } from './repository-intake-contract.service';
-import { waitForRepositoryRunLockWaiters } from './repository-intake-lock-wait.fixture';
+import {
+  waitForRepositoryIntakeLockWaiters,
+  waitForRepositoryRunLockWaiters,
+} from './repository-intake-lock-wait.fixture';
 import { RepositoryIntakeReviewService } from './repository-intake-review.service';
 
 const describeIntegration = process.env.RUN_PROJECT_INTAKE_INTEGRATION === '1'
@@ -62,7 +65,7 @@ describeIntegration('repository intake immutable review integration', () => {
     const genericPromise = apply.apply(
       teamId, actorId, raceProjectId, raceRunId, genericReview('accept', raceRunId),
     );
-    await waitForRepositoryRunLockWaiters(prisma, 2);
+    await waitForRepositoryIntakeLockWaiters(prisma, 2);
     unlock();
     await blocker;
     const [reviewResult, genericResult] = await Promise.allSettled([

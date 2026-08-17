@@ -17,6 +17,7 @@ function createService() {
         id: "project-1",
         onboardingStatus: "draft",
         onboardingRevision: 1,
+        archivedAt: null,
       }),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
@@ -25,7 +26,16 @@ function createService() {
     assertAvailable: jest.fn().mockResolvedValue(undefined),
   } as unknown as ProjectRepositoryDuplicateGuardService;
   const connections = {
-    connect: jest.fn().mockResolvedValue({ id: "connection-1" }),
+    connect: jest.fn().mockImplementation(async (
+      _teamId: string,
+      _actorId: string,
+      _projectId: string,
+      _dto: unknown,
+      afterVerified?: (tx: PrismaService) => Promise<void>,
+    ) => {
+      await afterVerified?.(prisma);
+      return { id: "connection-1" };
+    }),
     getState: jest.fn().mockResolvedValue({ connection: null }),
   } as unknown as RepositoryConnectionService;
   const runs = {
@@ -33,9 +43,21 @@ function createService() {
     start: jest.fn().mockResolvedValue({ id: "run-1" }),
     retry: jest.fn().mockResolvedValue({ id: "run-2" }),
   } as unknown as RepositoryAnalysisRunService;
-  const contracts = { read: jest.fn() } as unknown as RepositoryIntakeContractService;
+  const contracts = {
+    read: jest.fn(),
+  } as unknown as RepositoryIntakeContractService;
   const reviews = {
-    review: jest.fn().mockResolvedValue({ snapshot: { id: "snapshot-1" } }),
+    review: jest.fn().mockImplementation(async (
+      _teamId: string,
+      _actorId: string,
+      _projectId: string,
+      _runId: string,
+      _dto: unknown,
+      afterApply?: (tx: PrismaService) => Promise<void>,
+    ) => {
+      await afterApply?.(prisma);
+      return { snapshot: { id: "snapshot-1" } };
+    }),
   } as unknown as RepositoryIntakeReviewService;
   const finalization = {
     finalize: jest.fn().mockResolvedValue({ projectId: "project-1" }),
@@ -46,6 +68,7 @@ function createService() {
     connections,
     runs,
     reviews,
+    finalization,
     service: new ProjectIntakeService(
       prisma,
       duplicateGuard,
@@ -120,6 +143,7 @@ describe("ProjectIntakeService", () => {
       "project-1",
       "run-1",
       { items: [] },
+      expect.any(Function),
     );
     expect(prisma.project.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -150,5 +174,73 @@ describe("ProjectIntakeService", () => {
         },
       }),
     );
+  });
+
+  it("reports a transition conflict instead of silently accepting a zero-row CAS", async () => {
+    const { prisma, service } = createService();
+    (prisma.project.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
+
+    await expect(service.connect("team-1", "user-1", "project-1", {
+      repositoryUrl: "https://git.example/repo.git",
+      visibility: "public",
+    })).rejects.toThrow("PROJECT_INTAKE_STATE_TRANSITION_CONFLICT");
+  });
+
+  it.each([
+    [
+      "connect",
+      (service: ProjectIntakeService) =>
+        service.connect("team-1", "user-1", "project-1", {
+          repositoryUrl: "https://git.example/repo.git",
+          visibility: "public",
+        }),
+    ],
+    [
+      "start",
+      (service: ProjectIntakeService) =>
+        service.startAnalysis("team-1", "user-1", "project-1", {
+          branch: "main",
+          idempotencyKey: "start-1",
+        }),
+    ],
+    [
+      "retry",
+      (service: ProjectIntakeService) =>
+        service.retryAnalysis("team-1", "user-1", "project-1", "run-1"),
+    ],
+    [
+      "review",
+      (service: ProjectIntakeService) =>
+        service.review("team-1", "user-1", "project-1", "run-1", { items: [] }),
+    ],
+    [
+      "finalize",
+      (service: ProjectIntakeService) =>
+        service.finalize("team-1", "user-1", "project-1", {
+          analysisRunId: "run-1",
+          reviewSnapshotId: "review-1",
+          reviewSnapshotHash: "a".repeat(64),
+          idempotencyKey: "finalize-1",
+        }),
+    ],
+  ])("rejects archived project before %s writes", async (_label, action) => {
+    const deps = createService();
+    (deps.prisma.project.findFirst as jest.Mock).mockResolvedValue({
+      id: "project-1",
+      onboardingStatus: "archived",
+      onboardingRevision: 2,
+      archivedAt: new Date(),
+    });
+
+    await expect(action(deps.service)).rejects.toMatchObject({
+      response: { code: "PROJECT_ARCHIVED_READ_ONLY" },
+    });
+    expect(deps.duplicateGuard.assertAvailable).not.toHaveBeenCalled();
+    expect(deps.connections.connect).not.toHaveBeenCalled();
+    expect(deps.runs.start).not.toHaveBeenCalled();
+    expect(deps.runs.retry).not.toHaveBeenCalled();
+    expect(deps.reviews.review).not.toHaveBeenCalled();
+    expect(deps.finalization.finalize).not.toHaveBeenCalled();
+    expect(deps.prisma.project.updateMany).not.toHaveBeenCalled();
   });
 });

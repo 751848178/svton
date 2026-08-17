@@ -3,7 +3,6 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from "@nestjs/common";
-import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import type { ReleaseGateEvaluation } from "./release-gate-catalog.types";
 import {
@@ -11,6 +10,7 @@ import {
   type GateEvaluationScope,
   type PersistedGateStatus,
 } from "./gate-evaluation-persistence.utils";
+import { persistGateManualApproval } from "./gate-manual-approval.repository";
 
 @Injectable()
 export class GateEvaluationRepository {
@@ -41,9 +41,36 @@ export class GateEvaluationRepository {
         expiresAt: true,
         waiver: true,
         waiverExpiresAt: true,
+        manualApprovals: {
+          orderBy: [{ confirmedAt: "asc" as const }, { id: "asc" as const }],
+          select: {
+            id: true,
+            evaluationInputHash: true,
+            approvalSubjectHash: true,
+            actionInputHash: true,
+            requesterActorId: true,
+            reviewerActorId: true,
+            sourcePolicyRevisionId: true,
+            sourcePolicySnapshotHash: true,
+            sourceCommitSha: true,
+            confirmedAt: true,
+            expiresAt: true,
+          },
+        },
         createdAt: true,
       },
     });
+    const subjectApprovals = scope.decisionIdentity?.approvalSubjectHash
+      ? await this.prisma.gateManualApproval.findMany({
+          where: {
+            releaseOrderId: scope.releaseOrderId,
+            approvalSubjectHash: scope.decisionIdentity.approvalSubjectHash,
+            requesterActorId: scope.decisionIdentity.requesterActorId,
+          },
+          orderBy: [{ confirmedAt: "asc" }, { id: "asc" }],
+          include: { gateEvaluation: { select: { gateId: true } } },
+        })
+      : [];
     const byIdentity = new Map(
       stored.map((row) => [`${row.gateId}:${row.inputHash}`, row]),
     );
@@ -62,6 +89,13 @@ export class GateEvaluationRepository {
         persistedAt: row.createdAt.toISOString(),
         waiver: row.waiver,
         waiverExpiresAt: row.waiverExpiresAt?.toISOString() ?? null,
+        manualApprovals: subjectApprovals
+          .filter((approval) => approval.gateEvaluation.gateId === check.id)
+          .map(({ gateEvaluation: _gateEvaluation, ...approval }) => ({
+          ...approval,
+          confirmedAt: approval.confirmedAt.toISOString(),
+          expiresAt: approval.expiresAt?.toISOString() ?? null,
+          })),
       };
     });
   }
@@ -75,15 +109,16 @@ export class GateEvaluationRepository {
     actorId: string;
     reason: string;
   }) {
-    const row = await this.prisma.gateEvaluation.findFirst({
-      where: {
-        id: input.evaluationId,
-        teamId: input.teamId,
-        projectId: input.projectId,
-        releaseOrderId: input.releaseOrderId,
-        gateId: input.gateId,
-      },
-    });
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM GateEvaluation
+        WHERE id = ${input.evaluationId} FOR UPDATE`;
+      const row = await tx.gateEvaluation.findFirst({
+        where: {
+          id: input.evaluationId, teamId: input.teamId,
+          projectId: input.projectId, releaseOrderId: input.releaseOrderId,
+          gateId: input.gateId,
+        },
+      });
     if (!row) throw new NotFoundException("门禁结论不存在或不属于当前发布单");
     if (row.status !== "needs_human" || !row.providerKey) {
       throw new UnprocessableEntityException(
@@ -93,33 +128,37 @@ export class GateEvaluationRepository {
     if (row.expiresAt && row.expiresAt.getTime() < Date.now()) {
       throw new UnprocessableEntityException("门禁证据已过期，必须重新检查");
     }
-    const confirmedAt = new Date();
-    const waiver = {
-      kind: "manual_confirmation",
-      gateId: row.gateId,
-      actorId: input.actorId,
-      reason: input.reason,
-      confirmedAt: confirmedAt.toISOString(),
-      evaluationInputHash: row.inputHash,
-    };
-    const updated = await this.prisma.gateEvaluation.updateMany({
-      where: {
-        id: row.id,
-        inputHash: row.inputHash,
-        waiver: { equals: Prisma.DbNull },
-      },
-      data: {
-        waiver,
-        waiverExpiresAt: row.expiresAt,
-      },
-    });
-    if (updated.count === 0 && row.waiver === null) {
-      throw new UnprocessableEntityException(
-        "门禁人工确认发生并发冲突，请刷新后重试",
-      );
-    }
-    return this.prisma.gateEvaluation.findUniqueOrThrow({
+    await persistGateManualApproval(tx as never, row, input);
+    return tx.gateEvaluation.findUniqueOrThrow({
       where: { id: row.id },
+      include: { manualApprovals: true },
+    });
     });
   }
+
+  manualConfirmationTarget(input: {
+    teamId: string;
+    projectId: string;
+    releaseOrderId: string;
+    evaluationId: string;
+  }) {
+    return this.prisma.gateEvaluation.findFirst({
+      where: {
+        id: input.evaluationId,
+        teamId: input.teamId,
+        projectId: input.projectId,
+        releaseOrderId: input.releaseOrderId,
+      },
+      select: {
+        id: true,
+        gateId: true,
+        status: true,
+        providerKey: true,
+        releaseRunId: true,
+        buildRunId: true,
+        summary: true,
+      },
+    });
+  }
+
 }

@@ -9,6 +9,7 @@ import {
   resourceVariableOwners,
 } from "./environment-variable-binding.utils";
 import type { EnvironmentVariableOwner } from "./environment-variable-ownership.model";
+import { resourceReferenceStateful } from "./resource-statefulness.policy";
 
 type ResourceScope = {
   id: string;
@@ -42,7 +43,19 @@ export async function resolveEnvironmentConfigResources(
     const sourceKeys = environmentKeysFromTemplate(row.envTemplate);
     validateBindings(input, sourceKeys);
     owners.push(...resourceVariableOwners(input, sourceKeys));
-    output.push({ ...input, name: row.name });
+    output.push({
+      ...input,
+      name: row.name,
+      stateful: resourceReferenceStateful({
+        kind: input.kind,
+        resourceKind: row.resourceTypeKey,
+        category: row.resourceTypeCategory,
+      }),
+      ...(row.resourceTypeKey ? { resourceTypeKey: row.resourceTypeKey } : {}),
+      ...(row.resourceTypeCategory !== undefined
+        ? { resourceTypeCategory: row.resourceTypeCategory }
+        : {}),
+    });
   }
   return {
     references: output.sort((left, right) =>
@@ -87,14 +100,40 @@ async function findResource(
   if (input.kind === "resource_instance") {
     const row = await tx.resourceInstance.findFirst({
       where: args.where,
-      select: { ...args.select, resourceType: { select: { envTemplate: true } } },
+      select: { ...args.select, resourceType: {
+        select: { envTemplate: true, key: true, category: true },
+      } },
     });
-    return row ? { ...row, envTemplate: row.resourceType.envTemplate } : null;
+    return row ? {
+      ...row,
+      envTemplate: row.resourceType.envTemplate,
+      resourceTypeKey: row.resourceType.key,
+      resourceTypeCategory: row.resourceType.category,
+    } : null;
   }
-  const row = input.kind === "managed_resource"
-    ? await tx.managedResource.findFirst(args)
-    : input.kind === "site"
-      ? await tx.site.findFirst(args)
-      : await tx.cDNConfig.findFirst(args);
-  return row ? { ...row, envTemplate: null } : null;
+  if (input.kind === "managed_resource") {
+    const managed = await tx.managedResource.findFirst({
+      where: args.where,
+      select: {
+        ...args.select,
+        kind: true,
+        resourceInstance: { select: { resourceType: {
+          select: { key: true, category: true },
+        } } },
+      },
+    });
+    return managed ? {
+      ...managed,
+      envTemplate: null,
+      resourceTypeKey: managed.resourceInstance?.resourceType.key ?? managed.kind,
+      resourceTypeCategory:
+        managed.resourceInstance?.resourceType.category ?? managed.kind,
+    } : null;
+  }
+  const row = input.kind === "site"
+    ? await tx.site.findFirst(args)
+    : await tx.cDNConfig.findFirst(args);
+  if (!row) return null;
+  return { ...row, envTemplate: null,
+    resourceTypeKey: null, resourceTypeCategory: null };
 }

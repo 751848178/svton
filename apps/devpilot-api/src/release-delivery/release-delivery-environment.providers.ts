@@ -11,6 +11,7 @@ import { SiteRouteSwitchEvidenceRepository } from "../site/site-route-switch-evi
 import { SiteRouteSwitchSagaOrchestrator } from "../site/site-route-switch-saga.orchestrator";
 import { SiteRouteSwitchSagaRecoveryService } from "../site/site-route-switch-saga-recovery.service";
 import { SiteRouteSwitchSagaRecoveryRepository } from "../site/site-route-switch-saga-recovery.repository";
+import { SiteRouteSwitchSagaReadbackService } from "../site/site-route-switch-saga-readback.service";
 import { SiteRouteSwitchSagaRepository } from "../site/site-route-switch-saga.repository";
 import { ConfiguredSiteRouteSwitchProvider } from "../site/configured-site-route-switch-provider.service";
 import { HttpSiteRouteSwitchProvider } from "../site/http-site-route-switch-provider.service";
@@ -27,6 +28,14 @@ import { EnvironmentVersionRecoveryRepository } from "./environment-version-reco
 import { EnvironmentVersionRecoveryService } from "./environment-version-recovery.service";
 import { EnvironmentVersionRepository } from "./environment-version.repository";
 import { EnvironmentVersionService } from "./environment-version.service";
+import { ProductionPromotionAwaitingRepository } from "./production-promotion-awaiting.repository";
+import { ProductionPromotionCommandRepository } from "./production-promotion-command.repository";
+import { ProductionPromotionObservationRepository } from "./production-promotion-observation.repository";
+import { ProductionPromotionService } from "./production-promotion.service";
+import { ProductionPromotionRecoveryRepository } from "./production-promotion-recovery.repository";
+import { ProductionPromotionRecoveryService } from "./production-promotion-recovery.service";
+import { ProductionPromotionReconcileRepository } from "./production-promotion-reconcile.repository";
+import { ProductionPromotionReconcileService } from "./production-promotion-reconcile.service";
 
 export const releaseDeliveryEnvironmentProviders = [
   EnvironmentVersionRepository,
@@ -38,6 +47,14 @@ export const releaseDeliveryEnvironmentProviders = [
   EnvironmentVersionRecoveryService,
   EnvironmentVersionProductionGateService,
   EnvironmentVersionGateEvidenceRepository,
+  ProductionPromotionAwaitingRepository,
+  ProductionPromotionCommandRepository,
+  ProductionPromotionObservationRepository,
+  ProductionPromotionService,
+  ProductionPromotionRecoveryRepository,
+  ProductionPromotionRecoveryService,
+  ProductionPromotionReconcileRepository,
+  ProductionPromotionReconcileService,
   ProductionRouteSagaGuard,
   SiteRouteActivationService,
   SiteFinalProbeService,
@@ -48,6 +65,7 @@ export const releaseDeliveryEnvironmentProviders = [
   SiteRouteSwitchSagaRecoveryRepository,
   SiteRouteSwitchSagaOrchestrator,
   SiteRouteSwitchSagaRecoveryService,
+  SiteRouteSwitchSagaReadbackService,
   HttpSiteRouteSwitchProvider,
   UnconfiguredSiteRouteSwitchProvider,
   ConfiguredSiteRouteSwitchProvider,

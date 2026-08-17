@@ -12,6 +12,7 @@ interface ApplicationRecord {
   repoPath: string | null;
   services: Array<{
     id: string;
+    releaseComponentKey?: string | null;
     name: string;
     deployConfig: unknown;
   }>;
@@ -21,6 +22,7 @@ export function buildComponents(
   applications: ApplicationRecord[],
 ): ReleaseBuildComponent[] {
   const components: ReleaseBuildComponent[] = [];
+  const contracts = new Map<string, string>();
   for (const application of applications) {
     for (const service of application.services) {
       const config = record(service.deployConfig);
@@ -33,14 +35,31 @@ export function buildComponents(
       }
       const workingDirectory =
         text(config.workingDirectory) || application.repoPath || ".";
-      components.push({
-        key: service.id,
+      const key = service.releaseComponentKey ?? service.id;
+      const component = {
+        key,
         name: `${application.name || application.id}/${service.name}`,
         workingDirectory,
         buildCommand: command,
         artifactOutputs: readArtifactOutputs(config.artifactPaths),
         buildEnvironment: readBuildEnvironment(config.buildEnvironment),
+      };
+      const contract = JSON.stringify({
+        workingDirectory: component.workingDirectory,
+        buildCommand: component.buildCommand,
+        artifactOutputs: component.artifactOutputs,
+        buildEnvironment: component.buildEnvironment,
       });
+      const prior = contracts.get(key);
+      if (prior && prior !== contract) {
+        throw new UnprocessableEntityException(
+          `组件 ${key} 在双基线中的构建契约不一致`,
+        );
+      }
+      if (!prior) {
+        contracts.set(key, contract);
+        components.push(component);
+      }
     }
   }
   return components.sort((left, right) => left.key.localeCompare(right.key));

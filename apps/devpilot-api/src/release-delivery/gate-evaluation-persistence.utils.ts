@@ -27,12 +27,21 @@ export type GateEvaluationScope = {
   releaseRunId?: string;
   buildRunId?: string;
   actorId?: string;
+  decisionIdentity?: {
+    checkpoint: string | null;
+    deploymentRunId: string | null;
+    candidateHash: string | null;
+    approvalSubjectHash: string;
+    actionInputHash: string;
+    requesterActorId: string;
+  };
 };
 
 export function buildGateEvaluationRow(
   scope: GateEvaluationScope,
   evaluation: ReleaseGateEvaluation,
 ): Prisma.GateEvaluationCreateManyInput {
+  const { decisionIdentity, ...persistedScope } = scope;
   const status = persistedGateStatus(evaluation.status);
   const inputHash = stableHash({
     definitionVersion: GATE_DEFINITION_VERSION,
@@ -40,6 +49,7 @@ export function buildGateEvaluationRow(
       releaseOrderId: scope.releaseOrderId,
       releaseRunId: scope.releaseRunId ?? null,
       buildRunId: scope.buildRunId ?? null,
+      decisionIdentity: decisionIdentity ?? null,
     },
     gateId: evaluation.id,
     status,
@@ -50,15 +60,20 @@ export function buildGateEvaluationRow(
     checkedAt: evaluation.checkedAt,
     expiresAt: evaluation.expiresAt,
     fresh: evaluation.fresh,
+    evidenceIdentity: evaluation.evidenceIdentity ?? null,
   });
   return {
-    ...scope,
+    ...persistedScope,
     gateId: evaluation.id,
     definitionVersion: GATE_DEFINITION_VERSION,
     status,
     providerKey: evaluation.providerKey,
     reasonCode: evaluation.reasonCode,
-    summary: evaluation.reason as Prisma.InputJsonValue,
+    summary: {
+      reason: evaluation.reason,
+      evidenceIdentity: evaluation.evidenceIdentity ?? null,
+      decisionIdentity: decisionIdentity ?? null,
+    } as Prisma.InputJsonValue,
     evidenceRef: evaluation.evidenceRef,
     checkedAt: parseDate(evaluation.checkedAt),
     expiresAt: parseDate(evaluation.expiresAt),

@@ -24,7 +24,6 @@ export class ReleaseStagingService {
     private readonly inputs: ReleaseDeploymentInputService,
     private readonly workloads: ReleaseStagingWorkloadService,
   ) {}
-
   async list(teamId: string, projectId: string, releaseOrderId: string) {
     await this.requireContext(teamId, projectId, releaseOrderId);
     const items = await this.repository.list(teamId, projectId, releaseOrderId);
@@ -68,7 +67,7 @@ export class ReleaseStagingService {
       actorId: input.actorId,
       projectId: input.projectId,
       releaseOrderId: input.releaseOrderId,
-      stage: "staging",
+      checkpoint: "staging_pre_execution",
       target: {
         buildRunId: manifest.buildRun.id,
         manifestId: manifest.id,
@@ -124,6 +123,7 @@ export class ReleaseStagingService {
           id: decision.id,
           stage: decision.stage,
           inputHash: decision.inputHash,
+          actionInputHash: decision.actionInputHash,
         },
       },
       providerKey: this.executor.providerKey,
@@ -133,6 +133,7 @@ export class ReleaseStagingService {
         id: decision.id,
         stage: decision.stage,
         inputHash: decision.inputHash,
+        actionInputHash: decision.actionInputHash,
       },
     });
     try {

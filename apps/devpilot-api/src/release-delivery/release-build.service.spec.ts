@@ -35,6 +35,7 @@ describe("ReleaseBuildService", () => {
       id: "decision-1",
       stage: "build",
       inputHash: "decision-hash",
+      actionInputHash: "action-hash",
     });
     repository.reserve.mockResolvedValue({
       id: "run-1",
@@ -75,6 +76,7 @@ describe("ReleaseBuildService", () => {
         id: "decision-1",
         stage: "build",
         inputHash: "decision-hash",
+        actionInputHash: "action-hash",
       },
       runtime: descriptor(),
       artifactContract: {

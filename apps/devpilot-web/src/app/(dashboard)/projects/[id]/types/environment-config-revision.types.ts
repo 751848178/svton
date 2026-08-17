@@ -8,6 +8,9 @@ export type EnvironmentConfigResourceReference = {
   componentKey?: string;
   envBindings?: Array<{ sourceKey: string; targetEnvKey: string }>;
   bindingStatus?: 'configured' | 'needs_configuration';
+  stateful?: boolean;
+  resourceTypeKey?: string;
+  resourceTypeCategory?: string | null;
 };
 
 export type EnvironmentConfigSecretReference = {
@@ -21,7 +24,7 @@ export type EnvironmentConfigRouteEntry = {
   serviceId?: string | null;
   component: string;
   port: number | null;
-  tlsMode: 'managed_cert' | 'existing_cert_asset';
+  tlsMode: 'none' | 'managed_cert' | 'existing_cert_asset';
 };
 
 export type EnvironmentConfigRevision = {
@@ -44,6 +47,14 @@ export type EnvironmentConfigRevision = {
     entries?: EnvironmentConfigRouteEntry[];
   };
   policyReferences: Array<{ id: string; name: string; effect: string; actions: unknown }>;
+  observabilitySnapshot?: {
+    version?: number;
+    profile?: 'external_provider_v1' | 'local_acceptance_v1';
+    logs?: string;
+    metrics?: string;
+    traces?: string;
+    alerts?: string;
+  };
   displayName?: string | null;
   displayDescription?: string | null;
   changeSummary?: string | null;

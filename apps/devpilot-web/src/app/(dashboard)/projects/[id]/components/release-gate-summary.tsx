@@ -40,6 +40,8 @@ export function ReleaseGateSummary(props: Props) {
       ? t('releaseGateCanEnterBuild')
       : t('releaseGateCannotEnterBuild', { count: summary.blockingCount })
     : t('releaseGateCatalogInvalid');
+  const blockerPreviews = summary.previews.filter((preview) =>
+    preview.blockingCount > 0 || preview.status === 'unavailable');
 
   return (
     <section className="space-y-4">
@@ -77,23 +79,10 @@ export function ReleaseGateSummary(props: Props) {
         </div>
       </div>
 
-      <dl className="grid gap-3 min-[821px]:grid-cols-3">
-        <SummaryFact
-          label={t('releaseGateMvpGroups')}
-          value={t('releaseGateGroupCount', { count: summary.capabilityCount })}
-        />
-        <SummaryFact
-          label={t('releaseGateFullCatalog')}
-          value={t('releaseGateCheckCount', { count: summary.totalChecks })}
-        />
-        <SummaryFact
-          label={t('releaseGateCurrentConclusion')}
-          value={conclusion}
-        />
-      </dl>
+      <p className="rounded-lg border bg-white px-4 py-3 text-sm font-medium">{conclusion}</p>
 
       <div className="grid gap-3 min-[821px]:grid-cols-2">
-        {summary.previews.map((preview) => {
+        {blockerPreviews.map((preview) => {
           const Icon = PREVIEW_ICONS[preview.key];
           return (
             <button
@@ -156,19 +145,13 @@ export function ReleaseGateSummary(props: Props) {
           {t('releaseGateCatalogIntegrityError')}
         </p>
       ) : null}
+      {summary.valid && blockerPreviews.length === 0 ? (
+        <p className="text-sm text-emerald-700">{t('releaseGateCanEnterBuild')}</p>
+      ) : null}
     </section>
   );
 }
 
 function formatTime(value: string | null, locale: string, fallback: string) {
   return value ? new Date(value).toLocaleString(locale) : fallback;
-}
-
-function SummaryFact({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border bg-white px-4 py-3">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="mt-1 font-semibold">{value}</dd>
-    </div>
-  );
 }

@@ -21,6 +21,12 @@ import { ReleaseDeploymentTargetReadinessService } from "./release-deployment-ta
 import { ReleaseProductionWorkloadService } from "./release-production-workload.service";
 import { ReleaseStagingExecutorPort } from "./release-staging.types";
 import { ReleaseStagingWorkloadService } from "./release-staging-workload.service";
+import { ProductionPromotionAwaitingRepository } from "./production-promotion-awaiting.repository";
+import { ProductionPromotionService } from "./production-promotion.service";
+import type { ProductionPromotionResumeInput } from "./production-promotion-command.types";
+import { presentLegacyPromotionRecovery } from "./production-promotion-legacy-recovery.presenter";
+import { ReleaseServerCapacityService } from "./release-server-capacity.service";
+import { ReleaseProductionDnsProbeService } from "./release-production-dns-probe.service";
 
 @Injectable()
 export class EnvironmentVersionService {
@@ -41,6 +47,10 @@ export class EnvironmentVersionService {
     private readonly routeSaga: SiteRouteSwitchSagaOrchestrator,
     private readonly routeSagaGuard: ProductionRouteSagaGuard,
     private readonly siteProbe: SiteProbePort,
+    private readonly promotionAwaiting?: ProductionPromotionAwaitingRepository,
+    private readonly promotion?: ProductionPromotionService,
+    private readonly capacity?: ReleaseServerCapacityService,
+    private readonly dns?: ReleaseProductionDnsProbeService,
   ) {}
 
   async list(teamId: string, projectId: string) {
@@ -52,7 +62,7 @@ export class EnvironmentVersionService {
     return {
       environments: await Promise.all(
         environments.map(async (environment) => ({
-          ...environment,
+          ...presentEnvironment(environment),
           currentEnvironmentVersionId: currentEnvironmentVersionId(
             project,
             environment,
@@ -68,6 +78,11 @@ export class EnvironmentVersionService {
     };
   }
 
+  resumeProductionPromotion(input: ProductionPromotionResumeInput) {
+    if (!this.promotion) throw new Error("PRODUCTION_PROMOTION_SERVICE_MISSING");
+    return this.promotion.resume(input);
+  }
+
   execute(input: EnvironmentVersionExecuteInput) {
     return executeEnvironmentVersion(
       {
@@ -78,6 +93,8 @@ export class EnvironmentVersionService {
         inputs: this.inputs,
         stagingWorkloads: this.stagingWorkloads,
         productionWorkloads: this.productionWorkloads,
+        capacity: this.capacity,
+        dns: this.dns,
         routeSwitch: this.routeSwitch,
         routeSagaGuard: this.routeSagaGuard,
         run: (context) =>
@@ -87,9 +104,7 @@ export class EnvironmentVersionService {
               gateEvidence: this.gateEvidence,
               completion: this.completion,
               productionGates: this.productionGates,
-              routeActivation: this.routeActivation,
-              routeSaga: this.routeSaga,
-              siteProbe: this.siteProbe,
+              promotionAwaiting: this.productionAwaiting(),
             },
             context,
           ),
@@ -97,4 +112,32 @@ export class EnvironmentVersionService {
       input,
     );
   }
+
+  private productionAwaiting() {
+    if (!this.promotionAwaiting) {
+      throw new Error("PRODUCTION_PROMOTION_AWAITING_REPOSITORY_MISSING");
+    }
+    return this.promotionAwaiting;
+  }
+}
+
+function presentEnvironment<T extends {
+  releaseRuns: Array<{
+    productionPromotionCommands: Array<{
+      id: string; phase: string; legacyReconcileReason: string | null;
+    }>;
+  }>;
+}>(environment: T) {
+  return {
+    ...environment,
+    releaseRuns: environment.releaseRuns.map((run) => {
+      const { productionPromotionCommands, ...value } = run;
+      return {
+        ...value,
+        legacyPromotionRecovery: presentLegacyPromotionRecovery(
+          productionPromotionCommands,
+        ),
+      };
+    }),
+  };
 }

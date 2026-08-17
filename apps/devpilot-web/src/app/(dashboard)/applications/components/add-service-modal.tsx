@@ -55,6 +55,9 @@ const DEFAULTS: ServiceForm = {
   initializationCommand: '',
   deployCommand: '',
   healthCheckUrl: '',
+  cpuMillicores: '',
+  memoryBytes: '',
+  diskBytes: '',
 };
 
 export function AddServiceModal({

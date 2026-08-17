@@ -5,7 +5,6 @@ import {
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
-import { assertNoActiveProductionRouteSaga } from "../site/production-route-saga.guard";
 import { loadProductionReleaseContext } from "./release-production-context.repository";
 import { productionPreview } from "./release-production-snapshot.utils";
 import { lockActionableReleaseOrder } from "./release-order-action-boundary";
@@ -17,17 +16,19 @@ import {
   type RecoveryScope,
 } from "./environment-version-recovery.utils";
 import {
-  assertNoActiveReleaseRunForEnvironment,
-  lockProductionEnvironmentForRelease,
-} from "./release-run-concurrency.utils";
+  assertRecoveryReservationClear,
+  lockRecoveryProductionEnvironment,
+} from "./environment-version-recovery-reservation.repository";
+import { releaseProductionPolicySnapshot } from "./release-production-policy-snapshot";
+import { recoveryProductionPreview } from "./environment-version-recovery-preview.policy";
 
 @Injectable()
 export class EnvironmentVersionRecoveryRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async preview(input: RecoveryScope) {
+  async preview(input: RecoveryScope & { providerKey: string }) {
     const source = await resolveRecoverySource(this.prisma, input);
-    const preview = productionPreview(
+    const preview = recoveryProductionPreview(productionPreview(
       await loadProductionReleaseContext(
         this.prisma,
         input.teamId,
@@ -36,7 +37,7 @@ export class EnvironmentVersionRecoveryRepository {
         source.artifactManifestId,
         "standard",
       ),
-    );
+    ), input.providerKey);
     return {
       ...preview,
       sourceVersionId: source.id,
@@ -50,18 +51,30 @@ export class EnvironmentVersionRecoveryRepository {
       actorId: string;
       expectedInputHash: string;
       idempotencyKey: string;
+      providerKey: string;
     },
   ) {
     const scopeSource = await resolveRecoverySource(this.prisma, input);
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const source = await resolveRecoverySource(tx, input);
         await lockActionableReleaseOrder(tx, {
           teamId: input.teamId,
           projectId: input.projectId,
-          releaseOrderId: source.releaseOrderId,
+          releaseOrderId: scopeSource.releaseOrderId,
         });
-        const preview = productionPreview(
+        await lockRecoveryProductionEnvironment(tx, input);
+        const source = await resolveRecoverySource(tx, input);
+        if (
+          source.id !== scopeSource.id ||
+          source.releaseOrderId !== scopeSource.releaseOrderId ||
+          source.releaseRunId !== scopeSource.releaseRunId ||
+          source.artifactManifestId !== scopeSource.artifactManifestId
+        ) {
+          throw new ConflictException(
+            "恢复来源已漂移，请重新选择历史环境版本",
+          );
+        }
+        const preview = recoveryProductionPreview(productionPreview(
           await loadProductionReleaseContext(
             tx,
             input.teamId,
@@ -70,7 +83,7 @@ export class EnvironmentVersionRecoveryRepository {
             source.artifactManifestId,
             "standard",
           ),
-        );
+        ), input.providerKey);
         if (preview.inputHash !== input.expectedInputHash) {
           throw new ConflictException(
             "生产配置或策略已漂移，请重新确认最新恢复快照",
@@ -95,7 +108,7 @@ export class EnvironmentVersionRecoveryRepository {
           }
           return existing;
         }
-        await assertRecoveryReservationAvailable(tx, {
+        await assertRecoveryReservationClear(tx, {
           teamId: input.teamId,
           projectId: input.projectId,
           environmentId: input.environmentId,
@@ -120,8 +133,7 @@ export class EnvironmentVersionRecoveryRepository {
             routeSnapshot: snapshot.config
               .routeSnapshot as Prisma.InputJsonValue,
             policySnapshot: {
-              releasePolicy: snapshot.releasePolicy,
-              environmentPolicyReferences: snapshot.config.policySnapshot,
+              ...releaseProductionPolicySnapshot(snapshot, input.providerKey),
               releaseProtection: recoveryProtection(
                 snapshot.releasePolicy.synthetic,
               ),
@@ -157,7 +169,7 @@ export class EnvironmentVersionRecoveryRepository {
           data: { operationApprovalId: approval.id },
           include: recoveryRunInclude,
         });
-      });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     } catch (error) {
       if (isUniqueConflict(error)) {
         const existing = await this.prisma.releaseRun.findUnique({
@@ -174,13 +186,4 @@ export class EnvironmentVersionRecoveryRepository {
       throw error;
     }
   }
-}
-
-export async function assertRecoveryReservationAvailable(
-  tx: Prisma.TransactionClient,
-  scope: { teamId: string; projectId: string; environmentId: string },
-) {
-  await lockProductionEnvironmentForRelease(tx, scope);
-  await assertNoActiveProductionRouteSaga(tx, scope);
-  await assertNoActiveReleaseRunForEnvironment(tx, scope);
 }

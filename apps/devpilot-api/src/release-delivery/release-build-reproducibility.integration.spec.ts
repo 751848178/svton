@@ -21,8 +21,8 @@ describeIntegration("ReleaseBuild reproducibility serialization", () => {
       fixture.repository.reserve(secondInput),
     ]);
     const outcomes = await Promise.allSettled([
-      fixture.results.succeed(completed(first, `sha256:${"a".repeat(64)}`)),
-      fixture.results.succeed(completed(second, `sha256:${"b".repeat(64)}`)),
+      fixture.results.succeed(await completed(first, `sha256:${"a".repeat(64)}`)),
+      fixture.results.succeed(await completed(second, `sha256:${"b".repeat(64)}`)),
     ]);
     expect(outcomes.filter((item) => item.status === "fulfilled")).toHaveLength(
       1,
@@ -63,7 +63,7 @@ describeIntegration("ReleaseBuild reproducibility serialization", () => {
     const reserving = await fixture.reservation("concurrent-reserve-input");
     const [published, reserved] = await Promise.all([
       fixture.results.succeed(
-        completed(publishing, `sha256:${"c".repeat(64)}`),
+        await completed(publishing, `sha256:${"c".repeat(64)}`),
       ),
       fixture.repository.reserve(reserving),
     ]);
@@ -79,7 +79,7 @@ describeIntegration("ReleaseBuild reproducibility serialization", () => {
     });
   });
 
-  function completed(
+  async function completed(
     run: {
       id: string;
       sourceBranch: string;
@@ -108,6 +108,8 @@ describeIntegration("ReleaseBuild reproducibility serialization", () => {
       logReference: `build-log://${run.id}`,
       logSummary: { redacted: true, lines: ["ok"] },
       gateSummary: { build: { status: "passed" } },
+      actorId: fixture.userId,
+      gateDecision: await fixture.postBuildDecision(),
     };
   }
 });

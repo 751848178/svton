@@ -8,16 +8,25 @@ describe("ReleaseBuildRunnerService", () => {
     succeed: jest.fn(),
     fail: jest.fn(),
     hasCommittedArtifact: jest.fn(),
+    recordCandidateEvidence: jest.fn(),
   };
   const cleanup = jest.fn();
   const git = { checkout: jest.fn() };
   const executor = { execute: jest.fn(), discardArtifact: jest.fn() };
   const runtime = { workRoot: "/tmp/f426-work" };
+  const gates = {
+    assertAllowed: jest.fn().mockResolvedValue({
+      id: "post-decision",
+      stage: "build",
+      inputHash: "post-input",
+    }),
+  };
   const runner = new ReleaseBuildRunnerService(
     results as never,
     git as never,
     executor as never,
     runtime as never,
+    gates as never,
   );
 
   beforeEach(() => {
@@ -59,7 +68,26 @@ describe("ReleaseBuildRunnerService", () => {
       controller.signal,
     );
     expect(results.succeed).toHaveBeenCalledTimes(1);
+    expect(gates.assertAllowed).toHaveBeenCalledWith(expect.objectContaining({
+      checkpoint: "build_post_execution",
+      target: {
+        buildRunId: "run-1",
+        sourceBranch: "main",
+        sourceCommitSha: "b".repeat(40),
+      },
+    }));
     expect(cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the Manifest uncommitted when the exact post-build gate blocks", async () => {
+    gates.assertAllowed.mockRejectedValueOnce(new ConflictException("C09 blocked"));
+    await expect(runner.run(input(new AbortController().signal))).resolves.toMatchObject({
+      status: "failed",
+      manifest: null,
+    });
+    expect(results.recordCandidateEvidence).toHaveBeenCalledTimes(1);
+    expect(results.succeed).not.toHaveBeenCalled();
+    expect(executor.discardArtifact).toHaveBeenCalledTimes(1);
   });
 
   it("persists a distinct canceled terminal result", async () => {

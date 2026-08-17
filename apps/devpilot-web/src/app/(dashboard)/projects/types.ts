@@ -38,6 +38,17 @@ export interface ProjectDirectoryItem {
     domain: string | null;
   };
   activity: ProjectDirectoryActivity;
+  checkpoints: ProjectDirectoryCheckpoint[];
+  nextAction: { kind: string; href: string } | null;
+}
+
+export interface ProjectDirectoryCheckpoint {
+  id: 'intake' | 'baseline_topology' | 'services' | 'config' | 'targets' | 'routes' | 'release';
+  scope: 'project' | 'staging' | 'production';
+  status: 'ready' | 'action_required' | 'blocked' | 'not_applicable';
+  reasonCodes: string[];
+  evidenceRefs: string[];
+  action: { kind: string; href: string } | null;
 }
 
 export interface ProjectDirectoryResponse {

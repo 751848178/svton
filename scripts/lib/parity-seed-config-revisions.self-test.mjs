@@ -25,8 +25,14 @@ for (const role of ["staging", "production"]) {
     environmentId,
   ]);
   assert.equal(data.resourceReferences[0].kind, "resource_instance");
+  assert.equal(data.resourceReferences[0].stateful, true);
+  assert.equal(data.resourceReferences[0].resourceTypeKey, "parity-target-http");
   assert.deepEqual(data.policyReferences, []);
   assert.equal(data.routeSnapshot.proxyTarget, runtime.routeProxyTarget);
+  assert.equal(data.routeSnapshot.tlsRequired, false);
+  assert.equal(data.routeSnapshot.entries[0].tlsMode, "none");
+  assert.equal(data.observabilitySnapshot.profile, "local_acceptance_v1");
+  assert.equal(data.plainVariables.PORT, role === "production" ? "4301" : undefined);
   assert.match(data.snapshotHash, /^[a-f0-9]{64}$/);
 }
 
@@ -39,6 +45,9 @@ assert.deepEqual(production.resourceReferences[1], {
   sharedEnvironmentIds: ["production"],
   risk: "medium",
   impact: "production connectivity, capacity and restore-point evidence",
+  stateful: true,
+  resourceTypeKey: "parity-target-http",
+  resourceTypeCategory: "compute",
 });
 assert.notEqual(staging.snapshotHash, production.snapshotHash);
 assert.notEqual(

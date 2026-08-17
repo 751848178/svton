@@ -14,6 +14,7 @@ export type ReleaseGateProviderResult = {
   checkedAt: string | null;
   expiresAt: string | null;
   fresh: boolean | null;
+  evidenceIdentity?: Record<string, string | number | null>;
 };
 
 export interface ReleaseGateCapabilityProvider {
@@ -55,6 +56,7 @@ export function evaluated(input: {
   checkedAt: Date;
   ttlMs?: number;
   now: Date;
+  evidenceIdentity?: Record<string, string | number | null>;
 }): ReleaseGateProviderResult {
   const expiresAt = input.ttlMs
     ? new Date(input.checkedAt.getTime() + input.ttlMs)
@@ -73,6 +75,7 @@ export function evaluated(input: {
     checkedAt: input.checkedAt.toISOString(),
     expiresAt: expiresAt?.toISOString() ?? null,
     fresh,
+    evidenceIdentity: input.evidenceIdentity,
   };
 }
 

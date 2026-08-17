@@ -72,6 +72,7 @@ export function EnvironmentRecoveryDialog({
       title={t('environmentVersionRecoveryDialogTitle')}
       confirmText={t('environmentVersionRecoveryCreateAction')}
       cancelText={t('releaseGateCancel')}
+      ariaCloseLabel={t('releaseGateCancel')}
       onConfirm={() => void handleConfirm()}
       loading={busy}
       confirmDisabled={!selected || busy}
@@ -83,7 +84,7 @@ export function EnvironmentRecoveryDialog({
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('environmentVersionRecoveryTarget')}</span>
           <select
-            className="w-full rounded-md border bg-background px-3 py-2"
+            className="min-h-11 w-full rounded-md border bg-background px-3 py-2"
             value={selectedId}
             onChange={(event) => setSelectedId(event.target.value)}
             disabled={busy}

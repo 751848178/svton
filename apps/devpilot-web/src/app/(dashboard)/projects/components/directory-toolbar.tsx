@@ -22,6 +22,7 @@ export function DirectoryToolbar(props: DirectoryToolbarProps) {
           {t('directorySearchPlaceholder')}
         </label>
         <Input
+          className="min-h-11"
           id="project-directory-search"
           type="search"
           value={props.search}
@@ -37,6 +38,7 @@ export function DirectoryToolbar(props: DirectoryToolbarProps) {
           {t('statusFilter')}
         </label>
         <Select
+          className="min-h-11"
           id="project-directory-status"
           value={props.status}
           onChange={(event) => props.onStatus(event.target.value as ProjectDirectoryStatusFilter)}

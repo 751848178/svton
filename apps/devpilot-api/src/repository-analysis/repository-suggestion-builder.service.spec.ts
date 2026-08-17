@@ -64,7 +64,7 @@ describe("RepositorySuggestionBuilderService artifact contract", () => {
             versions: {},
             commands: { build: "pnpm build", start: "node dist/main.js" },
             ports: [3000],
-            healthChecks: [],
+            healthChecks: [{ path: "/health", kind: "liveness", evidence: [] }],
             environment: [],
             databases: [],
             dependencies: [],
@@ -90,6 +90,8 @@ describe("RepositorySuggestionBuilderService artifact contract", () => {
         proposedValue: expect.objectContaining({
           deployConfig: expect.objectContaining({
             artifactPaths: ["apps/api/dist"],
+            workloadExecutionMode: "managed-process-v1",
+            healthCheckUrl: "http://127.0.0.1:3000/health",
           }),
         }),
       }),

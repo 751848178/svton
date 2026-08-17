@@ -46,10 +46,11 @@ export function EnvironmentSettingsTablist(props: {
           onKeyDown={(event) => selectFromKeyboard(event, index)}
           className={
             props.selected === key
-              ? 'border-b-2 border-primary px-3 py-1.5 text-xs font-medium text-primary'
-              : 'px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground'
+              ? 'min-h-11 border-b-2 border-primary px-3 py-2 text-xs font-medium text-primary'
+              : 'min-h-11 px-3 py-2 text-xs text-muted-foreground hover:text-foreground'
           }
         >
+          <span className="mr-1 text-[10px] text-muted-foreground">{index + 1}</span>
           {t(labelKey)}
         </button>
       ))}
