@@ -28,7 +28,7 @@ branches/worktrees and leave local and remote `master` aligned and clean.
 | WI-03 | done | Commit and integrate the post-PR #2 changes from `codex/f665-release-environment-governance`. | Four task-owned commits; semantic intake revision conflict resolution; merge `47bb7f8f` |
 | WI-04 | done | Commit and integrate `codex/agent-codex-desktop-ui-parity` without losing its parity ledger or evidence. | Checkpoint `7d873df6`; semantic Modal/Drawer conflict reconciliation; merge `67f5c7c7`; full affected package checks |
 | WI-05 | done | Run final cross-workstream verification and synchronize progress/TODO evidence. | Agent full-suite/package/native checks; Devpilot 15 suites/92 tests, type-checks, Prisma validation, and API/Web builds |
-| WI-06 | in_progress | Push `master`, remove merged branches/worktrees, and prove the remaining development environment is clean. | Local/remote parity, worktree list, clean status |
+| WI-06 | done | Push `master`, remove merged branches/worktrees, and prove the remaining development environment is clean. | `origin/master` parity; only the original clean master worktree remains; merged local/remote branches removed |
 
 ## Change Log
 
@@ -59,3 +59,10 @@ branches/worktrees and leave local and remote `master` aligned and clean.
   Desktop `cargo check --locked`. Devpilot's 15 intake/archive/analysis/
   release-security suites passed 92 tests; API/Web type-checks, Prisma schema
   validation, and API/Web production builds also passed.
+- 2026-08-18: Pushed `master`, verified local/remote parity, removed the merged
+  release UX, Agent parity, and temporary master integration worktrees, and
+  deleted all three merged local/remote task branches. Restored the original
+  repository path as the only `master` worktree. A still-running unrelated DSH
+  chatroom regenerated its untracked directory during cleanup, so that live
+  directory was moved without terminating the process into the recoverable
+  local-artifact backup alongside the earlier machine-local files.
