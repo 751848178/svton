@@ -66,3 +66,10 @@ branches/worktrees and leave local and remote `master` aligned and clean.
   chatroom regenerated its untracked directory during cleanup, so that live
   directory was moved without terminating the process into the recoverable
   local-artifact backup alongside the earlier machine-local files.
+- 2026-08-18: Audited residual branches without worktrees. The two code patches
+  on `codex/devpilot-master-local-deploy-smoke` were already patch-equivalent
+  on `master`; its missing Picshare F6.3/F6.4 closure note was preserved as
+  `33fe9f78`. The old `codex/fix-agent-session-isolation` work was already
+  integrated as `2ad4eb50` and superseded by the later session-addressed Pi
+  runtime work. `origin/fix/devpilot-ui-issues` was fully ancestral to master.
+  These residual branches were therefore safe to remove.
