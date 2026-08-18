@@ -66,6 +66,12 @@ export function ProjectDeliveryWeakSummary({
             {t('projectDeliveryFixNow')}
           </Link>
         ) : null}
+        <Link
+          href={`/projects/${summary.project.id}/publish`}
+          className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-md border px-4 text-sm font-medium hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {t('publishEntryLabel')}
+        </Link>
       </div>
       <p className="mt-4 border-t pt-3 text-xs text-muted-foreground">
         {t('projectDeliveryEvidenceSummary', {
