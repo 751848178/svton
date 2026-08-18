@@ -2,30 +2,40 @@
  * 回滚 Hook（第 0 步）
  *
  * 单一职责：解析回滚目标（生产环境当前版本的上一版本，resolveRollbackTarget
- * 纯函数），并执行两段式回滚 —— POST recovery/preview（回滚后变化一屏）→
- * POST recovery/confirm（确认回滚）。路径与既有 use-recovery-confirm.ts 一致。
+ * 纯函数；回滚按环境恢复，仅生产环境有可回滚版本史），并执行两段式回滚 ——
+ * POST recovery/preview（回滚后变化一屏）→ POST recovery/confirm（确认回滚）。
+ * 仅在回滚入口实际提供时（enabled）才拉取版本数据；确认成功后失效发布单
+ * 列表与项目交付摘要缓存。
  */
 
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useSWRConfig } from 'swr';
 import { apiRequest } from '@/lib/api-client';
+import { useAuthStore, useTeamStore } from '@/store/hooks';
+import { isProjectDeliverySummaryCacheKey } from '../../hooks/use-project-delivery-summary';
+import { invalidateReleaseOrderListCache } from '../../hooks/use-release-orders';
 import type {
   EnvironmentVersionRecoveryPreview,
   EnvironmentVersionsResponse,
 } from '../../types/environment-version.types';
 import { resolveRollbackTarget } from '../components/rollback-target.model';
 
-export function useReleaseRollback(projectId: string) {
+export function useReleaseRollback(projectId: string, enabled = true) {
   const [versions, setVersions] = useState<EnvironmentVersionsResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState<EnvironmentVersionRecoveryPreview | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState('');
   const inFlight = useRef(false);
+  const { mutate } = useSWRConfig();
+  const actorId = useAuthStore().user?.id ?? null;
+  const teamId = useTeamStore().currentTeam?.id ?? null;
 
   const load = useCallback(async () => {
+    if (!enabled) return;
     setLoading(true);
     try {
       setVersions(
@@ -39,7 +49,7 @@ export function useReleaseRollback(projectId: string) {
     } finally {
       setLoading(false);
     }
-  }, [projectId]);
+  }, [enabled, projectId]);
 
   useEffect(() => {
     void load();
@@ -74,7 +84,7 @@ export function useReleaseRollback(projectId: string) {
     setConfirming(true);
     setError('');
     try {
-      const result = await apiRequest(
+      await apiRequest(
         `POST:/projects/${encodeURIComponent(projectId)}/delivery/environment-versions/${target.environmentId}/recovery/confirm`,
         {
           sourceVersionId: target.previousVersionId,
@@ -83,7 +93,14 @@ export function useReleaseRollback(projectId: string) {
         },
       );
       setPreview(null);
-      return result;
+      // 回滚改变了版本史与发布单视图：失效发布单列表 + 项目交付摘要缓存。
+      await Promise.all([
+        invalidateReleaseOrderListCache(mutate, { projectId, actorId, teamId }),
+        mutate((key: unknown) => isProjectDeliverySummaryCacheKey(key, projectId), undefined, {
+          revalidate: true,
+        }),
+      ]);
+      return true;
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught));
       return null;
@@ -91,7 +108,7 @@ export function useReleaseRollback(projectId: string) {
       inFlight.current = false;
       setConfirming(false);
     }
-  }, [preview, projectId, target]);
+  }, [actorId, mutate, preview, projectId, target, teamId]);
 
   return {
     target,

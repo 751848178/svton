@@ -51,11 +51,17 @@ export function useReleaseProduction(
     setError('');
     try {
       const current =
-        preview && preview.snapshot.manifest.id === manifestId
+        preview && ownsPreview(preview, projectId, releaseOrderId, manifestId)
           ? preview
           : await apiRequest<ProductionReleasePreview>(
               `GET:/projects/${projectId}/delivery/releases/${releaseOrderId}/production-preview?manifestId=${encodeURIComponent(manifestId)}`,
             );
+      // 与 use-production-releases 同口径：预览三元组（项目/发布单/制品）任一
+      // 不匹配即拒绝提交，绝不把别人的预览 hash 用到本次生产发布上。
+      if (!ownsPreview(current, projectId, releaseOrderId, manifestId)) {
+        setError('releaseProductionPreviewScopeMismatch');
+        return null;
+      }
       const run = await apiRequest<ProductionReleaseRun>(
         `POST:/projects/${projectId}/delivery/releases/${releaseOrderId}/production-releases`,
         {
@@ -76,4 +82,17 @@ export function useReleaseProduction(
   }, [manifestId, preview, projectId, releaseOrderId]);
 
   return { preview, loadingPreview, confirming, error, loadPreview, confirm };
+}
+
+function ownsPreview(
+  preview: ProductionReleasePreview,
+  projectId: string,
+  releaseOrderId: string,
+  manifestId: string,
+) {
+  return (
+    preview.snapshot.projectId === projectId &&
+    preview.snapshot.releaseOrder.id === releaseOrderId &&
+    preview.snapshot.manifest.id === manifestId
+  );
 }

@@ -31,6 +31,11 @@ export default function PublishProgressPage() {
     if (stepId === 'staging') return void retry.retryStagingDeploy();
   };
 
+  // M2 中断恢复口：有成功制品且预发未完成时展示「部署预发」；
+  // 预发运行进行中（含等待审批）时禁用，绝不允许双发。
+  const showDeployStaging =
+    Boolean(progress.succeededManifestId) && !progress.stagingSucceeded && !progress.productionSucceeded;
+
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <PageHeader
@@ -62,6 +67,7 @@ export default function PublishProgressPage() {
         />
       ) : null}
       <ReleaseProgressTimeline
+        projectId={projectId}
         steps={progress.steps}
         onRetry={handleRetry}
         retryingStep={retry.retrying}
@@ -75,7 +81,10 @@ export default function PublishProgressPage() {
         <p className="text-sm text-muted-foreground">
           {t('progressApprovalPending')}{' '}
           <Link
-            href="/operation-approvals"
+            href={
+              progress.approvalHref ??
+              '/operation-approvals?status=pending&targetType=release_stage'
+            }
             className="text-primary underline underline-offset-2"
           >
             {t('progressApprovalLink')}
@@ -87,6 +96,10 @@ export default function PublishProgressPage() {
         releaseOrderId={releaseOrderId}
         manifestId={progress.succeededManifestId}
         canPublishToProduction={progress.canPublishToProduction}
+        showDeployStaging={showDeployStaging}
+        deployStagingEnabled={progress.canDeployStaging}
+        deployStagingBusy={retry.retrying === 'staging'}
+        onDeployStaging={() => void retry.retryStagingDeploy()}
         canRollback={progress.canRollback}
         productionSucceeded={progress.productionSucceeded}
         onChanged={progress.reload}

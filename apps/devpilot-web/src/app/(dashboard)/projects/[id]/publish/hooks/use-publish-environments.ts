@@ -25,6 +25,8 @@ export interface PublishEnvironmentCard {
   role: 'staging' | 'production' | null;
   currentVersion: string | null;
   healthy: boolean;
+  /** 发布基线要求：仅「预发环境」角色的启用环境可被选为发布目标。 */
+  selectable: boolean;
 }
 
 export function usePublishEnvironments(projectId: string) {
@@ -53,9 +55,15 @@ export function usePublishEnvironments(projectId: string) {
     () => mergeEnvironmentCards(environmentsQuery.data ?? [], versionsQuery.data ?? null),
     [environmentsQuery.data, versionsQuery.data],
   );
+  /** 发布基线数量：恰好 1 个启用预发环境才能进入下一步（m-a）。 */
+  const stagingBaselineCount = useMemo(
+    () => cards.filter((card) => card.selectable).length,
+    [cards],
+  );
 
   return {
     cards,
+    stagingBaselineCount,
     loading: scopeReady && environmentsQuery.isLoading,
     error: errorMessage(environmentsQuery.error) || errorMessage(versionsQuery.error),
     reload: () => Promise.all([environmentsQuery.mutate(), versionsQuery.mutate()]),
@@ -85,6 +93,7 @@ function mergeEnvironmentCards(
         role: environment.baselineRole ?? null,
         currentVersion: current?.releaseOrder.releaseVersion ?? null,
         healthy: versionEnv?.targetReadiness?.matchState === 'ready',
+        selectable: environment.baselineRole === 'staging',
       };
     })
     .sort((left, right) => (left.role === right.role ? 0 : left.role === 'production' ? 1 : -1));

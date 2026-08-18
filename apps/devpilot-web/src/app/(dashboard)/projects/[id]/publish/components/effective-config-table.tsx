@@ -99,7 +99,7 @@ export function EffectiveConfigTable({ rows, variablesHref, resourcesHref, keysH
 
 function valueCell(row: EffectiveConfigRow, t: ReturnType<typeof useTranslations<'projects'>>) {
   if (row.secretConfigured === false) {
-    return <span className="font-medium text-amber-700">{t('publishSecretUnconfigured')}</span>;
+    return <span className="font-medium text-slate-600">{t('publishSecretUnknownStatus')}</span>;
   }
   if (row.sources.includes('secret')) {
     return <span className="text-muted-foreground">{t('publishSecretConfigured')}</span>;
@@ -121,7 +121,7 @@ function actionCell(
         href={hrefs.keysHref}
         className="text-primary hover:underline"
       >
-        {t('publishSecretManage')}
+        {t('publishSecretView')}
       </Link>
     );
   }

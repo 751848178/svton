@@ -10,6 +10,7 @@
 import { useTranslations } from 'next-intl';
 import { Button, Modal } from '@/components/ui';
 import type { EnvironmentVersionRecoveryPreview } from '../../types/environment-version.types';
+import { PublishErrorDetail } from './publish-error-detail';
 
 interface Props {
   open: boolean;
@@ -99,14 +100,7 @@ export function RollbackConfirmModal({
             />
           </dl>
         ) : null}
-        {error ? (
-          <p
-            className="text-sm text-destructive"
-            role="alert"
-          >
-            {error}
-          </p>
-        ) : null}
+        {error ? <PublishErrorDetail raw={error} /> : null}
       </div>
     </Modal>
   );

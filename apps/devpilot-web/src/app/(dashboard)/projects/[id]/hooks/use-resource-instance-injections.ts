@@ -11,6 +11,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiRequest } from '@/lib/api-client';
+import { deriveTemplateKeys } from '../utils/template-keys.utils';
 import type { EnvironmentConfigResourceReference } from '../types/environment-config-revision.types';
 
 export interface ResourceInjectionRow {
@@ -69,18 +70,4 @@ export function useResourceInstanceInjections(
     }
     return out;
   }, [instances, types, references]);
-}
-
-/** 从资源类型 envTemplate 提取会注入的 KEY 名（与部署注入第一源同源）。 */
-function deriveTemplateKeys(envTemplate: string | null | undefined): string[] {
-  if (!envTemplate) return [];
-  const keys = new Set<string>();
-  for (const raw of envTemplate.split('\n')) {
-    const line = raw.trim();
-    const eq = line.indexOf('=');
-    if (eq <= 0) continue;
-    const key = line.slice(0, eq).trim();
-    if (/^[A-Z_][A-Z0-9_]*$/.test(key)) keys.add(key);
-  }
-  return Array.from(keys).sort();
 }

@@ -41,7 +41,7 @@ export interface EffectiveConfigRow {
   value: string | null;
   /** 资源注入来源的标签（如「MySQL / orders-db」）。 */
   fromLabel: string | null;
-  /** 密钥来源的配置状态；非密钥来源为 null。 */
+  /** 密钥来源状态；false = 在密钥列表中不可见（未配置或无权限），非密钥来源为 null。 */
   secretConfigured: boolean | null;
   conflict: boolean;
 }
@@ -51,7 +51,8 @@ export interface EffectiveConfigConflict {
   sources: EffectiveConfigSourceKind[];
 }
 
-export interface UnconfiguredSecretRow {
+/** 密钥引用在项目密钥列表中不可见（未配置或无权限）—— 警告项，不阻断发布。 */
+export interface UnknownSecretRow {
   key: string;
   name: string;
 }
@@ -59,7 +60,7 @@ export interface UnconfiguredSecretRow {
 export interface EffectiveConfigSummary {
   rows: EffectiveConfigRow[];
   conflicts: EffectiveConfigConflict[];
-  unconfiguredSecrets: UnconfiguredSecretRow[];
+  unknownSecrets: UnknownSecretRow[];
   totalCount: number;
 }
 
@@ -71,21 +72,10 @@ interface OwnerEntry {
 
 /**
  * 从资源类型 envTemplate 文本提取会注入的 KEY 名（每行 KEY=... 的左侧）。
- * 与部署注入第一源同源；原实现散落在 environment-resource-instance-list.tsx
- * 与 use-resource-instance-injections.ts，此处收敛为共享纯函数。
+ * 实现收敛在 [id]/utils/template-keys.utils.ts（部署注入第一源的唯一实现），
+ * 此处 re-export 仅为兼容本目录既有引用。
  */
-export function deriveTemplateKeys(envTemplate: string | null | undefined): string[] {
-  if (!envTemplate) return [];
-  const keys = new Set<string>();
-  for (const raw of envTemplate.split('\n')) {
-    const line = raw.trim();
-    const eq = line.indexOf('=');
-    if (eq <= 0) continue;
-    const key = line.slice(0, eq).trim();
-    if (/^[A-Z_][A-Z0-9_]*$/.test(key)) keys.add(key);
-  }
-  return Array.from(keys).sort();
-}
+export { deriveTemplateKeys } from '../../utils/template-keys.utils';
 
 /** 与后端 exportAsEnv 同源的密钥 KEY 派生（name 转大写下划线）。 */
 export function deriveSecretEnvKey(name: string): string {
@@ -142,11 +132,11 @@ export function buildEffectiveConfigSummary(input: EffectiveConfigInput): Effect
       };
     });
 
-  const unconfiguredSecrets = rows
+  const unknownSecrets = rows
     .filter((row) => row.secretConfigured === false)
     .map((row) => ({ key: row.key, name: secretNameByKey.get(row.key) ?? row.key }));
 
-  return { rows, conflicts, unconfiguredSecrets, totalCount: rows.length };
+  return { rows, conflicts, unknownSecrets, totalCount: rows.length };
 }
 
 /** 与后端 findEnvironmentVariableCollisions 同口径：同键 owner 数 > 1 即冲突。 */

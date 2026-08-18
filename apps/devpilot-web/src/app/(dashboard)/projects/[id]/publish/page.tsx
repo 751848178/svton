@@ -64,11 +64,13 @@ export default function PublishWizardPage() {
               retryLabel={tc('retry')}
             />
           ) : null}
-          {wizard.step === 1 ? (
+          {wizard.step === 1 && !wizard.environments.error ? (
             <PublishEnvironmentStep
+              projectId={projectId}
               cards={wizard.environments.cards}
               loading={wizard.environments.loading}
               selectedId={wizard.selectedEnvironmentId}
+              stagingCount={wizard.environments.stagingBaselineCount}
               onSelect={wizard.selectEnvironment}
             />
           ) : null}

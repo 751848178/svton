@@ -78,9 +78,9 @@ export function useEffectiveConfig(projectId: string, environmentId: string | nu
     void load();
   }, [load]);
 
+  /** 发布阻断只看冲突：密钥「不可见」是警告不阻断（M8：密钥值本就不可见）。 */
   const blocking = useMemo(
-    () =>
-      Boolean(summary && (summary.conflicts.length > 0 || summary.unconfiguredSecrets.length > 0)),
+    () => Boolean(summary && summary.conflicts.length > 0),
     [summary],
   );
 

@@ -2,7 +2,8 @@
  * 发布进度时间线（第 0 步）
  *
  * 单一职责：渲染四步时间线（发布前检查 → 构建 → 预发部署 → 生产发布），
- * 每步三态 + 进行中耗时 + 失败人话原因与重试；等待审批给入口链接，无断链。
+ * 每步三态 + 进行中耗时 + 失败人话原因与重试；等待审批给直达审批入口链接；
+ * 发布前检查失败给项目设置深链（无重跑端点，见 preflightSettingsHref 注记）。
  */
 
 'use client';
@@ -18,6 +19,8 @@ import {
 } from '@phosphor-icons/react';
 import { Button } from '@/components/ui';
 import type { ReleaseProgressStep } from './release-progress.model';
+import { preflightSettingsHref } from './release-progress-status.model';
+import { PublishErrorDetail } from './publish-error-detail';
 
 const STEP_TITLE_KEYS = {
   preflight: 'progressStepPreflight',
@@ -27,12 +30,13 @@ const STEP_TITLE_KEYS = {
 } as const;
 
 interface Props {
+  projectId: string;
   steps: ReleaseProgressStep[];
   onRetry: (stepId: ReleaseProgressStep['id']) => void;
   retryingStep: string | null;
 }
 
-export function ReleaseProgressTimeline({ steps, onRetry, retryingStep }: Props) {
+export function ReleaseProgressTimeline({ projectId, steps, onRetry, retryingStep }: Props) {
   const t = useTranslations('projects');
   return (
     <ol
@@ -55,40 +59,11 @@ export function ReleaseProgressTimeline({ steps, onRetry, retryingStep }: Props)
               aria-hidden="true"
               className="shrink-0"
             >
-              {step.status === 'succeeded' ? (
-                <CheckCircle
-                  size={20}
-                  weight="fill"
-                  className="text-green-600"
-                />
-              ) : step.status === 'running' ? (
-                <CircleNotch
-                  size={20}
-                  weight="bold"
-                  className="text-indigo-600"
-                />
-              ) : step.status === 'awaiting_approval' ? (
-                <Hourglass
-                  size={20}
-                  weight="bold"
-                  className="text-indigo-600"
-                />
-              ) : step.status === 'failed' ? (
-                <WarningCircle
-                  size={20}
-                  weight="fill"
-                  className="text-destructive"
-                />
-              ) : (
-                <CircleDashed
-                  size={20}
-                  className="text-slate-400"
-                />
-              )}
+              {stepIcon(step.status)}
             </span>
             <span className="font-medium">{t(STEP_TITLE_KEYS[step.id])}</span>
             <span className="ml-auto text-xs text-muted-foreground">
-              {statusText(step, t)}
+              {t(STATUS_TEXT_KEYS[step.status])}
               {step.status === 'running' || step.status === 'awaiting_approval'
                 ? elapsed(step, t)
                 : null}
@@ -96,10 +71,17 @@ export function ReleaseProgressTimeline({ steps, onRetry, retryingStep }: Props)
           </div>
           {step.status === 'failed' ? (
             <div className="mt-2 space-y-2 pl-8 text-sm">
-              <p className="text-destructive">
-                {t('progressReasonPrefix')}
-                {step.reasonText || reasonCodeText(step.reasonCode, t)}
-              </p>
+              {step.reasonText ? (
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">{t('progressReasonPrefix')}</p>
+                  <PublishErrorDetail raw={step.reasonText} />
+                </div>
+              ) : (
+                <p className="text-destructive">
+                  {t('progressReasonPrefix')}
+                  {t(REASON_CODE_KEYS[step.reasonCode ?? ''] ?? 'progressUnknownReason')}
+                </p>
+              )}
               {step.id === 'build' || step.id === 'staging' ? (
                 <Button
                   className="min-h-11"
@@ -111,6 +93,16 @@ export function ReleaseProgressTimeline({ steps, onRetry, retryingStep }: Props)
                   {t('progressRetry')}
                 </Button>
               ) : null}
+              {step.id === 'preflight' ? (
+                <p className="text-xs text-muted-foreground">
+                  <Link
+                    href={preflightSettingsHref(projectId, step.reasonCode)}
+                    className="text-primary underline underline-offset-2"
+                  >
+                    {t('progressPreflightSettingsLink')}
+                  </Link>
+                </p>
+              ) : null}
               {step.id === 'production' ? (
                 <p className="text-xs text-muted-foreground">{t('progressProductionRetryHint')}</p>
               ) : null}
@@ -120,7 +112,7 @@ export function ReleaseProgressTimeline({ steps, onRetry, retryingStep }: Props)
             <p className="mt-2 pl-8 text-sm text-muted-foreground">
               {t('progressApprovalPending')}{' '}
               <Link
-                href="/operation-approvals"
+                href={step.approvalHref ?? '/operation-approvals?status=pending&targetType=release_stage'}
                 className="text-primary underline underline-offset-2"
               >
                 {t('progressApprovalLink')}
@@ -133,21 +125,59 @@ export function ReleaseProgressTimeline({ steps, onRetry, retryingStep }: Props)
   );
 }
 
-function statusText(step: ReleaseProgressStep, t: ReturnType<typeof useTranslations<'projects'>>) {
-  if (step.status === 'succeeded') return t('progressStatusSucceeded');
-  if (step.status === 'running') return t('progressStatusRunning');
-  if (step.status === 'awaiting_approval') return t('progressStatusAwaitingApproval');
-  if (step.status === 'failed') return t('progressStatusFailed');
-  return t('progressStatusPending');
+function stepIcon(status: ReleaseProgressStep['status']) {
+  if (status === 'succeeded')
+    return (
+      <CheckCircle
+        size={20}
+        weight="fill"
+        className="text-green-600"
+      />
+    );
+  if (status === 'running' || status === 'awaiting_approval')
+    return status === 'running' ? (
+      <CircleNotch
+        size={20}
+        weight="bold"
+        className="text-indigo-600"
+      />
+    ) : (
+      <Hourglass
+        size={20}
+        weight="bold"
+        className="text-indigo-600"
+      />
+    );
+  if (status === 'failed')
+    return (
+      <WarningCircle
+        size={20}
+        weight="fill"
+        className="text-destructive"
+      />
+    );
+  return (
+    <CircleDashed
+      size={20}
+      className="text-slate-400"
+    />
+  );
 }
 
-function reasonCodeText(code: string | null, t: ReturnType<typeof useTranslations<'projects'>>) {
-  if (code === 'preflight_repository') return t('progressPreflightRepository');
-  if (code === 'preflight_staging') return t('progressPreflightStaging');
-  if (code === 'preflight_production') return t('progressPreflightProduction');
-  if (code === 'approval_rejected') return t('progressApprovalRejected');
-  return t('progressUnknownReason');
-}
+const STATUS_TEXT_KEYS: Record<ReleaseProgressStep['status'], string> = {
+  pending: 'progressStatusPending',
+  running: 'progressStatusRunning',
+  succeeded: 'progressStatusSucceeded',
+  failed: 'progressStatusFailed',
+  awaiting_approval: 'progressStatusAwaitingApproval',
+};
+
+const REASON_CODE_KEYS: Record<string, string> = {
+  preflight_repository: 'progressPreflightRepository',
+  preflight_staging: 'progressPreflightStaging',
+  preflight_production: 'progressPreflightProduction',
+  approval_rejected: 'progressApprovalRejected',
+};
 
 /** 进行中耗时（从 startedAt 到当前）。终态由后端 finishedAt 决定，不在本组件展示。 */
 function elapsed(step: ReleaseProgressStep, t: ReturnType<typeof useTranslations<'projects'>>) {

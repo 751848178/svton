@@ -35,7 +35,7 @@ describe('buildEffectiveConfigSummary', () => {
     });
     expect(summary.totalCount).toBe(3);
     expect(summary.conflicts).toEqual([]);
-    expect(summary.unconfiguredSecrets).toEqual([]);
+    expect(summary.unknownSecrets).toEqual([]);
     const logRow = summary.rows.find((row) => row.key === 'LOG_LEVEL');
     expect(logRow).toMatchObject({ sources: ['custom'], value: 'info', conflict: false });
     const dbRow = summary.rows.find((row) => row.key === 'DATABASE_URL');
@@ -64,7 +64,7 @@ describe('buildEffectiveConfigSummary', () => {
     expect(summary.rows.find((row) => row.key === 'REDIS_URL')?.sources).toEqual(['resource']);
   });
 
-  it('lists unconfigured secrets as blocking rows', () => {
+  it('lists secrets missing from the visible key list as unknown (warning, not blocking)', () => {
     const summary = buildEffectiveConfigSummary({
       secretReferences: [
         { id: 'sk-ok', name: 'ready', targetEnvKey: 'READY_KEY' },
@@ -72,7 +72,9 @@ describe('buildEffectiveConfigSummary', () => {
       ],
       configuredSecretIds: ['sk-ok'],
     });
-    expect(summary.unconfiguredSecrets).toEqual([{ key: 'GONE', name: 'gone' }]);
+    expect(summary.unknownSecrets).toEqual([{ key: 'GONE', name: 'gone' }]);
+    // 密钥不可见不是发布阻断项（M8）：阻断只看冲突。
+    expect(summary.conflicts).toEqual([]);
     expect(summary.rows.find((row) => row.key === 'READY_KEY')?.secretConfigured).toBe(true);
   });
 
@@ -80,7 +82,7 @@ describe('buildEffectiveConfigSummary', () => {
     expect(buildEffectiveConfigSummary({})).toEqual({
       rows: [],
       conflicts: [],
-      unconfiguredSecrets: [],
+      unknownSecrets: [],
       totalCount: 0,
     });
   });

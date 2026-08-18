@@ -9,6 +9,7 @@
 
 import { useTranslations } from 'next-intl';
 import { isResourceTypeInjectable } from '../utils/injectable-resource-types';
+import { deriveTemplateKeys } from '../utils/template-keys.utils';
 import type { ProjectResourceInstance } from '../types';
 
 type ProjectsTranslator = ReturnType<typeof useTranslations<'projects'>>;
@@ -16,20 +17,6 @@ type ProjectsTranslator = ReturnType<typeof useTranslations<'projects'>>;
 interface EnvironmentResourceInstanceListProps {
   instances: ProjectResourceInstance[];
   t: ProjectsTranslator;
-}
-
-/** 从 envTemplate 文本提取会注入的 KEY 名(每行 KEY=... 的左侧)。 */
-function deriveTemplateKeys(envTemplate: string | null | undefined): string[] {
-  if (!envTemplate) return [];
-  const keys = new Set<string>();
-  for (const raw of envTemplate.split('\n')) {
-    const line = raw.trim();
-    const eq = line.indexOf('=');
-    if (eq <= 0) continue;
-    const key = line.slice(0, eq).trim();
-    if (/^[A-Z_][A-Z0-9_]*$/.test(key)) keys.add(key);
-  }
-  return Array.from(keys).sort();
 }
 
 export function EnvironmentResourceInstanceList({

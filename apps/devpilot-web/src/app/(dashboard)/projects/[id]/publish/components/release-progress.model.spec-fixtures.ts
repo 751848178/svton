@@ -57,7 +57,7 @@ export function build(status: string, overrides: Record<string, unknown> = {}) {
   };
 }
 
-export function staging(status: string) {
+export function staging(status: string, overrides: Record<string, unknown> = {}) {
   return {
     id: 'd-1',
     projectId: 'p-1',
@@ -77,6 +77,7 @@ export function staging(status: string) {
     startedAt: '2026-08-16T00:03:00Z',
     finishedAt: '2026-08-16T00:04:00Z',
     createdAt: '2026-08-16T00:03:00Z',
+    ...overrides,
   };
 }
 

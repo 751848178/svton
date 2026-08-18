@@ -1,9 +1,10 @@
 /**
  * 发布进度页操作区（第 0 步）
  *
- * 单一职责：预发部署成功后的主按钮「发布到生产」（预览弹窗 → 确认），
- * 以及失败/完成后的「回滚到上一版本」（回滚预览 → 确认）。制品自动取
- * 最新成功构建，用户不选择。
+ * 单一职责：三类操作的入口 ——「部署预发」（构建成功但预发从未开始的中断
+ * 恢复口，M2；进行中的预发运行期间禁用，防重复提交）、「发布到生产」
+ * （预览弹窗 → 确认，唯一人工闸口）与「回滚到上一版本」（回滚预览 → 确认）。
+ * 制品自动取最新成功构建，用户不选择。
  */
 
 'use client';
@@ -21,6 +22,12 @@ interface Props {
   releaseOrderId: string;
   manifestId: string | null;
   canPublishToProduction: boolean;
+  /** 有成功制品且预发未完成（含进行中）→ 展示「部署预发」入口（M2）。 */
+  showDeployStaging: boolean;
+  /** 无进行中的预发运行时才可点（后端不去重，绝不允许双击双发）。 */
+  deployStagingEnabled: boolean;
+  deployStagingBusy: boolean;
+  onDeployStaging: () => void;
   canRollback: boolean;
   productionSucceeded: boolean;
   onChanged: () => Promise<unknown> | void;
@@ -31,6 +38,10 @@ export function ReleaseProgressActions({
   releaseOrderId,
   manifestId,
   canPublishToProduction,
+  showDeployStaging,
+  deployStagingEnabled,
+  deployStagingBusy,
+  onDeployStaging,
   canRollback,
   productionSucceeded,
   onChanged,
@@ -39,7 +50,9 @@ export function ReleaseProgressActions({
   const [productionOpen, setProductionOpen] = useState(false);
   const [rollbackOpen, setRollbackOpen] = useState(false);
   const production = useReleaseProduction(projectId, releaseOrderId, manifestId);
-  const rollback = useReleaseRollback(projectId);
+  const rollbackOffered = canRollback || productionSucceeded;
+  // 版本数据仅在回滚入口实际提供时才拉取（M5）。
+  const rollback = useReleaseRollback(projectId, rollbackOffered);
 
   const openProduction = async () => {
     setProductionOpen(true);
@@ -55,19 +68,30 @@ export function ReleaseProgressActions({
     await rollback.openPreview();
   };
   const confirmRollback = () =>
-    rollback.confirm().then(async (run) => {
-      if (run) {
+    rollback.confirm().then(async (done) => {
+      if (done) {
         await Promise.all([onChanged(), rollback.reload()]);
       }
-      return run;
+      return done;
     });
 
   const showProduction = canPublishToProduction || productionOpen;
-  const showRollback = canRollback || productionSucceeded;
+  const showRollback = rollbackOffered;
 
   return (
     <>
       <div className="flex flex-wrap gap-3">
+        {showDeployStaging ? (
+          <Button
+            className="min-h-11"
+            variant="outline"
+            loading={deployStagingBusy}
+            disabled={!deployStagingEnabled || deployStagingBusy || !manifestId}
+            onClick={onDeployStaging}
+          >
+            {t('progressDeployStaging')}
+          </Button>
+        ) : null}
         {showProduction ? (
           <Button
             className="min-h-11"

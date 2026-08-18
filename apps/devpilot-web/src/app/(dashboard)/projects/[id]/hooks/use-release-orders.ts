@@ -2,6 +2,7 @@
 
 import { useCallback, useDeferredValue, useState } from 'react';
 import useSWR from 'swr';
+import type { ScopedMutator } from 'swr';
 import { DEFAULT_SWR_CONFIG } from '@/hooks/api/use-api';
 import { apiRequest } from '@/lib/api-client';
 import { useAuthStore, useTeamStore } from '@/store/hooks';
@@ -84,6 +85,16 @@ export function buildReleaseOrderListCacheKey(
   teamId: string | null,
 ) {
   return actorId && teamId && projectId ? ([actorId, teamId, projectId, endpoint] as const) : null;
+}
+
+/** 发布单创建/回滚后失效发布单列表缓存（take=50 默认档），供进度链路复用。 */
+export async function invalidateReleaseOrderListCache(
+  mutate: ScopedMutator,
+  scope: { projectId: string; actorId: string | null; teamId: string | null },
+) {
+  const endpoint = buildReleaseOrderListEndpoint(scope.projectId, { take: DEFAULT_TAKE });
+  const key = buildReleaseOrderListCacheKey(endpoint, scope.projectId, scope.actorId, scope.teamId);
+  if (key) await mutate(key, undefined, { revalidate: true });
 }
 
 export async function createReleaseOrderAndRefresh(

@@ -28,19 +28,20 @@ export function usePublishWizard(projectId: string) {
     [environments.cards, selectedEnvironmentId],
   );
 
-  /** 第二步放行条件：配置已加载且无冲突、无未配置密钥。 */
+  /** 第二步放行条件：配置已加载且无冲突（密钥「不可见」是警告不阻断，M8）。 */
   const configResolved = useMemo(
-    () =>
-      Boolean(
-        config.summary &&
-        config.summary.conflicts.length === 0 &&
-        config.summary.unconfiguredSecrets.length === 0,
-      ),
+    () => Boolean(config.summary && config.summary.conflicts.length === 0),
     [config.summary],
   );
 
+  /** 第一步放行条件：恰好一个启用预发基线且已选中（m-a）。 */
+  const stagingBaselineReady = environments.stagingBaselineCount === 1;
   const canAdvance =
-    step === 1 ? Boolean(selectedEnvironmentId) : step === 2 ? configResolved : false;
+    step === 1
+      ? Boolean(selectedEnvironmentId) && stagingBaselineReady
+      : step === 2
+        ? configResolved
+        : false;
 
   const goNext = () => {
     if (!canAdvance) return;
@@ -61,9 +62,9 @@ export function usePublishWizard(projectId: string) {
     canAdvance,
     environments,
     selectedEnvironmentId,
+    /** 点击环境卡片仅选中；进入下一步由「下一步」触发（m-c）。 */
     selectEnvironment: (environmentId: string) => {
       setSelectedEnvironmentId(environmentId);
-      setStep(2);
     },
     selectedEnvironment,
     config,

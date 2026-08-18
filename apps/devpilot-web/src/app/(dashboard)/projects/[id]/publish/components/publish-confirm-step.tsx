@@ -14,6 +14,7 @@ import { Button, Input, Textarea } from '@/components/ui';
 import type { CreateReleaseOrderInput } from '../../types/release-order.types';
 import type { PublishEnvironmentCard } from '../hooks/use-publish-environments';
 import type { PublishSubmitState } from '../hooks/use-publish-submit';
+import { PublishErrorDetail } from './publish-error-detail';
 
 interface Props {
   environment: PublishEnvironmentCard | null;
@@ -80,6 +81,16 @@ export function PublishConfirmStep({
           />
         </label>
       </div>
+      {/* 桥接向导与进度页词汇：确认后自动执行的四个步骤（m-e）。 */}
+      <div className="rounded-md bg-muted/40 p-3">
+        <p className="text-xs font-medium text-muted-foreground">{t('publishNextStepsTitle')}</p>
+        <ol className="mt-1 list-decimal space-y-0.5 pl-5 text-xs text-muted-foreground">
+          <li>{t('progressStepPreflight')}</li>
+          <li>{t('progressStepBuild')}</li>
+          <li>{t('progressStepStaging')}</li>
+          <li>{t('progressStepProduction')}</li>
+        </ol>
+      </div>
       {submitState.working ? (
         <p
           className="text-sm text-muted-foreground"
@@ -96,9 +107,9 @@ export function PublishConfirmStep({
           <p className="text-sm font-medium text-destructive">
             {stageText(submitState.failedStage, t)}
           </p>
-          {submitState.error ? (
-            <p className="mt-1 break-all text-xs text-destructive/90">{submitState.error}</p>
-          ) : null}
+          <div className="mt-1">
+            <PublishErrorDetail raw={submitState.error || null} />
+          </div>
           <Button
             className="mt-2 min-h-11"
             variant="outline"
@@ -146,6 +157,7 @@ function roleText(
   return t('publishEnvironmentRoleNone');
 }
 
+/** 默认版本号：v + 时间戳（m-c：不用 release- 英文词）。 */
 function suggestVersion(): string {
   const now = new Date();
   const stamp = [
@@ -155,5 +167,5 @@ function suggestVersion(): string {
     String(now.getHours()).padStart(2, '0'),
     String(now.getMinutes()).padStart(2, '0'),
   ].join('');
-  return `release-${stamp}`;
+  return `v${stamp}`;
 }

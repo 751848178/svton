@@ -67,10 +67,84 @@ describe('buildReleaseProgressView', () => {
         }),
       ],
     });
-    expect(view.steps[3]).toMatchObject({ status: 'awaiting_approval' });
+    expect(view.steps[3]).toMatchObject({
+      status: 'awaiting_approval',
+      // M1：等待审批给带审批 ID 的直达链接。
+      approvalHref: '/operation-approvals?id=ap-1',
+    });
     expect(view.awaitingApproval).toBe(true);
+    expect(view.approvalHref).toBe('/operation-approvals?id=ap-1');
     expect(view.running).toBe(true);
     expect(view.canPublishToProduction).toBe(false);
+  });
+
+  it('M1: maps blocked staging (DeploymentRun) to awaiting approval with list link', () => {
+    const view = buildReleaseProgressView({
+      detail: detail(),
+      builds: [build('succeeded')],
+      stagingDeployments: [staging('blocked')],
+      productionRuns: [],
+    });
+    expect(view.steps[2]).toMatchObject({
+      status: 'awaiting_approval',
+      approvalHref: '/operation-approvals?status=pending&targetType=release_stage',
+    });
+    expect(view.awaitingApproval).toBe(true);
+    expect(view.running).toBe(true);
+  });
+
+  it('M1: cancelled staging (DeploymentRun, double-L) is a failed step', () => {
+    const view = buildReleaseProgressView({
+      detail: detail(),
+      builds: [build('succeeded')],
+      stagingDeployments: [staging('cancelled')],
+      productionRuns: [],
+    });
+    expect(view.steps[2]).toMatchObject({ status: 'failed' });
+  });
+
+  it('B2: a failed production run does not permanently hide 发布到生产', () => {
+    const view = buildReleaseProgressView({
+      detail: detail(),
+      builds: [build('succeeded')],
+      stagingDeployments: [staging('succeeded')],
+      productionRuns: [productionRun({ status: 'failed' })],
+    });
+    expect(view.stagingSucceeded).toBe(true);
+    expect(view.canPublishToProduction).toBe(true);
+    expect(view.steps[3]).toMatchObject({ status: 'failed' });
+  });
+
+  it('B2: an active production run keeps 发布到生产 hidden', () => {
+    for (const status of ['pending', 'awaiting_approval', 'running', 'awaiting_validation']) {
+      const view = buildReleaseProgressView({
+        detail: detail(),
+        builds: [build('succeeded')],
+        stagingDeployments: [staging('succeeded')],
+        productionRuns: [productionRun({ status })],
+      });
+      expect(view.canPublishToProduction).toBe(false);
+    }
+  });
+
+  it('M2: build succeeded with manifest and no staging run offers 部署预发', () => {
+    const view = buildReleaseProgressView({
+      detail: detail(),
+      builds: [build('succeeded')],
+      stagingDeployments: [],
+      productionRuns: [],
+    });
+    expect(view.canDeployStaging).toBe(true);
+  });
+
+  it('M2: a non-terminal staging run disables 部署预发 (no double submit)', () => {
+    const view = buildReleaseProgressView({
+      detail: detail(),
+      builds: [build('succeeded')],
+      stagingDeployments: [staging('running')],
+      productionRuns: [],
+    });
+    expect(view.canDeployStaging).toBe(false);
   });
 
   it('exposes 发布到生产 once staging succeeded without a production run', () => {
@@ -85,7 +159,7 @@ describe('buildReleaseProgressView', () => {
     expect(view.terminal).toBe(false);
   });
 
-  it('allows rollback after a failed staging deployment', () => {
+  it('M7: a staging-only failure offers no rollback (path is retry/redeploy)', () => {
     const view = buildReleaseProgressView({
       detail: detail(),
       builds: [build('succeeded')],
@@ -93,6 +167,16 @@ describe('buildReleaseProgressView', () => {
       productionRuns: [],
     });
     expect(view.steps[2]).toMatchObject({ status: 'failed' });
+    expect(view.canRollback).toBe(false);
+  });
+
+  it('M7: a failed production run offers rollback', () => {
+    const view = buildReleaseProgressView({
+      detail: detail(),
+      builds: [build('succeeded')],
+      stagingDeployments: [staging('succeeded')],
+      productionRuns: [productionRun({ status: 'failed' })],
+    });
     expect(view.canRollback).toBe(true);
   });
 

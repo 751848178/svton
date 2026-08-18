@@ -10,6 +10,7 @@
 import { useTranslations } from 'next-intl';
 import { Button, Modal } from '@/components/ui';
 import type { ProductionReleasePreview } from '../../types/release-production.types';
+import { PublishErrorDetail } from './publish-error-detail';
 
 interface Props {
   open: boolean;
@@ -102,14 +103,7 @@ export function ProductionConfirmModal({
         {snapshot ? (
           <p className="text-xs text-muted-foreground">{t('productionStagingProof')}</p>
         ) : null}
-        {error ? (
-          <p
-            className="text-sm text-destructive"
-            role="alert"
-          >
-            {error}
-          </p>
-        ) : null}
+        {error ? <PublishErrorDetail raw={error} /> : null}
       </div>
     </Modal>
   );

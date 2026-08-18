@@ -58,7 +58,7 @@ export function PublishConfigStep({ projectId, environment, config }: Props) {
         <>
           <EffectiveConfigConflictBanner
             conflicts={config.summary.conflicts}
-            unconfiguredSecrets={config.summary.unconfiguredSecrets}
+            unknownSecrets={config.summary.unknownSecrets}
             keysHref={hrefs.keysHref}
           />
           <EffectiveConfigTable
