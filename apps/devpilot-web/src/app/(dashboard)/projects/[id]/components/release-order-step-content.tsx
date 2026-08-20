@@ -2,6 +2,7 @@
 
 import type { ReleaseBuildsController } from '../hooks/use-release-builds';
 import type { ReleaseOrderEvidenceHook } from '../hooks/use-release-order-evidence';
+import type { useReleaseGateCatalog } from '../hooks/use-release-gate-catalog';
 import type { ReleaseOrderDetail, ReleaseOrderStep } from '../types/release-order.types';
 import { ReleaseOrderBuildStep } from './release-order-build-step';
 import { ReleaseOrderPreflightStep } from './release-order-preflight-step';
@@ -12,6 +13,7 @@ interface Props {
   detail: ReleaseOrderDetail;
   builds: ReleaseBuildsController;
   evidence: ReleaseOrderEvidenceHook;
+  gateCatalog: ReturnType<typeof useReleaseGateCatalog>;
   step: ReleaseOrderStep;
   projectId: string;
   releaseOrderId: string;
@@ -29,12 +31,18 @@ interface Props {
   recoveryHref: string;
   buildGate: { allowed: boolean; reason: string };
   stagingGate: { allowed: boolean; reason: string };
-  gateRepairHref: string;
-  stagingRepairHref: string;
+  stagingRepairHref?: string;
 }
 
 export function ReleaseOrderStepContent(props: Props) {
-  if (props.step === 'preflight') return <ReleaseOrderPreflightStep detail={props.detail} />;
+  if (props.step === 'preflight') {
+    return (
+      <ReleaseOrderPreflightStep
+        detail={props.detail}
+        gateCatalog={props.gateCatalog}
+      />
+    );
+  }
   if (props.step === 'build') {
     return (
       <ReleaseOrderBuildStep
@@ -45,7 +53,7 @@ export function ReleaseOrderStepContent(props: Props) {
         onOpenLog={props.onOpenBuildLog}
         onCloseLog={props.onCloseBuildLog}
         buildGate={props.buildGate}
-        repairHref={props.gateRepairHref}
+        decisionShown
       />
     );
   }
@@ -60,6 +68,7 @@ export function ReleaseOrderStepContent(props: Props) {
         onChanged={props.onChanged}
         stagingGate={props.stagingGate}
         repairHref={props.stagingRepairHref}
+        decisionShown
       />
     );
   }

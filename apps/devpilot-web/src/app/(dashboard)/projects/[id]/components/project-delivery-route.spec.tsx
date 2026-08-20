@@ -74,6 +74,7 @@ describe('ProjectDeliveryRoute create action owner', () => {
   let root: Root;
 
   beforeEach(() => {
+    mocks.searchParams = new URLSearchParams();
     (
       globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true;
@@ -163,5 +164,17 @@ describe('ProjectDeliveryRoute create action owner', () => {
     });
 
     expect(container.textContent).not.toContain('create-release-order');
+  });
+
+  it('removes project-level summary chrome while a release workbench is focused', async () => {
+    mocks.searchParams = new URLSearchParams('releaseOrderId=order-1&step=preflight');
+    await act(async () => {
+      root.render(<ProjectDeliveryRoute projectId="project-1" />);
+    });
+
+    expect(container.textContent).toContain('release-orders-active-child');
+    expect(container.textContent).not.toContain('project-header');
+    expect(container.textContent).not.toContain('summary');
+    expect(container.textContent).not.toContain('versions');
   });
 });

@@ -8,19 +8,8 @@ import { ReleaseOrderPreflightStep } from './release-order-preflight-step';
 
 vi.mock('next-intl', () => ({ useTranslations: () => (key: string) => key }));
 vi.mock('./release-gate-catalog-panel', () => ({
-  ReleaseGateCatalogPanel: ({
-    projectId,
-    releaseOrderId,
-  }: {
-    projectId: string;
-    releaseOrderId: string;
-  }) => (
-    <div
-      data-project={projectId}
-      data-release-order={releaseOrderId}
-    >
-      real-gate-owner
-    </div>
+  ReleaseGateCatalogView: ({ controller }: { controller: { catalog: { id: string } } }) => (
+    <div data-controller={controller.catalog.id}>real-gate-owner</div>
   ),
 }));
 
@@ -31,16 +20,26 @@ describe('ReleaseOrderPreflightStep', () => {
     ).IS_REACT_ACT_ENVIRONMENT = true;
     const container = document.createElement('div');
     const root = createRoot(container);
-    await act(async () => root.render(<ReleaseOrderPreflightStep detail={detail()} />));
+    const gateCatalog = { catalog: { id: 'shared-gate-controller' } } as unknown as Parameters<
+      typeof ReleaseOrderPreflightStep
+    >[0]['gateCatalog'];
+    await act(async () =>
+      root.render(
+        <ReleaseOrderPreflightStep
+          detail={detail()}
+          gateCatalog={gateCatalog}
+        />,
+      ),
+    );
 
     expect(container.textContent).toContain('releaseStepPreflightTitle');
     expect(container.textContent).toContain('real-gate-owner');
     expect(container.textContent).not.toContain('releasePreflightRepository');
     expect(container.textContent).not.toContain('releasePreflightStaging');
     expect(container.textContent).not.toContain('releasePreflightProduction');
-    expect(
-      container.querySelector('[data-project="project-1"]')?.getAttribute('data-release-order'),
-    ).toBe('order-1');
+    expect(container.querySelector('[data-controller]')?.getAttribute('data-controller')).toBe(
+      'shared-gate-controller',
+    );
 
     await act(async () => root.unmount());
   });

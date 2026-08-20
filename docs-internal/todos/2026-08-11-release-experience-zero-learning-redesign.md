@@ -25,6 +25,16 @@
 | F676 | pending | 基于真实截图产出三套视觉/交互方向，通过对抗性设计复核选择一套并完成可交互画板。 | `visualize` 画板与选择记录 |
 | F677 | completed | 由唯一 impl writer 按选定方案实施，保持单一职责、依赖无环、源文件不超过 200 行。 | S1-S6 原子 diff；`/tmp/codex-tool-runs/svton/f674-impl-*` focused tests/type-check |
 | F678 | in_progress | 创建 Draft MR，完成 product/frontend/backend/test 独立 CR 与架构师裁决，修复后执行全量、Docker、Browser、API/DB 验证并 commit/push。 | MR、CR ledger、日志、最终截图 |
+| F679 | completed | 将现有 Step 0 发布进度页升级为真实数据驱动的发布工作台：摘要、阶段流水线、阻断/下一动作、证据与活动侧栏，并保留生产预览、审批、重试和恢复能力。 | 减法式重排、工程验证与 Browser 设计复验完成；见 `design-qa.md` 和 `docs-internal/devpilot/audits/2026-08-20-release-workbench-reaudit/15-reference-vs-final-focused.jpg`。 |
+
+### F679 减法式重排
+
+- [x] 合并发布身份、执行状态与关键事实，移除 Header/Summary 重复和首屏技术 ID 噪声。
+- [x] 只保留一个当前执行态，并以中性样式表达“正在查看”的历史阶段。
+- [x] 将阻断结论、首要原因和真实修复入口收敛为唯一决策卡，校正 CTA 优先级。
+- [x] 降低当前阶段容器与检查卡密度，高级检查和技术标识渐进披露。
+- [x] 右栏默认聚合最近运行与同类历史尝试，证据绑定真实 Run 并可下钻。
+- [x] 完成 focused tests、type-check、i18n、production build、Docker 和 Browser 桌面/390px/键盘/axe/视觉对照复验。
 
 ## Acceptance Rules
 
@@ -43,3 +53,8 @@
 - 2026-08-12: dependency-store 最终 CR 修复 cold-create ID、无状态变更的 succeeded probe、signed dependency-ready 提前释放 lease、坏缓存 quarantine+CAS invalidation、历史 BuildRun/evidence 不变量、完整 npm auth/DNS special-use 拒绝与 launcher stale network 回收。focused/typecheck/Prisma 源码验证完成；Docker/MySQL 运行态仍待签收。
 - 2026-08-12: dependency-store cache generation 以 additive `230000` migration 落地；claim 单调递增，reuse/ready/final/BuildRun/制品证明均冻结同一 generation，阻断相同 digest 的 G1/G2 ABA。运行态迁移证据仅到 `c8f200000`，`220000` 从未被 runtime 应用，因此未修改 `220000`；Docker/MySQL 仍未在本切片执行。
 - 2026-08-12: dependency fetch 网络按 Docker engine 证明分为 native direct-public-DNS 与 exact Docker Desktop engine-proxy；mode/evidence 已冻结到 launcher、worker、fetch identity 和 manifest，engine tuple 漂移即撤销 proof。Acceptance image 同时提供受供应摘要约束的 regular `/usr/local/bin/pnpm`；源码测试通过，Docker 运行仍待签收。
+- 2026-08-19: 启动 F679。选定参考图二的发布工作台为主结构、参考图一的活动栏为辅；不复制竞品模糊迭代状态，所有阶段与 CTA 必须来自当前 ReleaseOrder、Gate Catalog、BuildRun、DeploymentRun、ReleaseRun、OperationApproval 和 EnvironmentVersion 事实。
+- 2026-08-20: F679 完成。canonical 项目发布路由已形成真实数据驱动的发布工作台，旧发布详情路由统一重定向；生产门禁缺失按失败关闭，活动/证据支持阶段深链。29 项 focused tests、type-check、i18n、production build 与 Docker 当前产物通过；Browser 验证桌面、390px、键盘、深链、旧路由重定向和 axe 0 违规，设计对照见 `docs-internal/devpilot/audits/2026-08-19-release-workbench/release-workbench-design-comparison.png`。
+- 2026-08-20: F679 视觉层级复审撤销设计通过结论并恢复为 `in_progress`。当前工程与数据真实性保持通过，但实际页面仍存在双当前态、同一阻断多处重复、Header/Summary/Stepper/Stage/Rail 同屏争夺、右栏重复运行噪声等 P0；证据与减法式重排骨架见 `docs-internal/devpilot/audits/2026-08-20-release-workbench-reaudit/audit.md`。
+- 2026-08-20: F679 减法式重排开始实施；验收顺序固定为紧凑发布头、唯一执行态、唯一决策卡、低噪声阶段区、分组活动/证据栏，且不补造负责人、变更数或操作者。
+- 2026-08-20: F679 减法式重排完成。运行态只保留一个服务端执行阶段，历史查看态独立表达；阻断收敛为唯一决策卡，Gate Catalog 改为单一 controller，活动按 Run 分组、证据按真实 Run 下钻，技术细节默认折叠。10 个 focused test 文件共 41 项、type-check、i18n 3,854 条、production build、Docker 重建与 Browser 桌面/390px/键盘/深链/axe 0 违规均通过，最终设计 QA 为 passed。

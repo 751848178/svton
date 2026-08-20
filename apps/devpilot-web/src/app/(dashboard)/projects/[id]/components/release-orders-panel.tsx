@@ -7,6 +7,7 @@ import { LoadingState } from '@svton/ui';
 import { EmptyState, ErrorBanner } from '@/components/ui';
 import { scopedRequestIdentity } from '../hooks/use-scoped-request-guard';
 import type { ReleaseOrdersHook } from '../hooks/use-release-orders';
+import type { ProjectDeliverySummary } from '../types/project-delivery-summary.types';
 import { releaseOrderHref } from '../utils/project-route.utils';
 import { ReleaseOrderDetailPanel } from './release-order-detail-panel';
 import { ReleaseOrderListRow } from './release-order-list-row';
@@ -15,9 +16,11 @@ import { ReleaseOrderListToolbar } from './release-order-list-toolbar';
 export function ReleaseOrdersPanel({
   projectId,
   orders,
+  summary,
 }: {
   projectId: string;
   orders: ReleaseOrdersHook;
+  summary?: ProjectDeliverySummary;
 }) {
   const t = useTranslations('projects');
   const router = useRouter();
@@ -30,6 +33,7 @@ export function ReleaseOrdersPanel({
         key={scopedRequestIdentity(projectId, releaseOrderId)}
         projectId={projectId}
         releaseOrderId={releaseOrderId}
+        projectSummary={summary}
         onOrdersChanged={orders.load}
       />
     );
@@ -57,9 +61,7 @@ export function ReleaseOrdersPanel({
       ) : null}
       {orders.loading ? <LoadingState /> : null}
       {!orders.loading && orders.items.length === 0 ? (
-        <EmptyState
-          title={t(filtered ? 'releaseOrdersFilteredEmpty' : 'releaseOrdersEmpty')}
-        />
+        <EmptyState title={t(filtered ? 'releaseOrdersFilteredEmpty' : 'releaseOrdersEmpty')} />
       ) : null}
       {!orders.loading && orders.items.length > 0 ? (
         <div className="overflow-hidden rounded-lg border bg-background">

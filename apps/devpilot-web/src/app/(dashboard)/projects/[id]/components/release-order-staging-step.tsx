@@ -3,12 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { LoadingState } from '@svton/ui';
-import { Button, EmptyState, ErrorBanner } from '@/components/ui';
+import { EmptyState, ErrorBanner } from '@/components/ui';
 import { useReleaseBuilds } from '../hooks/use-release-builds';
 import { useReleaseStagingDeployments } from '../hooks/use-release-staging-deployments';
 import { releaseClientErrorLabelKey } from '../utils/release-copy.model';
 import { stagingBuildForRun, stagingManifestSucceeded } from '../utils/release-staging-view.model';
 import { ReleaseStagingEvidenceList } from './release-staging-evidence-list';
+import { ReleaseStagingDeployControl } from './release-staging-deploy-control';
 import { ReleaseStagingLogDrawer } from './release-staging-log-drawer';
 import { ReleaseStagingSummary as Summary } from './release-staging-summary';
 
@@ -21,6 +22,7 @@ interface Props {
   onCloseLog: () => void;
   stagingGate?: { allowed: boolean; reason: string };
   repairHref?: string;
+  decisionShown?: boolean;
 }
 
 export function ReleaseOrderStagingStep(props: Props) {
@@ -63,61 +65,19 @@ export function ReleaseOrderStagingStep(props: Props) {
   };
   return (
     <div className="space-y-4">
-      <section className="rounded-lg border bg-muted/20 p-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-3xl">
-            <h3 className="font-semibold">{t('releaseStepStagingTitle')}</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {t('releaseStepStagingDescription')}
-            </p>
-          </div>
-          <Button
-            onClick={() => deploy(manifestId)}
-            loading={deployments.deploying}
-            disabled={!manifestId || props.stagingGate?.allowed === false}
-            title={props.stagingGate?.reason || undefined}
-          >
-            {t('deployManifestToStaging')}
-          </Button>
-        </div>
-        <label className="mt-4 block text-sm">
-          <span className="mb-1 block font-medium">{t('releaseStagingManifestLabel')}</span>
-          <select
-            className="w-full rounded-md border bg-background px-3 py-2"
-            value={manifestId}
-            onChange={(event) => setRequestedManifestId(event.target.value)}
-            disabled={builds.loading || deployments.deploying}
-            title={
-              selectedBuild?.manifest
-                ? t('releaseStagingManifestOption', {
-                    buildId: selectedBuild.id,
-                    revision: selectedBuild.revision,
-                    manifestId: selectedBuild.manifest.id,
-                    digest: selectedBuild.manifest.digest.slice(0, 19),
-                  })
-                : undefined
-            }
-          >
-            {manifests.length === 0 ? (
-              <option value="">{t('releaseStagingNoManifest')}</option>
-            ) : null}
-            {manifests.map((build) => (
-              <option
-                key={build.manifest!.id}
-                value={build.manifest!.id}
-              >
-                {t('releaseStagingManifestOption', {
-                  buildId: shortId(build.id),
-                  revision: build.revision,
-                  manifestId: shortId(build.manifest!.id),
-                  digest: build.manifest!.digest.slice(0, 19),
-                })}
-              </option>
-            ))}
-          </select>
-        </label>
-      </section>
-      {props.stagingGate?.allowed === false ? (
+      <ReleaseStagingDeployControl
+        manifestId={manifestId}
+        manifests={manifests}
+        selectedBuild={selectedBuild}
+        buildsLoading={builds.loading}
+        deploying={deployments.deploying}
+        gateAllowed={props.stagingGate?.allowed !== false}
+        gateReason={props.stagingGate?.reason || undefined}
+        decisionShown={props.decisionShown}
+        onManifestChange={setRequestedManifestId}
+        onDeploy={deploy}
+      />
+      {props.stagingGate?.allowed === false && !props.decisionShown ? (
         <p
           role="alert"
           className="text-sm text-amber-800"
@@ -133,7 +93,7 @@ export function ReleaseOrderStagingStep(props: Props) {
           ) : null}
         </p>
       ) : null}
-      <div className="grid gap-3 sm:grid-cols-3">
+      <dl className="grid divide-y divide-border border-y border-border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
         <Summary
           label={t('releaseStagingCurrentArtifact')}
           value={
@@ -151,7 +111,7 @@ export function ReleaseOrderStagingStep(props: Props) {
               : t('releaseStagingProductionWaiting')
           }
         />
-      </div>
+      </dl>
       {builds.error ? (
         <ErrorBanner
           message={builds.error}
@@ -193,8 +153,4 @@ export function ReleaseOrderStagingStep(props: Props) {
       />
     </div>
   );
-}
-
-function shortId(value: string) {
-  return value.length > 16 ? `${value.slice(0, 12)}…` : value;
 }

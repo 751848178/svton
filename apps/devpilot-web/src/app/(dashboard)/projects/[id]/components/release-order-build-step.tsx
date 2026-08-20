@@ -18,6 +18,7 @@ interface Props {
   onCloseLog: () => void;
   buildGate?: { allowed: boolean; reason: string };
   repairHref?: string;
+  decisionShown?: boolean;
 }
 
 export function ReleaseOrderBuildStep(props: Props) {
@@ -86,7 +87,7 @@ export function ReleaseOrderBuildStep(props: Props) {
       {loadedSuccessfully && !builds.loading && items.length === 0 ? (
         <EmptyState
           title={t('releaseBuildEmpty')}
-          action={
+          action={props.decisionShown ? undefined : (
             <Button
               size="sm"
               variant="outline"
@@ -96,10 +97,10 @@ export function ReleaseOrderBuildStep(props: Props) {
             >
               {t('buildLatestCode')}
             </Button>
-          }
+          )}
         />
       ) : null}
-      {props.buildGate?.allowed === false ? (
+      {props.buildGate?.allowed === false && !props.decisionShown ? (
         <p
           role="alert"
           className="text-sm text-amber-800"

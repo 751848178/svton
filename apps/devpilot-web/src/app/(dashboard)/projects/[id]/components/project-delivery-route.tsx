@@ -54,7 +54,7 @@ export function ProjectDeliveryRoute({
 
   return (
     <div className="space-y-6">
-      <ProjectDeliveryHeader summary={delivery.summary} />
+      {isHome ? <ProjectDeliveryHeader summary={delivery.summary} /> : null}
       {isHome ? (
         <>
           <ProjectDeliveryWeakSummary
@@ -67,6 +67,7 @@ export function ProjectDeliveryRoute({
       <ProjectDeliveryContent
         projectId={projectId}
         orders={orders}
+        summary={delivery.summary}
       />
       <ReleaseOrderCreateModal
         open={createOpen}

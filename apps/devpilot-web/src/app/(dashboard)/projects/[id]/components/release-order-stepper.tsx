@@ -1,7 +1,13 @@
 'use client';
 
 import { Fragment, useId, useRef, type KeyboardEvent, type ReactNode } from 'react';
-import { CaretRight, CheckCircle, Circle, CircleNotch } from '@phosphor-icons/react';
+import {
+  CaretRight,
+  CheckCircle,
+  Circle,
+  CircleNotch,
+  WarningOctagon,
+} from '@phosphor-icons/react';
 import clsx from 'clsx';
 import { useTranslations } from 'next-intl';
 import type { ReleaseOrderStep } from '../types/release-order.types';
@@ -19,6 +25,8 @@ export function ReleaseOrderStepper({ steps, selectedStep, onSelect, children }:
   const baseId = useId();
   const panelId = `${baseId}-panel`;
   const refs = useRef<Array<HTMLButtonElement | null>>([]);
+  const executionStep = steps.find((step) => step.isCurrent) ?? steps[0];
+  const viewingStep = steps.find((step) => step.key === selectedStep) ?? steps[0];
 
   const selectFromKeyboard = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     const nextIndex = keyboardTarget(event.key, index, steps.length);
@@ -31,9 +39,22 @@ export function ReleaseOrderStepper({ steps, selectedStep, onSelect, children }:
   };
 
   return (
-    <section className="overflow-hidden rounded-[10px] border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.05)]">
+    <section className="min-w-0">
+      <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+        <span>
+          {t('releaseWorkbenchExecutionContext', {
+            step: executionStep ? t(executionStep.labelKey) : '—',
+          })}
+        </span>
+        {executionStep?.key !== viewingStep?.key && viewingStep ? (
+          <>
+            <span aria-hidden="true">·</span>
+            <span>{t('releaseWorkbenchViewingContext', { step: t(viewingStep.labelKey) })}</span>
+          </>
+        ) : null}
+      </div>
       <nav
-        className="flex items-center border-b border-slate-200 bg-slate-50 px-4 py-[17px] max-[820px]:flex-col max-[820px]:items-stretch"
+        className="flex items-center border-y border-border py-2 max-[820px]:flex-col max-[820px]:items-stretch"
         role="tablist"
         aria-label={t('releaseOrderExecutionSteps')}
       >
@@ -56,35 +77,30 @@ export function ReleaseOrderStepper({ steps, selectedStep, onSelect, children }:
                 data-step={step.key}
                 data-state={step.state}
                 className={clsx(
-                  'flex min-w-0 flex-1 items-center gap-[9px] rounded-lg border px-[10px] py-[9px] text-left text-slate-500 transition-colors',
-                  'hover:bg-white hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(79,70,229,0.42)] focus-visible:ring-offset-2',
+                  'flex min-h-11 min-w-0 flex-1 items-center gap-2.5 rounded-md px-3 py-2.5 text-left text-muted-foreground transition-colors',
+                  'hover:bg-muted/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2',
                   'max-[820px]:w-full',
-                  selected
-                    ? 'border-indigo-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.05)]'
-                    : 'border-transparent bg-transparent',
+                  selected ? 'bg-muted ring-1 ring-inset ring-border' : 'bg-transparent',
                 )}
                 onClick={() => onSelect(step.key)}
                 onKeyDown={(event) => selectFromKeyboard(event, index)}
               >
                 <StepIcon state={step.state} />
                 <span className="min-w-0">
-                  <span className="block text-[9px] font-bold tracking-[0.035em] text-slate-600">
+                  <span className="block text-[10px] font-bold tracking-[0.06em] text-muted-foreground">
                     {t('releaseStepNumber', { number: String(step.number).padStart(2, '0') })}
                   </span>
                   <strong
                     className={clsx(
-                      'mt-0.5 block overflow-hidden text-ellipsis whitespace-nowrap text-xs text-slate-700',
-                      (selected || step.state === 'current' || step.state === 'blocked') &&
-                        'text-indigo-900',
+                      'mt-0.5 block overflow-hidden text-ellipsis whitespace-nowrap text-sm text-foreground',
+                      step.isCurrent && step.state !== 'blocked' && 'text-primary',
+                      step.state === 'blocked' && 'text-destructive',
                     )}
                   >
                     {t(step.labelKey)}
                   </strong>
-                  <span className="mt-0.5 block text-[9px] text-slate-500">
-                    {t(step.stateLabelKey)} <span aria-hidden="true">·</span>{' '}
-                    {step.summary.values
-                      ? t(step.summary.key, step.summary.values)
-                      : t(step.summary.key)}
+                  <span className="mt-0.5 block text-[10px] text-muted-foreground">
+                    {t(step.stateLabelKey)}
                   </span>
                 </span>
               </button>
@@ -92,7 +108,7 @@ export function ReleaseOrderStepper({ steps, selectedStep, onSelect, children }:
                 <CaretRight
                   aria-hidden="true"
                   data-connector="true"
-                  className="shrink-0 text-slate-300 max-[820px]:self-center max-[820px]:rotate-90"
+                  className="shrink-0 text-border max-[820px]:self-center max-[820px]:rotate-90"
                   size={15}
                   weight="regular"
                 />
@@ -105,7 +121,7 @@ export function ReleaseOrderStepper({ steps, selectedStep, onSelect, children }:
         id={panelId}
         role="tabpanel"
         aria-labelledby={`${baseId}-${selectedStep}-tab`}
-        className="p-4"
+        className="pt-4"
       >
         {children}
       </div>
@@ -116,9 +132,10 @@ export function ReleaseOrderStepper({ steps, selectedStep, onSelect, children }:
 function StepIcon({ state }: { state: ReleaseOrderStepState }) {
   const className = clsx(
     'shrink-0',
-    state === 'completed' && 'text-green-600',
-    (state === 'current' || state === 'blocked') && 'text-indigo-600',
-    state === 'waiting' && 'text-slate-400',
+    state === 'completed' && 'text-emerald-600',
+    state === 'current' && 'text-primary',
+    state === 'blocked' && 'text-destructive',
+    state === 'waiting' && 'text-muted-foreground',
   );
   if (state === 'completed')
     return (
@@ -134,6 +151,15 @@ function StepIcon({ state }: { state: ReleaseOrderStepState }) {
         aria-hidden="true"
         className={className}
         size={20}
+      />
+    );
+  if (state === 'blocked')
+    return (
+      <WarningOctagon
+        aria-hidden="true"
+        className={className}
+        size={20}
+        weight="fill"
       />
     );
   return (

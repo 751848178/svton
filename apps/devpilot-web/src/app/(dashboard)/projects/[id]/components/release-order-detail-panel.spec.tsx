@@ -7,7 +7,6 @@ import type { ReleaseOrderStep } from '../types/release-order.types';
 import {
   detailHook as makeDetailHook,
   type DetailHook,
-  type HeaderProps,
   type StepperProps,
 } from './release-order-detail-panel.spec-fixtures';
 import { ReleaseOrderDetailPanel } from './release-order-detail-panel';
@@ -31,6 +30,7 @@ vi.mock('next-intl', () => ({
 vi.mock('@svton/ui', () => ({ LoadingState: () => <div>loading</div> }));
 vi.mock('@/components/ui', () => ({
   ErrorBanner: ({ message }: { message: string }) => <div>{message}</div>,
+  StatusTag: ({ label }: { label?: string }) => <span>{label}</span>,
 }));
 vi.mock('../hooks/use-release-order-detail', () => ({
   useReleaseOrderDetail: () => mocks.detailHook,
@@ -54,9 +54,22 @@ vi.mock('../hooks/use-release-gate-catalog', () => ({
     load: vi.fn(),
   }),
 }));
-vi.mock('./release-order-detail-header', () => ({
-  ReleaseOrderDetailHeader: ({ detail, onBuildLatest }: HeaderProps) => (
-    <header>
+vi.mock('./release-workbench/release-order-detail-workbench', () => ({
+  ReleaseOrderDetailWorkbench: ({
+    detail,
+    navigation,
+    onBuildLatest,
+  }: {
+    detail: { counts: { releaseRuns: number } };
+    navigation: { step: ReleaseOrderStep; selectStep: (step: ReleaseOrderStep) => void };
+    onBuildLatest: () => void;
+  }) => (
+    <div data-active-step={navigation.step}>
+      {(['preflight', 'build', 'staging', 'production'] as ReleaseOrderStep[]).map((step) => (
+        <button key={step} data-step={step} onClick={() => navigation.selectStep(step)}>
+          {step}
+        </button>
+      ))}
       <button
         data-build-latest
         disabled={detail.counts.releaseRuns > 0}
@@ -64,7 +77,7 @@ vi.mock('./release-order-detail-header', () => ({
       >
         build
       </button>
-    </header>
+    </div>
   ),
 }));
 vi.mock('./release-order-stepper', () => ({

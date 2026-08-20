@@ -31,17 +31,18 @@ describe('ReleaseOrderStepper', () => {
     container.remove();
   });
 
-  it('renders four numbered connected steps and truthful summaries', async () => {
+  it('renders a compact four-step execution line without repeating evidence summaries', async () => {
     await render(root, vi.fn());
     const tabs = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
     expect(tabs).toHaveLength(4);
     expect(container.querySelectorAll('[data-connector="true"]')).toHaveLength(3);
     expect(tabs.map((tab) => tab.textContent)).toEqual([
-      'releaseStepNumber:01releaseStepPreflightTitlereleaseStepStateCompleted · preflight-summary',
-      'releaseStepNumber:02releaseStepBuildTitlereleaseOrderFailureBlocked · build-summary',
-      'releaseStepNumber:03releaseStepStagingTitlereleaseStepStateCurrent · staging-summary',
-      'releaseStepNumber:04releaseStepProductionTitlereleaseStepStateWaiting · production-summary',
+      'releaseStepNumber:01releaseStepPreflightTitlereleaseStepStateCompleted',
+      'releaseStepNumber:02releaseStepBuildTitlereleaseOrderFailureBlocked',
+      'releaseStepNumber:03releaseStepStagingTitlereleaseStepStateCurrent',
+      'releaseStepNumber:04releaseStepProductionTitlereleaseStepStateWaiting',
     ]);
+    expect(container.textContent).not.toContain('build-summary');
   });
 
   it('keeps selected and server-current semantics separate with a linked panel', async () => {
@@ -53,6 +54,15 @@ describe('ReleaseOrderStepper', () => {
     expect(selected.hasAttribute('aria-current')).toBe(false);
     expect(current.getAttribute('aria-current')).toBe('step');
     expect(current.getAttribute('aria-selected')).toBe('false');
+    expect(container.textContent).toContain(
+      'releaseWorkbenchExecutionContext:releaseStepStagingTitle',
+    );
+    expect(container.textContent).toContain(
+      'releaseWorkbenchViewingContext:releaseStepBuildTitle',
+    );
+    expect(selected.className).toContain('bg-muted');
+    expect(selected.querySelector('strong')?.className).not.toContain('text-primary');
+    expect(current.querySelector('strong')?.className).toContain('text-primary');
     const panel = container.querySelector<HTMLElement>('[role="tabpanel"]');
     const controlledPanels = [...container.querySelectorAll('[role="tab"]')].map((tab) =>
       tab.getAttribute('aria-controls'),

@@ -28,14 +28,18 @@ export default function PublishWizardPage() {
   const publish = async (input: Parameters<typeof wizard.publish>[0]) => {
     const releaseOrderId = await wizard.publish(input);
     if (releaseOrderId) {
-      router.push(`/projects/${projectId}/publish/${releaseOrderId}`);
+      router.push(
+        `/projects/${encodeURIComponent(projectId)}?releaseOrderId=${encodeURIComponent(releaseOrderId)}`,
+      );
     }
     return releaseOrderId;
   };
   const retryPublish = async (input: Parameters<typeof wizard.retryPublish>[0]) => {
     const releaseOrderId = await wizard.retryPublish(input);
     if (releaseOrderId) {
-      router.push(`/projects/${projectId}/publish/${releaseOrderId}`);
+      router.push(
+        `/projects/${encodeURIComponent(projectId)}?releaseOrderId=${encodeURIComponent(releaseOrderId)}`,
+      );
     }
     return releaseOrderId;
   };

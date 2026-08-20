@@ -2,16 +2,16 @@
 
 import React from 'react';
 import {
+  ArrowClockwise,
+  CaretDown,
   GitMerge,
   PlugsConnected,
   ShieldCheck,
   TreeStructure,
   WarningCircle,
-  ArrowClockwise,
 } from '@phosphor-icons/react';
 import { useLocale, useTranslations } from 'next-intl';
-import { Button } from '@svton/ui';
-import { StatusTag } from '@/components/ui';
+import { Button, StatusTag } from '@/components/ui';
 import type { ReleaseGateCatalog } from '../types/release-gate.types';
 import { buildReleaseGateSummary, releaseGateStatusTone } from './release-gate-summary.model';
 
@@ -35,119 +35,127 @@ export function ReleaseGateSummary(props: Props) {
   const t = useTranslations('projects');
   const locale = useLocale();
   const summary = buildReleaseGateSummary(props.catalog);
-  const conclusion = summary.valid
-    ? summary.canEnterBuild
-      ? t('releaseGateCanEnterBuild')
-      : t('releaseGateCannotEnterBuild', { count: summary.blockingCount })
-    : t('releaseGateCatalogInvalid');
-  const blockerPreviews = summary.previews.filter((preview) =>
-    preview.blockingCount > 0 || preview.status === 'unavailable');
+  const decision = props.catalog.decisions.build;
+  const previews = summary.previews.filter(
+    (preview) => preview.blockingCount > 0 || preview.status === 'unavailable',
+  );
 
   return (
-    <section className="space-y-4">
-      <div className="flex flex-col justify-between gap-4 rounded-lg border border-indigo-100 bg-indigo-50/60 p-4 min-[821px]:flex-row min-[821px]:items-start">
-        <div>
-          <h4 className="font-semibold">
-            {summary.canEnterBuild
-              ? t('releaseGatePreflightComplete')
-              : t('releaseGatePreflightBlocked')}
-          </h4>
-          <p className="mt-1 max-w-3xl text-sm text-slate-600">
-            {t('releaseGatePreflightSummaryDescription')}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={props.refreshing}
-            onClick={props.onRefresh}
-          >
-            <ArrowClockwise size={16} aria-hidden="true" />
-            {t('releaseGateRefresh')}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            aria-controls={props.dialogId}
-            aria-expanded={props.dialogOpen}
-            aria-haspopup="dialog"
-            onClick={() => props.onOpenCatalog()}
-          >
-            {t('releaseGateCatalogExpand')}
-          </Button>
-        </div>
-      </div>
-
-      <p className="rounded-lg border bg-white px-4 py-3 text-sm font-medium">{conclusion}</p>
-
-      <div className="grid gap-3 min-[821px]:grid-cols-2">
-        {blockerPreviews.map((preview) => {
-          const Icon = PREVIEW_ICONS[preview.key];
-          return (
-            <button
-              type="button"
-              key={preview.key}
-              className="flex items-start gap-3 rounded-lg border bg-white p-4 text-left transition-colors hover:border-indigo-300 hover:bg-indigo-50/30"
-              aria-controls={props.dialogId}
-              onClick={() => props.onOpenCatalog(preview.capabilityIds)}
-            >
-              <Icon
-                size={22}
-                weight="duotone"
-                className="mt-0.5 shrink-0 text-indigo-600"
-                aria-hidden="true"
-              />
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h5 className="font-medium">{t(`releaseGatePreview.${preview.key}.title`)}</h5>
-                  <StatusTag
-                    status={releaseGateStatusTone(preview.status)}
-                    label={t(`releaseGateStatus.${preview.status}`)}
-                  />
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {t(`releaseGatePreview.${preview.key}.description`, {
-                    passing: preview.passingCount,
-                    total: preview.checkCount,
-                  })}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {t('releaseGateBlockingCount', { count: preview.blockingCount })}
-                  {' · '}
-                  {t('releaseGateLastChecked', {
-                    time: formatTime(preview.checkedAt, locale, t('releaseGateMetadataUnavailable')),
-                  })}
-                </p>
-                {preview.primaryReason ? (
-                  <p className="mt-2 line-clamp-2 text-xs text-slate-700">
-                    {locale.startsWith('zh')
-                      ? preview.primaryReason.zh
-                      : preview.primaryReason.en}
-                  </p>
-                ) : null}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      {!summary.valid ? (
-        <p
-          role="alert"
-          className="flex items-center gap-2 text-sm text-destructive"
-        >
-          <WarningCircle
-            size={18}
-            weight="fill"
+    <section id="release-gate-details">
+      <details className="group overflow-hidden border-y border-border">
+        <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 py-3 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+          <span>
+            {t('releaseWorkbenchAdvancedChecks')}
+            <span className="ml-2 text-xs font-normal text-muted-foreground">
+              {t('releaseWorkbenchGateCounts', {
+                blocked: summary.blockingCount,
+                warning: decision?.warningGateIds.length ?? 0,
+                manual:
+                  (decision?.manualGateIds.length ?? 0) -
+                  (decision?.confirmedManualGateIds.length ?? 0),
+              })}
+            </span>
+          </span>
+          <CaretDown
+            size={16}
+            className="shrink-0 transition-transform group-open:rotate-180"
             aria-hidden="true"
           />
-          {t('releaseGateCatalogIntegrityError')}
-        </p>
-      ) : null}
-      {summary.valid && blockerPreviews.length === 0 ? (
-        <p className="text-sm text-emerald-700">{t('releaseGateCanEnterBuild')}</p>
-      ) : null}
+        </summary>
+
+        <div className="border-t border-border pb-2 pt-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-3">
+            <p className="text-sm text-muted-foreground">
+              {t('releaseWorkbenchAdvancedChecksSummary', { count: props.catalog.summary.total })}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={props.refreshing}
+                onClick={props.onRefresh}
+              >
+                <ArrowClockwise size={16} aria-hidden="true" />
+                {t('releaseGateRefresh')}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                aria-controls={props.dialogOpen ? props.dialogId : undefined}
+                aria-expanded={props.dialogOpen}
+                aria-haspopup="dialog"
+                onClick={() => props.onOpenCatalog()}
+              >
+                {t('releaseGateCatalogExpand')}
+              </Button>
+            </div>
+          </div>
+
+          <div className="divide-y divide-border">
+            {previews.map((preview) => {
+              const Icon = PREVIEW_ICONS[preview.key];
+              return (
+                <button
+                  type="button"
+                  key={preview.key}
+                  className="flex min-h-11 w-full items-start gap-3 py-3 text-left hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40"
+                  aria-controls={props.dialogOpen ? props.dialogId : undefined}
+                  onClick={() => props.onOpenCatalog(preview.capabilityIds)}
+                >
+                  <Icon
+                    size={18}
+                    className="mt-0.5 shrink-0 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center justify-between gap-2">
+                      <strong className="text-sm font-medium">
+                        {t(`releaseGatePreview.${preview.key}.title`)}
+                      </strong>
+                      <StatusTag
+                        status={releaseGateStatusTone(preview.status)}
+                        label={t(`releaseGateStatus.${preview.status}`)}
+                      />
+                    </span>
+                    <span className="mt-1 block text-xs text-muted-foreground">
+                      {t('releaseGatePreviewRowSummary', {
+                        passing: preview.passingCount,
+                        total: preview.checkCount,
+                        blocked: preview.blockingCount,
+                        time: formatTime(
+                          preview.checkedAt,
+                          locale,
+                          t('releaseGateMetadataUnavailable'),
+                        ),
+                      })}
+                    </span>
+                    {preview.primaryReason ? (
+                      <span className="mt-1 block text-xs text-foreground">
+                        {locale.startsWith('zh')
+                          ? preview.primaryReason.zh
+                          : preview.primaryReason.en}
+                      </span>
+                    ) : null}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {!summary.valid ? (
+            <p
+              role="alert"
+              className="mt-3 flex items-center gap-2 text-sm text-destructive"
+            >
+              <WarningCircle size={18} weight="fill" aria-hidden="true" />
+              {t('releaseGateCatalogIntegrityError')}
+            </p>
+          ) : null}
+          {summary.valid && previews.length === 0 ? (
+            <p className="py-3 text-sm text-emerald-700">{t('releaseGateCanEnterBuild')}</p>
+          ) : null}
+        </div>
+      </details>
     </section>
   );
 }

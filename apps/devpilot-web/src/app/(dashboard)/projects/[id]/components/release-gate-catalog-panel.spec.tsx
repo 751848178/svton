@@ -83,7 +83,9 @@ describe('ReleaseGateCatalogPanel', () => {
     expect(container.textContent).toContain('releaseGateCanEnterBuild');
     expect(container.textContent).toContain('releaseGateCatalogExpand');
     expect(container.textContent).not.toContain('releaseGatePreview.source.title');
-    expect(container.querySelector('button[aria-haspopup="dialog"]')).not.toBeNull();
+    const opener = container.querySelector('button[aria-haspopup="dialog"]');
+    expect(opener).not.toBeNull();
+    expect(opener?.getAttribute('aria-controls')).toBeNull();
     expect(container.querySelector('[role="dialog"]')).toBeNull();
   });
 
@@ -130,6 +132,11 @@ describe('ReleaseGateCatalogPanel', () => {
     await act(async () => opener.click());
 
     const dialog = container.querySelector('[role="dialog"]')!;
+    const controlledId = (
+      container.querySelector('button[aria-haspopup="dialog"]') as HTMLButtonElement
+    ).getAttribute('aria-controls');
+    expect(controlledId).not.toBeNull();
+    expect(document.getElementById(controlledId!)).not.toBeNull();
     expect(dialog.querySelectorAll('article')).toHaveLength(51);
     expect(dialog.textContent).toContain('releaseGateCheckCount:{"count":10}');
     expect(dialog.textContent).toContain('releaseGateCheckCount:{"count":11}');

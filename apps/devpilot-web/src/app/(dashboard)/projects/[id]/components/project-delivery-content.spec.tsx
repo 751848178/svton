@@ -66,4 +66,15 @@ describe('ProjectDeliveryContent', () => {
     expect(html).toContain('environment-panel');
     expect(html).not.toContain('orders-panel');
   });
+
+  it('enters release focus mode without the project-level tab bar', () => {
+    mocks.searchParams = new URLSearchParams('releaseOrderId=order-1&step=preflight');
+    const html = renderToStaticMarkup(
+      <ProjectDeliveryContent projectId="project-1" orders={orders} />,
+    );
+
+    expect(html).toContain('orders-panel');
+    expect(html).not.toContain('tabReleaseOrders');
+    expect(html).not.toContain('tabEnvironmentVersions');
+  });
 });

@@ -14,19 +14,21 @@ export function ReleaseGateCatalogPanel({
   projectId: string;
   releaseOrderId: string;
 }) {
+  const controller = useReleaseGateCatalog(projectId, releaseOrderId);
+  return <ReleaseGateCatalogView controller={controller} />;
+}
+
+export function ReleaseGateCatalogView({
+  controller,
+}: {
+  controller: ReturnType<typeof useReleaseGateCatalog>;
+}) {
   const t = useTranslations('projects');
   const dialogId = useId();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [filterCapabilityIds, setFilterCapabilityIds] = useState<readonly string[] | null>(null);
-  const {
-    catalog,
-    loading,
-    error,
-    load,
-    confirmManual,
-    confirmingGateId,
-    confirmationError,
-  } = useReleaseGateCatalog(projectId, releaseOrderId);
+  const { catalog, loading, error, load, confirmManual, confirmingGateId, confirmationError } =
+    controller;
 
   if (loading && !catalog) {
     return <LoadingState text={t('loading')} />;
