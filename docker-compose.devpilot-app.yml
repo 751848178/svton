@@ -1,5 +1,8 @@
 name: devpilot-app
 
+volumes:
+  devpilot-app-release-build: {}
+
 networks:
   staging:
     external: true
@@ -10,7 +13,10 @@ services:
     build:
       context: .
       dockerfile: apps/devpilot-api/Dockerfile
-      target: api
+      # api-acceptance 携带 controlled-local-acceptance-v2 所需的本地验收工具链
+      # （semgrep/trivy/gitleaks + supply proofs）；发布流程（构建→预发→生产）
+      # 在本栈需要可执行，矩阵与 docker-compose.devpilot-parity.yml 保持一致。
+      target: api-acceptance
     image: devpilot-app-api:local
     container_name: devpilot-app-api
     restart: unless-stopped
@@ -44,12 +50,20 @@ services:
       RESOURCE_REQUEST_PROVISIONING_HTTP_ENABLED: "true"
       # Enable project-level release orchestration (F383) for local verification.
       DEVPILOT_RELEASE_ORCHESTRATION_ENABLED: "true"
-      # Build execution is a separate double-consent capability. The V13
-      # acceptance overlay is the only repository-owned profile that enables it.
+      # ----- Local-filesystem staging deployment (same switch as the parity
+      # stack). Without it the 预发→生产 chain cannot execute at all. -----
+      # NOTE on build execution: current source requires the external
+      # OCI-launcher worker infra (v13 acceptance overlay) for real builds;
+      # enabling RELEASE_BUILD_EXECUTION_ENABLED here crash-loops the API at
+      # bootstrap (UNTRUSTED_WORKER_PROVIDER_MISSING). New release orders stop
+      # at the build step by design (fail-closed); existing orders with a
+      # successful manifest can complete staging → production.
       RELEASE_BUILD_EXECUTION_ENABLED: "false"
       RELEASE_BUILD_EXECUTOR_PROFILE: disabled
-      RELEASE_STAGING_DEPLOYMENT_ENABLED: "false"
-      RELEASE_DEPLOYMENT_PROVIDER_PROFILE: disabled
+      RELEASE_STAGING_DEPLOYMENT_ENABLED: "true"
+      RELEASE_DEPLOYMENT_PROVIDER_PROFILE: local-filesystem-v1
+      RELEASE_STAGING_DEPLOYMENT_ROOT: /var/lib/devpilot/release-build/deployments
+      RELEASE_STAGING_DEPLOYMENT_TIMEOUT_MS: "120000"
       # Local repository analysis remains default-off in production. This
       # disposable app stack exposes only the explicitly mounted read-only root.
       REPOSITORY_ANALYSIS_LOCAL_ROOTS: /read-only-repositories
@@ -59,6 +73,7 @@ services:
       # Override the fixture path when validating another repository. The
       # container cannot write to the source checkout.
       - ${DEVPILOT_REPOSITORY_FIXTURE:-../picshare}:/read-only-repositories/picshare:ro
+      - devpilot-app-release-build:/var/lib/devpilot/release-build
     healthcheck:
       test:
         [
