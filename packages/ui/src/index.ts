@@ -51,7 +51,12 @@ export { Textarea } from './components/Textarea';
 export type { TextareaProps } from './components/Textarea';
 
 export { Select } from './components/Select';
-export type { SelectProps, SelectOption } from './components/Select';
+export type {
+  SelectProps,
+  SelectOption,
+  SelectOptionFilter,
+  SelectChangeEvent,
+} from './components/Select';
 
 export { Field } from './components/Field';
 export type { FieldProps } from './components/Field';
@@ -99,6 +104,17 @@ export type { CollapseProps, CollapseItemProps } from './components/Collapse';
 
 export { Tabs } from './components/Tabs';
 export type { TabsProps, TabItem } from './components/Tabs';
+
+export {
+  TableFilterBar,
+  TableFilterSearch,
+  TableFilterSelect,
+} from './components/TableFilters';
+export type {
+  TableFilterBarProps,
+  TableFilterSearchProps,
+  TableFilterSelectProps,
+} from './components/TableFilters';
 
 export {
   Table,

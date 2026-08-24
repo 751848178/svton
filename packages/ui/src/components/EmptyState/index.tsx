@@ -1,5 +1,6 @@
 import React, { ReactNode } from 'react';
 import { cn } from '../../lib/utils';
+import { useI18n } from '../../i18n';
 
 export interface EmptyStateProps {
   text?: ReactNode;
@@ -11,7 +12,9 @@ export interface EmptyStateProps {
 }
 
 export function EmptyState(props: EmptyStateProps) {
-  const { text = 'No data', description, action, className, align = 'center', justify = 'center' } = props;
+  const { translate } = useI18n();
+  const { text, description, action, className, align = 'center', justify = 'center' } = props;
+  const resolvedText = text ?? translate('ui.noData');
 
   return (
     <div
@@ -26,7 +29,7 @@ export function EmptyState(props: EmptyStateProps) {
         className
       )}
     >
-      <div className="text-base text-foreground/80">{text}</div>
+      <div className="text-base text-foreground/80">{resolvedText}</div>
       {description && <div className="text-sm text-muted-foreground">{description}</div>}
       {action && <div className="mt-2">{action}</div>}
     </div>

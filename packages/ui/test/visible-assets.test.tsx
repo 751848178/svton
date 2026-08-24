@@ -32,9 +32,10 @@ describe('I08.3c-1 rendered asset contract', () => {
     const view = render(<CollapseItem title="Details">Body</CollapseItem>);
     const trigger = screen.getByRole('button', { name: 'Details' });
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
-    fireEvent.keyDown(trigger, { key: 'Enter' });
+    // 真实 <button>：键盘激活产生点击事件（原生 Enter/Space 语义）
+    fireEvent.click(trigger);
     expect(trigger).toHaveAttribute('aria-expanded', 'true');
-    fireEvent.keyDown(trigger, { key: ' ' });
+    fireEvent.click(trigger);
     expect(trigger).toHaveAttribute('aria-expanded', 'false');
     expect(view.container.querySelector('svg')).toHaveClass('lucide-chevron-right');
     expectInstalledIcons(view.container);

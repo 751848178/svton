@@ -5,6 +5,7 @@ export {
   Check as CheckIcon,
   CheckCircle2 as CompletedIcon,
   ChevronRight as ChevronIcon,
+  ChevronDown as ChevronDownIcon,
   Circle as PendingIcon,
   CircleX as ErrorIcon,
   ClipboardList as PlanIcon,

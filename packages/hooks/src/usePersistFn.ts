@@ -17,7 +17,8 @@ export function usePersistFn<T extends noop>(fn: T) {
   const fnRef = useRef<T>(fn);
   fnRef.current = fn;
 
-  const persistFn = useRef<T>();
+  // React 19 类型要求 useRef 显式初始值（18 允许缺省）；undefined 不改变运行时语义。
+  const persistFn = useRef<T>(undefined as unknown as T);
   if (!persistFn.current) {
     persistFn.current = function (this: any, ...args) {
       return fnRef.current.apply(this, args);

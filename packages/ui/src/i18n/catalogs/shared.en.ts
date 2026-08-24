@@ -22,5 +22,11 @@ export const sharedEnCatalog = {
   'status.justNow': 'just now',
   'permission.deniedTitle': 'Access Denied',
   'permission.deniedMessage': 'You do not have permission to view this content.',
+  'ui.loading': 'Loading...',
+  'ui.noData': 'No data',
+  'ui.loadMore': 'Load more',
+  'ui.confirm': 'Confirm',
+  'ui.cancel': 'Cancel',
+  'ui.requestFailed': 'Request failed',
   'modal.close': 'Close',
 } as const;

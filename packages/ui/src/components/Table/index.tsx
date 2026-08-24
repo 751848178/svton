@@ -29,12 +29,12 @@ export function Table(props: TableProps) {
 
 export function TableHeader(props: HTMLAttributes<HTMLTableSectionElement>) {
   const { className, ...rest } = props;
-  return <thead className={cn('border-b border-black/10', className)} {...rest} />;
+  return <thead className={cn('border-b border-border/50', className)} {...rest} />;
 }
 
 export function TableBody(props: HTMLAttributes<HTMLTableSectionElement>) {
   const { className, ...rest } = props;
-  return <tbody className={cn('divide-y divide-black/5', className)} {...rest} />;
+  return <tbody className={cn('divide-y divide-border/50', className)} {...rest} />;
 }
 
 export function TableRow(props: HTMLAttributes<HTMLTableRowElement>) {

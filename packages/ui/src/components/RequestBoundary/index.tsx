@@ -3,6 +3,8 @@ import { useRequestState } from '@svton/hooks';
 
 import { EmptyState } from '../EmptyState';
 import { LoadingState } from '../LoadingState';
+import { ErrorState } from '../ErrorState';
+import { useI18n } from '../../i18n';
 
 export interface RequestBoundaryProps<T> {
   data: T | null | undefined;
@@ -16,6 +18,7 @@ export interface RequestBoundaryProps<T> {
 }
 
 export function RequestBoundary<T>(props: RequestBoundaryProps<T>) {
+  const { translate } = useI18n();
   const {
     data,
     loading = false,
@@ -42,7 +45,7 @@ export function RequestBoundary<T>(props: RequestBoundaryProps<T>) {
       return <>{errorFallback}</>;
     }
 
-    return <div style={{ padding: 24, color: 'rgba(0,0,0,0.6)', fontSize: 14 }}>{state.errorMessage || 'Request failed'}</div>;
+    return <ErrorState className="p-6" message={state.errorMessage || translate('ui.requestFailed')} />;
   }
 
   if (state.isEmpty) {

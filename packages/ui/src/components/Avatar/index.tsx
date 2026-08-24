@@ -71,12 +71,12 @@ export function AvatarGroup(props: AvatarGroupProps) {
     <div className={cn('flex', className)}>
       {displayChildren.map((child, index) => (
         <div key={index} className={cn(index > 0 && '-ml-2', 'relative')} style={{ zIndex: displayChildren.length - index }}>
-          {React.isValidElement(child) ? React.cloneElement(child as React.ReactElement<AvatarProps>, { size, className: cn('ring-2 ring-white', (child.props as AvatarProps).className) }) : child}
+          {React.isValidElement(child) ? React.cloneElement(child as React.ReactElement<AvatarProps>, { size, className: cn('ring-2 ring-background', (child.props as AvatarProps).className) }) : child}
         </div>
       ))}
       {remaining > 0 && (
         <div className="-ml-2 relative z-0">
-          <Avatar size={size} className="ring-2 ring-white bg-black/15">+{remaining}</Avatar>
+          <Avatar size={size} className="ring-2 ring-background bg-muted">+{remaining}</Avatar>
         </div>
       )}
     </div>

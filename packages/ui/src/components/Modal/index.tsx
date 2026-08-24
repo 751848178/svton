@@ -71,7 +71,7 @@ export const Modal = React.forwardRef<HTMLDivElement, ModalProps>(function Modal
         restoreFocusRef={restoreFocusRef}
         restoreFocusSelector={restoreFocusSelector}
       >
-        {mask && <div onClick={maskClosable ? onClose : undefined} className={cn('absolute inset-0 bg-black/45 dark:bg-black/65', maskAnim)} aria-hidden="true" />}
+        {mask && <div onClick={maskClosable ? onClose : undefined} className={cn('absolute inset-0 bg-mask', maskAnim)} aria-hidden="true" />}
         <div className={cn('absolute inset-0 flex justify-center pointer-events-none', centered ? 'items-center' : 'items-start pt-[100px]')}>
           <DialogFocusPanel
             ref={(node) => {

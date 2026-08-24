@@ -48,7 +48,15 @@ module.exports = {
           warning: semanticColor('status-warning'),
           error: semanticColor('status-error'),
           info: semanticColor('status-info'),
+          purple: semanticColor('status-purple'),
+          cyan: semanticColor('status-cyan'),
+          'on-color': semanticColor('status-on-color'),
         },
+        tooltip: {
+          DEFAULT: 'var(--svton-ui-tooltip-bg)',
+          foreground: 'var(--svton-ui-tooltip-foreground)',
+        },
+        mask: 'var(--svton-ui-mask)',
       },
       keyframes: {
         shimmer: {

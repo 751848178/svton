@@ -22,5 +22,11 @@ export const sharedZhCatalog = {
   'status.justNow': '刚刚',
   'permission.deniedTitle': '无权访问',
   'permission.deniedMessage': '你没有查看此内容的权限。',
+  'ui.loading': '加载中...',
+  'ui.noData': '暂无数据',
+  'ui.loadMore': '加载更多',
+  'ui.confirm': '确认',
+  'ui.cancel': '取消',
+  'ui.requestFailed': '请求失败',
   'modal.close': '关闭',
 } as const;

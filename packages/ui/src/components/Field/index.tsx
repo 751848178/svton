@@ -27,7 +27,7 @@ export function Field(props: FieldProps) {
     <label className={cn('block text-sm', className)}>
       {label ? (
         <span className="mb-1 flex items-center gap-0.5 font-medium">
-          {required ? <span className="text-red-500">*</span> : null}
+          {required ? <span className="text-destructive">*</span> : null}
           {label}
         </span>
       ) : null}

@@ -23,6 +23,8 @@ export function ProgressState(props: ProgressStateProps) {
     error: 'bg-destructive',
   };
 
+  const valueText = showPercent ? `${clampedPercent}%` : undefined;
+
   return (
     <div
       className={cn(
@@ -30,11 +32,18 @@ export function ProgressState(props: ProgressStateProps) {
         align === 'start' && 'items-start',
         align === 'center' && 'items-center',
         align === 'end' && 'items-end',
-        className
+        className,
       )}
     >
       <div className="w-full max-w-[300px]">
-        <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+        <div
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={clampedPercent}
+          aria-valuetext={valueText}
+          className="w-full h-2 bg-muted rounded-full overflow-hidden"
+        >
           <div
             className={cn('h-full rounded-full transition-all duration-300', statusColors[status])}
             style={{ width: `${clampedPercent}%` }}

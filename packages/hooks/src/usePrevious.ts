@@ -11,7 +11,7 @@
 import { useRef } from 'react';
 
 export function usePrevious<T>(value: T): T | undefined {
-  const prevRef = useRef<T>();
+  const prevRef = useRef<T | undefined>(undefined);
   const curRef = useRef<T>(value);
 
   if (curRef.current !== value) {

@@ -20,7 +20,12 @@
   --svton-ui-status-warning: #facc15;
   --svton-ui-status-error: #f87171;
   --svton-ui-status-info: #22d3ee;
+  --svton-ui-status-purple: #c084fc;
+  --svton-ui-status-cyan: #67e8f9;
   --svton-ui-status-on-color: #111827;
+  --svton-ui-tooltip-bg: #0a0a0a;
+  --svton-ui-tooltip-foreground: #f0f0f0;
+  --svton-ui-mask: rgba(0, 0, 0, 0.65);
 }
 
 :root[data-theme='light'],
@@ -42,7 +47,12 @@
   --svton-ui-status-warning: #854d0e;
   --svton-ui-status-error: #b91c1c;
   --svton-ui-status-info: #075985;
+  --svton-ui-status-purple: #7e22ce;
+  --svton-ui-status-cyan: #0e7490;
   --svton-ui-status-on-color: #ffffff;
+  --svton-ui-tooltip-bg: #1f2937;
+  --svton-ui-tooltip-foreground: #f9fafb;
+  --svton-ui-mask: rgba(0, 0, 0, 0.45);
 }
 
 :where(button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])):focus-visible {

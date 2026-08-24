@@ -1,6 +1,7 @@
 import React, { ReactNode } from 'react';
 import { Modal } from '../Modal';
 import { Button, type ButtonProps } from '../Button';
+import { useI18n } from '../../i18n';
 
 /**
  * Dialog 确认对话框
@@ -34,13 +35,14 @@ export interface DialogProps {
 }
 
 export function Dialog(props: DialogProps) {
+  const { translate } = useI18n();
   const {
     open,
     onClose,
     title,
     children,
-    confirmText = '确认',
-    cancelText = '取消',
+    confirmText,
+    cancelText,
     onConfirm,
     confirmVariant = 'primary',
     hideCancel = false,
@@ -63,7 +65,7 @@ export function Dialog(props: DialogProps) {
               variant="secondary"
               onClick={onClose}
             >
-              {cancelText}
+              {cancelText ?? translate('ui.cancel')}
             </Button>
           )}
           <Button
@@ -72,7 +74,7 @@ export function Dialog(props: DialogProps) {
             disabled={confirmDisabled}
             onClick={onConfirm}
           >
-            {confirmText}
+            {confirmText ?? translate('ui.confirm')}
           </Button>
         </div>
       }

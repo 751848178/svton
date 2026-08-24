@@ -3,7 +3,7 @@ import { cn } from '../../lib/utils';
 
 export interface VisuallyHiddenProps {
   children: ReactNode;
-  as?: keyof JSX.IntrinsicElements;
+  as?: keyof React.JSX.IntrinsicElements;
   className?: string;
 }
 

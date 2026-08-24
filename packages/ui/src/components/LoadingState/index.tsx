@@ -1,5 +1,6 @@
 import React, { ReactNode } from 'react';
 import { cn } from '../../lib/utils';
+import { useI18n } from '../../i18n';
 
 export interface LoadingStateProps {
   text?: ReactNode;
@@ -10,7 +11,9 @@ export interface LoadingStateProps {
 }
 
 export function LoadingState(props: LoadingStateProps) {
-  const { text = 'Loading...', spinner = true, className, align = 'center', justify = 'center' } = props;
+  const { translate } = useI18n();
+  const { text, spinner = true, className, align = 'center', justify = 'center' } = props;
+  const resolvedText = text ?? translate('ui.loading');
 
   return (
     <div
@@ -29,7 +32,11 @@ export function LoadingState(props: LoadingStateProps) {
       {spinner && (
         <div className="size-6 rounded-full border-[3px] border-muted-foreground/20 border-t-primary animate-spin" />
       )}
-      {text && <div className="text-sm text-muted-foreground">{text}</div>}
+      {resolvedText && (
+        <div className="text-sm text-muted-foreground" data-svton-loading-text>
+          {resolvedText}
+        </div>
+      )}
     </div>
   );
 }

@@ -13,7 +13,7 @@ import { useEffect, useRef, EffectCallback, DependencyList } from 'react';
 import { isEqual } from 'lodash-es';
 
 export function useDeepCompareEffect(effect: EffectCallback, deps: DependencyList) {
-  const ref = useRef<DependencyList>();
+  const ref = useRef<DependencyList>(undefined);
   const signalRef = useRef<number>(0);
 
   if (!isEqual(deps, ref.current)) {

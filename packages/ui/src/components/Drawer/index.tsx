@@ -66,7 +66,7 @@ export const Drawer = React.forwardRef<HTMLDivElement, DrawerProps>(function Dra
         restoreFocusRef={restoreFocusRef}
         restoreFocusSelector={restoreFocusSelector}
       >
-        {mask && <div onClick={maskClosable ? onClose : undefined} className={cn('absolute inset-0 bg-black/45 dark:bg-black/65', maskAnim)} aria-hidden="true" />}
+        {mask && <div onClick={maskClosable ? onClose : undefined} className={cn('absolute inset-0 bg-mask', maskAnim)} aria-hidden="true" />}
         <DialogFocusPanel
           ref={(node) => {
             transitionRef(node);
