@@ -1,22 +1,17 @@
+'use client';
+
+import React from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Folder } from '@phosphor-icons/react';
-import { Tag } from '@svton/ui';
-import { formatDate } from '@/lib/format-date';
+import { formatDateTimeMinute } from '@/lib/format-date';
+import { ReleaseOrderActions } from '../[id]/components/release-order-actions';
 import type { ProjectDirectoryItem } from '../types';
-
-interface ProjectCardProps {
-  project: ProjectDirectoryItem;
-}
-
-const ACTIVITY_LABELS = {
-  analysis: 'activityAnalysis',
-  deployment: 'activityDeployment',
-  release: 'activityRelease',
-  audit: 'activityAudit',
-  intake: 'activityIntake',
-  project: 'activityProject',
-} as const;
+import {
+  directoryComponentLabel,
+  environmentReadyFor,
+  type DirectoryEnvColumn,
+} from './project-directory-columns.model';
 
 const PROJECT_TYPE_LABELS: Record<string, string> = {
   web_application: 'projectTypeWebApplication',
@@ -30,112 +25,170 @@ const ARCHITECTURE_LABELS: Record<string, string> = {
   single_repository: 'architectureSingleRepository',
 };
 
-export function ProjectCard({ project }: ProjectCardProps) {
+export function ProjectDirectoryRow({
+  project,
+  envColumns,
+}: {
+  project: ProjectDirectoryItem;
+  envColumns: DirectoryEnvColumn[];
+}) {
   const t = useTranslations('projects');
-  const readyBaselines = [project.baselines.staging, project.baselines.production].filter(
-    (baseline) => baseline?.ready,
-  ).length;
-  const actionHref = project.nextAction?.href || `/projects/${project.id}`;
+  const router = useRouter();
+  const base = `/projects/${project.id}`;
+
+  // 项目列副行仅保留形态元信息（类型 · 架构）；组件明细在「组件」列。
+  const intakeFacts = [
+    project.intake.projectType ? t(PROJECT_TYPE_LABELS[project.intake.projectType] as never) : null,
+    project.intake.architecture ? t(ARCHITECTURE_LABELS[project.intake.architecture] as never) : null,
+  ].filter(Boolean);
+
+  const actions = [
+    ...(project.nextAction
+      ? [
+          {
+            key: 'fix',
+            label: t('projectDeliveryFixNow'),
+            onSelect: () => router.push(project.nextAction!.href),
+          },
+        ]
+      : []),
+    { key: 'open', label: t('enterProject'), onSelect: () => router.push(base) },
+    {
+      key: 'releases',
+      label: t('workbenchTabReleases'),
+      onSelect: () => router.push(`${base}?view=releases`),
+    },
+    {
+      key: 'configuration',
+      label: t('workbenchTabConfiguration'),
+      onSelect: () => router.push(`${base}/settings`),
+    },
+    {
+      key: 'domains',
+      label: t('workbenchTabDomains'),
+      onSelect: () => router.push(`${base}/domains`),
+    },
+  ];
+
   return (
-    <article className="px-4 py-4 transition-colors hover:bg-muted/20">
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(11rem,.8fr)] lg:items-center">
-        <div className="flex min-w-0 items-start gap-3">
-          <span
-            className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground"
-            aria-hidden="true"
-          >
-            <Folder
-              size={18}
-              weight="fill"
-            />
-          </span>
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="truncate text-base font-semibold">{project.name}</h2>
-              <Tag color={project.status === 'online' ? 'green' : 'orange'}>
-                {t(project.status === 'online' ? 'statusOnline' : 'statusNeedsConfiguration')}
-              </Tag>
-            </div>
-            <p className="mt-0.5 truncate text-xs text-muted-foreground">
-              {project.repository?.canonicalUrl ?? t('repositoryUnknown')}
-            </p>
-          </div>
-        </div>
-
-        <DirectoryCell label={t('directoryType')}>
-          <p className="font-medium">{label(t, PROJECT_TYPE_LABELS[project.intake.projectType ?? ''])}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {label(t, ARCHITECTURE_LABELS[project.intake.architecture ?? ''])}
-            {' · '}
-            {project.intake.componentCount === null
-              ? t('componentCountUnknown')
-              : t('componentCount', { count: project.intake.componentCount })}
-          </p>
-        </DirectoryCell>
-
-        <DirectoryCell label={t('directoryBaselines')}>
-          <div className="flex flex-wrap gap-1.5">
-            <BaselineTag
-              name="Staging"
-              ready={project.baselines.staging?.ready === true}
-            />
-            <BaselineTag
-              name="Production"
-              ready={project.baselines.production?.ready === true}
-            />
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {t('baselineReadiness', { ready: readyBaselines, total: 2 })}
-          </p>
-        </DirectoryCell>
-
-        <DirectoryCell label="Production">
-          <p className="font-medium">
-            {project.production.currentVersion ?? t('productionNotReleased')}
-          </p>
+    <tr className="hover:bg-muted/20">
+      {/* 项目：名称链接（正常字重）+ 形态副行；无 icon、无仓库地址。 */}
+      <td className="max-w-0 px-4 py-3">
+        <Link
+          href={base}
+          className="text-sm text-primary hover:underline"
+        >
+          {project.name}
+        </Link>
+        {intakeFacts.length > 0 ? (
           <p className="mt-0.5 truncate text-xs text-muted-foreground">
-            {project.production.domain ?? t('domainNotConfigured')}
+            {intakeFacts.join(' · ')}
           </p>
-        </DirectoryCell>
-
-        <div className="flex items-center justify-between gap-4 lg:block">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              {t('directoryRecentActivity')}
-            </p>
-            <p className="mt-0.5 text-sm">{t(ACTIVITY_LABELS[project.activity.type])}</p>
-            <p className="text-xs text-muted-foreground">
-              {formatDate(project.activity.occurredAt)}
-            </p>
-          </div>
-          <Link
-            href={actionHref}
-            data-current-action={project.nextAction?.kind || 'open_project'}
-            className="inline-flex min-h-11 items-center whitespace-nowrap rounded-md px-2 text-sm font-medium text-primary outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring lg:mt-2"
-          >
-            {t(project.nextAction ? 'projectDeliveryFixNow' : 'enterProject')} →
-          </Link>
-        </div>
-      </div>
-    </article>
+        ) : null}
+      </td>
+      {/* 状态：纯文案 + 色值（不套标签）。 */}
+      <td className="px-4 py-3">
+        <span
+          className={
+            project.status === 'online'
+              ? 'text-sm text-emerald-700'
+              : 'text-sm text-amber-700'
+          }
+        >
+          {t(project.status === 'online' ? 'statusOnline' : 'statusNeedsConfiguration')}
+        </span>
+      </td>
+      {/* 组件：列整体收窄，单元格截断；hover 气泡一行一个组件，
+          气泡可移入（antd 式：内部 padding 做悬停桥，无外部间隙）。 */}
+      <td className="max-w-[8.5rem] px-4 py-3 text-xs text-muted-foreground">
+        {project.components.length > 0 ? (
+          <span className="group relative block">
+            <span className="block truncate font-mono">
+              {directoryComponentLabel(project.components)}
+            </span>
+            <span className="absolute left-0 top-full z-40 hidden w-max min-w-40 pt-1 group-hover:block group-focus-within:block">
+              <span className="block rounded-md border bg-popover p-2 shadow-md">
+                {project.components.map((component) => (
+                  <span
+                    key={component.name}
+                    className="block whitespace-nowrap font-mono leading-5 text-foreground"
+                  >
+                    {component.port !== null ? `${component.name}:${component.port}` : component.name}
+                  </span>
+                ))}
+              </span>
+            </span>
+          </span>
+        ) : (
+          '—'
+        )}
+      </td>
+      {/* 线上版本：生产当前生效版本 + 生产域名。 */}
+      <td className="px-4 py-3 text-sm">
+        <span className="font-medium">{project.production.currentVersion ?? '—'}</span>
+        {project.production.domain ? (
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">
+            {project.production.domain}
+          </p>
+        ) : null}
+      </td>
+      {/* 最新发布时间：各环境当前版本生效时间的最大值。 */}
+      <td className="whitespace-nowrap px-4 py-3 text-sm text-muted-foreground">
+        {project.latestReleaseAt ? formatDateTimeMinute(project.latestReleaseAt) : '—'}
+      </td>
+      {envColumns.map((column) => (
+        <EnvironmentVersionCell
+          key={column.key}
+          project={project}
+          column={column}
+        />
+      ))}
+      <td className="whitespace-nowrap px-4 py-3 text-right">
+        <ReleaseOrderActions
+          actions={actions}
+          moreLabel={t('releaseOrderMoreActions')}
+        />
+      </td>
+    </tr>
   );
 }
 
-function DirectoryCell({ label: title, children }: { label: string; children: React.ReactNode }) {
+function EnvironmentVersionCell({
+  project,
+  column,
+}: {
+  project: ProjectDirectoryItem;
+  column: DirectoryEnvColumn;
+}) {
+  const t = useTranslations('projects');
+  const environment = project.environments.find((item) => item.key === column.key);
+  const version = environment?.currentVersion ?? null;
+  const ready = environmentReadyFor(project, environment?.id ?? '');
+  const href = `/projects/${project.id}/settings?section=environments&env=${encodeURIComponent(column.key)}`;
+  const title = ready === null
+    ? `${column.name}: ${version ?? t('directoryEnvNoVersion')}`
+    : `${column.name}: ${version ?? t('directoryEnvNoVersion')} · ${
+        ready ? t('directoryEnvBaselineReady') : t('directoryEnvBaselineNotReady')
+      }`;
   return (
-    <div className="min-w-0">
-      <p className="text-[10px] font-bold uppercase tracking-[0.045em] text-muted-foreground">
-        {title}
-      </p>
-      <div className="mt-1 text-sm">{children}</div>
-    </div>
+    <td className="whitespace-nowrap px-4 py-3 text-sm">
+      <Link
+        href={href}
+        title={title}
+        className="inline-flex items-center gap-1.5 text-foreground hover:text-primary hover:underline"
+      >
+        {ready !== null ? (
+          <span
+            aria-hidden="true"
+            className={`inline-block size-2 rounded-full ${
+              ready ? 'bg-emerald-500' : 'bg-muted-foreground/40'
+            }`}
+          />
+        ) : null}
+        <span className={version ? '' : 'text-muted-foreground'}>
+          {version ?? '—'}
+        </span>
+      </Link>
+    </td>
   );
-}
-
-function BaselineTag({ name, ready }: { name: string; ready: boolean }) {
-  return <Tag color={ready ? 'green' : 'default'}>{name}</Tag>;
-}
-
-function label(t: ReturnType<typeof useTranslations>, key?: string) {
-  return key ? t(key) : t('directoryUnknown');
 }

@@ -5,6 +5,7 @@
  */
 'use client';
 
+import React from 'react';
 import type { useProjectDetail } from '../../hooks/use-project-detail';
 import { useEnvironmentDeploymentTargets } from '../../hooks/use-environment-deployment-targets';
 import type { ProjectEnvironment } from '../../types';
@@ -15,11 +16,12 @@ import type {
 } from '../../types/environment-config-revision.types';
 import type { SettingsEnvTab } from '../../utils/project-route.utils';
 import type { SettingsObservabilityDraft, SettingsRouteDraft } from './settings-env.model';
-import { EnvProtectionTab } from './settings-env-protection-tab';
+import { EnvironmentVersionConfig } from './environment-version-config';
+import { EnvAccessTab } from './settings-env-access-tab';
 import { EnvResourcesTab } from './settings-env-resources-tab';
-import { EnvRoutesTab } from './settings-env-routes-tab';
 import { EnvTargetsTab } from './settings-env-targets-tab';
 import { EnvVariablesTab } from './settings-env-variables-tab';
+import { EnvVerificationTab } from './settings-env-verification-tab';
 
 export type DetailHook = ReturnType<typeof useProjectDetail>;
 export type DeploymentTargetsHook = ReturnType<typeof useEnvironmentDeploymentTargets>;
@@ -32,7 +34,13 @@ export interface EnvTabContext {
   setSecrets: (next: EnvironmentConfigSecretReference[]) => void;
   policyIds: string[];
   setPolicyIds: (next: string[]) => void;
-  policies: Array<{ id: string; name: string; effect: string }>;
+  policies: Array<{
+    id: string;
+    name: string;
+    effect: string;
+    actions?: string[];
+    categories?: string[];
+  }>;
   resources: EnvironmentConfigResourceReference[];
   setResources: (next: EnvironmentConfigResourceReference[]) => void;
   route: SettingsRouteDraft;
@@ -49,8 +57,21 @@ export interface EnvTabContext {
 
 export function renderEnvTab(envTab: SettingsEnvTab, ctx: EnvTabContext) {
   switch (envTab) {
+    case 'versions':
+      return (
+        <EnvironmentVersionConfig
+          projectId={ctx.detail.project?.id ?? ''}
+          environment={ctx.environment}
+        />
+      );
     case 'targets':
-      return <EnvTargetsTab environment={ctx.environment} detail={ctx.detail} targets={ctx.targets} />;
+      return (
+        <EnvTargetsTab
+          environment={ctx.environment}
+          detail={ctx.detail}
+          targets={ctx.targets}
+        />
+      );
     case 'resources':
       return (
         <EnvResourcesTab
@@ -74,28 +95,27 @@ export function renderEnvTab(envTab: SettingsEnvTab, ctx: EnvTabContext) {
           environments={ctx.environments}
         />
       );
-    case 'routes':
+    case 'access':
       return (
-        <EnvRoutesTab
+        <EnvAccessTab
           environment={ctx.environment}
-          detail={ctx.detail}
-          route={ctx.route}
-          onRouteChange={ctx.setRoute}
-          revision={ctx.revision}
-          deploymentRuns={ctx.detail.deploymentRuns}
-        />
-      );
-    case 'protection':
-      return (
-        <EnvProtectionTab
-          environment={ctx.environment}
-          detail={ctx.detail}
           policies={ctx.policies}
           policyIds={ctx.policyIds}
           onPolicyIdsChange={ctx.setPolicyIds}
-          observability={ctx.observability}
-          onObservabilityChange={ctx.setObservability}
+        />
+      );
+    case 'verification':
+      return (
+        <EnvVerificationTab
+          value={ctx.observability}
+          onChange={ctx.setObservability}
+          environmentLabel={environmentDisplayName(ctx.environment)}
         />
       );
   }
+}
+
+/** SET-8/SET-18：统一「中文名 (key)」环境命名。 */
+function environmentDisplayName(environment: ProjectEnvironment): string {
+  return `${environment.name} (${environment.key})`;
 }

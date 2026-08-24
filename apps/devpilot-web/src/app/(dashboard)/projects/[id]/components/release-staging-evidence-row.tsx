@@ -1,13 +1,22 @@
 import React, { type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
-import { Button, StatusTag } from '@/components/ui';
+import { FlowStatusTag } from './release-workbench/release-flow-status-tag';
 import type { ReleaseBuildItem, ReleaseStagingDeploymentItem } from '../types/release-order.types';
 import { releaseRunStatusLabelKey } from '../utils/release-copy.model';
 import { stagingBusinessConclusion, stagingTechnicalConclusion } from '../utils/release-staging-view.model';
 import { formatDuration, formatIso } from '../utils/release-time.utils';
+import {
+  providerKeyLabel,
+  shortDigest,
+  shortTechnicalId,
+} from '../utils/release-display.utils';
 import { releaseOrderStatusTone } from '../utils/release-order.utils';
-import { ReleaseDeploymentEvidenceLink } from './release-deployment-evidence-link';
+import { ReleaseOrderActions } from './release-order-actions';
 
+/**
+ * PX-3/ROD-4/PX-23：行首 cuid 折叠为前 8 位（title 全文，不 break-all）；
+ * 构建列以 `BuildRun #revision` 为主、cuid 折叠；Manifest 只展示短 digest。
+ */
 export function ReleaseStagingEvidenceRow(props: {
   run: ReleaseStagingDeploymentItem;
   build: ReleaseBuildItem | null;
@@ -22,16 +31,41 @@ export function ReleaseStagingEvidenceRow(props: {
   return (
     <tr className={props.focused ? 'bg-primary/5' : undefined} aria-current={props.focused ? 'true' : undefined} data-deployment-run-id={props.run.id}>
       <RowHeader>
-        <code className="block break-all font-semibold">DeploymentRun {props.run.id}</code>
-        <span className="mt-1 block text-xs text-muted-foreground">{props.run.adapterKey || props.run.executorKey}</span>
+        <span className="block truncate font-semibold">
+          DeploymentRun <span title={props.run.id}>{shortTechnicalId(props.run.id)}</span>
+        </span>
+        <span
+          className="mt-1 block truncate text-xs text-muted-foreground"
+          title={props.run.adapterKey || props.run.executorKey || undefined}
+        >
+          {providerKeyLabel(props.run.adapterKey || props.run.executorKey)}
+        </span>
       </RowHeader>
       <Cell>
-        <strong className="block">{props.build ? `BuildRun ${props.build.id} · R${props.build.revision}` : t('releaseStagingBuildUnavailable')}</strong>
-        <code className="mt-1 block break-all text-xs">Manifest {manifestId || '—'}</code>
-        {props.build?.manifest?.digest ? <code className="block truncate text-xs text-muted-foreground">{props.build.manifest.digest}</code> : null}
+        <strong className="block truncate">
+          {props.build
+            ? t('releaseBuildRevision', { revision: props.build.revision })
+            : t('releaseStagingBuildUnavailable')}
+        </strong>
+        {props.build ? (
+          <code
+            className="block truncate text-xs text-muted-foreground"
+            title={props.build.id}
+          >
+            BuildRun {shortTechnicalId(props.build.id)}
+          </code>
+        ) : null}
+        <code
+          className="block truncate text-xs"
+          title={manifestId ? `${manifestId} · ${props.build?.manifest?.digest ?? ''}` : undefined}
+        >
+          {shortDigest(props.build?.manifest?.digest) === '—'
+            ? shortTechnicalId(manifestId || undefined)
+            : shortDigest(props.build?.manifest?.digest)}
+        </code>
       </Cell>
       <Cell>
-        <StatusTag status={releaseOrderStatusTone(props.run.status)} label={t(releaseRunStatusLabelKey(props.run.status))} />
+        <FlowStatusTag status={releaseOrderStatusTone(props.run.status)} label={t(releaseRunStatusLabelKey(props.run.status))} />
         {props.run.error ? <span className="mt-1 block line-clamp-2 text-xs text-red-700">{props.run.error}</span> : null}
       </Cell>
       <Cell>
@@ -40,14 +74,27 @@ export function ReleaseStagingEvidenceRow(props: {
       </Cell>
       <Cell>
         <span className="block">{formatDuration(props.run.startedAt, props.run.finishedAt) || '—'}</span>
-        <time className="block text-xs text-muted-foreground" dateTime={props.run.createdAt}>{formatIso(props.run.createdAt)}</time>
+        <time className="block truncate text-xs text-muted-foreground" dateTime={props.run.createdAt}>{formatIso(props.run.createdAt)}</time>
       </Cell>
-      <Cell>
-        <div className="flex flex-col items-start gap-2">
-          <Button size="sm" variant="outline" aria-label={t('viewReleaseStagingLogsForRun', { id: props.run.id })} onClick={() => props.onOpenLog(props.run.id)}>{t('viewReleaseStagingLogs')}</Button>
-          <Button size="sm" aria-label={t('deployExactManifestForRun', { runId: props.run.id, manifestId })} disabled={!manifestId || props.deploying || props.deploymentAllowed === false} onClick={() => props.onDeploy(manifestId)}>{t('deployExactManifest')}</Button>
-          <ReleaseDeploymentEvidenceLink projectId={props.run.projectId} runId={props.run.id} />
-        </div>
+      {/* 操作列与项目列表一致：ReleaseOrderActions（文字链接 + 溢出菜单）；
+          部署证据入口保留在日志抽屉内，行内不再重复。 */}
+      <Cell className="text-right">
+        <ReleaseOrderActions
+          actions={[
+            {
+              key: 'log',
+              label: t('viewReleaseStagingLogs'),
+              onSelect: () => props.onOpenLog(props.run.id),
+            },
+            {
+              key: 'redeploy',
+              label: t('deployExactManifest'),
+              disabled: !manifestId || props.deploying || props.deploymentAllowed === false,
+              onSelect: () => props.onDeploy(manifestId),
+            },
+          ]}
+          moreLabel={t('releaseOrderMoreActions')}
+        />
       </Cell>
     </tr>
   );
@@ -55,8 +102,8 @@ export function ReleaseStagingEvidenceRow(props: {
 
 function Conclusion(props: { label: string; conclusion: ReturnType<typeof stagingTechnicalConclusion> }) {
   const t = useTranslations('projects');
-  return <div className="mb-1 flex flex-wrap items-center gap-1 last:mb-0"><span className="text-xs text-muted-foreground">{props.label}</span><StatusTag status={props.conclusion.tone} label={t(props.conclusion.key)} /></div>;
+  return <div className="mb-1 flex flex-wrap items-center gap-1 last:mb-0"><span className="text-xs text-muted-foreground">{props.label}</span><FlowStatusTag status={props.conclusion.tone} label={t(props.conclusion.key)} /></div>;
 }
 
-function Cell({ children }: { children: ReactNode }) { return <td className="px-4 py-3 align-top">{children}</td>; }
-function RowHeader({ children }: { children: ReactNode }) { return <th scope="row" className="px-4 py-3 text-left align-top font-normal">{children}</th>; }
+function Cell({ children, className }: { children: ReactNode; className?: string }) { return <td className={`px-3 py-3 align-top ${className ?? ''}`}>{children}</td>; }
+function RowHeader({ children }: { children: ReactNode }) { return <th scope="row" className="px-3 py-3 text-left align-top font-normal">{children}</th>; }

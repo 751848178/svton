@@ -14,7 +14,7 @@
  * 默认按钮文案为 确认 / 取消，可用 confirmLabel / cancelLabel 覆盖。
  */
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button, cn } from '@svton/ui';
 import { Modal } from './modal';
 

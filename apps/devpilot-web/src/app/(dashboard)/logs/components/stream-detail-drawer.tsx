@@ -9,6 +9,7 @@
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { Drawer } from '@svton/ui';
+import { Input, Select } from '@/components/ui';
 import { PolicyPanels } from './policy-panels';
 import { LogsRunsSection } from './logs-runs-section';
 import type { useLogs } from '../hooks/use-logs';
@@ -60,20 +61,22 @@ function ManualAppendCard({ logs }: { logs: LogsHook }) {
     <div className="rounded-lg border p-4">
       <h3 className="mb-3 text-sm font-medium">{tl('injectEntry')}</h3>
       <div className="flex flex-wrap gap-2">
-        <select
+        <Select
+          size="sm"
           value={s.entryLevel}
           onChange={(e) => s.setEntryLevel(e.target.value as never)}
-          className="rounded-md border bg-background px-3 py-1.5 text-sm"
+          className="w-auto"
         >
           <option value="info">info</option>
           <option value="warn">warn</option>
           <option value="error">error</option>
-        </select>
-        <input
+        </Select>
+        <Input
+          size="sm"
           value={s.entryMessage}
           onChange={(e) => s.setEntryMessage(e.target.value)}
           placeholder={tl('entryMessagePlaceholder')}
-          className="min-w-48 flex-1 rounded-md border bg-background px-3 py-1.5 text-sm"
+          className="min-w-48 flex-1"
         />
         <button
           onClick={handle}

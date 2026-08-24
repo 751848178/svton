@@ -12,8 +12,12 @@ vi.mock('next-intl', () => ({
   useTranslations: () => (key: string) => key,
 }));
 vi.mock('@svton/ui', () => ({
+  Input: (props: Record<string, unknown>) => <input {...props} />,
+  Select: (props: Record<string, unknown>) => <select {...(props as object)}>{(props as { children?: React.ReactNode }).children}</select>,
+  Textarea: (props: Record<string, unknown>) => <textarea {...props} />,
   Button: ({ children, onClick, disabled }: React.ButtonHTMLAttributes<HTMLButtonElement>) =>
     <button disabled={disabled} onClick={onClick}>{children}</button>,
+  Modal: () => null,
 }));
 
 describe('ReleaseProductionPromotionManualGate', () => {

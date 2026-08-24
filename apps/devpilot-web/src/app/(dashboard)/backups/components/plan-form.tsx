@@ -9,6 +9,7 @@
 
 import { useForm } from 'react-hook-form';
 import { useTranslations } from 'next-intl';
+import { Input, Select } from '@/components/ui';
 import { feedback } from '@/components/ui/feedback/feedback';
 import type { ManagedResource, BackupPlanInput } from '../types';
 import { providerLabels, kindLabels } from '../constants';
@@ -66,10 +67,7 @@ export function PlanForm({ resources, creating, onCreate }: PlanFormProps) {
     <div className="rounded-lg border p-4">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(180px,0.6fr)_minmax(160px,0.5fr)_minmax(140px,0.4fr)_auto]">
         <Field label={t('resource')}>
-          <select
-            {...register('resourceId')}
-            className="min-h-11 w-full rounded-md border px-3 py-2"
-          >
+          <Select {...register('resourceId')}>
             <option value="">{t('selectResource')}</option>
             {resources.map((r) => (
               <option
@@ -80,32 +78,27 @@ export function PlanForm({ resources, creating, onCreate }: PlanFormProps) {
                 {kindLabels[r.kind] || r.kind}
               </option>
             ))}
-          </select>
+          </Select>
         </Field>
         <Field label={tc('name')}>
-          <input
+          <Input
             {...register('name')}
             placeholder={selected ? t('defaultPlanName', { name: selected.name }) : t('planName')}
-            className="min-h-11 w-full rounded-md border px-3 py-2"
           />
         </Field>
         <Field label={tc('type')}>
-          <select
-            {...register('backupType')}
-            className="min-h-11 w-full rounded-md border px-3 py-2"
-          >
+          <Select {...register('backupType')}>
             <option value="auto">{t('backupTypeAuto')}</option>
             <option value="logical">{t('backupTypeLogical')}</option>
             <option value="snapshot">{t('backupTypeSnapshot')}</option>
             <option value="file">{t('backupTypeFile')}</option>
-          </select>
+          </Select>
         </Field>
         <Field label={t('retentionDays')}>
-          <input
+          <Input
             type="number"
             min={1}
             {...register('retentionDays', { valueAsNumber: true })}
-            className="min-h-11 w-full rounded-md border px-3 py-2"
           />
         </Field>
         <div className="flex items-end">

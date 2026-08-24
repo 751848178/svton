@@ -8,7 +8,7 @@
 
 import { useTranslations } from 'next-intl';
 import { LoadingState, EmptyState } from '@svton/ui';
-import { MetricCard } from '@/components/ui';
+import { MetricCard, Select } from '@/components/ui';
 import { CollapsibleGroup } from './collapsible-group';
 import { StatusBadge } from './ui-bits';
 import type { ServerExecutionLease } from '../types';
@@ -42,10 +42,9 @@ export function LeaseList({
         </div>
         <label className="block w-44 text-sm">
           <span className="mb-1 block font-medium">{tc('status')}</span>
-          <select
+          <Select
             value={leaseStatus}
             onChange={(e) => onLeaseStatusChange(e.target.value)}
-            className="min-h-11 w-full rounded-md border px-3"
           >
             <option value="running">{t('statusRunning')}</option>
             <option value="blocked">{t('statusBlocked')}</option>
@@ -53,7 +52,7 @@ export function LeaseList({
             <option value="failed">{tc('failed')}</option>
             <option value="expired">{t('statusExpired')}</option>
             <option value="all">{tc('all')}</option>
-          </select>
+          </Select>
         </label>
       </div>
 

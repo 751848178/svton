@@ -21,6 +21,12 @@ interface EditSiteModalProps {
   projects: Project[];
   projectEnvironments: ProjectEnvironment[];
   proxyConfigs: ProxyConfig[];
+  lockedContext?: {
+    projectId: string;
+    projectName: string;
+    environmentId: string;
+    environmentName: string;
+  };
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -58,6 +64,7 @@ export function EditSiteModal({
   projects,
   projectEnvironments,
   proxyConfigs,
+  lockedContext,
   onClose,
   onSuccess,
 }: EditSiteModalProps) {
@@ -87,8 +94,10 @@ export function EditSiteModal({
           basicAuth: data.basicAuth,
         },
         serverId: data.serverId || undefined,
-        projectId: data.projectId || undefined,
-        environmentId: data.environmentId || undefined,
+        projectId: lockedContext ? lockedContext.projectId : data.projectId || undefined,
+        environmentId: lockedContext
+          ? lockedContext.environmentId
+          : data.environmentId || undefined,
       });
       feedback.success(t('editSiteSuccess'));
       onSuccess();
@@ -107,8 +116,19 @@ export function EditSiteModal({
         className="fixed inset-0 bg-black/50"
         onClick={onClose}
       />
-      <div className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-background p-6 shadow-lg">
-        <h2 className="mb-4 text-lg font-semibold">{t('editSite')}</h2>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="edit-site-modal-title"
+        className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-background p-6 shadow-lg"
+      >
+        {/* DOM-7：编辑标题必须点名对象，不再只有「编辑」二字。 */}
+        <h2
+          id="edit-site-modal-title"
+          className="mb-4 text-lg font-semibold"
+        >
+          {t('editSiteTitle', { name: site.name })}
+        </h2>
         {error && (
           <div className="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
             {error}
@@ -123,6 +143,7 @@ export function EditSiteModal({
             servers={servers}
             projects={projects}
             projectEnvironments={projectEnvironments}
+            lockedContext={lockedContext}
             onChange={updateFormData}
           />
           <RuntimeConfigFields

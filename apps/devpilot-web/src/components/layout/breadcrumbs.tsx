@@ -1,8 +1,12 @@
 'use client';
 
+import React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import useSWR from 'swr';
+import { apiRequest } from '@/lib/api-client';
+import type { ReleaseOrderDetail } from '@/app/(dashboard)/projects/[id]/types/release-order.types';
 import { ROUTE_SEGMENT_LABEL_KEYS } from './route-labels';
 
 /** 动态段(如 /projects/[id])展示为前 8 位短 ID,全文放 title。 */
@@ -41,11 +45,47 @@ interface BreadcrumbEntry {
   title?: string;
 }
 
+/** /projects/:id 下的项目段用项目名替代 raw ID（INFO-3/SET-9）。加载中或失败回退短 ID。 */
+function useProjectBreadcrumbName(projectId: string | null): string | null {
+  const { data } = useSWR(
+    projectId ? `breadcrumb:project:${projectId}` : null,
+    () => apiRequest<{ name?: string }>(`GET:/projects/${projectId}`),
+  );
+  return data?.name?.trim() || null;
+}
+
+/** 发布单末段：/releases + releaseOrderId 时显示发布单显示名（版本名/版本号）。 */
+function useReleaseOrderBreadcrumbName(
+  projectId: string | null,
+  releaseOrderId: string | null,
+): string | null {
+  const { data } = useSWR(
+    projectId && releaseOrderId ? `breadcrumb:release-order:${projectId}:${releaseOrderId}` : null,
+    () =>
+      apiRequest<ReleaseOrderDetail>(
+        `GET:/projects/${projectId}/delivery/releases/${releaseOrderId}`,
+      ),
+  );
+  const detail = data;
+  if (!detail) return null;
+  const name = detail.releaseName?.trim();
+  const version = detail.releaseVersion?.trim();
+  return name && name !== version ? name : version || null;
+}
+
 export function Breadcrumbs() {
   const t = useTranslations('nav');
   const pathname = usePathname();
 
   const segments = pathname.split('/').filter(Boolean);
+  const searchParams = useSearchParams();
+  const projectSegmentId =
+    segments[0] === 'projects' && isLikelyId(segments[1] ?? '') ? (segments[1] as string) : null;
+  // hooks 必须先于任何条件 return 调用
+  const projectName = useProjectBreadcrumbName(projectSegmentId);
+  const onReleaseOrderPage = segments[2] === 'releases';
+  const releaseOrderId = onReleaseOrderPage ? searchParams.get('releaseOrderId')?.trim() || null : null;
+  const releaseOrderName = useReleaseOrderBreadcrumbName(projectSegmentId, releaseOrderId);
 
   // 列表页(单段)不渲染面包屑;二级及以上才渲染
   if (segments.length < 2) {
@@ -57,6 +97,10 @@ export function Breadcrumbs() {
     const labelKey = ROUTE_SEGMENT_LABEL_KEYS[segment];
     if (labelKey) {
       return { href, label: t(labelKey) };
+    }
+    // 项目动态段:优先项目名；PX-3：友好名下不再挂 raw cuid title（短 ID 回退态仍保留 title 供核对）。
+    if (segment === projectSegmentId && projectName) {
+      return { href, label: projectName };
     }
     // 动态 ID 段:截断短 ID + title 全文
     if (isLikelyId(segment)) {
@@ -75,6 +119,13 @@ export function Breadcrumbs() {
       label: segment.charAt(0).toUpperCase() + segment.slice(1),
     };
   });
+  // 发布单末段（query 驱动，链接到发布详情）。PX-3：显示名下不挂 raw releaseOrderId title。
+  if (onReleaseOrderPage && releaseOrderId && releaseOrderName) {
+    entries.push({
+      href: `${pathname}?releaseOrderId=${encodeURIComponent(releaseOrderId)}`,
+      label: releaseOrderName,
+    });
+  }
 
   return (
     <nav aria-label="breadcrumb" className="mb-4">

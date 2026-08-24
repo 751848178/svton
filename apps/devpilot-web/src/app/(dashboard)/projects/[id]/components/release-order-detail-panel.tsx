@@ -8,12 +8,14 @@ import { useReleaseBuilds } from '../hooks/use-release-builds';
 import { useReleaseOrderDetail } from '../hooks/use-release-order-detail';
 import { useReleaseOrderEvidence } from '../hooks/use-release-order-evidence';
 import { useReleaseGateCatalog } from '../hooks/use-release-gate-catalog';
+import { useReleaseStagingDeployments } from '../hooks/use-release-staging-deployments';
 import { useReleaseOrderWorkbenchNavigation } from '../hooks/use-release-order-workbench-navigation';
 import { scopedRequestIdentity } from '../hooks/use-scoped-request-guard';
 import type { ProjectDeliverySummary } from '../types/project-delivery-summary.types';
 import type { ReleaseOrderDetail } from '../types/release-order.types';
 import { buildReleaseOrderGateView } from './release-order-gate-view.model';
 import { ReleaseOrderDetailWorkbench } from './release-workbench/release-order-detail-workbench';
+
 interface Props {
   projectId: string;
   releaseOrderId: string;
@@ -37,6 +39,7 @@ export function ReleaseOrderDetailPanel(props: Props) {
     await Promise.all([loadOrder(), loadEvidence(), onOrdersChanged()]);
   }, [loadEvidence, loadOrder, onOrdersChanged]);
   const builds = useReleaseBuilds(projectId, releaseOrderId, refresh, Boolean(detail), 50);
+  const deployments = useReleaseStagingDeployments(projectId, releaseOrderId, refresh);
   const gateView = buildReleaseOrderGateView({
     projectId,
     locale,
@@ -53,26 +56,30 @@ export function ReleaseOrderDetailPanel(props: Props) {
       />
     );
   }
+  const buildFrozen = detail.counts.releaseRuns > 0;
   const triggerBuild = () => {
-    if (!gateView.build.allowed) return;
+    if (!gateView.build.allowed || buildFrozen || builds.building) return;
     navigation.selectStep('build');
     void builds.buildLatest();
   };
 
   return (
-    <ReleaseOrderDetailWorkbench
-      projectId={projectId}
-      releaseOrderId={releaseOrderId}
-      projectSummary={props.projectSummary}
-      detail={detail}
-      builds={builds}
-      evidence={evidence}
-      gateCatalog={gateCatalog}
-      gateView={gateView}
-      navigation={navigation}
-      onRefresh={refresh}
-      onBuildLatest={triggerBuild}
-    />
+    <div className="relative">
+      <ReleaseOrderDetailWorkbench
+        projectId={projectId}
+        releaseOrderId={releaseOrderId}
+        projectSummary={props.projectSummary}
+        detail={detail}
+        builds={builds}
+        deployments={deployments}
+        evidence={evidence}
+        gateCatalog={gateCatalog}
+        gateView={gateView}
+        navigation={navigation}
+        onRefresh={refresh}
+        onBuildLatest={triggerBuild}
+      />
+    </div>
   );
 }
 

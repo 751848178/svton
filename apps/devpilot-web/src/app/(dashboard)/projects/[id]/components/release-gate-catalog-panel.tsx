@@ -20,8 +20,13 @@ export function ReleaseGateCatalogPanel({
 
 export function ReleaseGateCatalogView({
   controller,
+  stage = 'build',
+  stageLabel,
 }: {
   controller: ReturnType<typeof useReleaseGateCatalog>;
+  /** PX-1：计数口径 = 当前执行阶段决策；独立面板缺省 build。 */
+  stage?: 'build' | 'staging' | 'production';
+  stageLabel?: string;
 }) {
   const t = useTranslations('projects');
   const dialogId = useId();
@@ -60,6 +65,8 @@ export function ReleaseGateCatalogView({
     <>
       <ReleaseGateSummary
         catalog={catalog}
+        stage={stage}
+        stageLabel={stageLabel || t('releaseOrderStepBuild')}
         dialogId={dialogId}
         dialogOpen={dialogOpen}
         onOpenCatalog={(capabilityIds) => {

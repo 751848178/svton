@@ -13,8 +13,9 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
+import { Textarea } from '@/components/ui';
 import { useTranslations } from 'next-intl';
-import { Modal, Textarea } from '@svton/ui';
+import { Modal } from '@svton/ui';
 import { parseEnvText } from '../utils/env-file-parser.utils';
 
 type ProjectsTranslator = ReturnType<typeof useTranslations<'projects'>>;

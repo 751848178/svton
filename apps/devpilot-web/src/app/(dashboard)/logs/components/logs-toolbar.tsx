@@ -7,9 +7,9 @@
  */
 'use client';
 
+import { Input, Select } from '@/components/ui';
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
-import { Input, Select } from '@svton/ui';
 import type { useLogs } from '../hooks/use-logs';
 
 type LogsHook = ReturnType<typeof useLogs>;

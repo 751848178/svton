@@ -51,9 +51,15 @@ describe('ReleaseBuildHistoryTable', () => {
     });
 
     expect(container.querySelectorAll('thead th')).toHaveLength(6);
-    expect(container.textContent).toContain('build-success');
-    expect(container.textContent).toContain('manifest-1');
+    // PX-3/ROD-4：行首以 #revision 为主，cuid 折叠为前 8 位（title 全文）。
+    expect(container.textContent).toContain('build-su…');
+    const idCode = container.querySelector('tbody tr td:first-child code');
+    expect(idCode?.getAttribute('title')).toBe('build-success');
     expect(container.textContent).toContain('sha256:digest-1');
+    // PX-3：Manifest cuid 不再直接上屏，折叠进 title（与 digest 一起可核对）。
+    expect(container.textContent).not.toContain('manifest-1');
+    const manifestCell = container.querySelector('tbody tr td:nth-child(4) code');
+    expect(manifestCell?.getAttribute('title')).toBe('manifest-1 · sha256:digest-1');
     expect(container.textContent).toContain('1m 5s');
     expect(container.querySelector('[data-tone="success"]')).not.toBeNull();
     expect(container.querySelector('[data-tone="idle"]')).not.toBeNull();

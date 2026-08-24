@@ -1,15 +1,17 @@
 'use client';
 
-import React from 'react';
+import React, { useRef } from 'react';
+import { Cube, Crosshair, Heartbeat, Key, LinkSimple, Lock } from '@phosphor-icons/react';
 import { useTranslations } from 'next-intl';
 import type { SettingsEnvTab } from '../../utils/project-route.utils';
 
-const ENV_TAB_KEYS: Array<{ key: SettingsEnvTab; labelKey: string }> = [
+const ITEMS: Array<{ key: SettingsEnvTab; labelKey: string }> = [
+  { key: 'versions', labelKey: 'envTabVersions' },
   { key: 'targets', labelKey: 'envTabTargets' },
   { key: 'resources', labelKey: 'envTabResources' },
   { key: 'variables', labelKey: 'envTabVariables' },
-  { key: 'routes', labelKey: 'envTabRoutes' },
-  { key: 'protection', labelKey: 'envTabProtection' },
+  { key: 'access', labelKey: 'envTabAccess' },
+  { key: 'verification', labelKey: 'envTabVerification' },
 ];
 
 export function EnvironmentSettingsTablist(props: {
@@ -19,49 +21,97 @@ export function EnvironmentSettingsTablist(props: {
   onSelect: (tab: SettingsEnvTab) => void;
 }) {
   const t = useTranslations('projects');
-  const selectFromKeyboard = (
-    event: React.KeyboardEvent<HTMLButtonElement>,
-    index: number,
-  ) => {
-    const nextIndex = keyboardTarget(event.key, index, ENV_TAB_KEYS.length);
-    if (nextIndex === null) return;
-    event.preventDefault();
-    const next = ENV_TAB_KEYS[nextIndex];
+  const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const moveTo = (index: number) => {
+    const next = ITEMS[index];
     if (!next) return;
     props.onSelect(next.key);
-    document.getElementById(`${props.tablistId}-${next.key}-tab`)?.focus();
+    itemRefs.current[index]?.focus();
+  };
+  const onKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+    const last = ITEMS.length - 1;
+    const nextIndex = {
+      ArrowRight: (index + 1) % ITEMS.length,
+      ArrowDown: (index + 1) % ITEMS.length,
+      ArrowLeft: (index - 1 + ITEMS.length) % ITEMS.length,
+      ArrowUp: (index - 1 + ITEMS.length) % ITEMS.length,
+      Home: 0,
+      End: last,
+    }[event.key];
+    if (nextIndex === undefined) return;
+    event.preventDefault();
+    moveTo(nextIndex);
   };
   return (
-    <div role="tablist" aria-label={t('envTabNavLabel')} className="flex flex-wrap gap-1 border-b">
-      {ENV_TAB_KEYS.map(({ key, labelKey }, index) => (
-        <button
-          key={key}
-          id={`${props.tablistId}-${key}-tab`}
-          type="button"
-          role="tab"
-          tabIndex={props.selected === key ? 0 : -1}
-          aria-selected={props.selected === key}
-          aria-controls={props.panelId}
-          onClick={() => props.onSelect(key)}
-          onKeyDown={(event) => selectFromKeyboard(event, index)}
-          className={
-            props.selected === key
-              ? 'min-h-11 border-b-2 border-primary px-3 py-2 text-xs font-medium text-primary'
-              : 'min-h-11 px-3 py-2 text-xs text-muted-foreground hover:text-foreground'
-          }
+    <>
+      <label className="block lg:hidden">
+        <span className="mb-1 block text-xs font-medium text-muted-foreground">
+          {t('envTabMobileNavigationLabel')}
+        </span>
+        <select
+          className="min-h-11 w-full rounded-md border bg-background px-3 text-sm"
+          value={props.selected}
+          onChange={(event) => props.onSelect(event.target.value as SettingsEnvTab)}
         >
-          <span className="mr-1 text-[10px] text-muted-foreground">{index + 1}</span>
-          {t(labelKey)}
-        </button>
-      ))}
-    </div>
+          {ITEMS.map(({ key, labelKey }) => (
+            <option
+              key={key}
+              value={key}
+            >
+              {t(labelKey)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div
+        role="tablist"
+        aria-orientation="vertical"
+        aria-label={t('envTabNavLabel')}
+        className="hidden gap-1 border-r pr-5 lg:flex lg:flex-col"
+      >
+        {ITEMS.map(({ key, labelKey }, index) => (
+          <button
+            key={key}
+            ref={(node) => {
+              itemRefs.current[index] = node;
+            }}
+            id={`${props.tablistId}-${key}-tab`}
+            type="button"
+            role="tab"
+            aria-selected={props.selected === key}
+            aria-controls={props.panelId}
+            tabIndex={props.selected === key ? 0 : -1}
+            onClick={() => props.onSelect(key)}
+            onKeyDown={(event) => onKeyDown(event, index)}
+            className={
+              props.selected === key
+                ? 'flex min-h-11 min-w-40 items-center gap-3 rounded-md border-l-2 border-primary bg-primary/10 px-3 text-left text-sm font-medium text-primary'
+                : 'flex min-h-11 min-w-40 items-center gap-3 rounded-md border-l-2 border-transparent px-3 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground'
+            }
+          >
+            <TabIcon tab={key} />
+            {t(labelKey)}
+          </button>
+        ))}
+      </div>
+    </>
   );
 }
 
-function keyboardTarget(key: string, index: number, length: number) {
-  if (key === 'Home') return 0;
-  if (key === 'End') return length - 1;
-  if (key === 'ArrowRight' || key === 'ArrowDown') return (index + 1) % length;
-  if (key === 'ArrowLeft' || key === 'ArrowUp') return (index - 1 + length) % length;
-  return null;
+function TabIcon({ tab }: { tab: SettingsEnvTab }) {
+  const props = { size: 18, 'aria-hidden': true } as const;
+  switch (tab) {
+    case 'versions':
+      return <Cube {...props} />;
+    case 'targets':
+      return <Crosshair {...props} />;
+    case 'resources':
+      return <LinkSimple {...props} />;
+    case 'variables':
+      return <Key {...props} />;
+    case 'access':
+      return <Lock {...props} />;
+    case 'verification':
+      return <Heartbeat {...props} />;
+  }
 }

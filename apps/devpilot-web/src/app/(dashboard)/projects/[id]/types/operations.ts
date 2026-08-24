@@ -76,6 +76,7 @@ export interface DeploymentRun {
   } | null;
   targetType: string;
   dryRun: boolean;
+  artifactManifest?: { id: string; releaseOrderId: string } | null;
   mode?: 'deploy' | 'rollback' | string;
   source: string;
   status: string;
@@ -102,7 +103,7 @@ export interface DeploymentRun {
     releaseStage: {
       id: string;
       name: string;
-      releasePlan: { id: string; name: string; status: string };
+      releasePlan: { id: string; name: string; status: string; releaseOrderId?: string | null };
     };
   }>;
 }

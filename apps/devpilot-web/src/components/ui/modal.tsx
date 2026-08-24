@@ -11,6 +11,7 @@
  * 单一职责：透传 props，归一化类型。行为与 @svton/ui Modal 完全一致。
  */
 
+import React from 'react';
 import { Modal as UiModal, type ModalProps as UiModalProps } from '@svton/ui';
 
 export interface ModalProps extends UiModalProps {

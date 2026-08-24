@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Button } from '@svton/ui';
 import { useTranslations } from 'next-intl';
 import { feedback } from '@/components/ui/feedback/feedback';
+import { Input } from '@/components/ui';
 import { useEnvironmentConfigGovernance } from '../hooks/use-environment-config-governance';
 import type { Project, ProjectEnvironment } from '../types';
 import type {
@@ -130,8 +131,9 @@ export function EnvironmentConfigGovernanceSection({
             onChange={setResources}
             currentReferences={current?.resourceReferences ?? []}
           />
-          <input
-            className="w-full rounded-md border bg-background px-2 py-1.5 text-xs"
+          <Input
+            size="sm"
+            className="bg-background"
             value={summary}
             onChange={(event) => setSummary(event.target.value)}
             placeholder={t('configChangeSummary')}

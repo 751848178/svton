@@ -9,6 +9,7 @@
 'use client';
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { Select } from '@/components/ui';
 import { feedback } from '@/components/ui/feedback/feedback';
 import type { useResourceControl } from '../hooks/use-resource-control';
 
@@ -31,10 +32,11 @@ export function ServerSyncBar({ rc }: { rc: RCHook }) {
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card/50 px-4 py-3">
       <span className="text-sm font-medium">{t('syncServerDocker')}</span>
-      <select
+      <Select
+        size="sm"
         value={selected}
         onChange={(e) => setSelected(e.target.value)}
-        className="min-h-9 rounded-md border bg-background px-3 text-sm"
+        className="w-auto"
       >
         <option value="">{t('selectServer')}</option>
         {rc.servers.map((s) => (
@@ -45,7 +47,7 @@ export function ServerSyncBar({ rc }: { rc: RCHook }) {
             {s.name} ({s.host})
           </option>
         ))}
-      </select>
+      </Select>
       <button
         type="button"
         onClick={handleSync}

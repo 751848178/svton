@@ -9,7 +9,7 @@
 
 import { useTranslations } from 'next-intl';
 import { Tag } from '@svton/ui';
-import { Button, Input } from '@/components/ui';
+import { Button, Checkbox, Input } from '@/components/ui';
 import type { CDNConfig } from '../types';
 import { PROVIDERS } from '../constants';
 
@@ -78,20 +78,16 @@ export function CdnConfigForm({ config, onChange, onGenerate, generating }: CdnC
 
       <div className="space-y-2">
         <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={config.enableHttps}
             onChange={(e) => onChange({ enableHttps: e.target.checked })}
-            className="rounded"
           />
           <span className="text-sm text-muted-foreground">{t('enableHttps')}</span>
         </label>
         <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={config.enableCompression}
             onChange={(e) => onChange({ enableCompression: e.target.checked })}
-            className="rounded"
           />
           <span className="text-sm text-muted-foreground">{t('enableCompression')}</span>
         </label>

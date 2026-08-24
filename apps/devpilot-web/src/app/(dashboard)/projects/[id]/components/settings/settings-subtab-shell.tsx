@@ -12,12 +12,14 @@ export function SubtabShell({
   helper,
   moduleHref,
   moduleLabel,
+  actions,
   children,
 }: {
   title: string;
   helper: string;
-  moduleHref: string;
-  moduleLabel: string;
+  moduleHref?: string;
+  moduleLabel?: string;
+  actions?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -27,12 +29,17 @@ export function SubtabShell({
           <h3 className="text-sm font-semibold">{title}</h3>
           <p className="mt-1 text-xs text-muted-foreground">{helper}</p>
         </div>
-        <a
-          href={moduleHref}
-          className="shrink-0 rounded-md border px-2.5 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
-        >
-          {moduleLabel}
-        </a>
+        <div className="flex items-center gap-2">
+          {moduleHref && moduleLabel ? (
+            <a
+              href={moduleHref}
+              className="shrink-0 rounded-md border px-2.5 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              {moduleLabel}
+            </a>
+          ) : null}
+          {actions}
+        </div>
       </div>
       <div className="rounded-lg border p-3">{children}</div>
     </section>

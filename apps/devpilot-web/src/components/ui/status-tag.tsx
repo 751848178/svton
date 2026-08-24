@@ -11,6 +11,7 @@
  * 单一职责：状态 → 颜色 映射 + 渲染。无业务逻辑。
  */
 
+import React from 'react';
 import { Tag, type TagProps } from '@svton/ui';
 import { getStatusTone, type StatusTone as StatusMapTone } from './status-map';
 

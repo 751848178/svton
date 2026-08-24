@@ -1,4 +1,4 @@
-import { Input } from '@/components/ui';
+import { Field, Input, Select } from '@/components/ui';
 import type { RepositoryAnalysisHook } from '../hooks/use-repository-analysis.hooks';
 
 type Props = {
@@ -18,21 +18,20 @@ type Props = {
 export function PrivateCredentialFields(props: Props) {
   return (
     <div className="space-y-3 rounded-md border p-3">
-      <label className="block text-sm">
-        <span className="mb-1 block font-medium">只读凭据</span>
-        <select
-          className="h-10 w-full rounded-md border bg-background px-3"
+      <Field label="只读凭据">
+        <Select
+          className="bg-background"
           value={props.mode}
           onChange={(event) => props.setMode(event.target.value)}
         >
           <option value="existing">选择已有凭据</option>
           <option value="inline-token">新增 HTTPS Token</option>
           <option value="inline-ssh">新增 SSH 私钥</option>
-        </select>
-      </label>
+        </Select>
+      </Field>
       {props.mode === 'existing' ? (
-        <select
-          className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+        <Select
+          className="bg-background"
           value={props.credentialId}
           onChange={(event) => props.setCredentialId(event.target.value)}
         >
@@ -45,7 +44,7 @@ export function PrivateCredentialFields(props: Props) {
               {item.label}
             </option>
           ))}
-        </select>
+        </Select>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           <Input

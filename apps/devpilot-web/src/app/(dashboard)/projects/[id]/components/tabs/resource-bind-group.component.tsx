@@ -1,6 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import { Checkbox } from '@/components/ui';
 import type { EnvironmentResourceBulkBindSelection } from '../../types/environment-copy';
 import type { BindableRow, BindableRowGroup } from './resource-bind-rows';
 
@@ -35,8 +36,7 @@ export function ResourceBindGroup({
           return (
             <li key={`${row.selectionKey}:${row.id}`}>
               <label className="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-accent">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={checked}
                   onChange={(event) => onToggle(row, event.target.checked)}
                 />

@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Button, Card } from '@svton/ui';
-import { Input } from '@/components/ui';
+import { Field, Input, Modal, Select, Textarea } from '@/components/ui';
+import { feedback } from '@/components/ui/feedback/feedback';
 import type { RepositoryAnalysisHook } from '../hooks/use-repository-analysis.hooks';
 import type { ConnectRepositoryInput } from '../types/repository-analysis.types';
 import { RepositoryIdentityEvidence } from './repository-identity-evidence';
@@ -18,6 +19,7 @@ export function RepositoryLockedIdentityCard({ analysis }: { analysis: Repositor
   const [branch, setBranch] = useState(revision?.defaultBranch || '');
   const [reason, setReason] = useState('');
   const [credentialId, setCredentialId] = useState('');
+  const [confirmReconnect, setConfirmReconnect] = useState(false);
   const errorRef = useRef<HTMLParagraphElement>(null);
 
   useEffect(
@@ -28,7 +30,10 @@ export function RepositoryLockedIdentityCard({ analysis }: { analysis: Repositor
     if (analysis.error) errorRef.current?.focus();
   }, [analysis.error]);
 
+  // INFO-1：重连是写操作（POST /connect，会更新凭据验证状态并留审计事件），
+  // 必须先确认，执行中有 loading，结束有成功/失败 toast，不允许「点了没反应」。
   const reconnect = async () => {
+    setConfirmReconnect(false);
     if (!connection || !revision) return;
     const input: ConnectRepositoryInput = {
       repositoryUrl: connection.repositoryUrl,
@@ -38,7 +43,24 @@ export function RepositoryLockedIdentityCard({ analysis }: { analysis: Repositor
     const selected = analysis.state.credentialOptions.find((item) => item.id === credentialId);
     if (selected?.source === 'git_connection') input.gitProvider = selected.provider;
     if (selected?.source === 'team_credential') input.teamCredentialId = selected.id;
-    await analysis.reconnect(input);
+    const operation = analysis.reconnect(input);
+    feedback.promise(operation, {
+      loading: t('repositoryReconnectLoading'),
+      success: t('repositoryReconnectSuccess'),
+      error: t('repositoryReconnectFailed'),
+    });
+    await operation.catch(() => undefined);
+  };
+
+  // INFO-8：只读刷新也必须有可感知反馈（loading + 结果 toast）。
+  const refresh = async () => {
+    const operation = analysis.load();
+    feedback.promise(operation, {
+      loading: t('repositoryIdentityRefreshLoading'),
+      success: t('repositoryIdentityRefreshSuccess'),
+      error: t('repositoryIdentityRefreshFailed'),
+    });
+    await operation.catch(() => undefined);
   };
 
   const revise = async () => {
@@ -103,9 +125,9 @@ export function RepositoryLockedIdentityCard({ analysis }: { analysis: Repositor
           {t('repositoryCredentialReconnectTitle')}
         </h3>
         {connection?.visibility === 'private' ? (
-          <select
+          <Select
             aria-label={t('repositoryCredentialOption')}
-            className="h-10 w-full rounded-md border bg-background px-3 text-sm"
+            className="bg-background"
             value={credentialId}
             onChange={(event) => setCredentialId(event.target.value)}
           >
@@ -118,19 +140,36 @@ export function RepositoryLockedIdentityCard({ analysis }: { analysis: Repositor
                 {item.label}
               </option>
             ))}
-          </select>
+          </Select>
         ) : null}
         <Button
           variant="secondary"
+          loading={analysis.mutating}
           disabled={
             !analysis.state.allowedActions.reconnectCredentials ||
             analysis.mutating ||
             privateCredentialMissing
           }
-          onClick={() => void reconnect()}
+          onClick={() => setConfirmReconnect(true)}
         >
           {t('repositoryCredentialReconnectAction')}
         </Button>
+        <Modal
+          open={confirmReconnect}
+          onClose={() => setConfirmReconnect(false)}
+          title={t('repositoryReconnectConfirmTitle')}
+        >
+          <p className="text-sm text-muted-foreground">{t('repositoryReconnectConfirmBody')}</p>
+          <div className="mt-4 flex justify-end gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => setConfirmReconnect(false)}
+            >
+              {t('repositoryReconnectConfirmCancel')}
+            </Button>
+            <Button onClick={() => void reconnect()}>{t('repositoryReconnectConfirmAccept')}</Button>
+          </div>
+        </Modal>
       </section>
       <section
         className="space-y-3"
@@ -147,14 +186,13 @@ export function RepositoryLockedIdentityCard({ analysis }: { analysis: Repositor
           value={branch}
           onChange={(event) => setBranch(event.target.value)}
         />
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium">{t('repositoryBranchRevisionReason')}</span>
-          <textarea
-            className="min-h-20 w-full rounded-md border bg-background px-3 py-2"
+        <Field label={t('repositoryBranchRevisionReason')}>
+          <Textarea
+            className="bg-background"
             value={reason}
             onChange={(event) => setReason(event.target.value)}
           />
-        </label>
+        </Field>
         <div className="flex flex-wrap gap-2">
           <Button
             disabled={
@@ -169,7 +207,8 @@ export function RepositoryLockedIdentityCard({ analysis }: { analysis: Repositor
           </Button>
           <Button
             variant="ghost"
-            onClick={() => void analysis.load()}
+            loading={analysis.loading}
+            onClick={() => void refresh()}
             disabled={analysis.mutating}
           >
             {t('repositoryIdentityRefresh')}

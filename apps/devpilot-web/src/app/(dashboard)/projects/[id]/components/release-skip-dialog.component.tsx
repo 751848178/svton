@@ -8,9 +8,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Button } from '@/components/ui';
+import { Button, Input, Textarea } from '@/components/ui';
 import { Modal } from '@/components/ui/modal';
-import { Textarea } from '@/components/ui';
 import { SKIP_CONFIRMATION_TEXT } from '../utils/release-labels';
 
 export interface ReleaseSkipDialogProps {
@@ -96,13 +95,12 @@ export function ReleaseSkipDialog({
           <label className="text-sm text-gray-600">
             请输入 <span className="font-medium text-gray-900">{SKIP_CONFIRMATION_TEXT}</span> 以确认
           </label>
-          <input
+          <Input
             type="text"
             value={phrase}
             onChange={(e) => setPhrase(e.target.value)}
             placeholder={SKIP_CONFIRMATION_TEXT}
             disabled={submitting}
-            className="h-9 w-full rounded-md border border-gray-300 px-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-50"
           />
         </div>
       </div>

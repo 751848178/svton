@@ -8,7 +8,7 @@
 
 import { useForm } from 'react-hook-form';
 import { useTranslations } from 'next-intl';
-import { Modal, ErrorBanner } from '@/components/ui';
+import { ErrorBanner, Input, Modal, Select } from '@/components/ui';
 import type { GitConnectInput } from '../types';
 import { PROVIDER_OPTIONS, tokenPermissionHints } from '../constants';
 
@@ -70,10 +70,7 @@ export function ConnectGitModal({ open, onClose, onConnect }: ConnectGitModalPro
 
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('provider')}</span>
-          <select
-            {...register('provider')}
-            className="w-full rounded-md border bg-background px-3 py-2"
-          >
+          <Select {...register('provider')}>
             {PROVIDER_OPTIONS.map((opt) => (
               <option
                 key={opt.value}
@@ -82,16 +79,15 @@ export function ConnectGitModal({ open, onClose, onConnect }: ConnectGitModalPro
                 {opt.label}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
 
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('accessToken')}</span>
-          <input
+          <Input
             type="password"
             {...register('accessToken', { required: true })}
             required
-            className="w-full rounded-md border bg-background px-3 py-2"
             placeholder={t('tokenPlaceholder')}
           />
           <p className="mt-1 text-xs text-muted-foreground">{tokenPermissionHints[provider]}</p>

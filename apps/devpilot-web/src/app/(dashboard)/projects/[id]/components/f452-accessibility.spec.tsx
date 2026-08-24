@@ -19,8 +19,8 @@ import { ProjectIntakeStepper } from '../../create/components/project-intake-ste
 import type { ProjectEnvironment } from '../types';
 import type { ReleaseBuildItem, ReleaseStagingDeploymentItem } from '../types/release-order.types';
 import type { ReleaseOrderStep } from '../types/release-order.types';
-import type { ReleaseOrderStepView } from './release-order-stepper.model';
-import { ReleaseOrderStepper } from './release-order-stepper';
+import type { ReleaseWorkbenchStepView } from './release-workbench/release-workbench-steps.model';
+import { ReleaseWorkbenchSteps } from './release-workbench/release-workbench-steps';
 import { EnvironmentSettingsDetail } from './settings/environment-settings-detail';
 import { ReleaseBuildHistoryTable } from './release-build-history-table';
 import { ReleaseStagingEvidenceList } from './release-staging-evidence-list';
@@ -50,6 +50,7 @@ vi.mock('@/components/ui', () => ({
     <a href={href}>{children}</a>
   ),
   StatusTag: ({ label }: { label: string }) => <span>{label}</span>,
+  Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
 }));
 vi.mock('@/components/ui/feedback/feedback', () => ({
   feedback: { success: vi.fn(), error: vi.fn() },
@@ -151,7 +152,10 @@ describe('F452 Drawer focus trap + localized close label', () => {
     await renderDrawer();
     const dialog = document.querySelector<HTMLElement>('[role="dialog"][aria-modal="true"]');
     expect(dialog).not.toBeNull();
-    expect(dialog?.getAttribute('aria-label')).toBe('Build logs');
+    // 命名模型：标题经 aria-labelledby 关联（不再把 title 复制进 aria-label）。
+    const labelledBy = dialog?.getAttribute('aria-labelledby');
+    const titleEl = labelledBy ? document.getElementById(labelledBy) : null;
+    expect(titleEl?.textContent).toBe('Build logs');
     const close = document.querySelector<HTMLButtonElement>('button[aria-label="关闭"]');
     expect(close).not.toBeNull();
   });
@@ -415,23 +419,31 @@ describe('F452 axe assertions on key components', () => {
     expect(bad).toEqual([]);
   }
 
-  it('stepper: zero critical/serious violations and correct tablist semantics', async () => {
+  it('steps bar: zero critical/serious violations and inline tab semantics', async () => {
     await render(
-      <ReleaseOrderStepper
-        steps={steps}
+      <ReleaseWorkbenchSteps
+        views={steps}
         selectedStep="build"
-        onSelect={vi.fn()}
+        onSelectStep={vi.fn()}
+        onPublish={vi.fn()}
+        publishing={false}
+        publishDisabled={false}
       >
-        <p>active content</p>
-      </ReleaseOrderStepper>,
+        <p>current round</p>
+      </ReleaseWorkbenchSteps>,
     );
     await expectNoCriticalOrSerious(container);
-    const tabs = container.querySelectorAll('[role="tablist"] [role="tab"]');
-    expect(tabs.length).toBeGreaterThan(0);
+    const tabs = container.querySelectorAll('nav[role="tablist"] button[data-step]');
+    expect(tabs.length).toBe(3);
     for (const tab of tabs) {
-      expect(tab.getAttribute('aria-controls')).not.toBeNull();
       expect(tab.getAttribute('aria-selected')).not.toBeNull();
+      expect(tab.getAttribute('aria-controls')).not.toBeNull();
     }
+    expect(container.querySelector('[role="tabpanel"]')?.textContent).toContain('current round');
+    const publish = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.includes('releaseWorkbenchPublishAction'),
+    );
+    expect(publish).toBeDefined();
   });
 
   it('intake stepper: zero critical/serious violations', async () => {
@@ -485,32 +497,28 @@ describe('F452 axe assertions on key components', () => {
   });
 });
 
-const steps: ReleaseOrderStepView[] = [
-  view('preflight', 1, 'completed', false, 'preflight-summary'),
-  view('build', 2, 'blocked', false, 'build-summary'),
-  view('staging', 3, 'current', true, 'staging-summary'),
-  view('production', 4, 'waiting', false, 'production-summary'),
+const steps: ReleaseWorkbenchStepView[] = [
+  view('preflight', 1, 'completed', false),
+  view('build', 2, 'blocked', false),
+  view('staging', 3, 'current', true),
 ];
 
 function view(
-  key: ReleaseOrderStepView['key'],
+  key: ReleaseWorkbenchStepView['key'],
   number: number,
-  state: ReleaseOrderStepView['state'],
+  state: ReleaseWorkbenchStepView['state'],
   isCurrent: boolean,
-  summary: string,
-): ReleaseOrderStepView {
-  const title = `${key.charAt(0).toUpperCase()}${key.slice(1)}`;
+): ReleaseWorkbenchStepView {
   return {
     key,
     number,
     state,
     isCurrent,
-    labelKey: `releaseStep${title}Title` as ReleaseOrderStepView['labelKey'],
+    labelKey: `releaseWorkbenchStep${titleCase(key === 'staging' ? 'deploy' : key)}` as ReleaseWorkbenchStepView['labelKey'],
     stateLabelKey:
       state === 'blocked'
         ? 'releaseOrderFailureBlocked'
-        : (`releaseStepState${titleCase(state)}` as ReleaseOrderStepView['stateLabelKey']),
-    summary: { key: summary as ReleaseOrderStepView['summary']['key'] },
+        : (`releaseStepState${titleCase(state)}` as ReleaseWorkbenchStepView['stateLabelKey']),
   };
 }
 

@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl';
 import { Popover } from '@svton/ui';
-import { Button } from '@/components/ui';
+import { Button, Checkbox } from '@/components/ui';
 
 type ApplicationsPageActionsProps = {
   queueDeploymentRuns: boolean;
@@ -69,22 +69,18 @@ export function ApplicationsPageActions({
               {t('queueHint')}
             </p>
             <label className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={queueDeploymentRuns}
                 onChange={(event) => onQueueDeploymentRunsChange(event.target.checked)}
-                className="mt-0.5"
               />
               <span>
                 <span className="block">{t('queueDeploymentRuns')}</span>
               </span>
             </label>
             <label className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={queueServiceOperations}
                 onChange={(event) => onQueueServiceOperationsChange(event.target.checked)}
-                className="mt-0.5"
               />
               <span>
                 <span className="block">{t('queueServiceOperations')}</span>

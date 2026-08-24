@@ -2,143 +2,104 @@
 
 import React from 'react';
 import { useTranslations } from 'next-intl';
-import { Button, BlockedState, StatusTag } from '@/components/ui';
+import { StatusTag } from '@/components/ui';
 import { formatDateTime } from '@/lib/format-date';
 import type { ReleaseOrderListItem } from '../types/release-order-list.types';
-import {
-  releaseEnvironmentLabelKey,
-  releaseExecutionStatusLabelKey,
-  releaseOrderStatusLabelKey,
-} from '../utils/release-copy.model';
-import { releaseOrderFailureLabelKey, releaseOrderStatusTone } from '../utils/release-order.utils';
+import { releaseOrderStatusLabelKey } from '../utils/release-copy.model';
+import { releaseOrderStatusTone } from '../utils/release-order.utils';
+import { releaseVersionIdentity } from '../utils/release-version-display.model';
+import { ReleaseOrderActions, type ReleaseTableAction } from './release-order-actions';
 
-export function ReleaseOrderListRow({
-  item,
-  onOpen,
-}: {
+export function ReleaseOrderListRow(props: {
   item: ReleaseOrderListItem;
   onOpen: () => void;
+  onOpenBuild?: () => void;
+  onOpenDeployment?: () => void;
+  onOpenEvidence?: () => void;
 }) {
   const t = useTranslations('projects');
-  const manifest = item.build.recentSuccessfulManifest;
-  const deployment = item.deployment.latest;
-  const failureLabelKey = releaseOrderFailureLabelKey(item.lifecycle.failureKind);
+  const item = props.item;
+  const identity = releaseVersionIdentity(item.releaseVersion, item.releaseName);
+  const actions: ReleaseTableAction[] = [
+    { key: 'detail', label: t('viewReleaseOrder'), onSelect: props.onOpen },
+  ];
+  if (item.source.buildRunId)
+    actions.push({
+      key: 'build',
+      label: t('releaseOrderActionBuild'),
+      onSelect: props.onOpenBuild ?? props.onOpen,
+    });
+  if (item.deployment.latest)
+    actions.push({
+      key: 'deployment',
+      label: t('releaseOrderActionDeployment'),
+      onSelect: props.onOpenDeployment ?? props.onOpen,
+    });
+  if (item.build.recentSuccessfulManifest)
+    actions.push({
+      key: 'evidence',
+      label: t('releaseOrderActionEvidence'),
+      onSelect: props.onOpenEvidence ?? props.onOpen,
+    });
   return (
-    <article className="grid gap-5 border-t p-5 first:border-t-0 lg:grid-cols-[minmax(240px,1.3fr)_minmax(180px,1fr)_minmax(180px,1fr)_minmax(230px,1.2fr)]">
-      <section aria-label={`${t('releaseOrderColumnOrder')} ${item.releaseVersion}`}>
-        <div className="flex flex-wrap items-center gap-2">
-          <h3 className="text-lg font-semibold">{item.releaseVersion}</h3>
-          <StatusTag
-            status={releaseOrderStatusTone(item.lifecycle.status)}
-            label={t(releaseOrderStatusLabelKey(item.lifecycle.status))}
-          />
-        </div>
-        <p className="mt-2 break-all font-mono text-xs text-muted-foreground">
-          {item.source.commitSha
-            ? `${item.source.branch ?? '—'}@${item.source.commitSha.slice(0, 8)}`
-            : t('releaseOrderSourcePending', { branch: item.source.branch ?? '—' })}
-        </p>
-        <p className="mt-2 text-sm text-muted-foreground">{item.note || t('releaseOrderNoNote')}</p>
-        {failureLabelKey ? (
-          <BlockedState
-            compact
-            reason={t(failureLabelKey)}
-            className="mt-2"
-          />
-        ) : null}
-      </section>
-
-      <section aria-label={`${t('releaseOrderColumnBuild')} ${item.releaseVersion}`}>
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          {t('releaseOrderColumnBuild')}
-        </p>
-        <p className="mt-2 font-medium">
-          {t('releaseOrderBuildCount', { count: item.build.count })}
-        </p>
-        {manifest ? (
-          <p className="mt-1 break-all text-xs text-muted-foreground">
-            <span title={manifest.id}>
-              {t('releaseOrderRecentManifest', {
-                revision: manifest.buildRevision,
-                manifest: shortId(manifest.id),
-              })}
-            </span>
-            <span
-              className="block font-mono"
-              title={manifest.digest}
-            >
-              {shortDigest(manifest.digest)}
-            </span>
-          </p>
-        ) : (
-          <p className="mt-1 text-xs text-muted-foreground">{t('releaseOrderNoManifest')}</p>
-        )}
-      </section>
-
-      <section aria-label={`${t('releaseOrderColumnDeployment')} ${item.releaseVersion}`}>
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          {t('releaseOrderColumnDeployment')}
-        </p>
-        <p className="mt-2 font-medium">
-          {t('releaseOrderDeploymentCount', { count: item.deployment.count })}
-        </p>
-        <p
-          className="mt-1 truncate text-xs text-muted-foreground"
-          title={
-            deployment
-              ? `${environmentLabel(t, deployment)} · ${t(releaseExecutionStatusLabelKey(deployment.status))}`
-              : t('releaseOrderNoDeployment')
-          }
+    <tr className="align-middle hover:bg-muted/20">
+      <td className="px-4 py-3">
+        <button
+          type="button"
+          onClick={props.onOpen}
+          className="text-left font-semibold text-primary hover:underline"
         >
-          {deployment
-            ? `${environmentLabel(t, deployment)} · ${t(releaseExecutionStatusLabelKey(deployment.status))}`
-            : t('releaseOrderNoDeployment')}
+          {/* REL-4：草稿在制品不得命名为「历史发布」。 */}
+          {item.lifecycle.status === 'draft'
+            ? t('releaseDraftTitlePrefix') +
+              (identity.canonical
+                ? identity.version
+                : identity.name || t('releaseLegacyNameFallback'))
+            : identity.canonical
+              ? identity.version
+              : identity.name || t('releaseLegacyNameFallback')}
+        </button>
+        <p className="mt-0.5 text-xs text-foreground">
+          {identity.canonical
+            ? identity.name || identity.version
+            : t('releaseLegacyVersionValue', { version: identity.version })}
         </p>
-      </section>
-
-      <section aria-label={`${t('releaseOrderColumnLastExecution')} ${item.releaseVersion}`}>
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          {t('releaseOrderColumnLastExecution')}
-        </p>
-        <p className="mt-2 truncate font-medium">
-          {t(`releaseOrderListStep${capitalize(item.lastExecution.step)}`)}
-        </p>
-        <p
-          className="mt-1 truncate text-xs text-muted-foreground"
-          title={`${t(releaseExecutionStatusLabelKey(item.lastExecution.status))} · ${formatDateTime(item.lastExecutedAt)}`}
+        {/* REL-2：发布单号明确标注「发布单 #短号」，完整 ID 折叠进 title，
+            不再裸露整串 cuid 让人误当 commit。 */}
+        <button
+          type="button"
+          onClick={props.onOpen}
+          className="mt-0.5 block max-w-44 truncate font-mono text-[11px] text-muted-foreground hover:text-primary"
+          title={item.id}
         >
-          {t(releaseExecutionStatusLabelKey(item.lastExecution.status))} ·{' '}
-          {formatDateTime(item.lastExecutedAt)}
-        </p>
-        <Button
-          variant="outline"
-          size="sm"
-          className="mt-3"
-          onClick={onOpen}
-        >
-          {t('viewReleaseOrder')}
-        </Button>
-      </section>
-    </article>
+          {t('releaseOrderShortId', { id: item.id.slice(0, 8) })}
+        </button>
+      </td>
+      <td className="px-4 py-3">
+        <StatusTag
+          status={releaseOrderStatusTone(item.lifecycle.status)}
+          label={t(releaseOrderStatusLabelKey(item.lifecycle.status))}
+        />
+      </td>
+      <td className="px-4 py-3 font-mono text-xs">
+        {item.source.commitSha
+          ? `${item.source.branch ?? '—'} @ ${item.source.commitSha.slice(0, 8)}`
+          : (item.source.branch ?? '—')}
+      </td>
+      <td className="px-4 py-3">
+        {t(`releaseOrderListStep${capitalize(item.lastExecution.step)}`)}
+      </td>
+      <td className="px-4 py-3 text-xs text-muted-foreground">
+        {formatDateTime(item.lastExecutedAt)}
+      </td>
+      <td className="px-4 py-3">
+        <ReleaseOrderActions
+          actions={actions}
+          moreLabel={t('releaseOrderMoreActions')}
+        />
+      </td>
+    </tr>
   );
-}
-
-function environmentLabel(
-  t: ReturnType<typeof useTranslations>,
-  deployment: NonNullable<ReleaseOrderListItem['deployment']['latest']>,
-) {
-  const label = t(releaseEnvironmentLabelKey(deployment.environmentRole));
-  return deployment.environmentName.toLowerCase() === deployment.environmentRole
-    ? label
-    : `${label} · ${deployment.environmentName}`;
-}
-
-function shortId(value: string) {
-  return value.length > 16 ? `${value.slice(0, 12)}…` : value;
-}
-
-function shortDigest(value: string) {
-  return value.length > 24 ? `${value.slice(0, 20)}…` : value;
 }
 
 function capitalize(value: string) {

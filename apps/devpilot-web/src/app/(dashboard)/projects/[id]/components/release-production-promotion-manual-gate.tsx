@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { Button } from '@svton/ui';
+import { Textarea } from '@/components/ui';
 import { apiRequest } from '@/lib/api-client';
 import type { ReleaseEvidenceProductionRun } from '../types/release-order-evidence.types';
 
@@ -38,12 +39,12 @@ export function ReleaseProductionPromotionManualGate(props: {
       ) : <>
       <label className="mt-3 block font-medium">
         {t('releaseGateManualReason')}
-        <textarea
+        <Textarea
+          className="mt-1 bg-white"
           value={reason}
           onChange={(event) => setReason(event.target.value)}
           minLength={3}
           maxLength={500}
-          className="mt-1 block min-h-20 w-full rounded-md border bg-white p-2"
         />
       </label>
       <Button

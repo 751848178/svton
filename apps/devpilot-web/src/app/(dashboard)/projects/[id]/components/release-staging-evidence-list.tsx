@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import type { ReleaseBuildItem, ReleaseStagingDeploymentItem } from '../types/release-order.types';
 import { stagingBuildForRun } from '../utils/release-staging-view.model';
 import { ReleaseStagingEvidenceRow as RunRow } from './release-staging-evidence-row';
+import { ReleaseScrollTable } from './release-workbench/release-scroll-table';
 
 interface Props {
   items: ReleaseStagingDeploymentItem[];
@@ -17,6 +18,10 @@ interface Props {
   onDeploy: (manifestId: string) => void;
 }
 
+/**
+ * PX-5：去掉固定最小宽度，短 ID 化后表格在抽屉内自适应，
+ * 「操作」列（日志/部署）不再被裁出视口。
+ */
 export function ReleaseStagingEvidenceList(props: Props) {
   const t = useTranslations('projects');
   return (
@@ -26,16 +31,16 @@ export function ReleaseStagingEvidenceList(props: Props) {
           {t('releaseEvidenceHistoryLimited', { shown: props.items.length, total: props.total })}
         </p>
       ) : null}
-      <div className="overflow-x-auto rounded-lg border">
-        <table className="w-full min-w-[980px] table-fixed text-sm">
+      <ReleaseScrollTable>
+        <table className="w-full table-fixed text-sm">
           <caption className="sr-only">{t('releaseStagingHistoryTable')}</caption>
           <colgroup>
-            <col className="w-[18%]" />
-            <col className="w-[25%]" />
+            <col className="w-[16%]" />
+            <col className="w-[19%]" />
+            <col className="w-[13%]" />
+            <col className="w-[22%]" />
+            <col className="w-[16%]" />
             <col className="w-[14%]" />
-            <col className="w-[18%]" />
-            <col className="w-[14%]" />
-            <col className="w-[11%]" />
           </colgroup>
           <thead className="bg-muted/50 text-left">
             <tr>
@@ -44,7 +49,7 @@ export function ReleaseStagingEvidenceList(props: Props) {
               <Header>{t('releaseStagingColumnResult')}</Header>
               <Header>{t('releaseStagingColumnVerification')}</Header>
               <Header>{t('releaseBuildColumnDurationTime')}</Header>
-              <Header>{t('releaseBuildColumnActions')}</Header>
+              <Header className="text-right">{t('releaseBuildColumnActions')}</Header>
             </tr>
           </thead>
           <tbody className="divide-y">
@@ -62,16 +67,16 @@ export function ReleaseStagingEvidenceList(props: Props) {
             ))}
           </tbody>
         </table>
-      </div>
+      </ReleaseScrollTable>
     </div>
   );
 }
 
-function Header({ children }: { children: ReactNode }) {
+function Header({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <th
       scope="col"
-      className="px-4 py-3 font-medium"
+      className={`px-3 py-3 font-medium ${className ?? ''}`}
     >
       {children}
     </th>

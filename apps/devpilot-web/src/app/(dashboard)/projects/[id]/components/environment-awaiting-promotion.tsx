@@ -37,12 +37,14 @@ export function EnvironmentAwaitingPromotion(props: {
   );
   const candidate = frozenProductionCandidate(deployment?.result);
   if (!release || !deployment || !candidate) return null;
+  // 生产发布是环境发布链的第二节：深链直达生产节点并聚焦该 ReleaseRun 日志。
   const detailsHref = releaseOrderHref(
     props.projectId,
     props.candidate?.releaseOrder.id ?? candidate.releaseOrderId,
-    'production',
+    null,
     searchParams,
-    { releaseRunId: release.id, deploymentRunId: deployment.id },
+    { releaseRunId: release.id },
+    'production',
   );
   return (
     <section className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3" role="status">

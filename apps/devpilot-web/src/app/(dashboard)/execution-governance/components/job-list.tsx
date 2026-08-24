@@ -8,7 +8,7 @@
 
 import { useTranslations } from 'next-intl';
 import { LoadingState, EmptyState } from '@svton/ui';
-import { MetricCard } from '@/components/ui';
+import { MetricCard, Select } from '@/components/ui';
 import { CollapsibleGroup } from './collapsible-group';
 import { JobTableRow } from './job-table-row.component';
 import type { ServerExecutionJob } from '../types';
@@ -46,10 +46,9 @@ export function JobList({
         </div>
         <label className="block w-44 text-sm">
           <span className="mb-1 block font-medium">{tc('status')}</span>
-          <select
+          <Select
             value={jobStatus}
             onChange={(e) => onJobStatusChange(e.target.value)}
-            className="min-h-11 w-full rounded-md border px-3"
           >
             <option value="all">{tc('all')}</option>
             <option value="queued">{t('statusQueued')}</option>
@@ -58,7 +57,7 @@ export function JobList({
             <option value="failed">{tc('failed')}</option>
             <option value="cancelled">{t('statusCancelled')}</option>
             <option value="completed">{t('statusCompleted')}</option>
-          </select>
+          </Select>
         </label>
       </div>
 

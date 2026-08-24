@@ -10,7 +10,7 @@
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useTranslations } from 'next-intl';
-import { Modal, ErrorBanner, Select } from '@/components/ui';
+import { ErrorBanner, Input, Modal, Select } from '@/components/ui';
 import type { Project } from '../types';
 import type { AppInput } from '../hooks/use-application-creation.hooks';
 
@@ -107,34 +107,30 @@ export function CreateAppModal({
         </label>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('appNamePlaceholder')}</span>
-          <input
+          <Input
             {...register('name', { required: true })}
-            className="w-full rounded-md border px-3 py-2"
             placeholder={t('appNamePlaceholder')}
           />
         </label>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('repoUrlPlaceholder')}</span>
-          <input
+          <Input
             {...register('repositoryUrl')}
-            className="w-full rounded-md border px-3 py-2"
             placeholder={t('repoUrlPlaceholder')}
           />
         </label>
         <div className="grid grid-cols-2 gap-2">
           <label className="block text-sm">
             <span className="mb-1 block font-medium">{t('defaultBranchPlaceholder')}</span>
-            <input
+            <Input
               {...register('defaultBranch')}
-              className="w-full rounded-md border px-3 py-2"
               placeholder={t('defaultBranchPlaceholder')}
             />
           </label>
           <label className="block text-sm">
             <span className="mb-1 block font-medium">{t('repoPathPlaceholder')}</span>
-            <input
+            <Input
               {...register('repoPath')}
-              className="w-full rounded-md border px-3 py-2"
               placeholder={t('repoPathPlaceholder')}
             />
           </label>

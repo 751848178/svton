@@ -8,8 +8,8 @@
 import { useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { useTranslations } from 'next-intl';
-import { Modal } from '@/components/ui';
-import { ErrorBanner } from '@/components/ui';
+import { Input, Modal } from '@/components/ui';
+import { ErrorBanner, Select } from '@/components/ui';
 import type { TeamCredential, CDNConfigInput } from '../types';
 
 interface AddCDNConfigModalProps {
@@ -84,31 +84,28 @@ export function AddCDNConfigModal({
         ) : null}
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('configName')}</span>
-          <input
+          <Input
             {...register('name', { required: true })}
             required
-            className="w-full rounded-md border px-3 py-2"
             placeholder={t('configNamePlaceholder')}
           />
         </label>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('providerLabel')}</span>
-          <select
+          <Select
             {...register('provider')}
             onChange={(e) => handleProviderChange(e.target.value as CDNConfigInput['provider'])}
-            className="w-full rounded-md border px-3 py-2"
           >
             <option value="qiniu">{t('providerQiniu')}</option>
             <option value="aliyun">{t('providerAliyun')}</option>
             <option value="cloudflare">{t('providerCloudflare')}</option>
-          </select>
+          </Select>
         </label>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('credential')}</span>
-          <select
+          <Select
             {...register('credentialId', { required: true })}
             required
-            className="w-full rounded-md border px-3 py-2"
           >
             <option value="">{t('selectCredential')}</option>
             {filteredCredentials.map((c) => (
@@ -119,26 +116,24 @@ export function AddCDNConfigModal({
                 {c.name}
               </option>
             ))}
-          </select>
+          </Select>
           {filteredCredentials.length === 0 ? (
             <p className="mt-1 text-xs text-muted-foreground">{t('noCredentialsHint')}</p>
           ) : null}
         </label>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('domain')}</span>
-          <input
+          <Input
             {...register('domain', { required: true })}
             required
-            className="w-full rounded-md border px-3 py-2"
             placeholder="cdn.example.com"
           />
         </label>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('originAddress')}</span>
-          <input
+          <Input
             {...register('origin', { required: true })}
             required
-            className="w-full rounded-md border px-3 py-2"
             placeholder="origin.example.com"
           />
         </label>

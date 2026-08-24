@@ -7,9 +7,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Textarea } from '@/components/ui';
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
-import { Modal, Textarea } from '@svton/ui';
+import { Modal } from '@svton/ui';
 
 interface RejectReasonModalProps {
   open: boolean;

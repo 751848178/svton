@@ -17,7 +17,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from '@tanstack/react-table';
-import { Button } from '@/components/ui';
+import { Button, Select } from '@/components/ui';
 import type { ResourceRequest } from '../types';
 import {
   getStatusBadge,
@@ -203,17 +203,18 @@ export function RequestTable(props: RequestTableProps) {
           <span className="text-muted-foreground/60">·</span>
           <label className="flex items-center gap-1">
             {t('rowsPerPage')}
-            <select
+            <Select
+              size="sm"
               value={pageSize}
               onChange={(e) => table.setPageSize(Number(e.target.value))}
-              className="rounded-md border bg-background px-2 py-1"
+              className="w-auto"
             >
               {PAGE_SIZE_OPTIONS.map((size) => (
                 <option key={size} value={size}>
                   {size}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
         </div>
         <div className="flex items-center gap-2">

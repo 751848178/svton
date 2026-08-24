@@ -6,6 +6,7 @@
  * 工作区未安装图标库（与 nav-icons.tsx 同策略），故维护一套 stroke 制、
  * 16x16 视口的 lucide 风格图标，currentColor 取色以便继承 muted-foreground。
  */
+import React from 'react';
 import type { ReactNode } from 'react';
 
 interface IconProps {

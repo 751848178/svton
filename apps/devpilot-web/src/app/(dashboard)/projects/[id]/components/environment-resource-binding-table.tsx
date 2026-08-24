@@ -54,7 +54,13 @@ export function EnvironmentResourceBindingTable({
   const { probes, loading, error } = useResourceConnectionHealth(project.id);
 
   if (resources.length === 0) {
-    return <p className="text-xs text-muted-foreground">{t('envResourceTableEmpty')}</p>;
+    /* SET-13：不存在「当前修订」时不得谈论当前修订。 */
+    const hasRevision = environment.currentConfigRevisionId != null;
+    return (
+      <p className="text-xs text-muted-foreground">
+        {hasRevision ? t('envResourceTableEmpty') : t('envResourceTableEmptyNoRevision')}
+      </p>
+    );
   }
 
   return (

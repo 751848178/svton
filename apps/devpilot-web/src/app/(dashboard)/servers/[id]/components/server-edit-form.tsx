@@ -8,6 +8,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import { Input, Select, Textarea } from '@/components/ui';
 
 export interface ServerEditFormValue {
   name: string;
@@ -28,84 +29,76 @@ export function ServerEditForm({
 }) {
   const t = useTranslations('servers');
   const tc = useTranslations('common');
-  const inputCls = 'w-full rounded-md border px-3 py-2';
 
   return (
     <div className="space-y-4">
       <label className="block text-sm">
         <span className="mb-1 block font-medium">{tc('name')}</span>
-        <input
+        <Input
           value={editForm.name}
           onChange={(e) => onEditFormChange({ name: e.target.value })}
-          className={inputCls}
         />
       </label>
       <div className="grid grid-cols-3 gap-2">
         <label className="col-span-2 block text-sm">
           <span className="mb-1 block font-medium">{t('host')}</span>
-          <input
+          <Input
             value={editForm.host}
             onChange={(e) => onEditFormChange({ host: e.target.value })}
-            className={inputCls}
           />
         </label>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('port')}</span>
-          <input
+          <Input
             type="number"
             value={editForm.port}
             onChange={(e) => onEditFormChange({ port: e.target.value })}
-            className={inputCls}
           />
         </label>
       </div>
       <label className="block text-sm">
         <span className="mb-1 block font-medium">{t('username')}</span>
-        <input
+        <Input
           value={editForm.username}
           onChange={(e) => onEditFormChange({ username: e.target.value })}
-          className={inputCls}
         />
       </label>
       <label className="block text-sm">
         <span className="mb-1 block font-medium">{t('authType')}</span>
-        <select
+        <Select
           value={editForm.authType}
           onChange={(e) => onEditFormChange({ authType: e.target.value as 'password' | 'key' })}
-          className={inputCls}
         >
           <option value="password">{t('passwordAuth')}</option>
           <option value="key">{t('sshPrivateKey')}</option>
-        </select>
+        </Select>
       </label>
       <label className="block text-sm">
         <span className="mb-1 block font-medium">
           {editForm.authType === 'password' ? t('password') : t('sshPrivateKey')}
         </span>
         {editForm.authType === 'password' ? (
-          <input
+          <Input
             type="password"
             value={editForm.credentials}
             onChange={(e) => onEditFormChange({ credentials: e.target.value })}
             placeholder={t('credentialsChangeHint')}
-            className={inputCls}
           />
         ) : (
-          <textarea
+          <Textarea
             value={editForm.credentials}
             onChange={(e) => onEditFormChange({ credentials: e.target.value })}
             rows={4}
             placeholder={t('credentialsChangeHint')}
-            className={`${inputCls} font-mono text-xs`}
+            className="font-mono text-xs"
           />
         )}
       </label>
       <label className="block text-sm">
         <span className="mb-1 block font-medium">{t('tagsCommaSeparated')}</span>
-        <input
+        <Input
           value={editForm.tags}
           onChange={(e) => onEditFormChange({ tags: e.target.value })}
-          className={inputCls}
         />
       </label>
     </div>

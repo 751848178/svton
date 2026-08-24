@@ -76,6 +76,19 @@ export interface ProductionReleasePreview {
       workloadServiceCount: number;
       workloadHealthConfigured: boolean;
     };
+    concurrency?: {
+      limit: 1;
+      state: 'available' | 'occupied';
+      checkedAt: string;
+      activeRun: null | {
+        id: string;
+        releaseOrderId: string;
+        releaseVersion: string;
+        mode: string;
+        status: string;
+        createdAt: string;
+      };
+    };
   };
 }
 

@@ -44,19 +44,10 @@ export function RepositoryTab({
         onSelectRun={onSelectRun}
       />
       <RepositorySuggestionReview analysis={analysis} />
-      {analysis.selectedRun ? (
-        <div className="flex justify-end">
-          <LinkButton
-            variant="outline"
-            size="sm"
-            href={`/audit-events?projectId=${encodeURIComponent(
-              analysis.projectId,
-            )}&category=repository_analysis`}
-          >
-            查看仓库分析审计事件
-          </LinkButton>
-        </div>
-      ) : null}
+      {/*
+        INFO-7：底部审计链接与「查看仓库身份审计」（修订默认分支区）指向完全相同的
+        地址，冗余；保留身份卡内那个上下文入口即可。
+      */}
     </div>
   );
 }

@@ -4,6 +4,7 @@
  * 单一职责：渲染单个筛选 select，受控组件。
  */
 
+import { Select } from '@/components/ui';
 import { FilterOption } from '../constants';
 
 interface FilterSelectProps {
@@ -17,10 +18,9 @@ export function FilterSelect({ label, value, onChange, options }: FilterSelectPr
   return (
     <label className="block min-w-44 text-sm">
       <span className="mb-1 block font-medium">{label}</span>
-      <select
+      <Select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-md border px-3 py-2"
       >
         {options.map((option) => (
           <option
@@ -30,7 +30,7 @@ export function FilterSelect({ label, value, onChange, options }: FilterSelectPr
             {option.label}
           </option>
         ))}
-      </select>
+      </Select>
     </label>
   );
 }

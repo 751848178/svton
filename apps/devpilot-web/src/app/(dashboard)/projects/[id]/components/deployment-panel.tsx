@@ -1,20 +1,24 @@
 /** 项目部署运行面板。 */
 'use client';
-import { useState } from 'react';
-import Link from 'next/link';
+import React, { useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { EmptyState } from '@svton/ui';
-import { Alert, Button, ErrorBanner, StatusTag } from '@/components/ui';
-import { formatDateTimeMinute } from '@/lib/format-date';
-import { releaseEnvironmentValueLabelKey } from '../utils/release-copy.model';
-import { DeploymentRunDetails } from './deployment-run-details.component';
+import { Alert, ErrorBanner, Select } from '@/components/ui';
 import { DeployServiceSection } from './deploy-service-section';
+import { DeploymentRunList } from './deployment-run-list';
 import { PanelGroup } from './panel-group';
-import { BranchIcon, SourceIcon } from './panel-icons';
-import { getRunStatusLabelKey, getRunSourceLabelKey, shortSha } from '../utils/run-labels';
-import type { DeploymentRun } from '../types/operations';
 import type { ProjectApplication, ProjectService } from '../types';
 import type { useProjectDetail } from '../hooks/use-project-detail';
+import {
+  applyDeploymentRunFilters,
+  deploymentRunFilterOptions,
+  deploymentRunFiltersActive,
+  parseDeploymentRunFilters,
+  type DeploymentRunFilters,
+} from '../utils/deployment-run-filters.model';
+import { getRunSourceLabelKey, getRunStatusLabelKey } from '../utils/run-labels';
+import { releaseEnvironmentValueLabelKey } from '../utils/release-copy.model';
 type DetailHook = ReturnType<typeof useProjectDetail>;
 
 const INITIAL_VISIBLE = 10;
@@ -28,20 +32,61 @@ interface DeploymentPanelProps {
 
 export function DeploymentPanel({ detail, focusedRunId, onOpenDeploy }: DeploymentPanelProps) {
   const t = useTranslations('projects');
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [expanded, setExpanded] = useState(false);
 
   const showDeploySection = Boolean(onOpenDeploy && detail.project?.applications?.length);
-
+  const filters = parseDeploymentRunFilters(searchParams);
+  const allRuns = detail.deploymentRuns;
+  const filteredRuns = deploymentRunFiltersActive(filters)
+    ? applyDeploymentRunFilters(allRuns, filters)
+    : allRuns;
   const focusedRuns = focusedRunId
-    ? detail.deploymentRuns.filter((run) => run.id === focusedRunId)
-    : detail.deploymentRuns;
+    ? filteredRuns.filter((run) => run.id === focusedRunId)
+    : filteredRuns;
+
+  /** 筛选/聚焦状态写入 URL（替换而非追加），刷新与分享可恢复。 */
+  const updateQuery = (patch: Partial<DeploymentRunFilters> & { runId?: null }) => {
+    const next = new URLSearchParams(searchParams?.toString() ?? '');
+    const assignments: Array<[string, string | undefined]> = [
+      ['runEnv', patch.environment],
+      ['runStatus', patch.status],
+      ['runSource', patch.source],
+      ['runSort', patch.sort],
+      ['runId', patch.runId === null ? '' : undefined],
+    ];
+    for (const [key, value] of assignments) {
+      if (value === undefined) continue;
+      if (value) next.set(key, value);
+      else next.delete(key);
+    }
+    const query = next.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
+
+  const clearFocus = () => updateQuery({ runId: null });
+
   const runsPanel = (
     <PanelGroup
       title={t('deploymentRuns')}
       subtitle={t('deploymentPanelDescription')}
     >
       {focusedRunId ? (
-        <Alert tone="info">{t('focusedDeploymentRun', { id: focusedRunId.slice(-8) })}</Alert>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Alert tone="info">
+            {t('focusedDeploymentRun', { id: focusedRunId })}
+            <span className="ml-1 font-mono text-xs">{focusedRunId}</span>
+          </Alert>
+          <button
+            type="button"
+            className="rounded border px-2 py-1 text-xs text-primary hover:bg-accent"
+            onClick={clearFocus}
+          >
+            {t('focusedDeploymentRunClear')}
+          </button>
+        </div>
       ) : null}
       {detail.deploymentError ? (
         <ErrorBanner
@@ -53,14 +98,32 @@ export function DeploymentPanel({ detail, focusedRunId, onOpenDeploy }: Deployme
           text={focusedRunId ? t('focusedDeploymentRunNotFound') : t('noDeploymentRuns')}
         />
       ) : (
-        <DeploymentRunList
-          runs={focusedRuns}
-          visibleCount={INITIAL_VISIBLE}
-          expanded={Boolean(focusedRunId) || expanded}
-          focusedRunId={focusedRunId}
-          onToggle={setExpanded}
-          t={t}
-        />
+        <>
+          {!focusedRunId && allRuns.length > 0 ? (
+            <DeploymentRunFiltersBar
+              filters={filters}
+              options={deploymentRunFilterOptions(allRuns)}
+              onChange={(patch) => updateQuery(patch)}
+              onReset={() => updateQuery({ environment: '', status: '', source: '' })}
+            />
+          ) : null}
+          {deploymentRunFiltersActive(filters) && !focusedRunId ? (
+            <p className="text-xs text-muted-foreground">
+              {t('deploymentRunFilterSummary', {
+                visible: filteredRuns.length,
+                total: allRuns.length,
+              })}
+            </p>
+          ) : null}
+          <DeploymentRunList
+            projectId={detail.project?.id ?? ''}
+            runs={focusedRuns}
+            visibleCount={INITIAL_VISIBLE}
+            expanded={Boolean(focusedRunId) || expanded}
+            focusedRunId={focusedRunId}
+            onToggle={setExpanded}
+          />
+        </>
       )}
     </PanelGroup>
   );
@@ -78,122 +141,90 @@ export function DeploymentPanel({ detail, focusedRunId, onOpenDeploy }: Deployme
   );
 }
 
-function DeploymentRunList({
-  runs,
-  visibleCount,
-  expanded,
-  onToggle,
-  focusedRunId,
-  t,
+function DeploymentRunFiltersBar({
+  filters,
+  options,
+  onChange,
+  onReset,
 }: {
-  runs: DeploymentRun[];
-  visibleCount: number;
-  expanded: boolean;
-  onToggle: (v: boolean) => void;
-  focusedRunId?: string;
-  t: ReturnType<typeof useTranslations<'projects'>>;
+  filters: DeploymentRunFilters;
+  options: ReturnType<typeof deploymentRunFilterOptions>;
+  onChange: (patch: Partial<DeploymentRunFilters>) => void;
+  onReset: () => void;
 }) {
-  const visible = expanded ? runs : runs.slice(0, visibleCount);
+  const t = useTranslations('projects');
+  const selectClass = 'w-auto bg-background';
   return (
-    <>
-      <div className="space-y-2">
-        {visible.map((run) => (
-          <DeploymentRunRow
-            key={run.id}
-            run={run}
-            initiallyOpen={run.id === focusedRunId}
-            t={t}
-          />
+    <div className="flex flex-wrap items-center gap-2" data-testid="deployment-run-filters">
+      <Select
+        size="sm"
+        aria-label={t('deploymentRunFilterEnvironment')}
+        className={selectClass}
+        value={filters.environment}
+        onChange={(event) => onChange({ environment: event.target.value })}
+      >
+        <option value="">{t('deploymentRunFilterEnvironmentAll')}</option>
+        {options.environments.map((env) => {
+          const labelKey = releaseEnvironmentValueLabelKey(env);
+          return (
+            <option key={env} value={env}>
+              {labelKey ? t(labelKey as never) : env}
+            </option>
+          );
+        })}
+      </Select>
+      <Select
+        size="sm"
+        aria-label={t('deploymentRunFilterStatus')}
+        className={selectClass}
+        value={filters.status}
+        onChange={(event) => onChange({ status: event.target.value })}
+      >
+        <option value="">{t('deploymentRunFilterStatusAll')}</option>
+        {options.statuses.map((status) => (
+          <option key={status} value={status}>
+            {t(getRunStatusLabelKey(status))}
+          </option>
         ))}
-      </div>
-      {runs.length > visibleCount ? (
-        <Button
-          variant="ghost"
-          size="sm"
-          block
-          className="mt-2"
-          onClick={() => onToggle(!expanded)}
+      </Select>
+      <Select
+        size="sm"
+        aria-label={t('deploymentRunFilterSource')}
+        className={selectClass}
+        value={filters.source}
+        onChange={(event) => onChange({ source: event.target.value })}
+      >
+        <option value="">{t('deploymentRunFilterSourceAll')}</option>
+        {options.sources.map((source) => {
+          const labelKey = getRunSourceLabelKey(source);
+          return (
+            <option key={source} value={source}>
+              {labelKey ? t(labelKey) : source}
+            </option>
+          );
+        })}
+      </Select>
+      <Select
+        size="sm"
+        aria-label={t('deploymentRunFilterSort')}
+        className={selectClass}
+        value={filters.sort}
+        onChange={(event) =>
+          onChange({ sort: event.target.value === 'earliest' ? 'earliest' : 'latest' })
+        }
+      >
+        <option value="latest">{t('deploymentRunFilterSortLatest')}</option>
+        <option value="earliest">{t('deploymentRunFilterSortEarliest')}</option>
+      </Select>
+      {deploymentRunFiltersActive(filters) ? (
+        <button
+          type="button"
+          className="rounded border px-2 py-1 text-xs text-primary hover:bg-accent"
+          onClick={onReset}
         >
-          {expanded ? t('collapse') : t('showAll', { count: runs.length })}
-        </Button>
+          {t('deploymentRunFilterReset')}
+        </button>
       ) : null}
-    </>
-  );
-}
-
-type ProjectsTranslator = ReturnType<typeof useTranslations<'projects'>>;
-
-function DeploymentRunRow({
-  run,
-  initiallyOpen,
-  t,
-}: {
-  run: DeploymentRun;
-  initiallyOpen: boolean;
-  t: ProjectsTranslator;
-}) {
-  const [open, setOpen] = useState(initiallyOpen);
-  const sourceKey = getRunSourceLabelKey(run.source);
-  const statusKey = getRunStatusLabelKey(run.status);
-  const statusLabel = t(statusKey);
-  const environmentKey = releaseEnvironmentValueLabelKey(run.environment);
-  const releaseStage = run.releaseStageAttempts?.[0]?.releaseStage;
-  return (
-    <div className="rounded-md border px-3 py-2 text-sm">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="min-w-0">
-          <span className="inline-flex items-center gap-1 font-medium">
-            <SourceIcon className="h-3.5 w-3.5" />
-            {t('sourceLabel')}: {sourceKey ? t(sourceKey) : run.source || '-'}
-          </span>
-          <span className="ml-2 inline-flex items-center gap-1 text-xs text-muted-foreground">
-            <BranchIcon className="h-3.5 w-3.5" />
-            {t('branchLabel')}: {run.branch || '-'}
-          </span>
-          {run.environment ? (
-            <span className="ml-2 text-xs text-muted-foreground">
-              {environmentKey ? t(environmentKey) : run.environment}
-            </span>
-          ) : null}
-          {run.actor?.name ? (
-            <span className="ml-2 text-xs text-muted-foreground">{run.actor.name}</span>
-          ) : null}
-          {shortSha(run.commitSha) ? (
-            <span className="ml-2 font-mono text-xs text-muted-foreground">
-              {shortSha(run.commitSha)}
-            </span>
-          ) : null}
-          {releaseStage ? (
-            <Link
-              className="ml-2 text-xs text-primary hover:underline"
-              href={`?tab=releases&releasePlanId=${encodeURIComponent(
-                releaseStage.releasePlan.id,
-              )}&stageId=${encodeURIComponent(releaseStage.id)}`}
-            >
-              {t('releaseRunLink', { name: releaseStage.releasePlan.name })}
-            </Link>
-          ) : null}
-        </div>
-        <div className="flex items-center gap-2">
-          <StatusTag
-            status={run.status}
-            label={statusLabel}
-          />
-          <span className="text-xs text-muted-foreground">
-            {formatDateTimeMinute(run.startedAt)}
-          </span>
-          <button
-            type="button"
-            className="rounded px-1 text-xs text-muted-foreground hover:bg-accent"
-            onClick={() => setOpen((v) => !v)}
-            aria-expanded={open}
-            aria-label={t('runToggleEvidence')}
-          >
-            {open ? '▾' : '▸'} {t('runToggleEvidence')}
-          </button>
-        </div>
-      </div>
-      {open ? <DeploymentRunDetails run={run} /> : null}
     </div>
   );
 }

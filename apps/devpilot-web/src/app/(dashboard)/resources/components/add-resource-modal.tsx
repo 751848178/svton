@@ -15,7 +15,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useTranslations } from 'next-intl';
 import { useSetState } from '@svton/hooks';
-import { Modal, ErrorBanner } from '@/components/ui';
+import { ErrorBanner, Input, Modal, Select } from '@/components/ui';
 import type { ResourceType, ResourceInput } from '../types';
 
 interface AddResourceModalProps {
@@ -103,10 +103,9 @@ export function AddResourceModal({
           />
           <label className="block text-sm">
             <span className="mb-1 block font-medium">{t('resourceType')}</span>
-            <select
+            <Select
               {...register('type')}
               onChange={(e) => handleTypeChange(e.target.value)}
-              className="w-full rounded-md border bg-background px-3 py-2"
             >
               {resourceTypes.map((option) => (
                 <option
@@ -116,16 +115,15 @@ export function AddResourceModal({
                   {option.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
 
           <label className="block text-sm">
             <span className="mb-1 block font-medium">{t('resourceName')}</span>
-            <input
+            <Input
               type="text"
               {...register('name', { required: true })}
               required
-              className="w-full rounded-md border bg-background px-3 py-2"
               placeholder={t('resourceNamePlaceholder')}
             />
           </label>
@@ -139,13 +137,12 @@ export function AddResourceModal({
                 {field.label}
                 {field.required ? <span className="ml-1 text-destructive">*</span> : null}
               </span>
-              <input
+              <Input
                 type={field.type}
                 value={config[field.key] || ''}
                 onChange={(e) => setConfig({ [field.key]: e.target.value })}
                 required={field.required}
                 placeholder={field.default?.toString()}
-                className="w-full rounded-md border bg-background px-3 py-2"
               />
             </label>
           ))}

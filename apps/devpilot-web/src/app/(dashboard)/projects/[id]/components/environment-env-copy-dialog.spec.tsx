@@ -57,10 +57,10 @@ describe('EnvironmentEnvCopyDialog (F447 AC-SET-036)', () => {
     expect(html).toContain('envVarsCopyPreviewSecrets:{&quot;count&quot;:1}');
     expect(html).toContain('s3_access_key');
     expect(html).toContain('envVarsCopySelectTargets');
-    expect(html).toContain('preview · Preview');
-    expect(html).toContain('production · Production');
+    expect(html).toContain('Preview (preview)');
+    expect(html).toContain('Production (production)');
     // Source environment is not offered as a target label.
-    expect(html).not.toContain('Staging · Staging');
+    expect(html).not.toContain('Staging (staging)');
     expect(html).toContain('envVarsCopyConfirm');
   });
 
@@ -84,7 +84,7 @@ describe('EnvironmentEnvCopyDialog (F447 AC-SET-036)', () => {
       />,
     );
 
-    expect(html).toContain('b · B');
+    expect(html).toContain('B (b)');
     expect(html).not.toContain('archived');
     expect(html).toContain('envVarsCopyPreviewEmpty');
   });

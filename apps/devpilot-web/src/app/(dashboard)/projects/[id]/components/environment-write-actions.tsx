@@ -15,7 +15,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Button } from '@svton/ui';
-import { ConfirmDialog, Select } from '@/components/ui';
+import { ConfirmDialog, Field, Input, Select, Textarea } from '@/components/ui';
 import { useEnvironmentActions } from '../hooks/use-environment-actions';
 import { BindServerBlock } from './environment-bind-server-block';
 import { isBaselineEnvironment } from './settings/settings-env.model';
@@ -152,35 +152,28 @@ function EditFields({
 }) {
   return (
     <div className="space-y-2">
-      <label className="block text-sm">
-        <span className="mb-1 block font-medium">{t('envNameLabel')}</span>
-        <input
+      <Field label={t('envNameLabel')}>
+        <Input
           value={name}
           onChange={(e) => onName(e.target.value)}
-          className="w-full rounded-md border px-3 py-2"
         />
-      </label>
-      <label className="block text-sm">
-        <span className="mb-1 block font-medium">{t('envDescriptionLabel')}</span>
-        <textarea
+      </Field>
+      <Field label={t('envDescriptionLabel')}>
+        <Textarea
           value={description}
           onChange={(e) => onDescription(e.target.value)}
           rows={2}
-          className="w-full rounded-md border px-3 py-2"
         />
-      </label>
-      <label className="block text-sm">
-        <span className="mb-1 block font-medium">{t('envIdentityReasonLabel')}</span>
-        <input
+      </Field>
+      <Field label={t('envIdentityReasonLabel')}>
+        <Input
           value={reason}
           onChange={(e) => onReason(e.target.value)}
           placeholder={t('envIdentityReasonPlaceholder')}
-          className="w-full rounded-md border px-3 py-2"
         />
-      </label>
+      </Field>
       {!baseline ? (
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium">{t('envStatusLabel')}</span>
+        <Field label={t('envStatusLabel')}>
           <Select
             value={status}
             onChange={(e) => onStatus(e.target.value)}
@@ -189,7 +182,7 @@ function EditFields({
               { value: 'archived', label: t('envStatusArchived') },
             ]}
           />
-        </label>
+        </Field>
       ) : null}
       <Button variant="primary" size="sm" onClick={onSave} loading={saving}>
         {t('envSave')}

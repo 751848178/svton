@@ -22,6 +22,7 @@ export function getRunSourceLabelKey(source: string): string | null {
   if (s === 'manual') return 'runSourceManual';
   if (s === 'api') return 'runSourceApi';
   if (s === 'schedule' || s === 'scheduled') return 'runSourceSchedule';
+  if (s === 'release_order') return 'runSourceReleaseOrder';
   return null;
 }
 
@@ -47,4 +48,11 @@ export function getServiceStatusLabelKey(status: string): string | null {
 export function shortSha(sha: string | null | undefined): string | null {
   if (!sha) return null;
   return sha.length > 8 ? sha.slice(0, 8) : sha;
+}
+
+/** 终态运行状态：不会再变化的运行（blocked 可被审批后继续，不算终态）。 */
+const TERMINAL_RUN_STATUSES = new Set(['succeeded', 'failed', 'cancelled', 'canceled']);
+
+export function isTerminalRunStatus(status: string): boolean {
+  return TERMINAL_RUN_STATUSES.has(status.toLowerCase());
 }

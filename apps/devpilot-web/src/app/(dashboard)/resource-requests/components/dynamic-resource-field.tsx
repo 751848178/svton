@@ -1,5 +1,6 @@
 /** 动态资源字段 - 按字段类型渲染输入控件。 */
 import { useTranslations } from 'next-intl';
+import { Checkbox, Input, Select, Textarea } from '@/components/ui';
 import type { ResourceField, ResourceFieldValue } from '../types';
 
 export function DynamicResourceField({
@@ -12,29 +13,27 @@ export function DynamicResourceField({
   onChange: (value: ResourceFieldValue) => void;
 }) {
   const t = useTranslations('resourceRequests');
-  const baseClassName = 'w-full px-3 py-2 border rounded-md bg-background';
   const stringValue = typeof value === 'boolean' ? '' : value;
   const fieldBody = (() => {
     if (field.type === 'textarea') {
       return (
-        <textarea
+        <Textarea
           value={stringValue}
           onChange={(event) => onChange(event.target.value)}
           rows={3}
           required={field.required}
           placeholder={field.placeholder}
-          className={`${baseClassName} resize-none`}
+          className="resize-none"
         />
       );
     }
 
     if (field.type === 'select') {
       return (
-        <select
+        <Select
           value={stringValue}
           onChange={(event) => onChange(event.target.value)}
           required={field.required}
-          className={baseClassName}
         >
           <option value="">{t('pleaseSelect')}</option>
           {(field.options || []).map((option) => (
@@ -45,18 +44,16 @@ export function DynamicResourceField({
               {option.label}
             </option>
           ))}
-        </select>
+        </Select>
       );
     }
 
     if (field.type === 'checkbox') {
       return (
         <label className="flex h-10 items-center gap-2 px-3 py-2 border rounded-md bg-background">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={Boolean(value)}
             onChange={(event) => onChange(event.target.checked)}
-            className="h-4 w-4"
           />
           <span className="text-sm text-muted-foreground">{t('yes')}</span>
         </label>
@@ -64,13 +61,12 @@ export function DynamicResourceField({
     }
 
     return (
-      <input
+      <Input
         type={field.type}
         value={stringValue}
         onChange={(event) => onChange(event.target.value)}
         required={field.required}
         placeholder={field.placeholder}
-        className={baseClassName}
       />
     );
   })();

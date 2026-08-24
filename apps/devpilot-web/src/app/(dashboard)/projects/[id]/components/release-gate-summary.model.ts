@@ -1,9 +1,11 @@
 import type {
   ReleaseGateCatalog,
   ReleaseGateCheck,
+  ReleaseGateDecisionStage,
   ReleaseGateStatus,
 } from '../types/release-gate.types';
 import { hasExactReleaseGateCatalog } from './release-gate-catalog-integrity.model';
+import { buildReleaseGateDecisionCounts } from './release-gate-decision-counts.model';
 
 export const RELEASE_GATE_PREVIEW_GROUPS = [
   { key: 'source', capabilityIds: ['M01'] },
@@ -15,7 +17,9 @@ export const RELEASE_GATE_PREVIEW_GROUPS = [
 export interface ReleaseGateSummary {
   valid: boolean;
   canEnterBuild: boolean;
+  /** 与决策卡/技术证据同源的「阻断」计数（blocker + 完整性错误；待人工另计）。 */
   blockingCount: number;
+  manualCount: number;
   capabilityCount: number;
   totalChecks: number;
   previews: Array<{
@@ -36,29 +40,37 @@ export interface ReleaseGateSummary {
   }>;
 }
 
-export function buildReleaseGateSummary(catalog: ReleaseGateCatalog): ReleaseGateSummary {
+/**
+ * PX-1 门禁计数单一口径：summary 与组行统计全部取「当前执行阶段决策」
+ * （默认 build，工作台传入 decisionStep 对应阶段）。组行不再按决策 phase 过滤，
+ * 而是聚合该能力组的全部 MVP 检查——阻断数 = 组内命中该阶段决策 blocker 集合的检查数，
+ * 保证 区头计数 = Σ组行阻断 = 预警条计数。
+ */
+export function buildReleaseGateSummary(
+  catalog: ReleaseGateCatalog,
+  stage: ReleaseGateDecisionStage = 'build',
+): ReleaseGateSummary {
   const valid = hasExactReleaseGateCatalog(catalog);
-  const decision = catalog.decisions?.build;
+  const decision = catalog.decisions?.[stage] ?? catalog.decisions?.build;
   const blockedIds = new Set([
     ...(decision?.blockerGateIds ?? []),
     ...(decision?.manualGateIds ?? []),
     ...(decision?.deferredGateIds ?? []),
   ]);
-  const blockingCount = decision
-    ? decision.blockerGateIds.length +
-      decision.manualGateIds.length +
-      decision.integrityErrors.length
-    : 1;
+  // ROD-1：阻断计数改由共享 selector 派生（blocker + 完整性错误），不再混入全量 manual 门禁；
+  // 目录无效时按失败关闭语义显示至少 1。
+  const counts = buildReleaseGateDecisionCounts(decision);
+  const blockingCount = valid ? counts.blocked : Math.max(1, counts.blocked);
   return {
     valid,
-    canEnterBuild: valid && decision.allowed,
-    blockingCount: valid ? blockingCount : Math.max(1, blockingCount),
+    canEnterBuild: valid && Boolean(catalog.decisions?.build?.allowed),
+    blockingCount,
+    manualCount: counts.manual,
     capabilityCount: catalog.capabilities.length,
     totalChecks: catalog.checks.length,
     previews: RELEASE_GATE_PREVIEW_GROUPS.map((group) => {
       const checks = catalog.checks.filter(
         (check) =>
-          check.phase === decision?.phase &&
           check.delivery === 'mvp' &&
           group.capabilityIds.some((id) => id === check.capabilityId),
       );
@@ -69,7 +81,8 @@ export function buildReleaseGateSummary(catalog: ReleaseGateCatalog): ReleaseGat
         checkCount: checks.length,
         passingCount: passingCount(checks),
         blockingCount: blocked.length,
-        primaryReason: (blocked[0] ?? checks.find((check) => check.status !== 'checked'))?.reason ?? null,
+        primaryReason:
+          (blocked[0] ?? checks.find((check) => check.status !== 'checked'))?.reason ?? null,
         checkedAt: latestCheckedAt(checks),
         capabilityIds: group.capabilityIds,
       };

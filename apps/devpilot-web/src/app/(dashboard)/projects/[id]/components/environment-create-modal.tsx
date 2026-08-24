@@ -9,7 +9,7 @@
 
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Button, Modal } from '@/components/ui';
+import { Button, Field, Input, Modal } from '@/components/ui';
 import { useEnvironmentCopySync } from '../hooks/use-environment-copy-sync';
 
 interface CreateForm {
@@ -52,8 +52,6 @@ export function EnvironmentCreateModal({
     if (created) onClose();
   };
 
-  const inputCls = 'w-full rounded-md border px-3 py-2';
-
   return (
     <Modal
       open={open}
@@ -81,40 +79,32 @@ export function EnvironmentCreateModal({
       }
     >
       <div className="space-y-3">
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium">{t('envCreateKey')}</span>
-          <input
+        <Field label={t('envCreateKey')}>
+          <Input
             value={form.key}
             onChange={(e) => patch({ key: e.target.value })}
-            className={inputCls}
             placeholder="production"
           />
-        </label>
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium">{t('envCreateName')}</span>
-          <input
+        </Field>
+        <Field label={t('envCreateName')}>
+          <Input
             value={form.name}
             onChange={(e) => patch({ name: e.target.value })}
-            className={inputCls}
           />
-        </label>
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium">{t('envCreateDescription')}</span>
-          <input
+        </Field>
+        <Field label={t('envCreateDescription')}>
+          <Input
             value={form.description}
             onChange={(e) => patch({ description: e.target.value })}
-            className={inputCls}
           />
-        </label>
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium">{t('envCreateSortOrder')}</span>
-          <input
+        </Field>
+        <Field label={t('envCreateSortOrder')}>
+          <Input
             type="number"
             value={form.sortOrder}
             onChange={(e) => patch({ sortOrder: e.target.value })}
-            className={inputCls}
           />
-        </label>
+        </Field>
       </div>
     </Modal>
   );

@@ -4,15 +4,20 @@ import React, { useEffect } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { EmptyState, LoadingState } from '@svton/ui';
-import { ErrorBanner, LinkButton, PageHeader } from '@/components/ui';
+import { ErrorBanner, PageHeader } from '@/components/ui';
 import { useProjectDetail } from '../hooks/use-project-detail';
+import { useRepositoryAnalysis } from '../hooks/use-repository-analysis.hooks';
 import type { ProjectDeliverySummary } from '../types/project-delivery-summary.types';
-import { readDeliveryView, resolveLegacyProjectHref } from '../utils/project-route.utils';
+import {
+  deploymentRunRedirectHref,
+  releasesViewRedirectHref,
+  resolveLegacyProjectHref,
+  resolveUnknownViewHref,
+} from '../utils/project-route.utils';
 import { ProjectDeliveryRoute } from './project-delivery-route';
-import { ProjectDetailHeader } from './project-detail-header';
+import { ProjectInformationPanel } from './project-information-panel';
 import { ProjectSettingsContent } from './project-settings-content';
-import { DeploymentsTab } from './tabs/deployments-tab';
-import { ReleaseDeliveryCompatibilityBanner } from './release-delivery-compatibility-banner';
+import { ProjectWorkbenchHeader } from './project-workbench-header';
 
 export function ProjectRouteHost({
   mode,
@@ -27,12 +32,46 @@ export function ProjectRouteHost({
   const searchParams = useSearchParams();
   const projectId = params.id as string;
   const legacyHref = resolveLegacyProjectHref(projectId, searchParams);
+  // IA 重构：发布与部署记录迁出 ?view= query 形态（发布=独立页面 /releases，
+  // 部署记录跟随发布单）。旧深链显式 302 纠正，不静默回退。
+  const releasesHref =
+    mode === 'delivery' && searchParams.get('view') === 'releases'
+      ? releasesViewRedirectHref(projectId, searchParams)
+      : null;
+  const deploymentsHref =
+    mode === 'delivery' && searchParams.get('view') === 'deployments'
+      ? deploymentRunRedirectHref(projectId, searchParams)
+      : null;
+  const unknownViewHref =
+    mode === 'delivery' &&
+    !releasesHref &&
+    !deploymentsHref &&
+    !legacyHref &&
+    !searchParams.get('releaseOrderId') &&
+    searchParams.get('create') !== 'true'
+      ? resolveUnknownViewHref(projectId, searchParams)
+      : null;
 
   useEffect(() => {
     if (legacyHref) router.replace(legacyHref);
   }, [legacyHref, router]);
 
-  if (legacyHref) return <LoadingState text={tc('loading')} />;
+  // EV-1：不支持的 view 显式纠正 URL，而不是静默回退到项目信息。
+  useEffect(() => {
+    if (!legacyHref && unknownViewHref) router.replace(unknownViewHref);
+  }, [legacyHref, unknownViewHref, router]);
+
+  useEffect(() => {
+    if (!legacyHref && releasesHref) router.replace(releasesHref);
+  }, [legacyHref, releasesHref, router]);
+
+  useEffect(() => {
+    if (!legacyHref && deploymentsHref) router.replace(deploymentsHref);
+  }, [legacyHref, deploymentsHref, router]);
+
+  if (legacyHref || releasesHref || deploymentsHref || unknownViewHref) {
+    return <LoadingState text={tc('loading')} />;
+  }
   if (mode === 'settings')
     return (
       <ProjectDetailRoute
@@ -40,18 +79,18 @@ export function ProjectRouteHost({
         mode="settings"
       />
     );
-  if (readDeliveryView(searchParams) === 'deployments') {
+  if (searchParams.get('releaseOrderId') || searchParams.get('create') === 'true') {
     return (
-      <ProjectDetailRoute
+      <ProjectDeliveryRoute
         projectId={projectId}
-        mode="deployments"
+        initialSummary={initialSummary}
       />
     );
   }
   return (
-    <ProjectDeliveryRoute
+    <ProjectDetailRoute
       projectId={projectId}
-      initialSummary={initialSummary}
+      mode="information"
     />
   );
 }
@@ -61,14 +100,16 @@ function ProjectDetailRoute({
   mode,
 }: {
   projectId: string;
-  mode: 'settings' | 'deployments';
+  mode: 'information' | 'settings';
 }) {
   const t = useTranslations('projects');
   const tc = useTranslations('common');
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const detail = useProjectDetail(
+  const detail = useProjectDetail(projectId);
+  const analysis = useRepositoryAnalysis(
     projectId,
-    mode === 'deployments' ? searchParams.get('runId')?.trim() || undefined : undefined,
+    searchParams.get('analysisRunId')?.trim() || undefined,
   );
   if (detail.loading) return <LoadingState text={tc('loading')} />;
   if (!detail.project) {
@@ -88,29 +129,37 @@ function ProjectDetailRoute({
     );
   }
 
-  if (mode === 'settings') return <ProjectSettingsContent detail={detail} />;
+  const project = detail.project;
+  const header = <ProjectWorkbenchHeader
+    projectId={projectId}
+    name={project.name}
+  />;
 
-  return (
-    <div className="space-y-6">
-      <ProjectDetailHeader
-        detail={detail}
-        actions={
-          <LinkButton
-            href={`/projects/${encodeURIComponent(projectId)}`}
-            variant="outline"
-          >
-            {t('backToProjectDelivery')}
-          </LinkButton>
-        }
-      />
-      <div className="space-y-4">
-        <p className="text-sm text-muted-foreground">{t('professionalDeploymentView')}</p>
-        <ReleaseDeliveryCompatibilityBanner projectId={projectId} />
-        <DeploymentsTab
+  if (mode === 'settings')
+    return (
+      <div className="space-y-6">
+        {header}
+        <ProjectSettingsContent detail={detail} />
+      </div>
+    );
+
+  if (mode === 'information') {
+    return (
+      <div className="space-y-6">
+        {header}
+        <ProjectInformationPanel
           detail={detail}
-          focusedRunId={searchParams.get('runId')?.trim() || undefined}
+          analysis={analysis}
+          onSelectAnalysisRun={(runId) => {
+            const next = new URLSearchParams(searchParams);
+            next.set('analysisRunId', runId);
+            router.replace(`/projects/${encodeURIComponent(projectId)}?${next.toString()}`, {
+              scroll: false,
+            });
+          }}
         />
       </div>
-    </div>
-  );
+    );
+  }
+
 }

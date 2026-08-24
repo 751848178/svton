@@ -8,7 +8,11 @@ vi.mock('next-intl', () => ({
   useTranslations: () => (key: string) => key,
 }));
 vi.mock('@svton/ui', () => ({
+  Input: (props: Record<string, unknown>) => <input {...props} />,
+  Select: (props: Record<string, unknown>) => <select {...(props as object)}>{(props as { children?: React.ReactNode }).children}</select>,
+  Textarea: (props: Record<string, unknown>) => <textarea {...props} />,
   Button: ({ children }: { children: React.ReactNode }) => <button>{children}</button>,
+  Modal: () => null,
 }));
 
 describe('EnvironmentConfigResourceEditor (AC-SET-026 selectors)', () => {

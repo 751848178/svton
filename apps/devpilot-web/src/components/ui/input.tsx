@@ -1,42 +1,31 @@
 /**
- * devpilot Input
+ * devpilot Input（@svton/ui Input 的薄包装）
  *
- * 在 @svton/ui Input 基线之上，将聚焦环固定为 devpilot 约定的 `ring-primary`（ui 默认
- * 是 `ring-ring`，与 primary 同色但语义上 devpilot 统一用 primary），无效态边框走
- * `destructive` token（ui 用硬编码 red-500）。
+ * 2026-08-23 起表单线统一以 @svton/ui 为唯一实现源（含 size 变体、invalid→
+ * destructive + aria-invalid、placeholder 语义）。应用层仅追加 devpilot 约定：
+ * 聚焦环 ring-primary（与 ring-ring 同色，语义统一；ring 色经 tailwind-merge
+ * 可靠覆盖）。
  *
- * 为保证上述覆盖生效（ui 的 invalid 分支用 `border-red-500`，append className 时
- * tailwind-merge 能去重 ring 色但对 border-red 的语义覆盖不可靠），此处采用与 ui 同
- * 基类的本地实现，直接写入 devpilot 约定色。forwardRef 透传，API 与 @svton/ui Input 一致。
- *
- * 单一职责：文本输入框样式归一。无业务逻辑。
+ * 包装类型使用显式 InputProps（而非从 @svton/ui 组件实例推断
+ * ForwardRefExoticComponent）：仓库锁文件同时含 @types/react 18/19 两个版本，
+ * 跨包组件类型推断在 next build 下会因双 React 类型实例判为非法 JSX 组件。
  */
 
 import React from 'react';
+import { Input as SvtonInput, type InputProps } from '@svton/ui';
 import { cn } from '@/lib/utils';
 
-export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
-  /** 无效态：边框与聚焦环转为 destructive。 */
-  invalid?: boolean;
-}
-
-const BASE_CLASS =
-  'min-h-11 w-full rounded-md border px-3 py-2 text-sm outline-none transition-colors placeholder:text-black/40 focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-60';
+export type { InputProps } from '@svton/ui';
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(function Input(
-  props,
+  { className, ...props },
   ref,
 ) {
-  const { invalid = false, className, ...rest } = props;
   return (
-    <input
+    <SvtonInput
       ref={ref}
-      className={cn(
-        BASE_CLASS,
-        invalid && 'border-destructive focus-visible:ring-destructive/40',
-        className,
-      )}
-      {...rest}
+      className={cn('focus:ring-primary', className)}
+      {...props}
     />
   );
 });

@@ -48,6 +48,41 @@ describe('DeploymentRunDetails copy', () => {
     const html = renderToStaticMarkup(<DeploymentRunDetails run={fixture()} />);
     expect(html).not.toContain('site-probe-evidence-rendered');
   });
+
+  it('DEP-2: a finished run without a traceable job no longer claims it awaits approval', () => {
+    const finished: DeploymentRun = { ...fixture(), status: 'succeeded', serverExecutionJob: null, finishedAt: '2026-08-10T12:00:00Z' };
+    const html = renderToStaticMarkup(<DeploymentRunDetails run={finished} />);
+    expect(html).toContain('runDetailExecutionNoTrace');
+    expect(html).not.toContain('runDetailExecutionNotCreated');
+  });
+
+  it('DEP-2: a non-terminal run without a job still explains it may await approval', () => {
+    const pending: DeploymentRun = { ...fixture(), status: 'queued', serverExecutionJob: null };
+    const html = renderToStaticMarkup(<DeploymentRunDetails run={pending} />);
+    expect(html).toContain('runDetailExecutionNotCreated');
+    expect(html).not.toContain('runDetailExecutionNoTrace');
+  });
+
+  it('DEP-6: structured log arrays render as readable lines before the raw JSON', () => {
+    const logged: DeploymentRun = {
+      ...fixture(),
+      logs: [
+        { level: 'error', message: 'Connection lost before handshake' },
+        { level: 'info', message: 'attempt 2' },
+      ],
+    };
+    const html = renderToStaticMarkup(<DeploymentRunDetails run={logged} />);
+    expect(html).toContain('Connection lost before handshake');
+    expect(html).toContain('attempt 2');
+  });
+
+  it('DEP-8/DEP-10: target type is localized and long fact values get a title tooltip', () => {
+    const typed: DeploymentRun = { ...fixture(), targetType: 'release-artifact' };
+    const html = renderToStaticMarkup(<DeploymentRunDetails run={typed} />);
+    expect(html).toContain('runTargetType_release_artifact');
+    expect(html).not.toMatch(/>release-artifact</);
+    expect(html).toContain('title=');
+  });
 });
 
 function fixture(): DeploymentRun {

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { Select } from '@/components/ui';
 import type { ProjectSecretKey } from '../../types';
 import type { EnvironmentRequirementSuggestion } from './settings-env-requirements.model';
 
@@ -54,17 +55,18 @@ export function SettingsEnvRequirementSuggestions(props: Props) {
                       {t('envVarsSourcePlain')}
                     </button>
                     <div className="flex gap-1">
-                      <select
+                      <Select
                         value={choice}
                         onChange={(event) => setSecretChoice((current) => ({
                           ...current, [suggestion.key]: event.target.value,
                         }))}
-                        className="min-w-0 rounded border bg-background px-1"
+                        size="sm"
+                        className="min-w-0"
                       >
                         {props.secrets.map((secret) => (
                           <option key={secret.id} value={secret.id}>{secret.name}</option>
                         ))}
-                      </select>
+                      </Select>
                       <button
                         type="button"
                         disabled={!choice || props.selectedSecretIds.has(choice)}

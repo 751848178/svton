@@ -1,7 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { Modal } from '@/components/ui';
+import { Field, Input, Modal } from '@/components/ui';
 
 /**
  * 创建团队表单弹窗。从 team-switcher 拆出,使 team-switcher 只负责切换器交互,
@@ -36,17 +36,15 @@ export function CreateTeamModal({
         onSubmit={onSubmit}
         className="space-y-4"
       >
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium">{t('teamName')}</span>
-          <input
+        <Field label={t('teamName')}>
+          <Input
             type="text"
             value={teamName}
             onChange={(e) => setTeamName(e.target.value)}
             placeholder={t('teamNamePlaceholder')}
-            className="min-h-11 w-full rounded-md border px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary"
             autoFocus
           />
-        </label>
+        </Field>
         <div className="flex justify-end gap-2">
           <button
             type="button"

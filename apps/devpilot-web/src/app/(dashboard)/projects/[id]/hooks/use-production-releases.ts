@@ -6,6 +6,9 @@ import { useAuthStore, useTeamStore } from '@/store/hooks';
 import type { ProductionReleasePreview, ProductionReleaseRun } from '../types/release-order.types';
 import { scopedRequestIdentity, useScopedRequestGuard } from './use-scoped-request-guard';
 
+/** ROD-2：区分后台预览加载失败（load）与用户操作失败（action），只有后者渲染失败 alert。 */
+export type ProductionErrorKind = 'load' | 'action' | null;
+
 interface ProductionState {
   scope: string;
   preview: ProductionReleasePreview | null;
@@ -13,6 +16,7 @@ interface ProductionState {
   confirming: boolean;
   refreshing: boolean;
   error: string;
+  errorKind: ProductionErrorKind;
 }
 
 export function useProductionReleases(
@@ -46,13 +50,20 @@ export function useProductionReleases(
         : null;
       if (!isCurrent(request)) return;
       if (preview && !ownsPreview(preview, projectId, releaseOrderId, manifestId)) {
-        setState(failedState(scope, 'releaseProductionPreviewScopeMismatch'));
+        setState(failedState(scope, 'releaseProductionPreviewScopeMismatch', 'load'));
         return;
       }
-      setState({ scope, preview, loading: false, confirming: false,
-        refreshing: false, error: '' });
+      setState({
+        scope,
+        preview,
+        loading: false,
+        confirming: false,
+        refreshing: false,
+        error: '',
+        errorKind: null,
+      });
     } catch (caught) {
-      if (isCurrent(request)) setState(failedState(scope, message(caught)));
+      if (isCurrent(request)) setState(failedState(scope, message(caught), 'load'));
     }
   }, [active, begin, isCurrent, manifestId, projectId, releaseOrderId, scope]);
 
@@ -71,6 +82,7 @@ export function useProductionReleases(
       ...(current.scope === scope ? current : loadingState(scope)),
       confirming: true,
       error: '',
+      errorKind: null,
     }));
     try {
       const run = await apiRequest<ProductionReleaseRun>(
@@ -83,13 +95,13 @@ export function useProductionReleases(
       );
       if (!isCurrent(request)) return null;
       if (run.projectId !== projectId || run.releaseOrderId !== releaseOrderId) {
-        setState(failedState(scope, 'releaseProductionRunScopeMismatch'));
+        setState(failedState(scope, 'releaseProductionRunScopeMismatch', 'action'));
         return null;
       }
       await onChanged();
       return isCurrent(request) ? run : null;
     } catch (caught) {
-      if (isCurrent(request)) setState(failedState(scope, message(caught)));
+      if (isCurrent(request)) setState(failedState(scope, message(caught), 'action'));
       return null;
     } finally {
       if (confirmInFlight.current === scope) confirmInFlight.current = null;
@@ -108,9 +120,11 @@ export function useProductionReleases(
     }
     const request = begin('preflight-refresh');
     if (!isCurrent(request)) return null;
-    setState((current) => current.scope === scope
-      ? { ...current, refreshing: true, error: '' }
-      : current);
+    setState((current) =>
+      current.scope === scope
+        ? { ...current, refreshing: true, error: '', errorKind: null }
+        : current,
+    );
     try {
       const refreshed = await apiRequest<ProductionReleasePreview>(
         `POST:/projects/${projectId}/delivery/releases/${releaseOrderId}/production-preflight-refresh`,
@@ -119,11 +133,18 @@ export function useProductionReleases(
       if (!isCurrent(request) || !ownsPreview(refreshed, projectId, releaseOrderId, manifestId)) {
         return null;
       }
-      setState({ scope, preview: refreshed, loading: false, confirming: false,
-        refreshing: false, error: '' });
+      setState({
+        scope,
+        preview: refreshed,
+        loading: false,
+        confirming: false,
+        refreshing: false,
+        error: '',
+        errorKind: null,
+      });
       return refreshed;
     } catch (caught) {
-      if (isCurrent(request)) setState(failedState(scope, message(caught)));
+      if (isCurrent(request)) setState(failedState(scope, message(caught), 'action'));
       return null;
     }
   }, [active, begin, isCurrent, manifestId, projectId, releaseOrderId, scope, state]);
@@ -135,6 +156,7 @@ export function useProductionReleases(
     confirming: ownsState && state.confirming,
     refreshing: ownsState && state.refreshing,
     error: ownsState ? state.error : '',
+    errorKind: ownsState ? state.errorKind : null,
     load,
     confirm,
     refreshPreflight,
@@ -155,16 +177,27 @@ function ownsPreview(
 }
 
 function loadingState(scope: string): ProductionState {
-  return { scope, preview: null, loading: true, confirming: false,
-    refreshing: false, error: '' };
+  return {
+    scope,
+    preview: null,
+    loading: true,
+    confirming: false,
+    refreshing: false,
+    error: '',
+    errorKind: null,
+  };
 }
 
 function inactiveState(scope: string): ProductionState {
   return { ...loadingState(scope), loading: false };
 }
 
-function failedState(scope: string, error: string): ProductionState {
-  return { ...loadingState(scope), loading: false, error };
+function failedState(
+  scope: string,
+  error: string,
+  errorKind: Exclude<ProductionErrorKind, null>,
+): ProductionState {
+  return { ...loadingState(scope), loading: false, error, errorKind };
 }
 
 function message(error: unknown) {

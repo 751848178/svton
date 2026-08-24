@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useLocale, useTranslations } from 'next-intl';
-import { Button, StatusTag } from '@/components/ui';
+import { Button, Field, Select, StatusTag } from '@/components/ui';
 import type {
   EnvironmentVersionCandidate,
   EnvironmentVersionEnvironment,
@@ -81,10 +81,9 @@ export function EnvironmentVersionCard(props: {
         onReconcile={props.onReconcilePromotion}
       />
       <div className="grid grid-cols-2 gap-2 rounded-md bg-muted/30 p-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-end">
-        <label className="col-span-2 min-w-0 text-sm sm:col-span-1">
-          <span className="mb-1 block font-medium">{t('environmentVersionUpgradeTarget')}</span>
-          <select
-            className="min-h-11 w-full rounded-md border bg-background px-3 py-2"
+        <Field label={t('environmentVersionUpgradeTarget')} className="col-span-2 min-w-0 sm:col-span-1">
+          <Select
+            className="bg-background"
             value={props.selectedId}
             onChange={(event) => props.onSelect(event.target.value)}
             disabled={props.candidates.length === 0}
@@ -105,8 +104,8 @@ export function EnvironmentVersionCard(props: {
                 </option>
               ))
             )}
-          </select>
-        </label>
+          </Select>
+        </Field>
         <Button
           className="min-h-11 w-full sm:w-auto"
           onClick={props.onUpgrade}

@@ -20,11 +20,20 @@ vi.mock('next-intl', () => ({
   useTranslations: () => (key: string) => key,
 }));
 vi.mock('@svton/ui', () => ({
-  Button: ({ children, onClick, disabled }: { children: React.ReactNode; onClick?: () => void; disabled?: boolean }) => (
-    <button type="button" onClick={onClick} disabled={disabled}>{children}</button>
-  ),
-  Card: ({ title, extra, children }: { title?: React.ReactNode; extra?: React.ReactNode; children: React.ReactNode }) => (
-    <div>{title}{extra}{children}</div>
+  Card: ({
+    title,
+    extra,
+    children,
+  }: {
+    title?: React.ReactNode;
+    extra?: React.ReactNode;
+    children: React.ReactNode;
+  }) => (
+    <div>
+      {title}
+      {extra}
+      {children}
+    </div>
   ),
 }));
 vi.mock('../../hooks/use-release-policy', () => ({
@@ -93,8 +102,8 @@ describe('ReleasePolicyTab Demo-aligned policy page (AC-POLICY-001..010)', () =>
     expect(html).not.toContain('type="radio"');
     expect(html).not.toContain('type="checkbox"');
     const buttons = html.match(/<button/g);
-    expect(buttons).toHaveLength(1);
-    expect(html).toContain('releasePolicySaveStandard');
+    expect(buttons).toBeNull();
+    expect(html).not.toContain('releasePolicySaveStandard');
   });
 
   it('shows the system default badge for a synthetic policy with a system creator', () => {
@@ -116,10 +125,10 @@ describe('ReleasePolicyTab Demo-aligned policy page (AC-POLICY-001..010)', () =>
     expect(html).not.toContain('policy-r3');
   });
 
-  it('renders the saving state and surfaces a stale-revision error', () => {
+  it('keeps editing unavailable and surfaces a policy loading error', () => {
     mocks.hook.saving = true;
     const savingHtml = renderToStaticMarkup(<ReleasePolicyTab projectId="project-1" />);
-    expect(savingHtml).toContain('releasePolicySaving');
+    expect(savingHtml).not.toContain('releasePolicySaving');
     expect(savingHtml).not.toContain('releasePolicySaveStandard');
 
     mocks.hook.saving = false;

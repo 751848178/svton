@@ -13,7 +13,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Copyable } from '@svton/ui';
-import { ErrorBanner, Input, Modal, Select } from '@/components/ui';
+import { Checkbox, ErrorBanner, Field, Input, Modal, Select } from '@/components/ui';
 import { feedback } from '@/components/ui/feedback/feedback';
 import type {
   CreateWebhookInput,
@@ -189,69 +189,56 @@ export function WebhookFormModal(props: WebhookFormModalProps) {
             }}
             className="space-y-4"
           >
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium">{tc('name')}</span>
+            <Field label={tc('name')}>
               <Input
                 value={form.name}
                 onChange={(e) => set('name', e.target.value)}
                 placeholder={t('webhookNamePlaceholder')}
               />
-            </label>
+            </Field>
 
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium">{t('providerLabel')}</span>
+            <Field
+              label={t('providerLabel')}
+              hint={isEdit ? t('webhookProviderLocked') : undefined}
+            >
               <Select
                 options={PROVIDER_OPTIONS}
                 value={form.provider}
                 onChange={(e) => set('provider', e.target.value)}
                 disabled={isEdit}
               />
-              {isEdit ? (
-                <span className="mt-1 block text-xs text-muted-foreground">
-                  {t('webhookProviderLocked')}
-                </span>
-              ) : null}
-            </label>
+            </Field>
 
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium">{t('webhookEvents')}</span>
+            <Field label={t('webhookEvents')} hint={t('webhookEventTypesHint')}>
               <Input
                 value={form.eventTypes}
                 onChange={(e) => set('eventTypes', e.target.value)}
                 placeholder={t('webhookEventTypesPlaceholder')}
               />
-              <span className="mt-1 block text-xs text-muted-foreground">
-                {t('webhookEventTypesHint')}
-              </span>
-            </label>
+            </Field>
 
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium">{t('branchLabel')}</span>
+            <Field label={t('branchLabel')}>
               <Input
                 value={form.branchPattern}
                 onChange={(e) => set('branchPattern', e.target.value)}
                 placeholder="main"
               />
-            </label>
+            </Field>
 
-            <label className="block text-sm">
-              <span className="mb-1 block font-medium">{t('webhookDeploymentMode')}</span>
+            <Field label={t('webhookDeploymentMode')}>
               <Select
                 options={DEPLOY_MODE_OPTIONS}
                 value={form.deploymentMode}
                 onChange={(e) => set('deploymentMode', e.target.value)}
               />
-            </label>
+            </Field>
 
             {isEdit ? (
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={form.enabled}
-                  onChange={(e) => set('enabled', e.target.checked)}
-                />
-                <span>{t('webhookEnabled')}</span>
-              </label>
+              <Checkbox
+                checked={form.enabled}
+                onChange={(e) => set('enabled', e.target.checked)}
+                label={t('webhookEnabled')}
+              />
             ) : null}
 
             <div className="flex justify-end gap-2 pt-2">

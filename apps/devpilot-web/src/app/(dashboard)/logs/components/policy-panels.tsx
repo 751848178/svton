@@ -2,6 +2,7 @@
 'use client';
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
+import { Checkbox, Input } from '@/components/ui';
 import type { useLogs } from '../hooks/use-logs';
 import { AgentFollowPolicyCard } from './agent-follow-policy-card.component';
 type LogsHook = ReturnType<typeof useLogs>;
@@ -20,24 +21,21 @@ export function PolicyPanels({ logs }: { logs: LogsHook }) {
         <h3 className="font-medium text-sm">{tl('redactionPolicy')}</h3>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{tl('extraKeys')}</span>
-          <input
+          <Input
             value={t.redactionExtraKeys}
             onChange={(e) => t.setRedactionExtraKeys(e.target.value)}
             placeholder={tl('extraKeysPlaceholder')}
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
           />
         </label>
         <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={t.redactionMaskEmails}
             onChange={(e) => t.setRedactionMaskEmails(e.target.checked)}
           />
           {tl('maskEmails')}
         </label>
         <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={t.redactionMaskIpAddresses}
             onChange={(e) => t.setRedactionMaskIpAddresses(e.target.checked)}
           />
@@ -54,8 +52,7 @@ export function PolicyPanels({ logs }: { logs: LogsHook }) {
       <div className="rounded-lg border p-4 space-y-3">
         <h3 className="font-medium text-sm">{tl('slsBackfill')}</h3>
         <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={t.slsBackfillEnabled}
             onChange={(e) => t.setSlsBackfillEnabled(e.target.checked)}
           />
@@ -63,29 +60,26 @@ export function PolicyPanels({ logs }: { logs: LogsHook }) {
         </label>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{tl('slsQuery')}</span>
-          <input
+          <Input
             value={t.slsBackfillQuery}
             onChange={(e) => t.setSlsBackfillQuery(e.target.value)}
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
           />
         </label>
         <div className="grid grid-cols-2 gap-2">
           <label className="block text-sm">
             <span className="mb-1 block font-medium">{tl('windowMinutes')}</span>
-            <input
+            <Input
               type="number"
               value={t.slsBackfillWindowMinutes}
               onChange={(e) => t.setSlsBackfillWindowMinutes(Number(e.target.value) || 15)}
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
             />
           </label>
           <label className="block text-sm">
             <span className="mb-1 block font-medium">{tl('slsLimit')}</span>
-            <input
+            <Input
               type="number"
               value={t.slsBackfillLimit}
               onChange={(e) => t.setSlsBackfillLimit(Number(e.target.value) || 100)}
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
             />
           </label>
         </div>
@@ -100,8 +94,7 @@ export function PolicyPanels({ logs }: { logs: LogsHook }) {
       <div className="rounded-lg border p-4 space-y-3">
         <h3 className="font-medium text-sm">{tl('serverFollowPolicy')}</h3>
         <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={t.serverFollowEnabled}
             onChange={(e) => t.setServerFollowEnabled(e.target.checked)}
           />
@@ -110,20 +103,18 @@ export function PolicyPanels({ logs }: { logs: LogsHook }) {
         <div className="grid grid-cols-2 gap-2">
           <label className="block text-sm">
             <span className="mb-1 block font-medium">{tl('tailLines')}</span>
-            <input
+            <Input
               type="number"
               value={t.serverFollowTail}
               onChange={(e) => t.setServerFollowTail(Number(e.target.value) || 200)}
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
             />
           </label>
           <label className="block text-sm">
             <span className="mb-1 block font-medium">{tl('intervalMinutes')}</span>
-            <input
+            <Input
               type="number"
               value={t.serverFollowIntervalMinutes}
               onChange={(e) => t.setServerFollowIntervalMinutes(Number(e.target.value) || 5)}
-              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
             />
           </label>
         </div>

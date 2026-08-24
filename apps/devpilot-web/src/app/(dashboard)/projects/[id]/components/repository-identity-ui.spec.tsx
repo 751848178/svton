@@ -26,6 +26,17 @@ vi.mock('@svton/ui', () => ({
 vi.mock('@/components/ui', () => ({
   Input: (props: Record<string, unknown>) => <input {...props} />,
   StatusTag: ({ label }: { label: ReactNode }) => <span>{label}</span>,
+  Modal: ({ children }: { children: ReactNode }) => <aside>{children}</aside>,
+  Field: ({ label, children }: { label?: ReactNode; children: ReactNode }) => (
+    <label>
+      <span>{label}</span>
+      {children}
+    </label>
+  ),
+  Select: ({ children, ...props }: React.SelectHTMLAttributes<HTMLSelectElement> & {
+    children?: React.ReactNode;
+  }) => <select {...props}>{children}</select>,
+  Textarea: (props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => <textarea {...props} />,
 }));
 
 describe('repository identity UI', () => {

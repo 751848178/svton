@@ -8,6 +8,7 @@
 
 import { useTranslations } from 'next-intl';
 import { Tag } from '@svton/ui';
+import { Input } from '@/components/ui';
 import { formatDateTime } from '@/lib/format-date';
 import type { CDNConfig } from '../types';
 import { getProviderLabel } from '../../constants';
@@ -71,18 +72,16 @@ export function CdnConfigView({
             <div className="space-y-4">
               <label className="block text-sm">
                 <span className="mb-1 block font-medium">{tc('name')}</span>
-                <input
+                <Input
                   value={editForm.name}
                   onChange={(e) => onEditFormChange({ name: e.target.value })}
-                  className="w-full rounded-md border px-3 py-2"
                 />
               </label>
               <label className="block text-sm">
                 <span className="mb-1 block font-medium">{t('originAddress')}</span>
-                <input
+                <Input
                   value={editForm.origin}
                   onChange={(e) => onEditFormChange({ origin: e.target.value })}
-                  className="w-full rounded-md border px-3 py-2"
                 />
               </label>
             </div>

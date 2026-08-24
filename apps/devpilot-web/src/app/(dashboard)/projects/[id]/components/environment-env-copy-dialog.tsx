@@ -10,6 +10,7 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Modal } from '@svton/ui';
+import { Checkbox } from '@/components/ui';
 import type { ProjectEnvironment } from '../types';
 import type { EnvCopyTarget } from '../hooks/use-environment-env-copy';
 
@@ -145,14 +146,12 @@ export function EnvironmentEnvCopyDialog({
           ) : (
             <div className="flex flex-wrap gap-3 text-xs">
               {targets.map((env) => (
-                <label key={env.id} className="flex items-center gap-1">
-                  <input
-                    type="checkbox"
-                    checked={selected.includes(env.id)}
-                    onChange={(event) => toggle(env.id, event.target.checked)}
-                  />
-                  {env.key} · {env.name}
-                </label>
+                <Checkbox
+                  key={env.id}
+                  checked={selected.includes(env.id)}
+                  onChange={(event) => toggle(env.id, event.target.checked)}
+                  label={`${env.name} (${env.key})`}
+                />
               ))}
             </div>
           )}

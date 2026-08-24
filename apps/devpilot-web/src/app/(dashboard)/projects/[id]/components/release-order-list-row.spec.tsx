@@ -4,73 +4,52 @@ import { describe, expect, it, vi } from 'vitest';
 import type { ReleaseOrderListItem } from '../types/release-order-list.types';
 import { ReleaseOrderListRow } from './release-order-list-row';
 
-vi.mock('next-intl', () => ({
-  useTranslations: () => (key: string, values?: Record<string, unknown>) =>
-    `${key}${values ? `:${JSON.stringify(values)}` : ''}`,
-}));
+vi.mock('next-intl', () => ({ useTranslations: () => (key: string) => key }));
 vi.mock('@/components/ui', () => ({
-  Button: ({ children }: { children: React.ReactNode }) => <button>{children}</button>,
   StatusTag: ({ label }: { label: string }) => <span>{label}</span>,
-  BlockedState: ({ reason }: { reason: React.ReactNode }) => <div data-blocked>{reason}</div>,
+  Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+    <button {...props}>{children}</button>
+  ),
 }));
 
-describe('ReleaseOrderListRow', () => {
-  it('renders the real source, counts, Manifest, deployment, last execution, and action', () => {
+describe('ReleaseOrderListRow compact table contract', () => {
+  it('makes version and ID actionable and keeps operations in their own cell', () => {
     const html = renderToStaticMarkup(
-      <ReleaseOrderListRow
-        item={item()}
-        onOpen={() => {}}
-      />,
+      <table>
+        <tbody>
+          <ReleaseOrderListRow
+            item={item()}
+            onOpen={vi.fn()}
+          />
+        </tbody>
+      </table>,
     );
-    expect(html).toContain('2.4.1');
-    expect(html).toContain('main@cccccccc');
-    expect(html).toContain('failed build keeps prior manifest');
-    expect(html).toContain('releaseOrderBuildCount');
-    expect(html).toContain('&quot;count&quot;:3');
-    expect(html).toContain('releaseOrderRecentManifest');
-    expect(html).toContain('releaseEnvironmentStaging · releaseExecutionStatusCompleted');
-    expect(html).toContain('releaseOrderListStepProduction');
-    expect(html).toContain('releaseExecutionStatusAwaitingApproval');
-    expect(html).toContain('viewReleaseOrder');
+    expect(html).toContain('1.4.0');
+    expect(html).toContain('图库重构');
+    expect(html).toContain('order-1');
+    expect(html).toContain('master @ a1b2c3d4');
+    expect(html).toContain('releaseOrderActionBuild');
+    expect(html).toContain('releaseOrderActionDeployment');
+    expect(html).toContain('releaseOrderMoreActions');
+    expect(html).not.toContain('<article');
   });
 
-  it('shows locked branch without inventing a Commit or Manifest', () => {
-    const draft = item();
-    draft.source = {
-      branch: 'main',
-      commitSha: null,
-      buildRunId: null,
-      buildRevision: null,
-      buildStatus: null,
-    };
-    draft.build = { count: 0, recentSuccessfulManifest: null };
-    draft.deployment = { count: 0, latest: null };
+  it('labels historical timestamp versions as legacy records', () => {
+    const legacy = item();
+    legacy.releaseVersion = 'v202608200822';
+    legacy.releaseName = 'v202608200822';
     const html = renderToStaticMarkup(
-      <ReleaseOrderListRow
-        item={draft}
-        onOpen={() => {}}
-      />,
+      <table>
+        <tbody>
+          <ReleaseOrderListRow
+            item={legacy}
+            onOpen={vi.fn()}
+          />
+        </tbody>
+      </table>,
     );
-    expect(html).toContain('releaseOrderSourcePending');
-    expect(html).toContain('releaseOrderNoManifest');
-    expect(html).toContain('releaseOrderNoDeployment');
-  });
-
-  it('renders the server-derived failure kind without replacing lifecycle status', () => {
-    const failed = item();
-    failed.lifecycle = {
-      ...failed.lifecycle,
-      status: 'failed',
-      failureKind: 'evidence_mismatch',
-    };
-    const html = renderToStaticMarkup(
-      <ReleaseOrderListRow
-        item={failed}
-        onOpen={() => {}}
-      />,
-    );
-    expect(html).toContain('releaseOrderStatusFailed');
-    expect(html).toContain('releaseOrderFailureEvidenceMismatch');
+    expect(html).toContain('releaseLegacyNameFallback');
+    expect(html).toContain('releaseLegacyVersionValue');
   });
 });
 
@@ -78,55 +57,56 @@ function item(): ReleaseOrderListItem {
   return {
     id: 'order-1',
     projectId: 'project-1',
-    releaseVersion: '2.4.1',
-    note: 'failed build keeps prior manifest',
+    releaseVersion: '1.4.0',
+    releaseName: '图库重构',
+    note: null,
     persistedStatus: 'active',
     lifecycle: {
-      status: 'awaiting_approval',
-      phase: 'production',
-      sourceType: 'release_run',
-      sourceId: 'release-run-1',
-      sourceStatus: 'awaiting_approval',
-      occurredAt: '2026-08-04T08:00:00.000Z',
+      status: 'staging',
+      phase: 'staging',
+      sourceType: 'deployment_run',
+      sourceId: 'deploy-1',
+      sourceStatus: 'running',
+      occurredAt: '2026-08-21T01:00:00Z',
     },
-    createdAt: '2026-08-04T01:00:00.000Z',
+    createdAt: '2026-08-21T00:00:00Z',
     source: {
-      branch: 'main',
-      commitSha: 'c'.repeat(40),
-      buildRunId: 'build-3',
-      buildRevision: 3,
-      buildStatus: 'failed',
+      branch: 'master',
+      commitSha: 'a1b2c3d4e5f6',
+      buildRunId: 'build-1',
+      buildRevision: 1,
+      buildStatus: 'succeeded',
     },
     build: {
-      count: 3,
+      count: 1,
       recentSuccessfulManifest: {
-        id: 'manifest-success-2',
-        digest: `sha256:${'b'.repeat(64)}`,
-        buildRunId: 'build-2',
-        buildRevision: 2,
-        createdAt: '2026-08-04T05:00:00.000Z',
+        id: 'manifest-1',
+        digest: 'sha256:abc',
+        buildRunId: 'build-1',
+        buildRevision: 1,
+        createdAt: '2026-08-21T00:30:00Z',
       },
     },
     deployment: {
-      count: 2,
+      count: 1,
       latest: {
-        id: 'deployment-2',
-        environmentId: 'staging',
+        id: 'deploy-1',
+        environmentId: 'staging-1',
         environmentRole: 'staging',
         environmentName: 'Staging',
-        status: 'completed',
-        artifactManifestId: 'manifest-success-2',
-        buildRunId: 'build-2',
-        occurredAt: '2026-08-04T06:00:00.000Z',
+        status: 'running',
+        artifactManifestId: 'manifest-1',
+        buildRunId: 'build-1',
+        occurredAt: '2026-08-21T01:00:00Z',
       },
     },
     lastExecution: {
-      step: 'production',
-      sourceType: 'release_run',
-      sourceId: 'release-run-1',
-      status: 'awaiting_approval',
-      occurredAt: '2026-08-04T08:00:00.000Z',
+      step: 'staging',
+      sourceType: 'deployment_run',
+      sourceId: 'deploy-1',
+      status: 'running',
+      occurredAt: '2026-08-21T01:00:00Z',
     },
-    lastExecutedAt: '2026-08-04T08:00:00.000Z',
+    lastExecutedAt: '2026-08-21T01:00:00Z',
   };
 }

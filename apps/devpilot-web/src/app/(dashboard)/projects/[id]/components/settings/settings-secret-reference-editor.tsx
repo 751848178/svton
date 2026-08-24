@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { useTranslations } from 'next-intl';
+import { Checkbox, Input } from '@/components/ui';
 import type { ProjectSecretKey } from '../../types';
 import type {
   EnvironmentConfigRevision,
@@ -34,8 +35,7 @@ export function SettingsSecretReferenceEditor({
         return (
           <div key={secret.id} className="grid gap-2 rounded-md border p-2 text-xs sm:grid-cols-[1fr_1fr_auto] sm:items-center">
             <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={Boolean(reference)}
                 onChange={(event) => onChange(event.target.checked
                   ? upsertSecretReference(references, {
@@ -46,7 +46,7 @@ export function SettingsSecretReferenceEditor({
               />
               <span>{secret.name} · {secret.type}</span>
             </label>
-            <input
+            <Input
               value={reference?.targetEnvKey ?? ''}
               disabled={!reference}
               onChange={(event) => onChange(upsertSecretReference(references, {
@@ -55,7 +55,8 @@ export function SettingsSecretReferenceEditor({
               }))}
               placeholder={t('configSecretTargetKey')}
               aria-label={`${secret.name} target key`}
-              className="rounded-md border bg-background px-2 py-1 font-mono disabled:opacity-50"
+              size="sm"
+              className="font-mono"
             />
             <span className={effective ? 'text-green-700' : 'text-amber-700'}>
               {t(effective ? 'configBindingEffective' : 'configBindingDraft')}

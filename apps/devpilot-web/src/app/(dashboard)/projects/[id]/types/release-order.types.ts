@@ -7,6 +7,7 @@ export interface ReleaseOrderItem {
   id: string;
   projectId: string;
   releaseVersion: string;
+  releaseName?: string | null;
   note: string | null;
   status: string;
   createdAt: string;
@@ -38,6 +39,7 @@ export interface ReleaseOrderDetail extends Omit<ReleaseOrderItem, 'status'> {
 }
 
 export interface CreateReleaseOrderInput {
+  releaseName?: string;
   releaseVersion: string;
   note?: string;
 }

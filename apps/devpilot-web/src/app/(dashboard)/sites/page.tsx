@@ -4,7 +4,7 @@ import { Suspense as ReactSuspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { LoadingState, EmptyState } from '@svton/ui';
-import { PageHeader, ErrorBanner } from '@/components/ui';
+import { PageHeader, ErrorBanner, Checkbox } from '@/components/ui';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useSites } from './hooks/use-sites';
 import { AddSiteModal } from './components/add-site-modal';
@@ -36,11 +36,9 @@ function SitesContent() {
         actions={
           <div className="flex flex-wrap items-center gap-3">
             <label className="flex min-h-11 items-center gap-2 text-sm text-muted-foreground">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={sites.queueSiteRuns}
                 onChange={(e) => sites.setQueueSiteRuns(e.target.checked)}
-                className="h-5 w-5"
               />
               {t('queueSiteOps')}
             </label>

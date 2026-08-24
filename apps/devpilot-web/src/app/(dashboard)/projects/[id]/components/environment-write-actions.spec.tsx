@@ -26,6 +26,14 @@ vi.mock('@/components/ui', () => ({
   ConfirmDialog: ({ open, onConfirm }: { open: boolean; onConfirm: () => void }) => (
     <div>{open ? <button onClick={onConfirm}>confirm-archive</button> : 'confirm-dialog'}</div>
   ),
+  Field: ({ label, children }: { label?: React.ReactNode; children: React.ReactNode }) => (
+    <label>
+      <span>{label}</span>
+      {children}
+    </label>
+  ),
+  Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+  Textarea: (props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => <textarea {...props} />,
   Select: ({ value, onChange, options }: { value: string; onChange: (e: { target: { value: string } }) => void; options: Array<{ value: string; label: string }> }) => (
     <select value={value} onChange={(e) => onChange({ target: { value: e.target.value } })}>
       {options.map((option) => (

@@ -1,17 +1,17 @@
 /**
  * 添加站点弹窗 - 反向代理/静态/docker/runtime 配置表单。
- *
- * react-hook-form 样板：取代手写 useState + setFormData 的手搓表单状态。
- * 表单字段经 watch()/setValue 以兼容的 formData/updateFormData shape 透传给
- * AddSiteBasicFields / RuntimeConfigFields 子组件，保持其接口与行为不变。
+ * react-hook-form 样板：字段经 watch()/setValue 以兼容的 formData/updateFormData
+ * shape 透传给子组件；DOM-1/DOM-2 在提交前做 required + 域名格式校验。
  */
 'use client';
+import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useTranslations } from 'next-intl';
 import { apiRequest } from '@/lib/api-client';
 import { feedback } from '@/components/ui/feedback/feedback';
 import type { Server, Project, ProjectEnvironment, ProxyConfig } from '../types';
 import { buildRuntimeConfig, splitCsv } from '../utils';
+import { siteEntryFormValid, validateSiteEntryForm } from '../domain-format.utils';
 import { AddSiteBasicFields } from './add-site-basic-fields.component';
 import type { AddSiteFormData } from './add-site-form.types';
 import { RuntimeConfigFields } from './runtime-config-fields';
@@ -23,6 +23,7 @@ export function AddSiteModal({
   proxyConfigs,
   defaultProjectId,
   defaultEnvironmentId,
+  lockedContext,
   onClose,
   onSuccess,
 }: {
@@ -32,12 +33,14 @@ export function AddSiteModal({
   proxyConfigs: ProxyConfig[];
   defaultProjectId: string;
   defaultEnvironmentId: string;
+  lockedContext?: { projectName: string; environmentName: string };
   onClose: () => void;
   onSuccess: () => void;
 }) {
   const t = useTranslations('sites');
   const tc = useTranslations('common');
-  const { handleSubmit, watch, setValue, setError, formState } = useForm<AddSiteFormData>({
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+  const { handleSubmit, watch, setValue, setError, clearErrors, formState } = useForm<AddSiteFormData>({
     defaultValues: {
       name: '',
       primaryDomain: '',
@@ -67,7 +70,32 @@ export function AddSiteModal({
     });
   };
 
+  // DOM-1/DOM-2：提交前做 required + 域名格式校验；问题以内联文案暴露，不再静默。
+  const issues = validateSiteEntryForm(formData);
+  const formValid = siteEntryFormValid(issues);
+  const showFieldErrors = submitAttempted && !formValid;
+  const fieldErrors = showFieldErrors
+    ? {
+        name: issues.name === 'required' ? t('siteNameRequired') : undefined,
+        primaryDomain:
+          issues.primaryDomain === 'required'
+            ? t('primaryDomainRequired')
+            : issues.primaryDomain === 'invalid'
+              ? t('primaryDomainInvalid')
+              : undefined,
+        aliases: issues.invalidAlias
+          ? t('domainAliasInvalid', { value: issues.invalidAlias })
+          : undefined,
+      }
+    : {};
+
   const submit = handleSubmit(async (data) => {
+    setSubmitAttempted(true);
+    if (!formValid) {
+      setError('root', { message: t('formIncompleteHint') });
+      return;
+    }
+    clearErrors('root');
     try {
       await apiRequest('POST:/sites', {
         name: data.name,
@@ -80,8 +108,8 @@ export function AddSiteModal({
           basicAuth: data.basicAuth,
         },
         serverId: data.serverId || undefined,
-        projectId: data.projectId || undefined,
-        environmentId: data.environmentId || undefined,
+        projectId: lockedContext ? defaultProjectId : data.projectId || undefined,
+        environmentId: lockedContext ? defaultEnvironmentId : data.environmentId || undefined,
         proxyConfigId: data.proxyConfigId || undefined,
       });
       onSuccess();
@@ -99,8 +127,21 @@ export function AddSiteModal({
         className="fixed inset-0 bg-black/50"
         onClick={onClose}
       />
-      <div className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-background p-6 shadow-lg">
-        <h2 className="mb-4 text-lg font-semibold">{t('addSite')}</h2>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="add-site-modal-title"
+        className="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-background p-6 shadow-lg"
+      >
+        <h2
+          id="add-site-modal-title"
+          className="mb-1 text-lg font-semibold"
+        >
+          {t(lockedContext ? 'addProjectEntry' : 'addSite')}
+        </h2>
+        {lockedContext ? (
+          <p className="mb-4 text-sm text-muted-foreground">{t('projectEntryScopeHint')}</p>
+        ) : null}
         {error && (
           <div className="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
             {error}
@@ -108,6 +149,7 @@ export function AddSiteModal({
         )}
         <form
           onSubmit={submit}
+          noValidate
           className="space-y-4"
         >
           <AddSiteBasicFields
@@ -115,14 +157,34 @@ export function AddSiteModal({
             servers={servers}
             projects={projects}
             projectEnvironments={projectEnvironments}
+            lockedContext={lockedContext}
             onChange={updateFormData}
+            errors={fieldErrors}
           />
-          <RuntimeConfigFields
-            formData={formData}
-            proxyConfigs={proxyConfigs}
-            onChange={updateFormData}
-          />
-          <div className="flex justify-end gap-2 pt-4">
+          {lockedContext ? (
+            <details className="rounded-md border">
+              <summary className="min-h-11 cursor-pointer px-4 py-3 text-sm font-medium">
+                {t('projectEntryAdvancedSummary')}
+              </summary>
+              <div className="space-y-4 border-t p-4">
+                <RuntimeConfigFields
+                  formData={formData}
+                  proxyConfigs={proxyConfigs}
+                  onChange={updateFormData}
+                />
+              </div>
+            </details>
+          ) : (
+            <RuntimeConfigFields
+              formData={formData}
+              proxyConfigs={proxyConfigs}
+              onChange={updateFormData}
+            />
+          )}
+          <div className="flex items-center justify-end gap-2 pt-4">
+            {showFieldErrors ? (
+              <span className="mr-auto text-xs text-muted-foreground">{t('formIncompleteHint')}</span>
+            ) : null}
             <button
               type="button"
               onClick={onClose}

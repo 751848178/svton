@@ -10,6 +10,8 @@ export const ROUTE_SEGMENT_LABEL_KEYS: Record<string, string> = {
   projects: 'projects',
   create: 'createProject',
   settings: 'projectSettings',
+  domains: 'projectDomains',
+  releases: 'projectReleases',
   new: 'new',
   import: 'import',
   applications: 'applications',

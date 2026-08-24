@@ -8,6 +8,7 @@
 
 import { useTranslations } from 'next-intl';
 import type { UseFormRegister } from 'react-hook-form';
+import { Checkbox, Input, Select, Textarea } from '@/components/ui';
 import { FieldLabel } from './modal-form-fields';
 import { categoryLabels, metricLabels, severityLabels } from '../constants';
 import type { CreateRuleFormValues } from './create-rule-modal';
@@ -33,17 +34,13 @@ export function CreateRuleFormFields({
   return (
     <>
       <FieldLabel label={tc('name')}>
-        <input
+        <Input
           {...register('name', { required: true })}
           required
-          className="min-h-11 w-full rounded-md border px-3"
         />
       </FieldLabel>
       <FieldLabel label={t('formCategory')}>
-        <select
-          {...register('category')}
-          className="min-h-11 w-full rounded-md border px-3"
-        >
+        <Select {...register('category')}>
           {Object.entries(categoryLabels).map(([value, label]) => (
             <option
               key={value}
@@ -52,17 +49,14 @@ export function CreateRuleFormFields({
               {label}
             </option>
           ))}
-        </select>
+        </Select>
       </FieldLabel>
       {showTarget ? (
         <FieldLabel
           label={t('formTarget')}
           hint={t('formTargetHint')}
         >
-          <select
-            {...register('targetId')}
-            className="min-h-11 w-full rounded-md border px-3"
-          >
+          <Select {...register('targetId')}>
             <option value="">{t('formTargetAll')}</option>
             {categoryTargets.map((opt) => (
               <option
@@ -72,14 +66,11 @@ export function CreateRuleFormFields({
                 {opt.name}
               </option>
             ))}
-          </select>
+          </Select>
         </FieldLabel>
       ) : null}
       <FieldLabel label={t('formMetric')}>
-        <select
-          {...register('metric')}
-          className="min-h-11 w-full rounded-md border px-3"
-        >
+        <Select {...register('metric')}>
           {Object.entries(metricLabels).map(([value, label]) => (
             <option
               key={value}
@@ -88,13 +79,10 @@ export function CreateRuleFormFields({
               {label}
             </option>
           ))}
-        </select>
+        </Select>
       </FieldLabel>
       <FieldLabel label={t('formSeverity')}>
-        <select
-          {...register('severity')}
-          className="min-h-11 w-full rounded-md border px-3"
-        >
+        <Select {...register('severity')}>
           {Object.entries(severityLabels).map(([value, label]) => (
             <option
               key={value}
@@ -103,15 +91,14 @@ export function CreateRuleFormFields({
               {label}
             </option>
           ))}
-        </select>
+        </Select>
       </FieldLabel>
       {showThresholdDays ? (
         <FieldLabel label={t('formThresholdDays')}>
-          <input
+          <Input
             type="number"
             min={1}
             {...register('thresholdDays')}
-            className="min-h-11 w-full rounded-md border px-3"
             placeholder="14"
           />
         </FieldLabel>
@@ -120,25 +107,21 @@ export function CreateRuleFormFields({
         label={t('formEvaluationMode')}
         hint={t('formEvaluationModeHint')}
       >
-        <select
-          {...register('evaluationMode')}
-          className="min-h-11 w-full rounded-md border px-3"
-        >
+        <Select {...register('evaluationMode')}>
           <option value="schedule">{t('formEvaluationModeSchedule')}</option>
           <option value="manual">{t('formEvaluationModeManual')}</option>
-        </select>
+        </Select>
       </FieldLabel>
       {showInterval ? (
         <FieldLabel
           label={t('formIntervalSeconds')}
           hint={t('formIntervalSecondsHint')}
         >
-          <input
+          <Input
             type="number"
             min={30}
             step={30}
             {...register('intervalSeconds')}
-            className="min-h-11 w-full rounded-md border px-3"
             placeholder="60"
           />
         </FieldLabel>
@@ -147,18 +130,15 @@ export function CreateRuleFormFields({
         label={t('formConditionAdvanced')}
         hint={t('formConditionHint')}
       >
-        <textarea
+        <Textarea
           {...register('condition')}
           rows={3}
-          className="w-full rounded-md border px-3 py-2 font-mono text-xs"
+          className="font-mono text-xs"
           placeholder='{"thresholdDays": 14}'
         />
       </FieldLabel>
       <label className="flex items-center gap-2 text-sm">
-        <input
-          type="checkbox"
-          {...register('enabled')}
-        />
+        <Checkbox {...register('enabled')} />
         <span className="font-medium">{t('formEnabled')}</span>
       </label>
     </>

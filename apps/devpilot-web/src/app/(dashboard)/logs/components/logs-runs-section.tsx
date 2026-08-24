@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { EmptyState } from '@svton/ui';
-import { StatusTag } from '@/components/ui';
+import { Checkbox, StatusTag } from '@/components/ui';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { sourceLabels, runStatusLabels } from '../constants';
 import type { useLogs } from '../hooks/use-logs';
@@ -41,8 +41,7 @@ export function LogsRunsSection({ logs }: { logs: LogsHook }) {
           <h2 className="font-medium">{tl('collectionRuns')}</h2>
           <div className="flex flex-wrap items-center gap-2">
             <label className="flex items-center gap-1 text-xs">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={t.queueLogCollections}
                 onChange={(e) => t.setQueueLogCollections(e.target.checked)}
               />

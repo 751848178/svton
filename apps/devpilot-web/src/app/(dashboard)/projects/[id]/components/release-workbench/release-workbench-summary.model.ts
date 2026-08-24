@@ -1,6 +1,7 @@
 import type { ReleaseOrderEvidence } from '../../types/release-order-evidence.types';
 import type { ReleaseGateCatalog, ReleaseGateDecisionStage } from '../../types/release-gate.types';
 import type { ReleaseOrderDetail, ReleaseOrderStep } from '../../types/release-order.types';
+import { buildReleaseGateDecisionCounts } from '../release-gate-decision-counts.model';
 
 export interface ReleaseWorkbenchGateSummary {
   stage: ReleaseGateDecisionStage;
@@ -25,7 +26,8 @@ export function buildReleaseWorkbenchGateSummary(input: {
   }
   const decision = input.catalog.decisions[stage];
   if (!decision) return emptyGate(stage, 'error');
-  const blockerCount = decision.blockerGateIds.length + decision.integrityErrors.length;
+  const counts = buildReleaseGateDecisionCounts(decision);
+  const blockerCount = counts.blocked;
   const pendingManualIds = (decision.manualGateIds ?? []).filter(
     (gateId) => !(decision.confirmedManualGateIds ?? []).includes(gateId),
   );
@@ -34,9 +36,7 @@ export function buildReleaseWorkbenchGateSummary(input: {
     ...pendingManualIds,
     ...(decision.deferredGateIds ?? []),
   ];
-  const firstBlocker = input.catalog.checks.find((check) =>
-    blockingGateIds.includes(check.id),
-  );
+  const firstBlocker = input.catalog.checks.find((check) => blockingGateIds.includes(check.id));
   const reason = firstBlocker
     ? input.locale.startsWith('zh')
       ? firstBlocker.reason.zh
@@ -46,8 +46,8 @@ export function buildReleaseWorkbenchGateSummary(input: {
     stage,
     state: decision.allowed && blockerCount === 0 ? 'ready' : 'blocked',
     blockerCount,
-    warningCount: decision.warningGateIds.length,
-    manualCount: pendingManualIds.length,
+    warningCount: counts.warning,
+    manualCount: counts.manual,
     reason,
   };
 }
@@ -64,8 +64,22 @@ export function latestReleaseManifest(evidence: ReleaseOrderEvidence | null) {
         (left, right) =>
           (right.revision ?? 0) - (left.revision ?? 0) ||
           Date.parse(right.createdAt) - Date.parse(left.createdAt),
-      )[0]
-      ?.manifest ?? null
+      )[0]?.manifest ?? null
+  );
+}
+
+/** 最近一次真实运行（构建/预发部署/生产发布）的时间；无运行返回 null。 */
+export function latestReleaseRunAt(evidence: ReleaseOrderEvidence | null): string | null {
+  const candidates = [
+    ...(evidence?.buildRuns.items ?? []),
+    ...(evidence?.stagingDeploymentRuns.items ?? []),
+    ...(evidence?.productionReleaseRuns.items ?? []),
+  ]
+    .map((run) => run.finishedAt || run.startedAt || run.createdAt)
+    .filter((value): value is string => Boolean(value));
+  if (candidates.length === 0) return null;
+  return candidates.reduce((latest, current) =>
+    Date.parse(current) > Date.parse(latest) ? current : latest,
   );
 }
 
@@ -77,6 +91,11 @@ function gateStage(step: ReleaseOrderStep): ReleaseGateDecisionStage {
   if (step === 'staging') return 'staging';
   if (step === 'production') return 'production';
   return 'build';
+}
+
+/** PX-1：执行步骤 → 门禁决策阶段（banner/证据区共用同一映射）。 */
+export function releaseWorkbenchGateStage(step: ReleaseOrderStep): ReleaseGateDecisionStage {
+  return gateStage(step);
 }
 
 function emptyGate(

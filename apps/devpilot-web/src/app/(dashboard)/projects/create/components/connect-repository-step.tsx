@@ -1,5 +1,5 @@
 import { useTranslations } from 'next-intl';
-import { Input, Select } from '@/components/ui';
+import { Input, Select, Textarea } from '@/components/ui';
 import type { ProjectIntakeHook } from '../hooks/use-project-intake';
 
 export function ConnectRepositoryStep({ intake }: { intake: ProjectIntakeHook }) {
@@ -60,10 +60,10 @@ export function ConnectRepositoryStep({ intake }: { intake: ProjectIntakeHook })
             />
           </Field>
           <Field label={t('descriptionLabel')}>
-            <textarea
+            <Textarea
               value={form.description}
               onChange={(event) => updateForm({ description: event.target.value })}
-              className="min-h-24 w-full rounded-md border bg-background px-3 py-2 text-sm"
+              className="min-h-24 bg-background"
               placeholder={t('intakeDescriptionPlaceholder')}
             />
           </Field>

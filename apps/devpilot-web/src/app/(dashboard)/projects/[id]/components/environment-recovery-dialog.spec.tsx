@@ -15,6 +15,15 @@ const mocks = vi.hoisted(() => ({
 vi.mock('next-intl', () => ({ useTranslations: () => (key: string) => key }));
 vi.mock('@/components/ui', () => ({
   StatusTag: ({ label }: { label: string }) => <span>{label}</span>,
+  Field: ({ label, children }: { label?: React.ReactNode; children: React.ReactNode }) => (
+    <label>
+      <span>{label}</span>
+      {children}
+    </label>
+  ),
+  Select: ({ children, ...props }: React.SelectHTMLAttributes<HTMLSelectElement> & {
+    children?: React.ReactNode;
+  }) => <select {...props}>{children}</select>,
 }));
 vi.mock('@svton/ui', () => ({
   Dialog: ({

@@ -20,13 +20,12 @@ import type {
   EnvironmentConfigSecretReference,
 } from '../../types/environment-config-revision.types';
 import {
-  deliveryHref,
   readSettingsEnvTab,
   settingsHref,
   type SettingsEnvTab,
 } from '../../utils/project-route.utils';
+import { selectExistingProjectEnvironments } from '../../utils/project-environment-list';
 import { EnvironmentSettingsRevisionBar } from './environment-settings-revision-bar';
-import { EnvironmentSettingsSummary } from './environment-settings-summary';
 import { EnvironmentSettingsTablist } from './environment-settings-tablist';
 import { settingsDraftFromRevision, toConfigRevisionDraft } from './settings-env.model';
 import { resourceDraftIssues } from './settings-resource-binding-preview.model';
@@ -75,7 +74,7 @@ export function EnvironmentSettingsDetail({
     environment,
     projectId,
     detail.loadProject,
-    envTab === 'protection',
+    envTab === 'access',
   );
   const targets = useEnvironmentDeploymentTargets(environment.id, envTab === 'targets');
   const [secrets, setSecrets] = useState<EnvironmentConfigSecretReference[]>([]);
@@ -83,9 +82,9 @@ export function EnvironmentSettingsDetail({
   const [resources, setResources] = useState<EnvironmentConfigResourceReference[]>([]);
   const [route, setRoute] = useState<RouteDraft>(EMPTY_ROUTE);
   const [summary, setSummary] = useState('');
-  const [observability, setObservability] = useState<
-    '' | 'local_acceptance_v1'
-  >('');
+  const [observability, setObservability] = useState<'' | 'local_acceptance_v1'>('');
+  // SET-16：记录「与当前修订一致」的基线快照，用于判定无变更时禁用保存。
+  const [baselineKey, setBaselineKey] = useState('');
 
   useEffect(() => {
     const draft = settingsDraftFromRevision(governance.current);
@@ -96,9 +95,16 @@ export function EnvironmentSettingsDetail({
     setRoute(draft.route);
     setObservability(draft.observability.profile);
     setSummary('');
+    setBaselineKey(
+      JSON.stringify([draft.secrets, draft.policyIds, draft.resources, draft.route, draft.observability.profile]),
+    );
     // 草稿只从当前修订初始化；修订推进由 governance Hook 自身刷新历史。
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [governance.current?.id, environment.id]);
+
+  const noDraftChanges =
+    Boolean(baselineKey) &&
+    JSON.stringify([secrets, policyIds, resources, route, observability]) === baselineKey;
 
   const selectTab = (next: SettingsEnvTab) => {
     const params = new URLSearchParams(searchParams);
@@ -109,10 +115,16 @@ export function EnvironmentSettingsDetail({
 
   const save = async () => {
     try {
-      await governance.save(toConfigRevisionDraft({
-        secrets, policyIds, resources, route, summary,
-        observability: { profile: observability },
-      }));
+      await governance.save(
+        toConfigRevisionDraft({
+          secrets,
+          policyIds,
+          resources,
+          route,
+          summary,
+          observability: { profile: observability },
+        }),
+      );
       setSummary('');
       feedback.success(t('configRevisionSaveSuccess'));
     } catch (cause) {
@@ -123,7 +135,10 @@ export function EnvironmentSettingsDetail({
   };
   const plainKeys = Object.keys(environment.config?.envVars ?? {});
   const collisions = findVariableBindingCollisions(plainKeys, secrets, resources);
-  const resourceIssues = resourceDraftIssues(resources, governance.current?.resourceReferences ?? []);
+  const resourceIssues = resourceDraftIssues(
+    resources,
+    governance.current?.resourceReferences ?? [],
+  );
   const draftInvalid = collisions.length > 0 || resourceIssues.length > 0;
 
   const context: EnvTabContext = {
@@ -143,44 +158,19 @@ export function EnvironmentSettingsDetail({
     setObservability,
     revision: governance.current,
     revisions: governance.data?.revisions ?? [],
-    environments: detail.project?.environments ?? [],
+    // SET-7: 复用配置的目标环境必须来自项目实际环境；直接透传 project.environments
+    // 会把遗留未使用的种子环境（如 prod/test）带进选择列表。
+    environments: selectExistingProjectEnvironments(detail.project?.environments),
   };
 
   return (
-    <div className="space-y-4">
+    <div className="grid gap-6 lg:grid-cols-[190px_minmax(0,1fr)]">
       <EnvironmentSettingsTablist
         tablistId={tablistId}
         panelId={panelId}
         selected={envTab}
         onSelect={selectTab}
       />
-
-      <details className="rounded-lg border bg-muted/20">
-        <summary className="flex min-h-11 cursor-pointer items-center px-4 text-sm font-medium">
-          {t('environmentSettingsRevisionDetails')}
-        </summary>
-        <div className="space-y-4 border-t p-4">
-          <EnvironmentSettingsSummary
-            environment={environment}
-            revision={governance.current}
-            policyCount={governance.policies.length}
-            deploymentRunCount={environment._count?.deploymentRuns ?? 0}
-            versionsHref={deliveryHref(projectId, 'environment-versions', searchParams)}
-            deploymentsHref={deliveryHref(projectId, 'deployments', searchParams)}
-            currentTarget={targets.data?.currentTarget ?? null}
-          />
-          <EnvironmentSettingsRevisionBar
-            inputId={summaryInputId}
-            summary={summary}
-            revisionCount={governance.data?.revisions.length ?? 0}
-            saving={governance.saving}
-            loading={governance.loading}
-            invalid={draftInvalid}
-            onSummaryChange={setSummary}
-            onSave={save}
-          />
-        </div>
-      </details>
 
       <div
         id={panelId}
@@ -190,6 +180,26 @@ export function EnvironmentSettingsDetail({
       >
         {renderEnvTab(envTab, context)}
       </div>
+
+      <details className="rounded-lg border bg-muted/20 lg:col-start-2">
+        <summary className="flex min-h-11 cursor-pointer items-center px-4 text-sm font-medium">
+          {t('environmentSettingsRevisionDetails')}
+        </summary>
+        <div className="space-y-4 border-t p-4">
+          <EnvironmentSettingsRevisionBar
+            inputId={summaryInputId}
+            summary={summary}
+            revisionCount={governance.data?.revisions.length ?? 0}
+            revisions={governance.data?.revisions ?? []}
+            saving={governance.saving}
+            loading={governance.loading}
+            invalid={draftInvalid}
+            noChanges={noDraftChanges}
+            onSummaryChange={setSummary}
+            onSave={save}
+          />
+        </div>
+      </details>
     </div>
   );
 }

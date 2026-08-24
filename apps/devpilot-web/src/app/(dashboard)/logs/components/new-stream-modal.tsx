@@ -8,7 +8,8 @@
 
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
-import { Modal, Select } from '@svton/ui';
+import { Modal } from '@svton/ui';
+import { Input, Select } from '@/components/ui';
 import { feedback } from '@/components/ui/feedback/feedback';
 import type { useLogs } from '../hooks/use-logs';
 import { targetTypeOptions } from '../constants';
@@ -88,21 +89,19 @@ export function NewStreamModal({ logs }: { logs: LogsHook }) {
 
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('streamName')}</span>
-          <input
+          <Input
             value={s.streamName}
             onChange={(e) => s.setStreamName(e.target.value)}
             placeholder={t('streamNamePlaceholder', { type: formatTargetType(s.targetType) })}
-            className="min-h-11 w-full rounded-md border bg-background px-3 py-2 text-sm"
           />
         </label>
 
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('sourceKeyLabel')}</span>
-          <input
+          <Input
             value={s.sourceKey}
             onChange={(e) => s.setSourceKey(e.target.value)}
             placeholder={sourceKeyPlaceholder(s.targetType)}
-            className="min-h-11 w-full rounded-md border bg-background px-3 py-2 text-sm"
           />
         </label>
       </div>

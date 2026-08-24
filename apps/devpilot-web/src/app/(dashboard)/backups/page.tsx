@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
-import { PageHeader, ErrorBanner, MetricCard, Button, Modal } from '@/components/ui';
+import { Button, Checkbox, ErrorBanner, MetricCard, Modal, PageHeader } from '@/components/ui';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useBackups } from './hooks/use-backups';
 import { PlanForm } from './components/plan-form';
@@ -62,11 +62,9 @@ export default function BackupsPage() {
         actions={
           <>
             <label className="flex min-h-11 items-center gap-2 rounded-md px-2 text-sm text-muted-foreground">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={queueBackupRuns}
                 onChange={(e) => setQueueBackupRuns(e.target.checked)}
-                className="h-4 w-4"
               />
               {t('queueBackupRuns')}
             </label>

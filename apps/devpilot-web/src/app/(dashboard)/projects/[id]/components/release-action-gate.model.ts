@@ -1,4 +1,5 @@
 import type { ReleaseGateCatalog, ReleaseGateDecisionStage } from '../types/release-gate.types';
+import { humanizeGateReason } from '../utils/release-display.utils';
 
 export interface ReleaseActionGate {
   allowed: boolean;
@@ -35,7 +36,10 @@ export function releaseActionGate(
     decision.allowed && blockedIds.length === 0 && decision.integrityErrors.length === 0;
   if (allowed) return { allowed: true, reason: '' };
   const check = catalog?.checks.find((candidate) => blockedIds.includes(candidate.id));
-  const reason = locale.startsWith('zh') ? check?.reason.zh : check?.reason.en;
+  // ROD-5：reason 可能内嵌 raw ISO 时间戳（会作为发布钮禁用原因上屏），统一本地化。
+  const reason = check
+    ? humanizeGateReason(locale.startsWith('zh') ? check.reason.zh : check.reason.en)
+    : null;
   return {
     allowed: false,
     reason:

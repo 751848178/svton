@@ -42,10 +42,13 @@ describe('release gate summary model', () => {
       if (status === 'manual') catalog.decisions.build.manualGateIds = ['C01'];
       else catalog.decisions.build.blockerGateIds = ['C01'];
       syncStatusCounts(catalog);
+      // ROD-1：manual 门禁计入「待确认」，不计入「阻断」——与决策卡口径一致。
+      const manual = status === 'manual';
       expect(buildReleaseGateSummary(catalog)).toMatchObject({
         valid: true,
         canEnterBuild: false,
-        blockingCount: 1,
+        blockingCount: manual ? 0 : 1,
+        manualCount: manual ? 1 : 0,
       });
     },
   );

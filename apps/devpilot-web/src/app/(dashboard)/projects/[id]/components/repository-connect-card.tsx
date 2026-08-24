@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Card } from '@svton/ui';
-import { Input } from '@/components/ui';
+import { Field, Input, Select } from '@/components/ui';
 import type { RepositoryAnalysisHook } from '../hooks/use-repository-analysis.hooks';
 import type { ConnectRepositoryInput } from '../types/repository-analysis.types';
 import { RepositoryIdentityMigrationRequiredCard } from './repository-identity-migration-required-card';
@@ -83,33 +83,30 @@ export function RepositoryConnectCard({
         </p>
       </div>
       {connection ? <ConnectionSnapshot analysis={analysis} /> : null}
-      <label className="block text-sm">
-        <span className="mb-1 block font-medium">仓库地址</span>
+      <Field label="仓库地址">
         <Input
           value={repositoryUrl}
           onChange={(event) => setRepositoryUrl(event.target.value)}
           placeholder="https://github.com/org/repo.git"
         />
-      </label>
+      </Field>
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium">分支（可选）</span>
+        <Field label="分支（可选）">
           <Input
             value={branch}
             onChange={(event) => setBranch(event.target.value)}
           />
-        </label>
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium">可见性</span>
-          <select
-            className="h-10 w-full rounded-md border bg-background px-3"
+        </Field>
+        <Field label="可见性">
+          <Select
+            className="bg-background"
             value={visibility}
             onChange={(event) => setVisibility(event.target.value as 'public' | 'private')}
           >
             <option value="public">公开仓库</option>
             <option value="private">私有仓库</option>
-          </select>
-        </label>
+          </Select>
+        </Field>
       </div>
       {visibility === 'private' ? (
         <PrivateCredentialFields

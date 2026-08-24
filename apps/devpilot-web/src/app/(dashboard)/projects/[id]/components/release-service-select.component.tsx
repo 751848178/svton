@@ -6,6 +6,7 @@
  */
 'use client';
 
+import { Checkbox } from '@/components/ui';
 import type { ProjectApplication } from '../types/index';
 
 export interface ReleaseServiceSelectProps {
@@ -57,8 +58,7 @@ export function ReleaseServiceSelect({
         )}
         {visible.map((s) => (
           <label key={s.svcId} className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={selected.has(s.svcId)}
               onChange={(e) => {
                 const next = new Set(selected);

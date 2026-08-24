@@ -8,6 +8,7 @@
 
 import { useTranslations } from 'next-intl';
 import { Tag } from '@svton/ui';
+import { Radio, RadioGroup } from '@/components/ui';
 import type { ApplicationItem, ApplicationServiceItem, ProjectEnvironment } from '../../types';
 
 interface DeployWizardEnvironmentStepProps {
@@ -43,7 +44,10 @@ export function DeployWizardEnvironmentStep({
       </div>
       <div>
         <p className="mb-2 text-sm font-medium">{t('wizardSelectEnvironment')}</p>
-        <div className="space-y-1">
+        <RadioGroup
+          aria-label={t('wizardSelectEnvironment')}
+          className="block space-y-1"
+        >
           {environments.map((env) => (
             <label
               key={env.id}
@@ -53,12 +57,10 @@ export function DeployWizardEnvironmentStep({
                   : 'hover:bg-accent'
               }`}
             >
-              <input
-                type="radio"
+              <Radio
                 name="deploy-environment"
                 checked={selectedEnvironmentId === env.id}
                 onChange={() => onSelect(env.id)}
-                className="mt-0.5"
               />
               <span className="font-medium">{env.name}</span>
               <span className="text-xs text-muted-foreground">{env.key}</span>
@@ -67,7 +69,7 @@ export function DeployWizardEnvironmentStep({
           {environments.length === 0 ? (
             <p className="text-xs text-muted-foreground">{t('wizardNoEnvironments')}</p>
           ) : null}
-        </div>
+        </RadioGroup>
       </div>
     </div>
   );

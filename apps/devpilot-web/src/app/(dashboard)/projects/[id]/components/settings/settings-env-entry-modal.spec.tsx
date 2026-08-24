@@ -8,6 +8,9 @@ vi.mock('next-intl', () => ({
     values ? `${key}:${JSON.stringify(values)}` : key,
 }));
 vi.mock('@svton/ui', () => ({
+  Input: (props: Record<string, unknown>) => <input {...props} />,
+  Select: (props: Record<string, unknown>) => <select {...(props as object)}>{(props as { children?: React.ReactNode }).children}</select>,
+  Textarea: (props: Record<string, unknown>) => <textarea {...props} />,
   Modal: ({ open, title, children, footer }: {
     open: boolean;
     title: React.ReactNode;

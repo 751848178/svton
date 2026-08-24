@@ -28,9 +28,25 @@ export {
   type ActionMenuGroup,
 } from './action-menu';
 
+// 表格原语与筛选套件（@svton/ui 直通）
+export {
+  Table, TableHeader, TableBody, TableRow, TableHead, TableData,
+  Thead, Tbody, Tr, Th, Td,
+} from '@svton/ui';
+export { TableFilterBar, TableFilterSearch, TableFilterSelect } from '@svton/ui';
+export type {
+  TableFilterBarProps,
+  TableFilterSearchProps,
+  TableFilterSelectProps,
+} from '@svton/ui';
+
 // 表单原语
 export { Button, buttonVariants, type ButtonProps } from './button';
 export { LinkButton, type LinkButtonProps } from './link-button';
 export { Input, type InputProps } from './input';
 export { Textarea, type TextareaProps } from './textarea';
 export { Select, type SelectProps, type SelectOption } from './select';
+export { Checkbox, type CheckboxProps } from './checkbox';
+export { Radio, RadioGroup, type RadioProps, type RadioGroupProps } from './radio';
+// Field（label/hint/error 布局原语）：@svton/ui 已有，本层统一出口供页面使用。
+export { Field } from '@svton/ui';

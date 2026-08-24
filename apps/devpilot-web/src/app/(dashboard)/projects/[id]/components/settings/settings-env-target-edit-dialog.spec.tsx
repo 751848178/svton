@@ -39,18 +39,26 @@ vi.mock('@/components/ui', () => ({
         {footer}
       </div>
     ) : null,
-  Select: ({ value, onChange, options }: { value: string; onChange: (e: { target: { value: string } }) => void; options: Array<{ value: string; label: string }> }) => (
+  Select: ({ value, onChange, options, placeholder }: { value: string; onChange: (e: { target: { value: string } }) => void; options: Array<{ value: string; label: string }>; placeholder?: string }) => (
     <select
       data-testid="provider-select"
       value={value}
       onChange={(e) => onChange(e)}
     >
+      {placeholder ? <option value="">{placeholder}</option> : null}
       {options.map((option) => (
         <option key={option.value} value={option.value}>
           {option.label}
         </option>
       ))}
     </select>
+  ),
+  Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+  Checkbox: (props: React.InputHTMLAttributes<HTMLInputElement>) => (
+    <input
+      type="checkbox"
+      {...props}
+    />
   ),
 }));
 vi.mock('@svton/ui', () => ({
@@ -155,6 +163,41 @@ describe('SettingsEnvTargetEditDialog (F445)', () => {
     );
     expect(container.innerHTML).toContain('envTargetRefLabel');
     expect(container.innerHTML).not.toContain('envTargetRootLabel');
+  });
+
+  it('SET-5: a provider-less binding shows the unselected placeholder, a save reason, and becomes savable after picking a provider', async () => {
+    await act(async () =>
+      root.render(
+        <SettingsEnvTargetEditDialog
+          open
+          draft={{ ...draft, providerKey: '', root: '', targetRef: '' }}
+          otherEnvironments={[]}
+          onClose={() => undefined}
+          onConfirm={mocks.confirm}
+        />,
+      ),
+    );
+    const select = container.querySelector<HTMLSelectElement>('[data-testid="provider-select"]')!;
+    // 受控 select 的空值必须以 placeholder 选项可见，而不是伪装成已选 SSH。
+    expect(select.value).toBe('');
+    expect(
+      [...select.options].some((option) => option.value === '' && option.textContent === 'envTargetProviderPlaceholder'),
+    ).toBe(true);
+    const save = [...container.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('envTargetAdjustSave'),
+    )!;
+    expect(save.disabled).toBe(true);
+    expect(container.textContent).toContain('envTargetProviderRequiredHint');
+
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value')!
+        .set!;
+      setter.call(select, 'ssh-v1');
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(select.value).toBe('ssh-v1');
+    expect(save.disabled).toBe(false);
+    expect(container.textContent).not.toContain('envTargetProviderRequiredHint');
   });
 });
 

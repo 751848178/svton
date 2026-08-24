@@ -42,6 +42,11 @@ export function useSites(
   const [error, setError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<Site | null>(null);
   const [showModal, setShowModal] = useState(openCreateOnMount);
+  // DOM-8：?new=true 只靠 useState 初值时，SPA 内点击 banner 不会重新触发
+  // （组件已挂载，state 不会重建）。参数变为 true 时显式打开创建弹窗。
+  useEffect(() => {
+    if (openCreateOnMount) setShowModal(true);
+  }, [openCreateOnMount]);
   const [queueSiteRuns, setQueueSiteRuns] = useState(false);
   const [editTarget, setEditTarget] = useState<Site | null>(null);
 

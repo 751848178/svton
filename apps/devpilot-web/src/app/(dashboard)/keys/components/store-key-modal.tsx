@@ -8,7 +8,7 @@
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useTranslations } from 'next-intl';
-import { Modal } from '@/components/ui';
+import { Input, Modal, Select, Textarea } from '@/components/ui';
 import { KEY_TYPES } from '../constants';
 import type { KeyInput, KeyScopeFilter } from '../types';
 
@@ -78,10 +78,9 @@ export function StoreKeyModal({ open, initial, scope, scopeLabel, onClose, onSto
 
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('storeNameLabel')}</span>
-          <input
+          <Input
             type="text"
             {...register('name')}
-            className="w-full rounded-lg border px-3 py-2"
             placeholder={t('storeNamePlaceholder')}
             required
           />
@@ -89,10 +88,7 @@ export function StoreKeyModal({ open, initial, scope, scopeLabel, onClose, onSto
 
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('storeTypeLabel')}</span>
-          <select
-            {...register('type')}
-            className="w-full rounded-lg border px-3 py-2"
-          >
+          <Select {...register('type')}>
             {KEY_TYPES.map((kt) => (
               <option
                 key={kt.value}
@@ -101,14 +97,14 @@ export function StoreKeyModal({ open, initial, scope, scopeLabel, onClose, onSto
                 {t(kt.labelKey)}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
 
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('storeValueLabel')}</span>
-          <textarea
+          <Textarea
             {...register('value')}
-            className="w-full rounded-lg border px-3 py-2 font-mono text-sm"
+            className="font-mono"
             rows={3}
             required
           />
@@ -116,10 +112,9 @@ export function StoreKeyModal({ open, initial, scope, scopeLabel, onClose, onSto
 
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('storeDescriptionLabel')}</span>
-          <input
+          <Input
             type="text"
             {...register('description')}
-            className="w-full rounded-lg border px-3 py-2"
             placeholder={t('storeDescriptionPlaceholder')}
           />
         </label>

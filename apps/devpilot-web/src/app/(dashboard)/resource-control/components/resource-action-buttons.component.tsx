@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { StatusTag } from '@/components/ui';
+import { Input, StatusTag } from '@/components/ui';
 import type { useResourceControl } from '../hooks/use-resource-control';
 import {
   buildResourceActionKey,
@@ -62,7 +62,8 @@ export function ResourceActionButtons({
               </button>
               {requiresConfirmation ? (
                 <>
-                  <input
+                  <Input
+                    size="sm"
                     value={value}
                     onChange={(event) =>
                       setConfirmationText((current) => ({
@@ -71,7 +72,7 @@ export function ResourceActionButtons({
                       }))
                     }
                     placeholder={resource.name}
-                    className="min-w-0 flex-1 rounded-md border bg-background px-2 py-1 text-xs"
+                    className="min-w-0 flex-1"
                   />
                   <button
                     onClick={() =>

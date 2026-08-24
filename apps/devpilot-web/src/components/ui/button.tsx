@@ -31,7 +31,7 @@ export interface ButtonVariantProps {
 }
 
 const BASE_CLASS =
-  'inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary';
+  'inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary';
 
 const VARIANT_CLASS: Record<NonNullable<ButtonVariant>, string> = {
   primary: 'bg-primary text-primary-foreground hover:bg-primary/90',

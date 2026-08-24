@@ -2,11 +2,13 @@ import type { CreateReleaseOrderInput } from '../types/release-order.types';
 import type { ReleaseOrderLifecycle } from '../types/release-order-lifecycle.types';
 
 export function buildReleaseOrderInput(
+  releaseName: string,
   releaseVersion: string,
   note: string,
 ): CreateReleaseOrderInput {
   const normalizedNote = note.trim();
   return {
+    releaseName: releaseName.trim(),
     releaseVersion: releaseVersion.trim(),
     ...(normalizedNote ? { note: normalizedNote } : {}),
   };

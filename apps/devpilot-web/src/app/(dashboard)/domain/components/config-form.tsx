@@ -9,7 +9,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { Input } from '@/components/ui';
+import { Checkbox, Input, Select } from '@/components/ui';
 import { Button } from '@/components/ui';
 import { StatusTag } from '@/components/ui';
 import type { DomainConfig, SSLMode } from '../types';
@@ -117,15 +117,14 @@ export function ConfigForm(props: ConfigFormProps) {
 
       <div>
         <label className="mb-1 block text-sm font-medium text-muted-foreground">{t('sslMode')}</label>
-        <select
+        <Select
           value={config.sslMode}
           onChange={(e) => onChange({ sslMode: e.target.value as SSLMode })}
-          className="h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           <option value="none">{t('sslNone')}</option>
           <option value="letsencrypt">{t('sslLetsencrypt')}</option>
           <option value="custom">{t('sslCustom')}</option>
-        </select>
+        </Select>
       </div>
 
       <div>
@@ -146,20 +145,16 @@ export function ConfigForm(props: ConfigFormProps) {
 
       <div className="space-y-2">
         <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={config.enableGzip}
             onChange={(e) => onChange({ enableGzip: e.target.checked })}
-            className="rounded"
           />
           <span className="text-sm text-muted-foreground">{t('enableGzip')}</span>
         </label>
         <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={config.enableWebSocket}
             onChange={(e) => onChange({ enableWebSocket: e.target.checked })}
-            className="rounded"
           />
           <span className="text-sm text-muted-foreground">{t('enableWebsocket')}</span>
         </label>

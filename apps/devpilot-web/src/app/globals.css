@@ -29,6 +29,13 @@
   --input: 214.3 31.8% 91.4%;
   --ring: 221.2 83.2% 53.3%;
   --radius: 0.5rem;
+  /* @svton/ui tailwind-preset 新增语义 token（本地未覆盖的键需要变量兜底；亮色主题取值） */
+  --svton-ui-status-on-color: #ffffff;
+  --svton-ui-status-purple: #7e22ce;
+  --svton-ui-status-cyan: #0e7490;
+  --svton-ui-tooltip-bg: #1f2937;
+  --svton-ui-tooltip-foreground: #f9fafb;
+  --svton-ui-mask: rgba(0, 0, 0, 0.45);
   /* sidebar 色板:与 primary 蓝灰同色相,保持视觉协调 */
   --sidebar: 0 0% 98%;
   --sidebar-foreground: 222.2 84% 4.9%;

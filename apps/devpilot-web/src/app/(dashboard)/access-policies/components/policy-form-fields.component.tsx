@@ -1,6 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import { Checkbox, Input, Select } from '@/components/ui';
 import type { PolicyForm, ProjectEnvironmentRef, ProjectRef } from '../types';
 
 interface PolicyFormFieldsProps {
@@ -23,81 +24,69 @@ export function PolicyFormFields({
   return (
     <div className="mt-5 grid gap-4 md:grid-cols-2">
       <Field label={tc('name')}>
-        <input
+        <Input
           value={form.name}
           onChange={(e) => onChange({ name: e.target.value })}
-          className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-          placeholder={t('namePlaceholder')}
-        />
+                    />
       </Field>
       <Field label={tc('description')}>
-        <input
+        <Input
           value={form.description}
           onChange={(e) => onChange({ description: e.target.value })}
-          className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-          placeholder={t('descriptionPlaceholder')}
-        />
+                    />
       </Field>
       <Field label={t('effect')}>
-        <select
+        <Select
           value={form.effect}
           onChange={(e) => onChange({ effect: e.target.value as PolicyForm['effect'] })}
-          className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-        >
+                  >
           <option value="allow">{t('allow')}</option>
           <option value="deny">{t('deny')}</option>
-        </select>
+        </Select>
       </Field>
       <Field label={t('priority')}>
-        <input
+        <Input
           value={form.priority}
           onChange={(e) => onChange({ priority: e.target.value })}
-          className="w-full rounded-md border bg-background px-3 py-2 text-sm"
           inputMode="numeric"
         />
       </Field>
       <Field label={t('principalType')}>
-        <select
+        <Select
           value={form.principalType}
           onChange={(e) =>
             onChange({ principalType: e.target.value as PolicyForm['principalType'] })
           }
-          className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-        >
+                  >
           <option value="team_role">{t('principalTeamRole')}</option>
           <option value="user">{t('principalUser')}</option>
           <option value="any">{t('principalAny')}</option>
-        </select>
+        </Select>
       </Field>
       {form.principalType === 'team_role' ? (
         <Field label={t('teamRole')}>
-          <select
+          <Select
             value={form.principalRole}
             onChange={(e) => onChange({ principalRole: e.target.value })}
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-          >
+                      >
             <option value="owner">{t('roleOwner')}</option>
             <option value="admin">{t('roleAdmin')}</option>
             <option value="member">{t('roleMember')}</option>
-          </select>
+          </Select>
         </Field>
       ) : (
         <Field label={t('userId')}>
-          <input
+          <Input
             value={form.principalUserId}
             onChange={(e) => onChange({ principalUserId: e.target.value })}
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-            placeholder={form.principalType === 'user' ? t('userIdPlaceholder') : t('anyMemberHint')}
-            disabled={form.principalType !== 'user'}
-          />
+                        />
         </Field>
       )}
       <Field label={t('project')}>
-        <select
+        <Select
           value={form.projectId}
           onChange={(e) => onSelectProject(e.target.value)}
-          className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-        >
+                  >
           <option value="">{t('allProjects')}</option>
           {projects.map((project) => (
             <option
@@ -107,14 +96,13 @@ export function PolicyFormFields({
               {project.name}
             </option>
           ))}
-        </select>
+        </Select>
       </Field>
       <Field label={t('environment')}>
-        <select
+        <Select
           value={form.environmentId}
           onChange={(e) => onChange({ environmentId: e.target.value })}
-          className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-        >
+                  >
           <option value="">{t('allEnvironments')}</option>
           {environmentOptions.map((env) => (
             <option
@@ -125,40 +113,33 @@ export function PolicyFormFields({
               {env.name}
             </option>
           ))}
-        </select>
+        </Select>
       </Field>
       <Field label={t('categories')}>
-        <input
+        <Input
           value={form.categories}
           onChange={(e) => onChange({ categories: e.target.value })}
-          className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-          placeholder={t('categoriesPlaceholder')}
-        />
+                    />
       </Field>
       <Field label={t('action')}>
-        <input
+        <Input
           value={form.actions}
           onChange={(e) => onChange({ actions: e.target.value })}
-          className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-          placeholder={t('actionPlaceholder')}
-        />
+                    />
       </Field>
       <Field label={t('riskLevels')}>
-        <input
+        <Input
           value={form.riskLevels}
           onChange={(e) => onChange({ riskLevels: e.target.value })}
-          className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-          placeholder={t('riskLevelsPlaceholder')}
-        />
+                    />
       </Field>
-      <label className="flex items-center gap-2 pt-7 text-sm">
-        <input
-          type="checkbox"
+      <div className="pt-7">
+        <Checkbox
           checked={form.enabled}
           onChange={(e) => onChange({ enabled: e.target.checked })}
+          label={t('enablePolicy')}
         />
-        {t('enablePolicy')}
-      </label>
+      </div>
     </div>
   );
 }

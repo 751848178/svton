@@ -1,5 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  // @svton/ui 语义色（mask/tooltip/status-purple/status-cyan 等）；本地 colors 键优先级更高，覆盖 preset 同名键
+  presets: [require('@svton/ui/tailwind-preset')],
   content: [
     './src/**/*.{js,ts,jsx,tsx,mdx}',
     '../../packages/ui/src/**/*.{js,ts,jsx,tsx}',

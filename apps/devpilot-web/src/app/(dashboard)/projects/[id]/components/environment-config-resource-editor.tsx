@@ -10,6 +10,7 @@
 import React, { useMemo, useState } from 'react';
 import { Button } from '@svton/ui';
 import { useTranslations } from 'next-intl';
+import { Select } from '@/components/ui';
 import type { Project, ProjectEnvironment } from '../types';
 import type { EnvironmentConfigResourceReference } from '../types/environment-config-revision.types';
 import { isProductionEnvironment } from './environment-resource-binding.model';
@@ -72,10 +73,19 @@ export function EnvironmentConfigResourceEditor({
   const preview = selected
     ? buildResourceBindingPreview(selected, componentKey || null, currentReferences, envBindings)
     : null;
+  // 无模板变量的资源（如 site）没有可确认的映射，确认步骤无意义，直接视为已确认。
+  const mappingsConfirmed = confirmed || !preview || preview.envBindings.length === 0;
+  const addDisabledReason = !candidateKey
+    ? t('configResourceAddMissingResource')
+    : !componentKey
+      ? t('configResourceAddMissingComponent')
+      : !mappingsConfirmed
+        ? t('configResourceAddUnconfirmed')
+        : '';
 
   const add = () => {
     const candidate = candidates.find((item) => item.key === candidateKey);
-    if (!candidate || !componentKey || !confirmed || !envBindings ||
+    if (!candidate || !componentKey || !mappingsConfirmed || !envBindings ||
       value.some((item) => item.id === candidate.id && item.kind === candidate.kind)) return;
     onChange([...value, {
       id: candidate.id,
@@ -96,9 +106,10 @@ export function EnvironmentConfigResourceEditor({
   return (
     <div className="space-y-2 rounded-md border p-3">
       <div className="text-xs font-medium">{t('configResourceReferences')}</div>
-      <div className="flex gap-2">
-        <select
-          className="min-w-0 flex-1 rounded-md border bg-background px-2 py-1.5 text-xs"
+      <div className="flex flex-wrap items-center gap-2">
+        <Select
+          size="sm"
+          className="min-w-0 flex-1 bg-background"
           value={candidateKey}
           onChange={(event) => {
             const next = candidates.find((item) => item.key === event.target.value);
@@ -113,11 +124,19 @@ export function EnvironmentConfigResourceEditor({
           {candidates.map((item) => (
             <option key={item.key} value={item.key}>{item.name} · {item.kind}</option>
           ))}
-        </select>
-        <Button size="sm" variant="ghost" onClick={add} disabled={!candidateKey || !componentKey || !confirmed}>
+        </Select>
+        <Button size="sm" variant="ghost" onClick={add} disabled={Boolean(addDisabledReason)}>
           {t('configReferenceAdd')}
         </Button>
       </div>
+      {addDisabledReason ? (
+        <p className="text-[11px] text-muted-foreground">{addDisabledReason}</p>
+      ) : null}
+      {components.length === 0 ? (
+        <p className="rounded bg-amber-50 px-2 py-1 text-[11px] text-amber-800">
+          {t('configResourceNoComponents')}
+        </p>
+      ) : null}
       {preview ? (
         <SettingsResourceBindingPreview
           preview={preview}
@@ -129,7 +148,7 @@ export function EnvironmentConfigResourceEditor({
             setConfirmed(false);
           }}
           confirmed={confirmed}
-          onConfirm={() => setConfirmed(true)}
+          onConfirm={preview.envBindings.length > 0 ? () => setConfirmed(true) : undefined}
         />
       ) : null}
       {value.flatMap((reference) => {

@@ -9,7 +9,7 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Button } from '@/components/ui';
+import { Button, Input, Textarea } from '@/components/ui';
 
 interface DeployWizardLiveConfirmProps {
   projectName: string;
@@ -40,20 +40,18 @@ export function DeployWizardLiveConfirm({
       </p>
       <label className="block text-sm">
         <span className="mb-1 block font-medium">{t('wizardConfirmationLabel')}</span>
-        <input
+        <Input
           value={confirmationText}
           onChange={(e) => setConfirmationText(e.target.value)}
-          className="w-full rounded-md border px-3 py-2"
           placeholder={projectName}
           autoComplete="off"
         />
       </label>
       <label className="block text-sm">
         <span className="mb-1 block font-medium">{t('wizardApprovalReasonLabel')}</span>
-        <textarea
+        <Textarea
           value={approvalReason}
           onChange={(e) => setApprovalReason(e.target.value)}
-          className="w-full rounded-md border px-3 py-2"
           rows={2}
           placeholder={t('wizardApprovalReasonPlaceholder')}
         />

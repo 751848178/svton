@@ -8,7 +8,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { Button } from '@/components/ui';
+import { Button, Input } from '@/components/ui';
 import { feedback } from '@/components/ui/feedback/feedback';
 import { isValidEnvKey } from '../hooks/use-environment-env-vars';
 
@@ -65,16 +65,18 @@ export function EnvironmentPlainVarsEditor({
                 key={idx}
                 className="flex items-center gap-2"
               >
-                <input
-                  className="w-2/5 rounded-md border px-2 py-1 font-mono text-xs aria-[invalid=true]:border-destructive"
+                <Input
+                  size="sm"
+                  className="w-2/5 font-mono"
                   value={key}
-                  aria-invalid={!keyValid}
+                  invalid={!keyValid}
                   onChange={(e) => onUpdate(key, 'key', e.target.value)}
                   placeholder={t('envVarsKeyPlaceholder')}
                 />
                 <span className="text-muted-foreground">=</span>
-                <input
-                  className="w-2/5 rounded-md border px-2 py-1 font-mono text-xs"
+                <Input
+                  size="sm"
+                  className="w-2/5 font-mono"
                   value={value}
                   onChange={(e) => onUpdate(key, 'value', e.target.value)}
                   placeholder={t('envVarsValuePlaceholder')}

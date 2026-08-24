@@ -7,6 +7,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import { Checkbox, Input, Select, Textarea } from '@/components/ui';
 import {
   resourceFieldTypes,
   fieldTypeLabels,
@@ -80,28 +81,28 @@ export function SchemaFieldEditorRow({
       <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_9rem]">
         <label className="text-sm">
           <span className="mb-1 block font-medium">Key</span>
-          <input
+          <Input
+            size="sm"
             value={field.key}
             onChange={(e) => onUpdate(field.id, { key: e.target.value })}
-            className="w-full rounded-md border px-3 py-2"
             placeholder="database"
           />
         </label>
         <label className="text-sm">
           <span className="mb-1 block font-medium">{tc('name')}</span>
-          <input
+          <Input
+            size="sm"
             value={field.label}
             onChange={(e) => onUpdate(field.id, { label: e.target.value })}
-            className="w-full rounded-md border px-3 py-2"
             placeholder={t('fieldLabelPlaceholder')}
           />
         </label>
         <label className="text-sm">
           <span className="mb-1 block font-medium">{tc('type')}</span>
-          <select
+          <Select
+            size="sm"
             value={field.type}
             onChange={(e) => onUpdate(field.id, { type: e.target.value as ResourceFieldType })}
-            className="w-full rounded-md border bg-background px-3 py-2"
           >
             {resourceFieldTypes.map((type) => (
               <option
@@ -111,7 +112,7 @@ export function SchemaFieldEditorRow({
                 {fieldTypeLabels[type]}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
       </div>
 
@@ -120,28 +121,26 @@ export function SchemaFieldEditorRow({
           <span className="mb-1 block font-medium">{t('defaultValue')}</span>
           {field.type === 'checkbox' ? (
             <span className="flex h-10 items-center gap-2 rounded-md border bg-background px-3 py-2">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={field.defaultValue === 'true'}
                 onChange={(e) => onUpdate(field.id, { defaultValue: e.target.checked ? 'true' : '' })}
-                className="h-4 w-4"
               />
               <span className="text-sm text-muted-foreground">{t('defaultChecked')}</span>
             </span>
           ) : (
-            <input
+            <Input
+              size="sm"
               value={field.defaultValue}
               onChange={(e) => onUpdate(field.id, { defaultValue: e.target.value })}
-              className="w-full rounded-md border px-3 py-2"
             />
           )}
         </label>
         <label className="text-sm">
           <span className="mb-1 block font-medium">{t('placeholder')}</span>
-          <input
+          <Input
+            size="sm"
             value={field.placeholder}
             onChange={(e) => onUpdate(field.id, { placeholder: e.target.value })}
-            className="w-full rounded-md border px-3 py-2"
           />
         </label>
       </div>
@@ -149,11 +148,12 @@ export function SchemaFieldEditorRow({
       {field.type === 'select' ? (
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('options')}</span>
-          <textarea
+          <Textarea
+            size="sm"
             value={field.optionsText}
             onChange={(e) => onUpdate(field.id, { optionsText: e.target.value })}
             rows={3}
-            className="w-full resize-none rounded-md border px-3 py-2 font-mono text-sm"
+            className="resize-none font-mono"
             placeholder={t('optionsPlaceholder')}
           />
         </label>
@@ -161,20 +161,16 @@ export function SchemaFieldEditorRow({
 
       <div className="flex flex-wrap gap-4 text-sm">
         <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={field.required}
             onChange={(e) => onUpdate(field.id, { required: e.target.checked })}
-            className="h-4 w-4"
           />
           {tc('required')}
         </label>
         <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={field.sensitive}
             onChange={(e) => onUpdate(field.id, { sensitive: e.target.checked })}
-            className="h-4 w-4"
           />
           {t('sensitive')}
         </label>

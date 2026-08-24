@@ -9,6 +9,7 @@ import { ConnectRepositoryStep } from './connect-repository-step';
 vi.mock('next-intl', () => ({ useTranslations: () => (key: string) => key }));
 vi.mock('@/components/ui', () => ({
   Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+  Textarea: (props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => <textarea {...props} />,
   Select: ({ options, ...props }: React.SelectHTMLAttributes<HTMLSelectElement> & {
     options: Array<{ label: string; value: string }>;
   }) => (

@@ -1,4 +1,5 @@
 import { useTranslations } from 'next-intl';
+import { Input, Select, Textarea } from '@/components/ui';
 import type { CreateRequestFormData } from '../hooks/use-create-request-form.hooks';
 import type {
   Project,
@@ -44,11 +45,10 @@ export function CreateRequestFormFields({
     <>
       <div>
         <label className="block text-sm font-medium mb-1">{t('resourceType')}</label>
-        <select
+        <Select
           value={formData.resourceTypeId}
           onChange={(event) => onFormDataChange({ resourceTypeId: event.target.value })}
           required
-          className="w-full px-3 py-2 border rounded-md bg-background"
         >
           {resourceTypes.length === 0 && <option value="">{t('noResourceTypes')}</option>}
           {resourceTypes.map((type) => (
@@ -59,7 +59,7 @@ export function CreateRequestFormFields({
               {type.name} ({type.key})
             </option>
           ))}
-        </select>
+        </Select>
       </div>
       {resourceTypes.length === 0 && (
         <div className="p-3 rounded-md bg-muted text-sm text-muted-foreground">
@@ -68,23 +68,21 @@ export function CreateRequestFormFields({
       )}
       <div>
         <label className="block text-sm font-medium mb-1">{t('requestTitle')}</label>
-        <input
+        <Input
           value={formData.title}
           onChange={(event) => onFormDataChange({ title: event.target.value })}
           required
-          className="w-full px-3 py-2 border rounded-md"
           placeholder={t('requestTitlePlaceholder')}
         />
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label className="block text-sm font-medium mb-1">{t('project')}</label>
-          <select
+          <Select
             value={formData.projectId}
             onChange={(event) =>
               onFormDataChange({ projectId: event.target.value, environmentId: '' })
             }
-            className="w-full px-3 py-2 border rounded-md bg-background"
           >
             <option value="">{t('noProject')}</option>
             {projects.map((project) => (
@@ -95,16 +93,15 @@ export function CreateRequestFormFields({
                 {project.name}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
         <div>
           <label className="block text-sm font-medium mb-1">{t('environment')}</label>
-          <select
+          <Select
             value={formData.environmentId}
             onChange={(event) => onFormDataChange({ environmentId: event.target.value })}
             disabled={!formData.projectId}
             required={Boolean(formData.projectId)}
-            className="w-full px-3 py-2 border rounded-md bg-background disabled:opacity-60"
           >
             <option value="">
               {formData.projectId ? t('selectProjectEnvironment') : t('selectProjectFirst')}
@@ -117,17 +114,17 @@ export function CreateRequestFormFields({
                 {environment.name} ({environment.key})
               </option>
             ))}
-          </select>
+          </Select>
           <p className="mt-1 text-xs text-muted-foreground">{t('environmentAssociationHint')}</p>
         </div>
       </div>
       <div>
         <label className="block text-sm font-medium mb-1">{t('purpose')}</label>
-        <textarea
+        <Textarea
           value={formData.purpose}
           onChange={(event) => onFormDataChange({ purpose: event.target.value })}
           rows={3}
-          className="w-full px-3 py-2 border rounded-md resize-none"
+          className="resize-none"
         />
       </div>
       {fields.length > 0 ? (
@@ -147,11 +144,11 @@ export function CreateRequestFormFields({
       ) : (
         <div>
           <label className="block text-sm font-medium mb-1">{t('specJson')}</label>
-          <textarea
+          <Textarea
             value={formData.spec}
             onChange={(event) => onFormDataChange({ spec: event.target.value })}
             rows={6}
-            className="w-full px-3 py-2 border rounded-md font-mono text-sm"
+            className="font-mono"
           />
         </div>
       )}

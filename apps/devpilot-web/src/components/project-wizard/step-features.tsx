@@ -6,7 +6,7 @@ import { usePersistFn } from '@svton/hooks';
 import { LoadingState, Tag } from '@svton/ui';
 import { useProjectConfigStore } from '@/store/hooks';
 import { apiRequest } from '@/lib/api-client';
-import { ErrorBanner } from '@/components/ui';
+import { Checkbox, ErrorBanner } from '@/components/ui';
 
 interface StepProps {
   onNext: () => void;
@@ -113,11 +113,10 @@ export function StepFeatures({ onNext, onPrev }: StepProps) {
                         <h5 className="text-sm font-medium">{feature.name}</h5>
                         <p className="mt-1 text-xs text-muted-foreground">{feature.description}</p>
                       </div>
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={config.features.includes(feature.id)}
                         onChange={() => {}}
-                        className="mt-0.5 h-4 w-4"
+                        className="mt-0.5"
                       />
                     </div>
                     {feature.requiredResources.length > 0 ? (

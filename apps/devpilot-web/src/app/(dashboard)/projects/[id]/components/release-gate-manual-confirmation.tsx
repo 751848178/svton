@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
 import { Button } from '@svton/ui';
+import { Textarea } from '@/components/ui';
 import type { ReleaseGateCheck } from '../types/release-gate.types';
 
 interface Props {
@@ -37,12 +38,13 @@ export function ReleaseGateManualConfirmation(props: Props) {
     <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs">
       <label className="font-medium">
         {t('releaseGateManualReason')}
-        <textarea
+        <Textarea
+          size="sm"
+          className="mt-1 bg-white"
           value={reason}
           onChange={(event) => setReason(event.target.value)}
           minLength={3}
           maxLength={500}
-          className="mt-1 block min-h-16 w-full rounded border bg-white p-2"
         />
       </label>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">

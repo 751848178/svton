@@ -1,180 +1,119 @@
 // @vitest-environment jsdom
 
-import React, { act, type ReactNode } from 'react';
+import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ProjectDeliveryRoute } from './project-delivery-route';
 
 const mocks = vi.hoisted(() => ({
   searchParams: new URLSearchParams(),
-  orders: { marker: 'shared-orders-owner' },
-  modalOrders: [] as unknown[],
-  useProjectDeliverySummary: vi.fn(),
-  useReleaseOrders: vi.fn(),
+  pathname: '/projects/project-1',
+  replace: vi.fn(),
+  summary: null as unknown,
+  orders: { marker: 'orders' },
 }));
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ replace: vi.fn() }),
+  useParams: () => ({ id: 'project-1' }),
   useSearchParams: () => mocks.searchParams,
+  usePathname: () => mocks.pathname,
+  useRouter: () => ({ replace: mocks.replace }),
 }));
 vi.mock('next-intl', () => ({ useTranslations: () => (key: string) => key }));
 vi.mock('@svton/ui', () => ({
   EmptyState: () => <div>empty</div>,
   LoadingState: () => <div>loading</div>,
-  Tabs: ({
-    items,
-    activeKey,
-  }: {
-    items: Array<{ key: string; children: ReactNode }>;
-    activeKey: string;
-  }) => <div>{items.find((item) => item.key === activeKey)?.children}</div>,
 }));
 vi.mock('@/components/ui', () => ({
   ErrorBanner: () => <div>error</div>,
   PageHeader: () => <div>header</div>,
 }));
 vi.mock('../hooks/use-project-delivery-summary', () => ({
-  useProjectDeliverySummary: mocks.useProjectDeliverySummary,
+  useProjectDeliverySummary: () => ({
+    summary: mocks.summary,
+    loading: false,
+    error: null,
+    refresh: vi.fn(),
+  }),
 }));
-vi.mock('../hooks/use-release-orders', () => ({
-  useReleaseOrders: mocks.useReleaseOrders,
+vi.mock('../hooks/use-release-orders', () => ({ useReleaseOrders: () => mocks.orders }));
+vi.mock('./project-workbench-header', () => ({
+  ProjectWorkbenchHeader: () => <div>workbench-header</div>,
 }));
-vi.mock('./project-delivery-header', () => ({
-  ProjectDeliveryHeader: () => <div>project-header</div>,
-}));
-vi.mock('./project-delivery-summary', () => ({
-  ProjectDeliveryEnvironmentStrip: () => <div>versions</div>,
-  ProjectDeliveryWeakSummary: ({ onOpenRelease }: { onOpenRelease?: () => void }) => (
+vi.mock('./project-context-issue', () => ({
+  ProjectContextIssue: ({ message, actionLabel }: { message: string; actionLabel: string }) => (
     <div>
-      summary
-      {onOpenRelease ? <button onClick={onOpenRelease}>create-release-order</button> : null}
+      {message} · {actionLabel}
     </div>
   ),
 }));
-vi.mock('./release-orders-panel', () => ({
-  ReleaseOrdersPanel: () => <div>release-orders-active-child</div>,
-}));
-vi.mock('./environment-versions-panel', () => ({
-  EnvironmentVersionsPanel: () => <div>environment-versions-active-child</div>,
+vi.mock('./project-delivery-content', () => ({
+  ProjectDeliveryContent: () => <div>release-orders</div>,
 }));
 vi.mock('./release-order-create-modal', () => ({
-  ReleaseOrderCreateModal: ({ open, orders }: { open: boolean; orders: unknown }) => {
-    mocks.modalOrders.push(orders);
-    return open ? (
+  ReleaseOrderCreateModal: ({ open, onClose }: { open: boolean; onClose: () => void }) =>
+    open ? (
       <div role="dialog">
-        <input aria-label="release-version" />
-        <textarea aria-label="optional-note" />
+        <button type="button" onClick={onClose}>
+          close-create
+        </button>
       </div>
-    ) : null;
-  },
+    ) : null,
 }));
 
-describe('ProjectDeliveryRoute create action owner', () => {
+describe('ProjectDeliveryRoute workbench shell', () => {
   let container: HTMLDivElement;
   let root: Root;
-
   beforeEach(() => {
-    mocks.searchParams = new URLSearchParams();
-    (
-      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
-    ).IS_REACT_ACT_ENVIRONMENT = true;
-    mocks.modalOrders = [];
-    mocks.useProjectDeliverySummary.mockReturnValue({
-      summary: {
-        project: { id: 'project-1', name: 'Project 1' },
-        nextAction: { kind: 'open_release', href: '/projects/project-1?section=delivery' },
-      },
-      loading: false,
-      error: null,
-      refresh: vi.fn(),
-    });
-    mocks.useReleaseOrders.mockReturnValue(mocks.orders);
     container = document.createElement('div');
-    document.body.appendChild(container);
     root = createRoot(container);
+    mocks.searchParams = new URLSearchParams('view=releases');
+    mocks.summary = summary();
+  });
+  afterEach(async () => act(async () => root.unmount()));
+
+  it('renders one release workbench without environment comparison cards', async () => {
+    await act(async () => root.render(<ProjectDeliveryRoute projectId="project-1" />));
+    expect(container.textContent).toContain('workbench-header');
+    expect(container.textContent).toContain('release-orders');
+    expect(container.textContent).toContain('projectDeliveryIssueMessage');
+    expect(container.textContent).toContain('projectDeliveryActionBindTarget');
+    expect(container.textContent).not.toContain('environment-versions-active-child');
   });
 
-  afterEach(async () => {
-    await act(async () => root.unmount());
-    container.remove();
-  });
-
-  it.each([
-    ['releases', 'release-orders-active-child', 'environment-versions-active-child'],
-    ['environment-versions', 'environment-versions-active-child', 'release-orders-active-child'],
-  ])('opens the same modal from the %s active child', async (view, active, inactive) => {
-    mocks.searchParams = new URLSearchParams(`view=${view}`);
-    await act(async () => {
-      root.render(
-        <ProjectDeliveryRoute
-          projectId="project-1"
-          initialSummary={undefined}
-        />,
-      );
-    });
-
-    expect(container.textContent).toContain(active);
-    expect(container.textContent).not.toContain(inactive);
-    expect(container.querySelector('[role="dialog"]')).toBeNull();
-    expect(
-      Array.from(container.querySelectorAll('button')).filter(
-        (button) => button.textContent === 'create-release-order',
-      ),
-    ).toHaveLength(1);
-    await act(async () => {
-      container.querySelector('button')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    });
-
+  it('opens the release modal from the canonical create query', async () => {
+    mocks.searchParams = new URLSearchParams('view=releases&create=true');
+    await act(async () => root.render(<ProjectDeliveryRoute projectId="project-1" />));
     expect(container.querySelector('[role="dialog"]')).not.toBeNull();
-    expect(container.querySelector('[aria-label="release-version"]')).not.toBeNull();
-    expect(container.querySelector('[aria-label="optional-note"]')).not.toBeNull();
-    expect(container.textContent).not.toContain(inactive);
-    expect(mocks.modalOrders.every((orders) => orders === mocks.orders)).toBe(true);
   });
 
-  it('does not request release orders before the scoped summary exists', async () => {
-    mocks.useProjectDeliverySummary.mockReturnValue({
-      summary: null,
-      loading: false,
-      error: null,
-      refresh: vi.fn(),
+  it('WIZ-2: closing the create modal strips the create query so the modal can reopen', async () => {
+    mocks.searchParams = new URLSearchParams('view=releases&create=true');
+    await act(async () => root.render(<ProjectDeliveryRoute projectId="project-1" />));
+    const closeButton = container.querySelector<HTMLButtonElement>('[role="dialog"] button');
+    expect(closeButton).not.toBeNull();
+    await act(async () => closeButton!.click());
+    expect(mocks.replace).toHaveBeenCalledTimes(1);
+    expect(mocks.replace).toHaveBeenCalledWith('/projects/project-1?view=releases', {
+      scroll: false,
     });
-    await act(async () => {
-      root.render(<ProjectDeliveryRoute projectId="project-1" />);
-    });
-
-    expect(mocks.useReleaseOrders).toHaveBeenCalledWith('');
-  });
-
-  it('does not expose a competing create action while the server owns another checkpoint', async () => {
-    mocks.useProjectDeliverySummary.mockReturnValue({
-      summary: {
-        project: { id: 'project-1', name: 'Project 1' },
-        nextAction: {
-          kind: 'bind_target',
-          href: '/projects/project-1/settings?section=environments&env=staging&envTab=targets',
-        },
-      },
-      loading: false,
-      error: null,
-      refresh: vi.fn(),
-    });
-    await act(async () => {
-      root.render(<ProjectDeliveryRoute projectId="project-1" />);
-    });
-
-    expect(container.textContent).not.toContain('create-release-order');
-  });
-
-  it('removes project-level summary chrome while a release workbench is focused', async () => {
-    mocks.searchParams = new URLSearchParams('releaseOrderId=order-1&step=preflight');
-    await act(async () => {
-      root.render(<ProjectDeliveryRoute projectId="project-1" />);
-    });
-
-    expect(container.textContent).toContain('release-orders-active-child');
-    expect(container.textContent).not.toContain('project-header');
-    expect(container.textContent).not.toContain('summary');
-    expect(container.textContent).not.toContain('versions');
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
   });
 });
+
+function summary() {
+  return {
+    project: { id: 'project-1', name: 'Project 1' },
+    repository: { canonicalUrl: 'file:///repo', defaultBranch: 'master' },
+    checkpoints: [
+      {
+        id: 'targets',
+        scope: 'production',
+        status: 'blocked',
+        reasonCodes: ['TARGET_MISSING'],
+        action: { kind: 'bind_target', href: '/settings' },
+      },
+    ],
+    nextAction: { kind: 'bind_target', href: '/settings' },
+  } as never;
+}

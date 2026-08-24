@@ -10,6 +10,8 @@
 
 'use client';
 
+import React from 'react';
+import { useTranslations } from 'next-intl';
 import type { useProjectDetail } from '../../hooks/use-project-detail';
 import type { ProjectApplication, ProjectService } from '../../types';
 import { Alert } from '@/components/ui';
@@ -25,17 +27,24 @@ interface DeploymentsTabProps {
 }
 
 export function DeploymentsTab({ detail, focusedRunId, onOpenDeploy }: DeploymentsTabProps) {
-  const latestRunFailed = detail.deploymentRuns[0]?.status === 'failed';
-  const hasActiveService = detail.project?.applications?.some((application) =>
-    application.services?.some((service) => service.status === 'active'),
-  );
+  const t = useTranslations('projects');
+  const latestRun = detail.deploymentRuns[0];
+  // DEP-4：banner 只陈述「最近一次」这一事实——聚焦查看某条历史运行时，
+  // 最近一次运行的成败与当前视口无关，不再误把焦点运行说成最近一次。
+  const bannerAboutVisibleLatest = !focusedRunId || focusedRunId === latestRun?.id;
+  const showLatestFailedBanner =
+    latestRun?.status === 'failed' &&
+    bannerAboutVisibleLatest &&
+    Boolean(
+      detail.project?.applications?.some((application) =>
+        application.services?.some((service) => service.status === 'active'),
+      ),
+    );
   return (
     <div className="space-y-3">
-      {latestRunFailed && hasActiveService && (
-        <Alert tone="warning">
-          最近一次部署失败；“服务活跃”只表示当前进程仍在运行，不代表本次发布成功。
-        </Alert>
-      )}
+      {showLatestFailedBanner ? (
+        <Alert tone="warning">{t('deploymentLatestFailedBanner')}</Alert>
+      ) : null}
       <DeploymentPanel
         detail={detail}
         focusedRunId={focusedRunId}

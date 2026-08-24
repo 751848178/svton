@@ -2,12 +2,14 @@
 
 import React from 'react';
 import { useTranslations } from 'next-intl';
-import { StatusTag } from '@/components/ui';
+import { FlowStatusTag } from './release-workbench/release-flow-status-tag';
 import type {
   LocalizedGateText,
   ReleaseGateCheck,
   ReleaseGatePhase,
 } from '../types/release-gate.types';
+import { foldTechnicalIds, humanizeEvidenceText } from '../utils/release-display.utils';
+import { formatIsoMinute } from '../utils/release-time.utils';
 import { releaseGateStatusTone } from './release-gate-summary.model';
 import { ReleaseGateManualConfirmation } from './release-gate-manual-confirmation';
 
@@ -47,7 +49,7 @@ export function ReleaseGatePhaseSection(props: Props) {
               <span>
                 <strong className="font-mono">{check.id}</strong> · {props.localize(check.title)}
               </span>
-              <StatusTag
+              <FlowStatusTag
                 status={releaseGateStatusTone(check.status)}
                 label={t(`releaseGateStatus.${check.status}`)}
               />
@@ -59,24 +61,29 @@ export function ReleaseGatePhaseSection(props: Props) {
               />
               <GateMetadata
                 label={t('releaseGateReasonLabel')}
-                value={props.localize(check.reason)}
+                /* ROD-5：reason 内嵌 raw ISO 时间戳本地化；复核补漏：reason 亦可能
+                    内嵌完整 cuid（如「Manifest cmsn… 以 Digest 绑定」），统一走组合清洗。 */
+                value={humanizeEvidenceText(props.localize(check.reason))}
               />
               <GateMetadata
                 label={t('releaseGateEvidenceLabel')}
-                value={check.evidenceRef || t('releaseGateMetadataUnavailable')}
+                /* PX-3：证据串内嵌 cuid 折叠为前 8 位，完整值进 title。 */
+                value={check.evidenceRef ? foldTechnicalIds(check.evidenceRef) : t('releaseGateMetadataUnavailable')}
+                title={check.evidenceRef ?? undefined}
               />
               <GateMetadata
                 label={t('releaseGateCheckedAtLabel')}
-                value={formatTime(check.checkedAt, props.locale, t('releaseGateMetadataUnavailable'))}
+                value={formatIsoMinute(check.checkedAt) || t('releaseGateMetadataUnavailable')}
               />
               <GateMetadata
                 label={t('releaseGateExpiresAtLabel')}
-                value={formatTime(check.expiresAt, props.locale, t('releaseGateMetadataUnavailable'))}
+                value={formatIsoMinute(check.expiresAt) || t('releaseGateMetadataUnavailable')}
               />
               <GateMetadata
                 className="max-[820px]:hidden"
                 label={t('releaseGateCapabilityLabel')}
-                value={check.capabilityId || t('releaseGateTargetCapability')}
+                /* PX-12：无能力组的检查显示「—」，不暴露后端原始分类「目标上下文」。 */
+                value={check.capabilityId || '—'}
               />
             </dl>
             {check.status === 'manual' && check.dispositions.includes('manual') ? (
@@ -97,20 +104,23 @@ export function ReleaseGatePhaseSection(props: Props) {
 function GateMetadata({
   label,
   value,
+  title,
   className = '',
 }: {
   label: string;
   value: string;
+  title?: string;
   className?: string;
 }) {
   return (
     <div className={className}>
       <dt className="font-medium text-foreground">{label}</dt>
-      <dd className="break-all">{value}</dd>
+      <dd
+        className="break-all"
+        title={title}
+      >
+        {value}
+      </dd>
     </div>
   );
-}
-
-function formatTime(value: string | null, locale: string, fallback: string) {
-  return value ? new Date(value).toLocaleString(locale) : fallback;
 }

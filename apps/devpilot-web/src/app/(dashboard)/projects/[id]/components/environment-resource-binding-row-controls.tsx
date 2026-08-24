@@ -11,6 +11,7 @@
 import React, { useState } from 'react';
 
 import { useTranslations } from 'next-intl';
+import { Checkbox, Input, Select } from '@/components/ui';
 import type { Project, ProjectEnvironment } from '../types';
 import type { EnvironmentConfigResourceReference } from '../types/environment-config-revision.types';
 import {
@@ -121,8 +122,9 @@ function RowControls({
       <div className="grid gap-2 sm:grid-cols-2">
         <label className="flex flex-col gap-1">
           <span className="text-[10px] text-muted-foreground">{t('envResourceTableBindingMethod')}</span>
-          <select
-            className="rounded-md border bg-background px-2 py-1"
+          <Select
+            size="sm"
+            className="bg-background"
             value={sharingMode === 'shared' ? 'use-shared' : 'bind-existing'}
             onChange={(event) => {
               const method = event.target.value as BindingMethod;
@@ -135,7 +137,7 @@ function RowControls({
             <option value="rebind">{t(BINDING_METHOD_LABEL_KEYS.rebind)}</option>
             <option value="unbind">{t(BINDING_METHOD_LABEL_KEYS.unbind)}</option>
             <option value="use-shared" disabled={production}>{t(BINDING_METHOD_LABEL_KEYS['use-shared'])}</option>
-          </select>
+          </Select>
         </label>
         <label className="flex flex-col gap-1">
           <span className="text-[10px] text-muted-foreground">{t('envResourceSharingScopeLabel')}</span>
@@ -144,15 +146,16 @@ function RowControls({
               {t('envResourceSharingProductionForced')} · {t('envResourceSharingProdForbidden')}
             </span>
           ) : (
-            <select
-              className="rounded-md border bg-background px-2 py-1"
+            <Select
+              size="sm"
+              className="bg-background"
               value={sharingMode}
               onChange={(event) => onSharingMode(event.target.value as SharingMode)}
               aria-label={t('envResourceSharingScopeLabel')}
             >
               <option value="dedicated">{t(SHARING_MODE_LABEL_KEYS.dedicated)}</option>
               <option value="shared">{t(SHARING_MODE_LABEL_KEYS.shared)}</option>
-            </select>
+            </Select>
           )}
         </label>
       </div>
@@ -162,21 +165,20 @@ function RowControls({
           {shareableEnvironments.length === 0 ? (
             <span className="text-[11px] text-muted-foreground">{t('envResourceTableEmpty')}</span>
           ) : shareableEnvironments.map((candidate) => (
-            <label key={candidate.id} className="flex items-center gap-1">
-              <input
-                type="checkbox"
-                checked={item.sharedEnvironmentIds.includes(candidate.id)}
-                onChange={(event) => onToggleEnvironment(candidate.id, event.target.checked)}
-              />
-              {candidate.name}
-            </label>
+            <Checkbox
+              key={candidate.id}
+              checked={item.sharedEnvironmentIds.includes(candidate.id)}
+              onChange={(event) => onToggleEnvironment(candidate.id, event.target.checked)}
+              label={candidate.name}
+            />
           ))}
         </div>
       ) : null}
       {rebinding ? (
         <div className="flex items-center gap-2">
-          <select
-            className="min-w-0 flex-1 rounded-md border bg-background px-2 py-1"
+          <Select
+            size="sm"
+            className="min-w-0 flex-1 bg-background"
             defaultValue=""
             onChange={(event) => {
               const candidate = candidates.find((entry) => entry.id === event.target.value);
@@ -189,7 +191,7 @@ function RowControls({
             {candidates.map((candidate) => (
               <option key={candidate.id} value={candidate.id}>{candidate.name}</option>
             ))}
-          </select>
+          </Select>
           <button type="button" className="text-muted-foreground" onClick={() => setRebinding(false)}>
             {t('configReferenceRemove')}
           </button>
@@ -205,16 +207,18 @@ function RowControls({
         </button>
       )}
       <div className="grid grid-cols-[110px_1fr] gap-2">
-        <select
-          className="rounded-md border bg-background px-2 py-1"
+        <Select
+          size="sm"
+          className="bg-background"
           value={item.risk}
           onChange={(event) => onUpdate(index, { risk: event.target.value as EnvironmentConfigResourceReference['risk'] })}
           aria-label="risk"
         >
           <option value="low">low</option><option value="medium">medium</option><option value="high">high</option>
-        </select>
-        <input
-          className="rounded-md border bg-background px-2 py-1"
+        </Select>
+        <Input
+          size="sm"
+          className="bg-background"
           value={item.impact}
           onChange={(event) => onUpdate(index, { impact: event.target.value })}
           placeholder={t('configResourceImpact')}

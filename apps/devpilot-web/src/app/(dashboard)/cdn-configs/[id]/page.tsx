@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useBoolean, usePersistFn } from '@svton/hooks';
 import { LoadingState, EmptyState } from '@svton/ui';
-import { Modal } from '@/components/ui';
+import { Modal, Textarea } from '@/components/ui';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { feedback } from '@/components/ui/feedback/feedback';
 import { useCdnConfig } from './hooks/use-cdn-config';
@@ -146,11 +146,11 @@ export default function CDNConfigDetailPage() {
         <div className="space-y-4">
           <label className="block text-sm">
             <span className="mb-1 block font-medium">{t('pathsHint')}</span>
-            <textarea
+            <Textarea
               value={purgePaths}
               onChange={(e) => setPurgePaths(e.target.value)}
               rows={5}
-              className="w-full rounded-md border px-3 py-2 font-mono text-sm"
+              className="font-mono"
               placeholder={'/images/*\n/css/*\n/js/*'}
             />
           </label>

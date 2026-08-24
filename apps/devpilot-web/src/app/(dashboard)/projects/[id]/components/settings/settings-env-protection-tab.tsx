@@ -10,6 +10,7 @@
 import React from 'react';
 
 import { useTranslations } from 'next-intl';
+import { Checkbox, Select } from '@/components/ui';
 import type { useProjectDetail } from '../../hooks/use-project-detail';
 import type { ProjectEnvironment } from '../../types';
 import { EnvironmentCopyPanel } from '../environment-copy-panel';
@@ -68,9 +69,9 @@ export function EnvProtectionTab({
           <p className="mt-1 text-[11px] text-muted-foreground">
             {t('environmentObservabilityHelper')}
           </p>
-          <select
+          <Select
             id="environment-observability-profile"
-            className="mt-2 min-h-11 w-full rounded-md border bg-background px-3 text-sm"
+            className="mt-2"
             value={observability ?? ''}
             onChange={(event) => onObservabilityChange?.(
               event.target.value as SettingsObservabilityDraft['profile'],
@@ -78,7 +79,7 @@ export function EnvProtectionTab({
           >
             <option value="">{t('environmentObservabilityUnconfigured')}</option>
             <option value="local_acceptance_v1">{t('environmentObservabilityLocal')}</option>
-          </select>
+          </Select>
           {observability === 'local_acceptance_v1' ? (
             <p className="mt-2 text-xs text-amber-800" role="status">
               {t('environmentObservabilityAcceptanceOnly')}
@@ -93,8 +94,7 @@ export function EnvProtectionTab({
             <div className="flex flex-wrap gap-3 text-xs">
               {policies.map((policy) => (
                 <label key={policy.id} className="flex items-center gap-1">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={policyIds.includes(policy.id)}
                     onChange={(event) => toggle(policy.id, event.target.checked)}
                   />

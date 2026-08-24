@@ -1,25 +1,14 @@
-/**
- * 环境配置区（顶层区域）
- *
- * 单一职责：渲染「环境配置」区域的标题行、Staging/Production 环境选择器与创建入口，
- * 依据 ?env=<key> 深链解析活动环境（未命中则回退第一个非归档环境），
- * 并把配置详情按 environment.id 挂载（key 重挂载保证切换环境时草稿重置）。
- */
 'use client';
 
 import React from 'react';
-
-import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Button, EmptyState } from '@svton/ui';
-import { StatusTag } from '@/components/ui';
+import { EmptyState } from '@svton/ui';
+import { Select } from '@/components/ui';
 import type { useProjectDetail } from '../../hooks/use-project-detail';
+import { selectExistingProjectEnvironments } from '../../utils/project-environment-list';
 import { readSettingsEnvKey, settingsHref } from '../../utils/project-route.utils';
-import { EnvironmentCreateModal } from '../environment-create-modal';
 import { EnvironmentSettingsDetail } from './environment-settings-detail';
-import { isGovernedEnvironmentSet } from './settings-env.model';
-import { groupSettingsEnvironments } from './settings-environment-groups.model';
 
 type DetailHook = ReturnType<typeof useProjectDetail>;
 
@@ -27,91 +16,62 @@ export function EnvironmentSettingsArea({ detail }: { detail: DetailHook }) {
   const t = useTranslations('projects');
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [createOpen, setCreateOpen] = useState(false);
   const project = detail.project;
-  const projectId = project?.id ?? '';
-  const environments = (project?.environments ?? []).filter((env) => env.status !== 'archived');
-  const governed = isGovernedEnvironmentSet(project?.environments ?? []);
-  const requestedKey = readSettingsEnvKey(searchParams);
-  const activeEnv = environments.find((env) => env.key === requestedKey) ?? environments[0] ?? null;
-
   if (!project) return null;
-
-  const selectEnv = (key: string) => {
+  const environments = selectExistingProjectEnvironments(project.environments);
+  const requestedKey = readSettingsEnvKey(searchParams);
+  const defaultEnvironment =
+    environments.find((environment) => environment.baselineRole === 'production') ??
+    environments[0];
+  const active =
+    environments.find((environment) => environment.key === requestedKey) ??
+    defaultEnvironment ??
+    null;
+  const selectEnvironment = (key: string) => {
     const next = new URLSearchParams(searchParams);
     next.set('env', key);
-    router.replace(settingsHref(projectId, 'environments', next), { scroll: false });
+    router.replace(settingsHref(project.id, 'environments', next), { scroll: false });
   };
-
-  const enabledCount = environments.filter((env) => env.status === 'active').length;
-  const environmentGroups = groupSettingsEnvironments(environments);
-
   return (
-    <section className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <section className="space-y-5">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2 className="text-base font-semibold">{t('envManagementTitle')}</h2>
-          <p className="mt-1 text-xs text-muted-foreground">{t('envManagementDescription')}</p>
+          <h2 className="text-xl font-semibold">{t('projectConfigurationTitle')}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {t('projectConfigurationDescription')}
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <StatusTag
-            status="success"
-            label={`${t('envStatusActive')} ${enabledCount} / ${environments.length}`}
-          />
-          {!governed ? (
-            <Button variant="ghost" size="sm" onClick={() => setCreateOpen(true)}>
-              + {t('envCreateAction')}
-            </Button>
-          ) : null}
-        </div>
-      </div>
-
-      <div className="space-y-3" aria-label={t('envSwitchLabel')}>
-        {environmentGroups.map((group) => (
-          <div key={group.key} role="group" aria-label={t(group.labelKey)}>
-            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              {t(group.labelKey)}
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {group.environments.map((env) => (
-                <button
-                  key={env.id}
-                  type="button"
-                  onClick={() => selectEnv(env.key)}
-                  aria-pressed={activeEnv?.id === env.id}
-                  className={
-                    activeEnv?.id === env.id
-                      ? 'min-h-11 rounded-md border border-primary bg-primary/10 px-3 py-2 text-sm font-medium text-blue-800'
-                      : 'min-h-11 rounded-md border px-3 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-foreground'
-                  }
+        {active ? (
+          <label className="flex items-center gap-3 text-sm">
+            <span className="font-medium text-muted-foreground">
+              {t('currentEnvironmentLabel')}
+            </span>
+            <Select
+              className="min-w-64"
+              value={active.key}
+              onChange={(event) => selectEnvironment(event.target.value)}
+            >
+              {environments.map((environment) => (
+                <option
+                  key={environment.id}
+                  value={environment.key}
                 >
-                  <span>{env.key} · {env.name}</span>
-                  <span className="ml-1.5 rounded bg-muted px-1 py-0.5 text-[10px]">
-                    {t(env.baselineRole === 'staging'
-                      ? 'envRoleStaging'
-                      : env.baselineRole === 'production'
-                        ? 'envRoleProduction'
-                        : 'envRoleCustom')}
-                  </span>
-                </button>
+                  {environment.name} ({environment.key})
+                </option>
               ))}
-            </div>
-          </div>
-        ))}
+            </Select>
+          </label>
+        ) : null}
       </div>
-
-      {activeEnv ? (
-        <EnvironmentSettingsDetail key={activeEnv.id} detail={detail} environment={activeEnv} />
+      {active ? (
+        <EnvironmentSettingsDetail
+          key={active.id}
+          detail={detail}
+          environment={active}
+        />
       ) : (
         <EmptyState text={t('noEnvironments')} />
       )}
-
-      <EnvironmentCreateModal
-        open={createOpen}
-        projectId={project.id}
-        onClose={() => setCreateOpen(false)}
-        onChanged={detail.loadProject}
-      />
     </section>
   );
 }

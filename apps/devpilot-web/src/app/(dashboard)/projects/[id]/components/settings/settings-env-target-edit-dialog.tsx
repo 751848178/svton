@@ -11,19 +11,13 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Button } from '@svton/ui';
-import { Modal, Select } from '@/components/ui';
+import { Modal } from '@/components/ui';
 import type {
   EnvironmentDeploymentTargetBinding,
   EnvironmentDeploymentCurrentTarget,
 } from '../../types';
 import type { EnvironmentBindTargetInput } from '../../hooks/use-environment-actions';
-
-type ProjectsTranslator = ReturnType<typeof useTranslations<'projects'>>;
-
-const PROVIDER_OPTIONS = [
-  { value: 'ssh-v1', labelKey: 'envTargetProviderSshV1' },
-  { value: 'local-filesystem-v1', labelKey: 'envTargetProviderLocalFilesystemV1' },
-];
+import { SettingsEnvTargetFields, type TargetFieldsValue } from './settings-env-target-fields';
 
 export interface TargetEditDraft {
   bindingId: string;
@@ -49,8 +43,7 @@ export function targetEditDraftFrom(
       binding.providerKey ??
       (typeof deployment?.providerKey === 'string' ? deployment.providerKey : ''),
     root: typeof deployment?.root === 'string' ? deployment.root : '',
-    targetRef:
-      current?.bindingId === binding.id ? current.targetRef : '',
+    targetRef: current?.bindingId === binding.id ? current.targetRef : '',
     sharedEnvironmentIds: binding.sharedEnvironmentIds,
   };
 }
@@ -69,29 +62,33 @@ export function SettingsEnvTargetEditDialog({
   onConfirm: (input: EnvironmentBindTargetInput) => Promise<boolean>;
 }) {
   const t = useTranslations('projects');
-  const [providerKey, setProviderKey] = useState('');
-  const [root, setRoot] = useState('');
-  const [targetRef, setTargetRef] = useState('');
-  const [sharedEnvironmentIds, setSharedEnvironmentIds] = useState<string[]>([]);
+  const [target, setTarget] = useState<TargetFieldsValue>({
+    providerKey: '',
+    root: '',
+    targetRef: '',
+    sharedEnvironmentIds: [],
+  });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!draft) return;
-    setProviderKey(draft.providerKey);
-    setRoot(draft.root);
-    setTargetRef(draft.targetRef);
-    setSharedEnvironmentIds(draft.sharedEnvironmentIds);
-  }, [draft?.bindingId, draft?.serverId, draft?.providerKey]);
+    setTarget({
+      providerKey: draft.providerKey,
+      root: draft.root,
+      targetRef: draft.targetRef,
+      sharedEnvironmentIds: draft.sharedEnvironmentIds,
+    });
+  }, [draft]);
 
   const submit = async () => {
     if (!draft) return;
     setSaving(true);
     try {
       const ok = await onConfirm({
-        providerKey,
-        root: root.trim() || undefined,
-        targetRef: targetRef.trim() || undefined,
-        sharedEnvironmentIds,
+        providerKey: target.providerKey,
+        root: target.root.trim() || undefined,
+        targetRef: target.targetRef.trim() || undefined,
+        sharedEnvironmentIds: target.sharedEnvironmentIds,
       });
       if (ok) onClose();
     } finally {
@@ -106,78 +103,35 @@ export function SettingsEnvTargetEditDialog({
       title={t('envTargetAdjustTitle')}
       width={440}
       footer={
-        <>
-          <Button variant="secondary" onClick={onClose} disabled={saving}>{t('envCancel')}</Button>
-          <Button variant="primary" onClick={submit} loading={saving} disabled={!draft || !providerKey}>
-            {t('envTargetAdjustSave')}
-          </Button>
-        </>
+        <div className="flex w-full flex-col items-end gap-1">
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="secondary"
+              onClick={onClose}
+              disabled={saving}
+            >
+              {t('envCancel')}
+            </Button>
+            <Button
+              variant="primary"
+              onClick={submit}
+              loading={saving}
+              disabled={!draft || !target.providerKey}
+            >
+              {t('envTargetAdjustSave')}
+            </Button>
+          </div>
+          {!target.providerKey ? (
+            <p className="text-xs text-muted-foreground">{t('envTargetProviderRequiredHint')}</p>
+          ) : null}
+        </div>
       }
     >
-      <div className="space-y-3">
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium">{t('envTargetProviderLabel')}</span>
-          <Select
-            value={providerKey}
-            onChange={(e) => setProviderKey(e.target.value)}
-            options={PROVIDER_OPTIONS.map((option) => ({ value: option.value, label: t(option.labelKey) }))}
-          />
-        </label>
-        {providerKey === 'ssh-v1' ? (
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium">{t('envTargetRootLabel')}</span>
-            <input
-              className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
-              value={root}
-              onChange={(e) => setRoot(e.target.value)}
-              placeholder="/srv/app"
-            />
-            <span className="mt-1 block text-[11px] text-muted-foreground">{t('envTargetRootHint')}</span>
-          </label>
-        ) : (
-          <label className="block text-sm">
-            <span className="mb-1 block font-medium">{t('envTargetRefLabel')}</span>
-            <input
-              className="w-full rounded-md border bg-background px-2 py-1.5 text-sm"
-              value={targetRef}
-              onChange={(e) => setTargetRef(e.target.value)}
-              placeholder="release-target://…"
-            />
-          </label>
-        )}
-        <fieldset className="text-sm">
-          <legend className="mb-1 font-medium">{t('envTargetSharedScopeLabel')}</legend>
-          <p className="mb-1 text-[11px] text-muted-foreground">{t('envTargetSharedScopeHint')}</p>
-          {otherEnvironments.length === 0 ? (
-            <p className="text-xs text-muted-foreground">{t('envTargetNoOtherEnvironments')}</p>
-          ) : (
-            <div className="space-y-1">
-              {otherEnvironments.map((env) => {
-                const checked = sharedEnvironmentIds.includes(env.id);
-                return (
-                  <label key={env.id} className="flex items-center gap-2 text-xs">
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() =>
-                        setSharedEnvironmentIds((prev) =>
-                          checked
-                            ? prev.filter((id) => id !== env.id)
-                            : [...prev, env.id],
-                        )
-                      }
-                    />
-                    <span>
-                      {env.name}
-                      <span className="ml-1 font-mono text-muted-foreground">{env.key}</span>
-                    </span>
-                  </label>
-                );
-              })}
-            </div>
-          )}
-        </fieldset>
-      </div>
+      <SettingsEnvTargetFields
+        value={target}
+        otherEnvironments={otherEnvironments}
+        onChange={setTarget}
+      />
     </Modal>
   );
 }

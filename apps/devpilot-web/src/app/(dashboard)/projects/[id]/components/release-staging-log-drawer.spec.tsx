@@ -43,12 +43,43 @@ describe('ReleaseStagingLogDrawer', () => {
     await render(stagingRun(), build());
     expect(container.textContent).toContain('releaseStagingDeploymentRunIdrun-1');
     expect(container.textContent).toContain('workload exact Manifest started');
-    expect(container.textContent).toContain('"healthProbe"');
     expect(container.textContent).toContain('releaseStagingVerificationPassed');
     expect(container.textContent).toContain('releaseStagingBusinessPending');
     expect(container.textContent).toContain('releaseStagingBusinessResultDetail');
     expect(container.querySelector('[role="log"]')?.textContent).toContain('health passed');
     expect(container.querySelector('a')?.getAttribute('href')).toContain('runId=run-1');
+    // PX-31：技术证据结构化（探针状态提为字段），raw JSON 折叠进未展开的 details。
+    expect(container.textContent).toContain('releaseEvidenceProbe.healthProbe');
+    const details = container.querySelector('details');
+    expect(details?.hasAttribute('open')).toBe(false);
+    expect(details?.textContent).toContain('"healthProbe"');
+  });
+
+  it('folds raw technical JSON behind a closed disclosure and shortens raw cuids (PX-31/PX-3)', async () => {
+    const run = {
+      ...stagingRun(),
+      id: 'cmsn5pyqs01bd3nfoljnee97t',
+      result: {
+        gitInvoked: false,
+        manifestId: 'manifest-1',
+        deploymentUri: 'file:///srv/picshare/current',
+        artifactSizeBytes: 40824690,
+        runtimeEnvironmentFileMode: '0600',
+        workloadReady: { status: 'not_configured' },
+        healthProbe: { status: 'not_configured' },
+        httpProbe: { status: 'not_configured' },
+      },
+    } as ReleaseStagingDeploymentItem;
+    await render(run, build());
+    const text = container.textContent ?? '';
+    expect(text).toContain('38.9MB（40824690 字节）');
+    expect(text).toContain('0600');
+    expect(text).toContain('releaseEvidenceGitInvoked');
+    const raw = container.querySelector('[data-testid="staging-technical-raw-json"]');
+    expect(raw?.textContent).toContain('"artifactSizeBytes": 40824690');
+    // PX-3：字段与标题不渲染 25 位 raw cuid（折叠为前 8 位 + …）。
+    expect(text).toContain('cmsn5pyq…');
+    expect(text).not.toContain('cmsn5pyqs01bd3nfoljnee97t');
   });
 
   it('keeps a route-backed requested run open on load errors and retries in place', async () => {

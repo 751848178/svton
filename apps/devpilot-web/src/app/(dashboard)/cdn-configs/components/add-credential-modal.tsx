@@ -7,7 +7,7 @@
 
 import { useForm } from 'react-hook-form';
 import { useTranslations } from 'next-intl';
-import { Modal, ErrorBanner } from '@/components/ui';
+import { ErrorBanner, Input, Modal, Select } from '@/components/ui';
 import type { CredentialInput } from '../types';
 
 interface AddCredentialModalProps {
@@ -62,39 +62,35 @@ export function AddCredentialModal({ open, onClose, onCreate }: AddCredentialMod
         ) : null}
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('credentialName')}</span>
-          <input
+          <Input
             {...register('name', { required: true })}
             required
-            className="w-full rounded-md border px-3 py-2"
             placeholder={t('credentialNamePlaceholder')}
           />
         </label>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('providerLabel')}</span>
-          <select
-            {...register('type')}
-            className="w-full rounded-md border px-3 py-2"
-          >
+          <Select {...register('type')}>
             <option value="cdn_qiniu">{t('providerQiniu')}</option>
             <option value="cdn_aliyun">{t('providerAliyun')}</option>
             <option value="cdn_cloudflare">{t('providerCloudflare')}</option>
-          </select>
+          </Select>
         </label>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">Access Key</span>
-          <input
+          <Input
             {...register('accessKey', { required: true })}
             required
-            className="w-full rounded-md border px-3 py-2 font-mono text-sm"
+            className="font-mono"
           />
         </label>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">Secret Key</span>
-          <input
+          <Input
             type="password"
             {...register('secretKey', { required: true })}
             required
-            className="w-full rounded-md border px-3 py-2 font-mono text-sm"
+            className="font-mono"
           />
         </label>
         <div className="flex justify-end gap-2 pt-4">

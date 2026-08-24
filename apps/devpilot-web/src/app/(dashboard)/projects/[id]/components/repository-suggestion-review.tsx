@@ -3,12 +3,13 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { Card } from '@svton/ui';
-import { Button, Textarea } from '@/components/ui';
+import { Button, Radio, RadioGroup, Textarea } from '@/components/ui';
 import type { RepositoryAnalysisHook } from '../hooks/use-repository-analysis.hooks';
 import type {
   RepositoryAnalysisSuggestion,
   RepositorySuggestionDecision,
 } from '../types/repository-analysis.types';
+import { RepositorySuggestionReadableValue } from './repository-suggestion-readable-value';
 
 type DraftDecision = {
   decision?: 'accept' | 'edit' | 'reject';
@@ -64,9 +65,10 @@ export function RepositorySuggestionReview({ analysis }: { analysis: RepositoryA
   return (
     <section className="space-y-3">
       <div>
-        <h2 className="text-base font-semibold">逐条审核解析建议</h2>
+        <h2 className="text-base font-semibold">确认组件与配置变更</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          解析只生成建议，不直接改平台对象。这里逐条确认应用、服务、环境和资源建议；提交后才会在同一事务中创建或更新平台对象。
+          系统根据当前分支与 commit
+          识别组件、配置和资源变化，但不会直接修改项目。确认后才更新平台对象，并把变更来源保留在项目组件列表中。
         </p>
       </div>
       {suggestions.map((item) => (
@@ -127,8 +129,6 @@ function SuggestionCard({
   onChange: (draft: DraftDecision) => void;
 }) {
   const value = draft || { value: JSON.stringify(item.proposedValue, null, 2) };
-  const displayValue =
-    item.status === 'pending' ? item.proposedValue : (item.reviewedValue ?? item.proposedValue);
   return (
     <Card className={item.conflict ? 'border-amber-500/40' : ''}>
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -137,12 +137,12 @@ function SuggestionCard({
           <p className="mt-1 text-sm text-muted-foreground">{item.impact}</p>
         </div>
         <span className="rounded-full border px-2 py-0.5 text-xs">
-          {item.confidence} {item.conflict ? '· 有冲突' : ''}
+          {/* INFO-6：置信度枚举本地化，不再中英混排。 */}
+          {confidenceLabel(item.confidence)}
+          {item.conflict ? ' · 有冲突' : ''}
         </span>
       </div>
-      <pre className="mt-3 max-h-44 overflow-auto rounded bg-muted p-3 text-xs">
-        {JSON.stringify(displayValue, null, 2)}
-      </pre>
+      <RepositorySuggestionReadableValue item={item} />
       {item.warnings?.length ? (
         <ul className="mt-2 list-disc pl-5 text-xs text-amber-700">
           {item.warnings.map((warning) => (
@@ -150,23 +150,18 @@ function SuggestionCard({
           ))}
         </ul>
       ) : null}
-      <div className="mt-3 flex flex-wrap gap-4 text-sm">
+      <RadioGroup className="mt-3 gap-4 text-sm">
         {(['accept', 'edit', 'reject'] as const).map((decision) => (
-          <label
+          <Radio
             key={decision}
-            className="flex items-center gap-1"
-          >
-            <input
-              type="radio"
-              name={`decision-${item.id}`}
-              checked={value.decision === decision}
-              disabled={disabled}
-              onChange={() => onChange({ ...value, decision })}
-            />
-            {{ accept: '接受', edit: '编辑后接受', reject: '忽略' }[decision]}
-          </label>
+            name={`decision-${item.id}`}
+            checked={value.decision === decision}
+            disabled={disabled}
+            onChange={() => onChange({ ...value, decision })}
+            label={{ accept: '接受', edit: '编辑后接受', reject: '忽略' }[decision]}
+          />
         ))}
-      </div>
+      </RadioGroup>
       {value.decision === 'edit' ? (
         <Textarea
           className="mt-3 min-h-40 font-mono text-xs"
@@ -177,6 +172,10 @@ function SuggestionCard({
       ) : null}
     </Card>
   );
+}
+
+function confidenceLabel(confidence: string): string {
+  return { high: '高置信', medium: '中置信', low: '低置信' }[confidence] || confidence;
 }
 
 function kindLabel(kind: string): string {

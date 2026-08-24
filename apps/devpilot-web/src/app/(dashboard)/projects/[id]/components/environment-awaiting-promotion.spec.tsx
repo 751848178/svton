@@ -45,7 +45,10 @@ describe('EnvironmentAwaitingPromotion', () => {
     expect(container.textContent).toContain('environmentVersionAwaitingCandidate');
     expect(container.textContent).toContain('2.0.0');
     expect(container.textContent).toContain('environmentVersionManualRequired');
-    expect(container.querySelector('a')?.getAttribute('href')).toContain('releaseRunId=release-1');
+    // 生产发布是环境发布链第二节：深链直达生产节点并聚焦该 ReleaseRun 日志。
+    const href = container.querySelector('a')?.getAttribute('href') ?? '';
+    expect(href).toContain('release=production');
+    expect(href).toContain('releaseRunId=release-1');
     await act(async () => container.querySelector('button')?.click());
     expect(onResume).toHaveBeenCalledWith({
       releaseRunId: 'release-1', deploymentRunId: 'deployment-1', candidateHash: 'a'.repeat(64),
@@ -96,8 +99,9 @@ function environment(): EnvironmentVersionEnvironment {
 
 function candidate() {
   return {
-    id: 'manifest-1', digest: 'sha256:manifest', releaseOrder: { id: 'order-1', releaseVersion: '2.0.0' },
-    buildRun: { id: 'build-1', revision: 1, sourceCommitSha: 'b'.repeat(40) },
+    id: 'manifest-1', digest: 'sha256:manifest', createdAt: '2026-08-11T00:00:00Z',
+    releaseOrder: { id: 'order-1', releaseVersion: '2.0.0' },
+    buildRun: { id: 'build-1', revision: 1, sourceBranch: 'main', sourceCommitSha: 'b'.repeat(40) },
     deploymentRuns: [], releaseRuns: [],
   } as EnvironmentVersionCandidate;
 }

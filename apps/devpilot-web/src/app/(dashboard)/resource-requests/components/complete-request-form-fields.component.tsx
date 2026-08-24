@@ -1,4 +1,5 @@
 import { useTranslations } from 'next-intl';
+import { Checkbox, Input, Textarea } from '@/components/ui';
 import type { CompleteRequestFormData } from '../hooks/use-complete-request-form.hooks';
 import type { ResourceField, ResourceFieldValue } from '../types';
 import { getFieldDefaultValue } from '../utils';
@@ -30,29 +31,25 @@ export function CompleteRequestFormFields({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="block text-sm font-medium mb-1">{t('instanceNameLabel')}</label>
-          <input
+          <Input
             value={formData.instanceName}
             onChange={(event) => onFormDataChange({ instanceName: event.target.value })}
-            className="w-full px-3 py-2 border rounded-md"
           />
         </div>
         <div>
           <label className="block text-sm font-medium mb-1">{t('expiresAtLabel')}</label>
-          <input
+          <Input
             type="datetime-local"
             value={formData.expiresAt}
             onChange={(event) => onFormDataChange({ expiresAt: event.target.value })}
-            className="w-full px-3 py-2 border rounded-md"
           />
         </div>
       </div>
 
       <label className="flex items-center gap-2 text-sm">
-        <input
-          type="checkbox"
+        <Checkbox
           checked={formData.createInstance}
           onChange={(event) => onFormDataChange({ createInstance: event.target.checked })}
-          className="h-4 w-4"
         />
         {t('createInstanceAndLink')}
       </label>
@@ -75,20 +72,20 @@ export function CompleteRequestFormFields({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium mb-1">{t('deliveryInfoJson')}</label>
-            <textarea
+            <Textarea
               value={formData.delivery}
               onChange={(event) => onFormDataChange({ delivery: event.target.value })}
               rows={6}
-              className="w-full px-3 py-2 border rounded-md font-mono text-sm"
+              className="font-mono"
             />
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">{t('credentialsJson')}</label>
-            <textarea
+            <Textarea
               value={formData.credentials}
               onChange={(event) => onFormDataChange({ credentials: event.target.value })}
               rows={6}
-              className="w-full px-3 py-2 border rounded-md font-mono text-sm"
+              className="font-mono"
             />
           </div>
         </div>
@@ -96,11 +93,11 @@ export function CompleteRequestFormFields({
 
       <div>
         <label className="block text-sm font-medium mb-1">{t('instanceConfigJson')}</label>
-        <textarea
+        <Textarea
           value={formData.config}
           onChange={(event) => onFormDataChange({ config: event.target.value })}
           rows={3}
-          className="w-full px-3 py-2 border rounded-md font-mono text-sm"
+          className="font-mono"
         />
       </div>
 

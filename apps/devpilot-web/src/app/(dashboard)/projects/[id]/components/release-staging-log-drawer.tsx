@@ -3,7 +3,8 @@
 import React from 'react';
 import { useTranslations } from 'next-intl';
 import { Drawer, LoadingState } from '@svton/ui';
-import { ErrorBanner, StatusTag } from '@/components/ui';
+import { ErrorBanner } from '@/components/ui';
+import { FlowStatusTag } from './release-workbench/release-flow-status-tag';
 import type { ReleaseBuildItem, ReleaseStagingDeploymentItem } from '../types/release-order.types';
 import { releaseRunStatusLabelKey } from '../utils/release-copy.model';
 import {
@@ -11,8 +12,14 @@ import {
   stagingTechnicalConclusion,
 } from '../utils/release-staging-view.model';
 import { formatDuration, formatIso } from '../utils/release-time.utils';
+import {
+  providerKeyLabel,
+  shortDigest,
+  shortTechnicalId,
+} from '../utils/release-display.utils';
 import { releaseOrderStatusTone } from '../utils/release-order.utils';
 import { ReleaseDeploymentEvidenceLink } from './release-deployment-evidence-link';
+import { ReleaseStagingTechnicalEvidence } from './release-staging-technical-evidence';
 
 const MAX_RAW_LENGTH = 12_000;
 
@@ -27,17 +34,23 @@ interface Props {
   onClose: () => void;
 }
 
+/**
+ * PX-3：标题与字段值短 ID 化（完整值进 title/原始证据）。
+ * PX-11：耗时分隔符统一「·」。
+ * PX-31：技术部署证据改结构化 + raw JSON 折叠。
+ */
 export function ReleaseStagingLogDrawer(props: Props) {
   const t = useTranslations('projects');
   const tc = useTranslations('common');
   const technical = props.run ? stagingTechnicalConclusion(props.run) : null;
   const business = props.run ? stagingBusinessConclusion(props.run) : null;
+  const runId = props.run?.id || props.requestedRunId || '—';
   return (
     <Drawer
       open={Boolean(props.run || props.requestedRunId)}
       onClose={props.onClose}
-      title={t('releaseStagingLogTitle', { id: props.run?.id || props.requestedRunId || '—' })}
-      width="min(760px, 100vw)"
+      title={t('releaseStagingLogTitle', { id: shortTechnicalId(runId) })}
+      width="min(720px, 100vw)"
       ariaCloseLabel={tc('close')}
     >
       {props.loading ? <LoadingState text={t('releaseStagingDetailLoading')} /> : null}
@@ -50,39 +63,40 @@ export function ReleaseStagingLogDrawer(props: Props) {
       {props.run ? (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
-            <StatusTag
+            <FlowStatusTag
               status={releaseOrderStatusTone(props.run.status)}
               label={t(releaseRunStatusLabelKey(props.run.status))}
             />
             <span className="text-xs text-muted-foreground">
-              {t('releaseBuildDuration')}:{' '}
-              {formatDuration(props.run.startedAt, props.run.finishedAt) || '—'}
+              {t('releaseBuildDuration')} ·{' '}
+              {formatDuration(props.run.startedAt, props.run.finishedAt) ||
+                t('releaseWorkbenchValueEmpty')}
             </span>
           </div>
           <dl className="grid gap-2 text-sm sm:grid-cols-2">
             <Evidence
               label={t('releaseStagingDeploymentRunId')}
-              value={props.run.id}
+              value={shortTechnicalId(props.run.id)}
+              title={props.run.id}
             />
             <Evidence
               label={t('releaseBuildId')}
-              value={props.build?.id || t('releaseStagingBuildUnavailable')}
+              value={props.build ? shortTechnicalId(props.build.id) : t('releaseStagingBuildUnavailable')}
+              title={props.build?.id}
             />
             <Evidence
               label={t('releaseBuildRevisionLabel')}
               value={props.build ? String(props.build.revision) : '—'}
             />
             <Evidence
-              label={t('releaseBuildManifestId')}
-              value={props.run.artifactManifestId || '—'}
-            />
-            <Evidence
               label={t('releaseBuildManifestDigest')}
-              value={props.build?.manifest?.digest || '—'}
+              value={shortDigest(props.build?.manifest?.digest)}
+              title={props.build?.manifest?.digest}
             />
             <Evidence
               label={t('releaseStagingProvider')}
-              value={`${props.run.executorKey || '—'} / ${props.run.adapterKey || '—'}`}
+              value={`${providerKeyLabel(props.run.executorKey)} / ${providerKeyLabel(props.run.adapterKey)}`}
+              title={`${props.run.executorKey || '—'} / ${props.run.adapterKey || '—'}`}
             />
             <Evidence
               label={t('releaseBuildStartedAt')}
@@ -112,11 +126,7 @@ export function ReleaseStagingLogDrawer(props: Props) {
               danger
             />
           ) : null}
-          <RawEvidence
-            title={t('releaseStagingTechnicalEvidence')}
-            value={props.run.result}
-            empty={t('releaseStagingEvidenceUnavailable')}
-          />
+          <ReleaseStagingTechnicalEvidence result={props.run.result} />
           <RawEvidence
             title={t('releaseStagingExecutionLogs')}
             value={props.run.logs}
@@ -133,11 +143,16 @@ export function ReleaseStagingLogDrawer(props: Props) {
   );
 }
 
-function Evidence({ label, value }: { label: string; value: string }) {
+function Evidence({ label, value, title }: { label: string; value: string; title?: string }) {
   return (
     <div>
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className="break-all font-mono">{value}</dd>
+      <dd
+        className="break-all font-mono"
+        title={title}
+      >
+        {value}
+      </dd>
     </div>
   );
 }
@@ -152,7 +167,7 @@ function ConclusionCard(props: {
     <section className="rounded-md border p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h4 className="text-sm font-medium">{props.title}</h4>
-        <StatusTag
+        <FlowStatusTag
           status={props.conclusion.tone}
           label={t(props.conclusion.key)}
         />

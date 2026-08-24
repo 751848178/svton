@@ -1,5 +1,7 @@
 'use client';
 
+import React, { useState } from 'react';
+
 import { useTranslations } from 'next-intl';
 import { Button, Card, EmptyState, LoadingState } from '@svton/ui';
 import type { RepositoryAnalysisHook } from '../hooks/use-repository-analysis.hooks';
@@ -24,7 +26,10 @@ export function RepositoryRunPanel({
   return (
     <section className="grid gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
       <Card className="space-y-2">
-        <h2 className="font-semibold">解析历史</h2>
+        <h2 className="font-semibold">仓库变更识别记录</h2>
+        <p className="text-xs text-muted-foreground">
+          每条记录都是一次主动发起的分支与 commit 快照解析，不是每次提交自动审计。
+        </p>
         <div className="space-y-2">
           {analysis.runs.map((item) => (
             <button
@@ -121,9 +126,15 @@ function RunDetail({
   );
 }
 
+const EVIDENCE_PAGE_SIZE = 20;
+
 function StageRow({ stage }: { stage: RepositoryAnalysisStage }) {
   const evidence = Array.isArray(stage.evidence) ? stage.evidence : [];
   const logs = Array.isArray(stage.logs) ? stage.logs : [];
+  // INFO-2：证据超过一页时明确标注「仅展示前 N 条」并提供展开全部，
+  // 不再悄悄截断到 20 条。
+  const [showAllEvidence, setShowAllEvidence] = useState(false);
+  const visibleEvidence = showAllEvidence ? evidence : evidence.slice(0, EVIDENCE_PAGE_SIZE);
   return (
     <li className="rounded-md border p-3">
       <div className="flex items-center justify-between gap-3">
@@ -145,7 +156,7 @@ function StageRow({ stage }: { stage: RepositoryAnalysisStage }) {
         <details className="mt-2 text-xs">
           <summary className="cursor-pointer text-primary">查看 {evidence.length} 条证据</summary>
           <ul className="mt-2 space-y-1">
-            {evidence.slice(0, 20).map((item, index) => (
+            {visibleEvidence.map((item, index) => (
               <li
                 key={`${item.file}-${index}`}
                 className="break-all font-mono"
@@ -154,6 +165,18 @@ function StageRow({ stage }: { stage: RepositoryAnalysisStage }) {
               </li>
             ))}
           </ul>
+          {evidence.length > EVIDENCE_PAGE_SIZE ? (
+            <button
+              type="button"
+              className="mt-1 rounded border px-1.5 py-0.5 hover:bg-accent"
+              onClick={() => setShowAllEvidence((value) => !value)}
+              aria-expanded={showAllEvidence}
+            >
+              {showAllEvidence
+                ? `收起（仅展示前 ${EVIDENCE_PAGE_SIZE} 条）`
+                : `仅展示前 ${EVIDENCE_PAGE_SIZE} 条，展开全部 ${evidence.length} 条`}
+            </button>
+          ) : null}
         </details>
       ) : null}
     </li>

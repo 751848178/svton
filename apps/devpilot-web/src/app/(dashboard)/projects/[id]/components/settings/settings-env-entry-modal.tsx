@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Modal } from '@svton/ui';
+import { Input, Select } from '@/components/ui';
 import type { SettingsRouteEntryDraft } from './settings-env.model';
 import {
   initialRouteEntryForm,
@@ -85,30 +86,28 @@ export function SettingsEnvEntryModal(props: Props) {
         </p>
         <label className="block space-y-1 text-xs">
           <span className="font-medium">{t('envRoutesHostLabel')}</span>
-          <input
-            className="min-h-11 w-full rounded-md border bg-background px-3 py-2 text-sm"
+          <Input
             value={form.domain}
             onChange={(event) => update('domain', event.target.value)}
             placeholder={t('envRoutesHostPlaceholder')}
-            aria-invalid={error === 'host'}
+            invalid={error === 'host'}
           />
         </label>
         <label className="block space-y-1 text-xs">
           <span className="font-medium">{t('envRoutesPathLabel')}</span>
-          <input
-            className="min-h-11 w-full rounded-md border bg-background px-3 py-2 font-mono text-sm"
+          <Input
+            className="font-mono"
             value={form.path}
             onChange={(event) => update('path', event.target.value)}
-            aria-invalid={error === 'path'}
+            invalid={error === 'path'}
           />
         </label>
         <label className="block space-y-1 text-xs">
           <span className="font-medium">{t('envRoutesTargetLabel')}</span>
-          <select
-            className="min-h-11 w-full rounded-md border bg-background px-3 py-2 text-sm"
+          <Select
             value={form.target}
             onChange={(event) => update('target', event.target.value)}
-            aria-invalid={error === 'target'}
+            invalid={error === 'target'}
           >
             {props.targetOptions.map((option) => (
               <option key={routeTargetKey(option)} value={routeTargetKey(option)}>
@@ -116,27 +115,27 @@ export function SettingsEnvEntryModal(props: Props) {
               </option>
             ))}
             <option value="custom">{t('envRoleCustom')} · {t('envRoutesTableComponent')}</option>
-          </select>
+          </Select>
         </label>
         {form.target === 'custom' ? (
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block space-y-1 text-xs">
               <span className="font-medium">{t('envRoutesTableComponent')}</span>
-              <input className="min-h-11 w-full rounded-md border bg-background px-3 py-2 text-sm" value={form.customComponent} onChange={(event) => update('customComponent', event.target.value)} aria-invalid={error === 'target'} />
+              <Input value={form.customComponent} onChange={(event) => update('customComponent', event.target.value)} invalid={error === 'target'} />
             </label>
             <label className="block space-y-1 text-xs">
               <span className="font-medium">{t('envRoutesPortLabel')}</span>
-              <input type="number" min={1} max={65_535} className="min-h-11 w-full rounded-md border bg-background px-3 py-2 text-sm" value={form.customPort} onChange={(event) => update('customPort', event.target.value)} aria-invalid={error === 'target'} />
+              <Input type="number" min={1} max={65_535} value={form.customPort} onChange={(event) => update('customPort', event.target.value)} invalid={error === 'target'} />
             </label>
           </div>
         ) : null}
         <label className="block space-y-1 text-xs">
           <span className="font-medium">{t('envRoutesTlsLabel')}</span>
-          <select className="min-h-11 w-full rounded-md border bg-background px-3 py-2 text-sm" value={form.tlsMode} onChange={(event) => update('tlsMode', event.target.value as RouteEntryForm['tlsMode'])}>
+          <Select value={form.tlsMode} onChange={(event) => update('tlsMode', event.target.value as RouteEntryForm['tlsMode'])}>
             <option value="none">{t('envRoutesTlsNone')}</option>
             <option value="managed_cert">{t('envRoutesTlsManaged')}</option>
             <option value="existing_cert_asset">{t('envRoutesTlsExisting')}</option>
-          </select>
+          </Select>
         </label>
         {error ? <p role="alert" className="text-xs text-red-600">{t(`envRoutesError${error[0].toUpperCase()}${error.slice(1)}`)}</p> : null}
       </div>

@@ -1,4 +1,5 @@
 import {
+  deploymentRunHref,
   deliveryHref,
   readDeliveryView,
   readReleaseOrderStep,
@@ -7,7 +8,10 @@ import {
   releaseOrderHref,
   releaseOrderListHref,
   readSettingsSection,
+  deploymentRunRedirectHref,
+  releasesViewRedirectHref,
   resolveLegacyProjectHref,
+  resolveUnknownViewHref,
   settingsHref,
 } from './project-route.utils';
 
@@ -16,7 +20,7 @@ describe('project route compatibility', () => {
     [
       'releases',
       'releasePlanId=release-1&stageId=stage-1',
-      '/projects/project%2F1?releasePlanId=release-1&stageId=stage-1',
+      '/projects/project%2F1?releasePlanId=release-1&stageId=stage-1&view=releases',
     ],
     ['deployments', 'runId=run-1', '/projects/project%2F1?runId=run-1&view=deployments'],
     [
@@ -65,9 +69,9 @@ describe('project route compatibility', () => {
 
   it('resolves the settings environment subtab deep links', () => {
     expect(readSettingsEnvTab(new URLSearchParams('envTab=variables'))).toBe('variables');
-    expect(readSettingsEnvTab(new URLSearchParams('envTab=unknown'))).toBe('targets');
-    expect(readSettingsEnvTab(new URLSearchParams('envTab='))).toBe('targets');
-    expect(readSettingsEnvTab(new URLSearchParams())).toBe('targets');
+    expect(readSettingsEnvTab(new URLSearchParams('envTab=unknown'))).toBe('versions');
+    expect(readSettingsEnvTab(new URLSearchParams('envTab='))).toBe('versions');
+    expect(readSettingsEnvTab(new URLSearchParams())).toBe('versions');
     expect(readSettingsEnvKey(new URLSearchParams('env=staging'))).toBe('staging');
     expect(readSettingsEnvKey(new URLSearchParams('env='))).toBeNull();
     expect(readSettingsEnvKey(new URLSearchParams())).toBeNull();
@@ -92,13 +96,13 @@ describe('project route compatibility', () => {
     );
     expect(
       releaseOrderListHref('project-1', new URLSearchParams('env=staging&envTab=routes')),
-    ).toBe('/projects/project-1');
+    ).toBe('/projects/project-1/releases');
   });
 
   it('builds stable release detail, step and log deep links', () => {
     const current = new URLSearchParams('view=environment-versions&analysisRunId=analysis-1');
     expect(releaseOrderHref('project/1', 'order-1', 'build', current, 'build-1')).toBe(
-      '/projects/project%2F1?releaseOrderId=order-1&step=build&buildRunId=build-1',
+      '/projects/project%2F1/releases?releaseOrderId=order-1&step=build&buildRunId=build-1',
     );
     expect(readReleaseOrderStep(new URLSearchParams('step=production'), 'preflight')).toBe(
       'production',
@@ -109,7 +113,16 @@ describe('project route compatibility', () => {
         'project-1',
         new URLSearchParams('releaseOrderId=order-1&step=build&buildRunId=build-1'),
       ),
-    ).toBe('/projects/project-1');
+    ).toBe('/projects/project-1/releases');
+  });
+
+  it('routes deployment records to their own focused deployment view', () => {
+    expect(deploymentRunHref('project/1', 'deploy/1')).toBe(
+      '/projects/project%2F1/releases?deploymentRunId=deploy%2F1',
+    );
+    expect(deploymentRunHref('project/1', 'deploy/1', 'order/1')).toBe(
+      '/projects/project%2F1/releases?deploymentRunId=deploy%2F1&releaseOrderId=order%2F1',
+    );
   });
 
   it('owns Staging and Production focus ids only inside their exact step', () => {
@@ -120,14 +133,13 @@ describe('project route compatibility', () => {
       releaseOrderHref('project-1', 'order-1', 'staging', current, {
         deploymentRunId: 'staging-1',
       }),
-    ).toBe('/projects/project-1?releaseOrderId=order-1&step=staging&deploymentRunId=staging-1');
+    ).toBe('/projects/project-1/releases?releaseOrderId=order-1&step=staging&deploymentRunId=staging-1');
     expect(
       releaseOrderHref('project-1', 'order-1', 'production', current, {
         releaseRunId: 'release-1',
-        deploymentRunId: 'production-1',
       }),
     ).toBe(
-      '/projects/project-1?releaseOrderId=order-1&step=production&releaseRunId=release-1&deploymentRunId=production-1',
+      '/projects/project-1/releases?releaseRunId=release-1&releaseOrderId=order-1&release=production',
     );
   });
 
@@ -156,6 +168,42 @@ describe('project route compatibility', () => {
         'production',
         new URLSearchParams('step=unknown&buildRunId=foreign-build'),
       ),
-    ).toBe('/projects/project-1?step=production&releaseOrderId=order-1');
+    ).toBe('/projects/project-1/releases?releaseOrderId=order-1&release=production');
+  });
+});
+
+describe('IA redirects: legacy views move to path routes', () => {
+  it('view=releases redirects to /releases preserving other params', () => {
+    expect(
+      releasesViewRedirectHref('project/1', new URLSearchParams('view=releases&create=true')),
+    ).toBe('/projects/project%2F1/releases?create=true');
+    expect(
+      releasesViewRedirectHref('project/1', new URLSearchParams('view=releases')),
+    ).toBe('/projects/project%2F1/releases');
+  });
+
+  it('view=deployments&runId redirects into the releases drawer deep link', () => {
+    expect(
+      deploymentRunRedirectHref(
+        'project/1',
+        new URLSearchParams('view=deployments&runId=run/1'),
+      ),
+    ).toBe('/projects/project%2F1/releases?deploymentRunId=run%2F1');
+  });
+});
+
+describe('resolveUnknownViewHref (EV-1: unsupported views get an explicit URL correction)', () => {
+  it('strips an unsupported view like environment-versions while preserving other params', () => {
+    const href = resolveUnknownViewHref(
+      'project-1',
+      new URLSearchParams('view=environment-versions&runId=abc'),
+    );
+    expect(href).toBe('/projects/project-1?runId=abc');
+  });
+
+  it('keeps supported views untouched and ignores missing view', () => {
+    expect(resolveUnknownViewHref('project-1', new URLSearchParams('view=deployments'))).toBeNull();
+    expect(resolveUnknownViewHref('project-1', new URLSearchParams('view=releases'))).toBeNull();
+    expect(resolveUnknownViewHref('project-1', new URLSearchParams(''))).toBeNull();
   });
 });

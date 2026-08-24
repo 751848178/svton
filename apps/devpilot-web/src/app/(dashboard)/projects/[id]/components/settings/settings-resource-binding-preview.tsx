@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { useTranslations } from 'next-intl';
+import { Input, Select } from '@/components/ui';
 import type { ResourceBindingPreview } from './settings-resource-binding-preview.model';
 
 export type ComponentOption = { key: string; label: string };
@@ -42,16 +43,16 @@ export function SettingsResourceBindingPreview({
       ) : null}
       <label className="grid gap-1 sm:grid-cols-[140px_1fr] sm:items-center">
         <span className="text-muted-foreground">{t('envResourceSourceComponent')}</span>
-        <select
+        <Select
           value={preview.componentKey ?? ''}
           onChange={(event) => onComponentChange(event.target.value)}
-          className="rounded-md border bg-background px-2 py-1"
+          size="sm"
         >
           <option value="">{t('envResourceSelectComponent')}</option>
           {components.map((component) => (
             <option key={component.key} value={component.key}>{component.label}</option>
           ))}
-        </select>
+        </Select>
       </label>
       <div className="space-y-1">
         <span className="text-muted-foreground">{t('envResourceVariableMappings')}</span>
@@ -64,10 +65,11 @@ export function SettingsResourceBindingPreview({
           >
             <code>{binding.sourceKey}</code>
             <span aria-hidden>→</span>
-            <input
+            <Input
               value={binding.targetEnvKey}
               onChange={(event) => onTargetChange(binding.sourceKey, event.target.value)}
-              className="rounded-md border px-2 py-1 font-mono"
+              size="sm"
+              className="font-mono"
               aria-label={`${binding.sourceKey} target`}
             />
           </label>

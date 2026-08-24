@@ -22,7 +22,7 @@ export interface EnvironmentVersionItem {
   previousVersionId: string | null;
   kind: EnvironmentVersionKind;
   effectiveAt: string;
-  releaseOrder: { id: string; releaseVersion: string };
+  releaseOrder: { id: string; releaseName?: string | null; releaseVersion: string };
   artifactManifest: {
     id: string;
     digest: string;
@@ -62,8 +62,9 @@ export interface EnvironmentVersionEnvironment {
 export interface EnvironmentVersionCandidate {
   id: string;
   digest: string;
-  releaseOrder: { id: string; releaseVersion: string };
-  buildRun: { id: string; revision: number; sourceCommitSha: string };
+  createdAt: string;
+  releaseOrder: { id: string; releaseName?: string | null; releaseVersion: string };
+  buildRun: { id: string; revision: number; sourceBranch: string; sourceCommitSha: string };
   deploymentRuns: Array<{ id: string }>;
   releaseRuns: Array<{
     id: string;

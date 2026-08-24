@@ -46,7 +46,12 @@ describe('ReleaseBuildLogDrawer', () => {
       }),
     );
     expect(container.textContent).toContain('build-1');
-    expect(container.textContent).toContain('BUILD_COMMAND_FAILED: password=[REDACTED]');
+    // PX-32：错误枚举映射中文标题，原始 `code: message` 保留在 title 供核对。
+    expect(container.textContent).toContain('构建命令失败：password=[REDACTED]');
+    const errorNode = [...container.querySelectorAll('p')].find((node) =>
+      node.textContent?.includes('构建命令失败'),
+    )!;
+    expect(errorNode.getAttribute('title')).toBe('BUILD_COMMAND_FAILED: password=[REDACTED]');
     expect(container.textContent).toContain('releaseBuildLogsUnavailable');
     expect(container.textContent).not.toContain('sentinel-secret');
   });

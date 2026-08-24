@@ -8,7 +8,7 @@ import { EmptyState, ErrorBanner } from '@/components/ui';
 import { scopedRequestIdentity } from '../hooks/use-scoped-request-guard';
 import type { ReleaseOrdersHook } from '../hooks/use-release-orders';
 import type { ProjectDeliverySummary } from '../types/project-delivery-summary.types';
-import { releaseOrderHref } from '../utils/project-route.utils';
+import { deploymentRunHref, releaseOrderHref } from '../utils/project-route.utils';
 import { ReleaseOrderDetailPanel } from './release-order-detail-panel';
 import { ReleaseOrderListRow } from './release-order-list-row';
 import { ReleaseOrderListToolbar } from './release-order-list-toolbar';
@@ -64,22 +64,57 @@ export function ReleaseOrdersPanel({
         <EmptyState title={t(filtered ? 'releaseOrdersFilteredEmpty' : 'releaseOrdersEmpty')} />
       ) : null}
       {!orders.loading && orders.items.length > 0 ? (
-        <div className="overflow-hidden rounded-lg border bg-background">
-          <div className="hidden grid-cols-[minmax(240px,1.3fr)_minmax(180px,1fr)_minmax(180px,1fr)_minmax(230px,1.2fr)] gap-5 bg-muted/40 px-5 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground lg:grid">
-            <span>{t('releaseOrderColumnOrder')}</span>
-            <span>{t('releaseOrderColumnBuild')}</span>
-            <span>{t('releaseOrderColumnDeployment')}</span>
-            <span>{t('releaseOrderColumnLastExecution')}</span>
-          </div>
-          {orders.items.map((item) => (
-            <ReleaseOrderListRow
-              key={item.id}
-              item={item}
-              onOpen={() =>
-                router.replace(releaseOrderHref(projectId, item.id, null, searchParams))
-              }
-            />
-          ))}
+        <div className="overflow-x-auto rounded-lg border bg-background">
+          <table className="w-full min-w-[1040px] text-left text-sm">
+            <thead className="border-b bg-muted/40 text-xs text-muted-foreground">
+              <tr>
+                <th className="px-4 py-3 font-medium">{t('releaseOrderColumnOrder')}</th>
+                <th className="px-4 py-3 font-medium">{t('releaseOrderColumnStatus')}</th>
+                <th className="px-4 py-3 font-medium">{t('releaseOrderColumnSource')}</th>
+                <th className="px-4 py-3 font-medium">{t('releaseOrderColumnStage')}</th>
+                <th className="px-4 py-3 font-medium">{t('releaseOrderColumnUpdated')}</th>
+                <th className="px-4 py-3 text-right font-medium">
+                  {t('releaseOrderColumnActions')}
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {orders.items.map((item) => (
+                <ReleaseOrderListRow
+                  key={item.id}
+                  item={item}
+                  onOpen={() =>
+                    router.replace(releaseOrderHref(projectId, item.id, null, searchParams))
+                  }
+                  onOpenBuild={() =>
+                    router.replace(
+                      releaseOrderHref(projectId, item.id, 'build', searchParams, {
+                        buildRunId: item.source.buildRunId ?? undefined,
+                      }),
+                    )
+                  }
+                  onOpenDeployment={() =>
+                    item.deployment.latest
+                      ? router.replace(
+                          deploymentRunHref(
+                            projectId,
+                            item.deployment.latest.id,
+                            item.id,
+                          ),
+                        )
+                      : undefined
+                  }
+                  onOpenEvidence={() =>
+                    router.replace(
+                      releaseOrderHref(projectId, item.id, 'build', searchParams, {
+                        buildRunId: item.build.recentSuccessfulManifest?.buildRunId,
+                      }),
+                    )
+                  }
+                />
+              ))}
+            </tbody>
+          </table>
         </div>
       ) : null}
     </div>

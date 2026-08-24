@@ -8,7 +8,7 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useTranslations } from 'next-intl';
-import { Modal } from '@/components/ui';
+import { Input, Modal, Select } from '@/components/ui';
 import { Copyable } from '@svton/ui';
 import { KEY_TYPES } from '../constants';
 import type { GenerateKeyInput, KeyInput } from '../types';
@@ -60,10 +60,7 @@ export function GenerateKeyModal({
       <form onSubmit={handleSubmit(handleGenerate)} className="space-y-4">
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('keyType')}</span>
-          <select
-            {...register('type')}
-            className="w-full rounded-lg border px-3 py-2"
-          >
+          <Select {...register('type')}>
             {KEY_TYPES.map((kt) => (
               <option
                 key={kt.value}
@@ -72,17 +69,16 @@ export function GenerateKeyModal({
                 {t(kt.labelKey)}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
 
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('length')}</span>
-          <input
+          <Input
             type="number"
             min={16}
             max={128}
             {...register('length', { valueAsNumber: true })}
-            className="w-full rounded-lg border px-3 py-2"
           />
         </label>
 

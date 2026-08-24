@@ -152,13 +152,36 @@ describe('ReleaseGateCatalogPanel', () => {
     expect(dialog.textContent).toContain('releaseGateExpiresAtLabel');
     expect(dialog.textContent).toContain('releaseGateMetadataUnavailable');
 
-    await act(async () => dialog.querySelectorAll('button').item(1).click());
+    // PX-21：只读弹窗仅一个「关闭」footer 按钮。
+    const footerButtons = dialog.querySelectorAll('button');
+    await act(async () => footerButtons.item(footerButtons.length - 1).click());
     expect(container.querySelector('[role="dialog"]')).toBeNull();
     await act(async () =>
       (container.querySelector('button[aria-haspopup="dialog"]') as HTMLButtonElement).click(),
     );
     expect(container.querySelector('[role="dialog"]')).not.toBeNull();
     expect(mocks.load).not.toHaveBeenCalled();
+  });
+
+  it('folds full cuids embedded in backend reason text (PX-3 review gap)', async () => {
+    const catalog = releaseGateCatalogFixture();
+    const cuid = 'cmsn2i52500383nfoe8ayoeiu';
+    catalog.checks[0].reason = {
+      zh: `Manifest ${cuid} 以 Digest 绑定 Build #10 和精确 Commit`,
+      en: `Manifest ${cuid} binds Build #10 and exact commit via digest`,
+    };
+    mocks.useReleaseGateCatalog.mockReturnValue({
+      catalog,
+      loading: false,
+      error: null,
+      load: mocks.load,
+    });
+    await renderPanel(root);
+    const opener = container.querySelector('button[aria-haspopup="dialog"]') as HTMLButtonElement;
+    await act(async () => opener.click());
+    const dialog = container.querySelector('[role="dialog"]')!;
+    expect(dialog.textContent).toContain('Manifest cmsn2i52…');
+    expect(dialog.textContent).not.toContain(cuid);
   });
 
   it('filters the detail dialog when a summary card is clicked and refreshes explicitly', async () => {

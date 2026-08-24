@@ -154,6 +154,8 @@ function ownsScope(item: ReleaseStagingDeploymentItem, projectId: string, releas
   return item.projectId === projectId && item.releaseOrderId === releaseOrderId;
 }
 
+export type ReleaseStagingDeploymentsController = ReturnType<typeof useReleaseStagingDeployments>;
+
 function loadingState(scope: string): DeploymentsState {
   return {
     scope,

@@ -4,13 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ProjectRouteHost } from './project-route-host';
 
 const mocks = vi.hoisted(() => ({
-  searchParams: new URLSearchParams(),
-  useProjectDetail: vi.fn(),
-}));
-
+  replace: vi.fn(), searchParams: new URLSearchParams() }));
 vi.mock('next/navigation', () => ({
   useParams: () => ({ id: 'project-1' }),
-  useRouter: () => ({ replace: vi.fn() }),
+  useRouter: () => ({ replace: mocks.replace }),
   useSearchParams: () => mocks.searchParams,
 }));
 vi.mock('next-intl', () => ({ useTranslations: () => (key: string) => key }));
@@ -20,67 +17,80 @@ vi.mock('@svton/ui', () => ({
 }));
 vi.mock('@/components/ui', () => ({
   ErrorBanner: () => <div>error</div>,
-  LinkButton: ({ href, children }: { href: string; children: React.ReactNode }) => (
-    <a href={href}>{children}</a>
-  ),
-  PageHeader: () => <div>header</div>,
+  PageHeader: () => <div>page-header</div>,
 }));
-vi.mock('../hooks/use-project-detail', () => ({ useProjectDetail: mocks.useProjectDetail }));
+vi.mock('../hooks/use-project-detail', () => ({ useProjectDetail: () => detail() }));
+vi.mock('../hooks/use-repository-analysis.hooks', () => ({
+  useRepositoryAnalysis: () => analysis(),
+}));
 vi.mock('./project-delivery-route', () => ({
   ProjectDeliveryRoute: () => <div>delivery-route</div>,
 }));
-vi.mock('./project-detail-header', () => ({
-  ProjectDetailHeader: ({ actions }: { actions: React.ReactNode }) => (
-    <div>detail-header{actions}</div>
-  ),
+vi.mock('./project-information-panel', () => ({
+  ProjectInformationPanel: () => <div>information-panel</div>,
 }));
 vi.mock('./project-settings-content', () => ({
-  ProjectSettingsContent: () => <div>settings</div>,
+  ProjectSettingsContent: () => <div>settings-panel</div>,
 }));
-vi.mock('./tabs/deployments-tab', () => ({ DeploymentsTab: () => <div>deployments</div> }));
+vi.mock('./project-workbench-header', () => ({
+  ProjectWorkbenchHeader: () => <div>workbench-header</div>,
+}));
 vi.mock('./release-delivery-compatibility-banner', () => ({
-  ReleaseDeliveryCompatibilityBanner: () => <div>compatibility</div>,
+  ReleaseDeliveryCompatibilityDetails: () => <div>compatibility</div>,
 }));
 
-describe('ProjectRouteHost', () => {
+describe('ProjectRouteHost top-level information architecture', () => {
   beforeEach(() => {
     mocks.searchParams = new URLSearchParams();
-    mocks.useProjectDetail.mockReset();
+    mocks.replace.mockReset();
   });
 
-  it('does not load the low-frequency project detail graph on the delivery home', () => {
+  it('opens project information by default', () => {
     const html = renderToStaticMarkup(<ProjectRouteHost mode="delivery" />);
-
-    expect(html).toContain('delivery-route');
-    expect(mocks.useProjectDetail).not.toHaveBeenCalled();
+    expect(html).toContain('workbench-header');
+    expect(html).toContain('information-panel');
+    expect(html).not.toContain('delivery-route');
   });
 
-  it('keeps an exact DeploymentRun deep link secondary and read-only', () => {
+  it('EV-1: an unsupported view shows the redirect placeholder instead of silently falling back', () => {
+    mocks.searchParams = new URLSearchParams('view=environment-versions');
+    const html = renderToStaticMarkup(<ProjectRouteHost mode="delivery" />);
+    // 命中重定向占位（loading），不静默渲染项目信息视图
+    expect(html).toContain('loading');
+    expect(html).not.toContain('workbench-header');
+  });
+
+  it('IA: legacy ?view=releases shows the redirect placeholder (href 断言在 utils spec)', () => {
+    mocks.searchParams = new URLSearchParams('view=releases&create=true');
+    const html = renderToStaticMarkup(<ProjectRouteHost mode="delivery" />);
+    expect(html).toContain('loading');
+    expect(html).not.toContain('delivery-route');
+  });
+
+  it('IA: legacy ?view=deployments shows the redirect placeholder (href 断言在 utils spec)', () => {
     mocks.searchParams = new URLSearchParams('view=deployments&runId=run-1');
-    mocks.useProjectDetail.mockReturnValue({
-      loading: false,
-      project: { id: 'project-1' },
-      error: '',
-    });
     const html = renderToStaticMarkup(<ProjectRouteHost mode="delivery" />);
-
-    expect(mocks.useProjectDetail).toHaveBeenCalledWith('project-1', 'run-1');
-    expect(html).toContain('professionalDeploymentView');
-    expect(html).toContain('deployments');
-    expect(html).toContain('href="/projects/project-1"');
-    expect(html).not.toContain('/settings');
+    expect(html).toContain('loading');
+    expect(html).not.toContain('delivery-route');
   });
 
-  it('renders settings with one page header and one return action', () => {
-    mocks.useProjectDetail.mockReturnValue({
-      loading: false,
-      project: { id: 'project-1' },
-      error: '',
-    });
+  it('renders project configuration as a peer top-level area', () => {
     const html = renderToStaticMarkup(<ProjectRouteHost mode="settings" />);
-
-    expect(html).toContain('settings');
-    expect(html).not.toContain('detail-header');
-    expect(html).not.toContain('backToProjectDelivery');
+    expect(html).toContain('workbench-header');
+    expect(html).toContain('settings-panel');
   });
 });
+
+function detail() {
+  return {
+    loading: false,
+    project: { id: 'project-1', name: 'Picshare', gitRepo: 'file:///repo', applications: [] },
+    deploymentRuns: [],
+    error: '',
+    loadProject: vi.fn(),
+  } as never;
+}
+
+function analysis() {
+  return { state: { canonicalIdentity: null }, selectedRun: null } as never;
+}

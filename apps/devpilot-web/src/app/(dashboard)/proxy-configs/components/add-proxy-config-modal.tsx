@@ -10,7 +10,7 @@
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useTranslations } from 'next-intl';
-import { Modal, ErrorBanner } from '@/components/ui';
+import { Checkbox, ErrorBanner, Input, Modal, Select } from '@/components/ui';
 import type { Server, ProxyConfigInput } from '../types';
 
 interface AddProxyConfigModalProps {
@@ -89,47 +89,40 @@ export function AddProxyConfigModal({
         ) : null}
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('configName')}</span>
-          <input
+          <Input
             {...register('name', { required: true })}
             required
-            className="min-h-11 w-full rounded-md border px-3"
             placeholder={t('configNamePlaceholder')}
           />
         </label>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('domain')}</span>
-          <input
+          <Input
             {...register('domain', { required: true })}
             required
-            className="min-h-11 w-full rounded-md border px-3"
             placeholder="example.com"
           />
         </label>
         <div className="grid grid-cols-3 gap-2">
           <label className="col-span-2 block text-sm">
             <span className="mb-1 block font-medium">{t('upstreamHost')}</span>
-            <input
+            <Input
               {...register('upstreamHost', { required: true })}
               required
-              className="min-h-11 w-full rounded-md border px-3"
               placeholder="127.0.0.1"
             />
           </label>
           <label className="block text-sm">
             <span className="mb-1 block font-medium">{t('port')}</span>
-            <input
+            <Input
               type="number"
               {...register('upstreamPort', { valueAsNumber: true })}
-              className="min-h-11 w-full rounded-md border px-3"
             />
           </label>
         </div>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('targetServer')}</span>
-          <select
-            {...register('serverId')}
-            className="min-h-11 w-full rounded-md border px-3"
-          >
+          <Select {...register('serverId')}>
             <option value="">{t('noServer')}</option>
             {servers.map((s) => (
               <option
@@ -139,32 +132,21 @@ export function AddProxyConfigModal({
                 {s.name} ({s.host})
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <div className="space-y-2">
           <label className="flex min-h-11 items-center gap-2">
-            <input
-              type="checkbox"
-              {...register('sslEnabled')}
-              className="h-5 w-5 rounded"
-            />
+            <Checkbox {...register('sslEnabled')} />
             <span className="text-sm">{t('enableSsl')}</span>
           </label>
           {sslEnabled ? (
-            <select
-              {...register('sslType')}
-              className="min-h-11 w-full rounded-md border px-3 text-sm"
-            >
+            <Select {...register('sslType')}>
               <option value="letsencrypt">{t('sslLetsencrypt')}</option>
               <option value="custom">{t('sslCustom')}</option>
-            </select>
+            </Select>
           ) : null}
           <label className="flex min-h-11 items-center gap-2">
-            <input
-              type="checkbox"
-              {...register('websocket')}
-              className="h-5 w-5 rounded"
-            />
+            <Checkbox {...register('websocket')} />
             <span className="text-sm">{t('enableWebsocket')}</span>
           </label>
         </div>

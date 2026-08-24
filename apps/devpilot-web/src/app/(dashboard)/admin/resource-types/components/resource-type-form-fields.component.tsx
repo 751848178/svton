@@ -7,6 +7,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import { Input, Select, Textarea } from '@/components/ui';
 import type { EditableResourceField, ResourceTypeFormData } from '../types';
 import { APPROVAL_MODE_OPTIONS, PROVISIONING_MODE_OPTIONS } from '../constants';
 import { buildPreviewSchema } from '../utils';
@@ -43,22 +44,21 @@ export function ResourceTypeFormFields({
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('keyLabel')}</span>
-          <input
+          <Input
             value={formData.key}
             onChange={(event) => onFormDataChange({ key: event.target.value })}
             required={!isEditing}
             disabled={isEditing}
-            className="w-full rounded-md border px-3 py-2 disabled:bg-muted disabled:text-muted-foreground"
+            className="disabled:bg-muted disabled:text-muted-foreground"
             placeholder="mysql"
           />
         </label>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{tc('name')}</span>
-          <input
+          <Input
             value={formData.name}
             onChange={(event) => onFormDataChange({ name: event.target.value })}
             required
-            className="w-full rounded-md border px-3 py-2"
             placeholder={t('resourceNamePlaceholder')}
           />
         </label>
@@ -67,49 +67,46 @@ export function ResourceTypeFormFields({
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('categoryLabel')}</span>
-          <input
+          <Input
             value={formData.category}
             onChange={(event) => onFormDataChange({ category: event.target.value })}
-            className="w-full rounded-md border px-3 py-2"
           />
         </label>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('approvalModeLabel')}</span>
-          <select
+          <Select
             value={formData.approvalMode}
             onChange={(event) => onFormDataChange({ approvalMode: event.target.value })}
-            className="w-full rounded-md border bg-background px-3 py-2"
           >
             {APPROVAL_MODE_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {t(option.labelKey)}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('deliveryModeLabel')}</span>
-          <select
+          <Select
             value={formData.provisioningMode}
             onChange={(event) => onFormDataChange({ provisioningMode: event.target.value })}
-            className="w-full rounded-md border bg-background px-3 py-2"
           >
             {PROVISIONING_MODE_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {t(option.labelKey)}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
       </div>
 
       <label className="block text-sm">
         <span className="mb-1 block font-medium">{tc('description')}</span>
-        <textarea
+        <Textarea
           value={formData.description}
           onChange={(event) => onFormDataChange({ description: event.target.value })}
           rows={2}
-          className="w-full resize-none rounded-md border px-3 py-2"
+          className="resize-none"
         />
       </label>
 
@@ -130,11 +127,11 @@ export function ResourceTypeFormFields({
       <FormSectionHeading>{t('sectionEnvTemplate')}</FormSectionHeading>
       <label className="block text-sm">
         <span className="mb-1 block font-medium">{t('envTemplate')}</span>
-        <textarea
+        <Textarea
           value={formData.envTemplate}
           onChange={(event) => onFormDataChange({ envTemplate: event.target.value })}
           rows={3}
-          className="w-full resize-none rounded-md border px-3 py-2 font-mono text-sm"
+          className="resize-none font-mono"
           placeholder="DATABASE_URL=mysql://${username}:${password}@${host}:${port}/${database}"
         />
       </label>

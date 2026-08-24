@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react';
 import { scopedRequestIdentity } from '../hooks/use-scoped-request-guard';
+import type { ReleaseWorkbenchStep } from './release-workbench/release-workbench-steps.model';
 import type { ReleaseOrderDetail, ReleaseOrderStep } from '../types/release-order.types';
 
 export interface DetailHook {
@@ -10,14 +10,14 @@ export interface DetailHook {
   load: () => Promise<unknown>;
 }
 
-export interface StepperProps {
-  selectedStep: ReleaseOrderStep;
-  onSelect: (step: ReleaseOrderStep) => void;
-  children: ReactNode;
-}
-
-export interface HeaderProps {
+export interface WorkbenchProps {
   detail: { counts: { releaseRuns: number } };
+  navigation: {
+    release: 'staging' | 'production';
+    step: ReleaseWorkbenchStep;
+    selectStep: (step: ReleaseWorkbenchStep) => void;
+    selectRelease: (node: 'staging' | 'production') => void;
+  };
   onBuildLatest: () => void;
 }
 

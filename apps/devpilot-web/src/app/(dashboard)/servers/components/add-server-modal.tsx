@@ -9,7 +9,7 @@
 
 import { useForm } from 'react-hook-form';
 import { useTranslations } from 'next-intl';
-import { Modal, ErrorBanner } from '@/components/ui';
+import { Input, Modal, ErrorBanner, Select, Textarea } from '@/components/ui';
 import type { ServerInput } from '../types';
 
 interface AddServerModalProps {
@@ -81,76 +81,67 @@ export function AddServerModal({ open, onClose, onCreate }: AddServerModalProps)
         ) : null}
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('serverName')}</span>
-          <input
+          <Input
             {...register('name')}
             required
-            className="w-full rounded-md border px-3 py-2"
             placeholder={t('serverNamePlaceholder')}
           />
         </label>
         <div className="grid grid-cols-3 gap-2">
           <label className="col-span-2 block text-sm">
             <span className="mb-1 block font-medium">{t('host')}</span>
-            <input
+            <Input
               {...register('host')}
               required
-              className="w-full rounded-md border px-3 py-2"
               placeholder="192.168.1.1"
             />
           </label>
           <label className="block text-sm">
             <span className="mb-1 block font-medium">{t('port')}</span>
-            <input
+            <Input
               type="number"
               {...register('port', { valueAsNumber: true })}
-              className="w-full rounded-md border px-3 py-2"
             />
           </label>
         </div>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('username')}</span>
-          <input
+          <Input
             {...register('username')}
             required
-            className="w-full rounded-md border px-3 py-2"
           />
         </label>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('authType')}</span>
-          <select
-            {...register('authType')}
-            className="w-full rounded-md border px-3 py-2"
-          >
+          <Select {...register('authType')}>
             <option value="password">{t('passwordAuth')}</option>
             <option value="key">{t('sshPrivateKey')}</option>
-          </select>
+          </Select>
         </label>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">
             {authType === 'password' ? t('password') : t('sshPrivateKey')}
           </span>
           {authType === 'password' ? (
-            <input
+            <Input
               type="password"
               {...register('credentials')}
               required
-              className="w-full rounded-md border px-3 py-2"
             />
           ) : (
-            <textarea
+            <Textarea
               {...register('credentials')}
               required
               rows={4}
-              className="w-full rounded-md border px-3 py-2 font-mono text-xs"
+              className="font-mono text-xs"
               placeholder="-----BEGIN RSA PRIVATE KEY-----"
             />
           )}
         </label>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('tagsCommaSeparated')}</span>
-          <input
+          <Input
             {...register('tags')}
-            className="w-full rounded-md border px-3 py-2"
             placeholder="production, web"
           />
         </label>

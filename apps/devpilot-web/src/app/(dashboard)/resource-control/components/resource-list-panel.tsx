@@ -2,7 +2,7 @@
 'use client';
 import { useTranslations } from 'next-intl';
 import { EmptyState } from '@svton/ui';
-import { StatusTag } from '@/components/ui';
+import { Select, StatusTag } from '@/components/ui';
 import type { useResourceControl } from '../hooks/use-resource-control';
 import { KIND_KEYS, PROVIDER_KEYS, resolveKindLabel, resolveProviderLabel, resolveStatusLabel } from '../constants';
 import { listActionsForResource } from '../resource-action-ui.utils';
@@ -27,10 +27,10 @@ export function ResourceListPanel({ rc }: { rc: RCHook }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-3">
-        <select
+        <Select
           value={rc.filterProvider}
           onChange={(e) => rc.setFilterProvider(e.target.value)}
-          className="min-h-11 rounded-md border bg-background px-3 py-2 text-sm"
+          className="w-auto"
         >
           <option value="">{t('allProviders')}</option>
           {PROVIDER_KEYS.map((p) => (
@@ -41,11 +41,11 @@ export function ResourceListPanel({ rc }: { rc: RCHook }) {
               {resolveProviderLabel(p, t)}
             </option>
           ))}
-        </select>
-        <select
+        </Select>
+        <Select
           value={rc.filterKind}
           onChange={(e) => rc.setFilterKind(e.target.value)}
-          className="min-h-11 rounded-md border bg-background px-3 py-2 text-sm"
+          className="w-auto"
         >
           <option value="">{t('allKinds')}</option>
           {KIND_KEYS.map((k) => (
@@ -56,17 +56,17 @@ export function ResourceListPanel({ rc }: { rc: RCHook }) {
               {resolveKindLabel(k, t)}
             </option>
           ))}
-        </select>
-        <select
+        </Select>
+        <Select
           value={rc.filterStatus}
           onChange={(e) => rc.setFilterStatus(e.target.value)}
-          className="min-h-11 rounded-md border bg-background px-3 py-2 text-sm"
+          className="w-auto"
         >
           <option value="">{t('allStatuses')}</option>
           <option value="running">{t('statusRunning')}</option>
           <option value="stopped">{t('statusStopped')}</option>
           <option value="error">{t('statusError')}</option>
-        </select>
+        </Select>
       </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {filtered.map((resource) => (

@@ -16,7 +16,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { Button, ErrorBanner } from '@/components/ui';
+import { Button, ErrorBanner, Field, Select } from '@/components/ui';
 import { feedback } from '@/components/ui/feedback/feedback';
 import {
   countResourceBulkBindSelection,
@@ -88,15 +88,14 @@ export function ResourceBindCard({ detail }: { detail: DetailHook }) {
           variant="inline"
         />
       ) : null}
-      <label className="block text-sm">
-        <span className="mb-1 block font-medium">{t('bindTargetEnvironment')}</span>
-        <select
+      <Field label={t('bindTargetEnvironment')}>
+        <Select
           value={detail.selectedEnvironmentId}
           onChange={(e) => {
             detail.setSelectedEnvironmentId(e.target.value);
             detail.setResourceBulkBindPreview(null);
           }}
-          className="min-h-11 w-full rounded-md border border-input bg-background px-3"
+          className="bg-background"
         >
           <option value="">{t('selectEnvironment')}</option>
           {environments.map((env) => (
@@ -107,8 +106,8 @@ export function ResourceBindCard({ detail }: { detail: DetailHook }) {
               {env.name}
             </option>
           ))}
-        </select>
-      </label>
+        </Select>
+      </Field>
       <ResourceBindGroup
         group="inject"
         title={t('bindGroupInjectable')}

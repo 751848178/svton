@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Dialog } from '@svton/ui';
+import { Field, Select } from '@/components/ui';
 import type { RecoveryCreateResult } from '../hooks/use-recovery-confirm';
 import { useRecoveryConfirm } from '../hooks/use-recovery-confirm';
 import type { EnvironmentVersionEnvironment } from '../types/environment-version.types';
@@ -81,10 +82,9 @@ export function EnvironmentRecoveryDialog({
         <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800">
           {t('environmentVersionRecoveryDialogCallout')}
         </p>
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium">{t('environmentVersionRecoveryTarget')}</span>
-          <select
-            className="min-h-11 w-full rounded-md border bg-background px-3 py-2"
+        <Field label={t('environmentVersionRecoveryTarget')}>
+          <Select
+            className="bg-background"
             value={selectedId}
             onChange={(event) => setSelectedId(event.target.value)}
             disabled={busy}
@@ -107,8 +107,8 @@ export function EnvironmentRecoveryDialog({
                   : ''}
               </option>
             ))}
-          </select>
-        </label>
+          </Select>
+        </Field>
         {selected ? <EnvironmentVersionSummary version={selected} /> : null}
         <dl className="grid gap-2 text-sm">
           <div className="flex items-baseline justify-between gap-2 rounded bg-muted/40 p-2">

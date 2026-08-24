@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
-import { Button, ErrorBanner, Input, Textarea } from '@/components/ui';
+import { Button, ErrorBanner, Input, Radio, RadioGroup, Textarea } from '@/components/ui';
 import { useProjectConfigStore } from '@/store/hooks';
 import { validatePackageNameKey } from './package-name';
 
@@ -69,24 +69,18 @@ export function StepBasicInfo({ onNext }: StepProps) {
       </div>
       <div>
         <label className="mb-2 block text-sm font-medium">{t('packageManager')}</label>
-        <div className="flex gap-4">
+        <RadioGroup>
           {(['pnpm', 'npm', 'yarn'] as const).map((pm) => (
-            <label
+            <Radio
               key={pm}
-              className="flex cursor-pointer items-center gap-2"
-            >
-              <input
-                type="radio"
-                name="packageManager"
-                value={pm}
-                checked={config.basicInfo.packageManager === pm}
-                onChange={() => setBasicInfo({ packageManager: pm })}
-                className="h-4 w-4 text-primary"
-              />
-              <span className="text-sm">{pm}</span>
-            </label>
+              name="packageManager"
+              value={pm}
+              checked={config.basicInfo.packageManager === pm}
+              onChange={() => setBasicInfo({ packageManager: pm })}
+              label={pm}
+            />
           ))}
-        </div>
+        </RadioGroup>
       </div>
       <div className="flex justify-end pt-4">
         <Button

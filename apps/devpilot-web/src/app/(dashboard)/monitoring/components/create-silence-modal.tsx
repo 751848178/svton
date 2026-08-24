@@ -7,7 +7,7 @@
 
 import { useForm } from 'react-hook-form';
 import { useTranslations } from 'next-intl';
-import { ErrorBanner, Modal } from '@/components/ui';
+import { ErrorBanner, Input, Modal, Select } from '@/components/ui';
 import { feedback } from '@/components/ui/feedback/feedback';
 import { categoryLabels } from '../constants';
 
@@ -91,18 +91,14 @@ export function CreateSilenceModal({
         />
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{tc('name')}</span>
-          <input
+          <Input
             {...register('name', { required: true })}
             required
-            className="min-h-11 w-full rounded-md border px-3"
           />
         </label>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('formCategory')}</span>
-          <select
-            {...register('category')}
-            className="min-h-11 w-full rounded-md border px-3"
-          >
+          <Select {...register('category')}>
             <option value="">{tc('all')}</option>
             {Object.entries(categoryLabels).map(([value, label]) => (
               <option
@@ -112,38 +108,32 @@ export function CreateSilenceModal({
                 {label}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('formSeverityFilter')}</span>
-          <input
+          <Input
             {...register('severityFilter')}
-            className="min-h-11 w-full rounded-md border px-3"
             placeholder="warning, critical"
           />
         </label>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('formStartsAt')}</span>
-          <input
+          <Input
             type="datetime-local"
             {...register('startsAt')}
-            className="min-h-11 w-full rounded-md border px-3"
           />
         </label>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('formEndsAt')}</span>
-          <input
+          <Input
             type="datetime-local"
             {...register('endsAt')}
-            className="min-h-11 w-full rounded-md border px-3"
           />
         </label>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('formReason')}</span>
-          <input
-            {...register('reason')}
-            className="min-h-11 w-full rounded-md border px-3"
-          />
+          <Input {...register('reason')} />
         </label>
         <div className="flex justify-end gap-2 pt-4">
           <button

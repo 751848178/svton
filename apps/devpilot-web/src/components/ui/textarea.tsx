@@ -1,37 +1,24 @@
 /**
- * devpilot Textarea
+ * devpilot Textarea（@svton/ui Textarea 的薄包装）
  *
- * 与 Input 同一套 devpilot 约定（focus-visible:ring-primary，invalid 走 destructive
- * token）。取代 @svton/ui Textarea 默认的 ring-ring / red-500，保证聚焦环与无效色
- * 与全站约定一致。
- *
- * 单一职责：多行文本输入框样式归一。无业务逻辑。
+ * 2026-08-23 起以 @svton/ui 为唯一实现源（size 变体、invalid→destructive +
+ * aria-invalid）。应用层仅追加 ring-primary 聚焦环；包装类型用显式
+ * TextareaProps（避免跨包组件实例推断受双 @types/react 影响）。
  */
 
 import React from 'react';
+import { Textarea as SvtonTextarea, type TextareaProps } from '@svton/ui';
 import { cn } from '@/lib/utils';
 
-export interface TextareaProps
-  extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
-  /** 无效态：边框与聚焦环转为 destructive。 */
-  invalid?: boolean;
-}
-
-const BASE_CLASS =
-  'min-h-[80px] w-full rounded-md border px-3 py-2 text-sm outline-none transition-colors placeholder:text-black/40 focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-60';
+export type { TextareaProps } from '@svton/ui';
 
 export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
-  function Textarea(props, ref) {
-    const { invalid = false, className, ...rest } = props;
+  function Textarea({ className, ...props }, ref) {
     return (
-      <textarea
+      <SvtonTextarea
         ref={ref}
-        className={cn(
-          BASE_CLASS,
-          invalid && 'border-destructive focus-visible:ring-destructive/40',
-          className,
-        )}
-        {...rest}
+        className={cn('focus:ring-primary', className)}
+        {...props}
       />
     );
   },

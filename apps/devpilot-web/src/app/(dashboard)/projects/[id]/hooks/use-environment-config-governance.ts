@@ -15,6 +15,8 @@ type Policy = {
   name: string;
   enabled: boolean;
   effect: string;
+  actions?: string[];
+  categories?: string[];
   project?: { id: string } | null;
   environment?: { id: string } | null;
 };
@@ -49,16 +51,17 @@ export function useEnvironmentConfigGovernance(
         apiRequest<EnvironmentConfigRevisionList>(
           `GET:/project-environments/${environment.id}/config-revisions`,
         ),
-        loadPolicies
-          ? apiRequest<Policy[]>('GET:/control-access-policies')
-          : Promise.resolve([]),
+        loadPolicies ? apiRequest<Policy[]>('GET:/control-access-policies') : Promise.resolve([]),
       ]);
       setData(revisionList);
-      setPolicies(allPolicies.filter((policy) =>
-        policy.enabled &&
-        (!policy.project || policy.project.id === projectId) &&
-        (!policy.environment || policy.environment.id === environment.id),
-      ));
+      setPolicies(
+        allPolicies.filter(
+          (policy) =>
+            policy.enabled &&
+            (!policy.project || policy.project.id === projectId) &&
+            (!policy.environment || policy.environment.id === environment.id),
+        ),
+      );
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '加载配置修订失败');
     } finally {
@@ -78,45 +81,48 @@ export function useEnvironmentConfigGovernance(
     [data],
   );
 
-  const save = useCallback(async (draft: ConfigRevisionDraft) => {
-    setSaving(true);
-    setError('');
-    try {
-      const result = await apiRequest<CreateEnvironmentConfigRevisionResult>(
-        `POST:/project-environments/${environment.id}/config-revisions`,
-        {
-          ...draft,
-          secretReferences: draft.secretReferences,
-          resourceReferences: draft.resourceReferences.map((reference) => ({
-            kind: reference.kind,
-            id: reference.id,
-            sharedEnvironmentIds: reference.sharedEnvironmentIds,
-            risk: reference.risk,
-            impact: reference.impact,
-            componentKey: reference.componentKey,
-            envBindings: reference.envBindings,
-          })),
-          expectedCurrentRevisionId: data?.currentConfigRevisionId || undefined,
-        },
-      );
-      setData((previous) => ({
-        environmentId: environment.id,
-        currentConfigRevisionId: result.revision.id,
-        revisions: [
-          result.revision,
-          ...(previous?.revisions ?? []).map((revision) => ({ ...revision, current: false })),
-        ],
-      }));
-      onSaved({ ...environment, ...result.environment });
-      return result;
-    } catch (cause) {
-      const message = cause instanceof Error ? cause.message : '保存配置修订失败';
-      setError(message);
-      throw cause;
-    } finally {
-      setSaving(false);
-    }
-  }, [data?.currentConfigRevisionId, environment, onSaved]);
+  const save = useCallback(
+    async (draft: ConfigRevisionDraft) => {
+      setSaving(true);
+      setError('');
+      try {
+        const result = await apiRequest<CreateEnvironmentConfigRevisionResult>(
+          `POST:/project-environments/${environment.id}/config-revisions`,
+          {
+            ...draft,
+            secretReferences: draft.secretReferences,
+            resourceReferences: draft.resourceReferences.map((reference) => ({
+              kind: reference.kind,
+              id: reference.id,
+              sharedEnvironmentIds: reference.sharedEnvironmentIds,
+              risk: reference.risk,
+              impact: reference.impact,
+              componentKey: reference.componentKey,
+              envBindings: reference.envBindings,
+            })),
+            expectedCurrentRevisionId: data?.currentConfigRevisionId || undefined,
+          },
+        );
+        setData((previous) => ({
+          environmentId: environment.id,
+          currentConfigRevisionId: result.revision.id,
+          revisions: [
+            result.revision,
+            ...(previous?.revisions ?? []).map((revision) => ({ ...revision, current: false })),
+          ],
+        }));
+        onSaved({ ...environment, ...result.environment });
+        return result;
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : '保存配置修订失败';
+        setError(message);
+        throw cause;
+      } finally {
+        setSaving(false);
+      }
+    },
+    [data?.currentConfigRevisionId, environment, onSaved],
+  );
 
   return { data, current, policies, loading, saving, error, load, save };
 }

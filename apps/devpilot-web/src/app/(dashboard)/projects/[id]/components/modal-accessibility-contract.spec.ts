@@ -12,20 +12,21 @@ describe('core release Modal accessibility contract', () => {
       'aria-describedby={ariaDescriptionId ?? (description ? descriptionId : undefined)}',
     );
     const focus = source('packages/ui/src/hooks/useDialogFocus.ts');
-    expect(focus).toContain("if (event.key !== 'Tab' || !trapFocus) return");
+    expect(focus).toMatch(/if \(event\.key !== ["']Tab["'] \|\| !trapFocus\) return/);
     expect(focus).toContain('focusableWithin(container)');
-    expect(focus).toContain("Boolean((element as HTMLButtonElement).disabled)");
+    expect(focus).toContain('Boolean((element as HTMLButtonElement).disabled)');
     const layer = source('packages/ui/src/hooks/useModalLayer.ts');
     expect(layer).toContain('layers[layers.length - 1]');
     expect(layer).toContain('bodyOverflow');
-    expect(layer).toContain("document.addEventListener('keydown', onDocumentKeyDown, true)");
+    expect(layer).toMatch(
+      /document\.addEventListener\(["']keydown["'], onDocumentKeyDown, true\)/,
+    );
     expect(modal).toContain('inline-flex size-11');
   });
 
   it.each([
     'release-order-create-modal.tsx',
     'release-gate-catalog-dialog.tsx',
-    'release-production-confirm-dialog.tsx',
   ])('connects %s to the shared description and 44px action contract', (file) => {
     const content = source(
       `apps/devpilot-web/src/app/(dashboard)/projects/[id]/components/${file}`,

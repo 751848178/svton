@@ -8,6 +8,7 @@
 
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
+import { Checkbox, Input, Select, Textarea } from '@/components/ui';
 import type { FormEvent } from 'react';
 import type { PolicyForm, Project, ProjectEnvironment } from '../types';
 
@@ -69,27 +70,24 @@ export function PolicyFormView(props: PolicyFormProps) {
 
       <div className="mt-5 grid gap-4 lg:grid-cols-2">
         <Field label={tc('name')}>
-          <input
+          <Input
             value={form.name}
             onChange={(e) => onChange({ name: e.target.value })}
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
             placeholder={t('namePlaceholder')}
           />
         </Field>
         <Field label={t('priority')}>
-          <input
+          <Input
             type="number"
             min="0"
             value={form.priority}
             onChange={(e) => onChange({ priority: e.target.value })}
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
           />
         </Field>
         <Field label={t('project')}>
-          <select
+          <Select
             value={form.projectId}
             onChange={(e) => onSelectProject(e.target.value)}
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
           >
             <option value="">{t('teamGlobal')}</option>
             {projects.map((p) => (
@@ -100,13 +98,12 @@ export function PolicyFormView(props: PolicyFormProps) {
                 {p.name}
               </option>
             ))}
-          </select>
+          </Select>
         </Field>
         <Field label={t('environment')}>
-          <select
+          <Select
             value={form.environmentId}
             onChange={(e) => handleEnvChange(e.target.value)}
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
           >
             <option value="">{t('anyEnvironment')}</option>
             {environmentOptions.map((e) => (
@@ -118,21 +115,19 @@ export function PolicyFormView(props: PolicyFormProps) {
                 {e.name}
               </option>
             ))}
-          </select>
+          </Select>
         </Field>
         <Field label={t('adapterKeys')}>
-          <input
+          <Input
             value={form.adapterKeys}
             onChange={(e) => onChange({ adapterKeys: e.target.value })}
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
             placeholder={t('adapterKeysPlaceholder')}
           />
         </Field>
         <Field label={t('operationKeys')}>
-          <input
+          <Input
             value={form.operationKeys}
             onChange={(e) => onChange({ operationKeys: e.target.value })}
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
             placeholder={t('operationKeysPlaceholder')}
           />
         </Field>
@@ -140,34 +135,32 @@ export function PolicyFormView(props: PolicyFormProps) {
           label={t('descriptionLabel')}
           className="lg:col-span-2"
         >
-          <input
+          <Input
             value={form.description}
             onChange={(e) => onChange({ description: e.target.value })}
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
             placeholder={t('descriptionPlaceholder')}
           />
         </Field>
         <Field label={t('allowPatterns')}>
-          <textarea
+          <Textarea
             value={form.allowedPatterns}
             onChange={(e) => onChange({ allowedPatterns: e.target.value })}
-            className="min-h-32 w-full rounded-md border bg-background px-3 py-2 font-mono text-sm"
+            className="min-h-32 font-mono"
             placeholder={t('allowPatternsPlaceholder')}
           />
         </Field>
         <Field label={t('blockPatterns')}>
-          <textarea
+          <Textarea
             value={form.blockedPatterns}
             onChange={(e) => onChange({ blockedPatterns: e.target.value })}
-            className="min-h-32 w-full rounded-md border bg-background px-3 py-2 font-mono text-sm"
+            className="min-h-32 font-mono"
             placeholder={t('blockPatternsPlaceholder')}
           />
         </Field>
       </div>
 
       <label className="mt-4 flex items-center gap-2 text-sm">
-        <input
-          type="checkbox"
+        <Checkbox
           checked={form.enabled}
           onChange={(e) => onChange({ enabled: e.target.checked })}
         />

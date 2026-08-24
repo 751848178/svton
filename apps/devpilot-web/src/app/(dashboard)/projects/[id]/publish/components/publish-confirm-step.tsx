@@ -12,6 +12,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Button, Input, Textarea } from '@/components/ui';
 import type { CreateReleaseOrderInput } from '../../types/release-order.types';
+import { isCanonicalReleaseVersion } from '../../utils/release-version-display.model';
 import type { PublishEnvironmentCard } from '../hooks/use-publish-environments';
 import type { PublishSubmitState } from '../hooks/use-publish-submit';
 import { PublishErrorDetail } from './publish-error-detail';
@@ -34,9 +35,11 @@ export function PublishConfirmStep({
   onRetry,
 }: Props) {
   const t = useTranslations('projects');
+  const [releaseName, setReleaseName] = useState(() => t('publishDefaultReleaseName'));
   const [releaseVersion, setReleaseVersion] = useState(suggestVersion());
   const [note, setNote] = useState('');
   const input: CreateReleaseOrderInput = {
+    releaseName: releaseName.trim(),
     releaseVersion: releaseVersion.trim() || suggestVersion(),
     note: note.trim() || undefined,
   };
@@ -64,12 +67,21 @@ export function PublishConfirmStep({
           </dd>
         </div>
       </dl>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-3">
+        <label className="block text-sm">
+          <span className="mb-1 block font-medium">{t('releaseNameLabel')}</span>
+          <Input
+            value={releaseName}
+            onChange={(event) => setReleaseName(event.target.value)}
+          />
+        </label>
         <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('publishConfirmVersionLabel')}</span>
           <Input
             value={releaseVersion}
             onChange={(event) => setReleaseVersion(event.target.value)}
+            pattern="(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)"
+            title={t('releaseVersionFormatHint')}
           />
         </label>
         <label className="block text-sm">
@@ -122,7 +134,13 @@ export function PublishConfirmStep({
       ) : null}
       <Button
         className="min-h-11 w-full sm:w-auto"
-        disabled={submitState.working || failed || !environment}
+        disabled={
+          submitState.working ||
+          failed ||
+          !environment ||
+          !releaseName.trim() ||
+          !isCanonicalReleaseVersion(releaseVersion)
+        }
         onClick={() => void onPublish(input)}
       >
         {t('publishAction')}
@@ -157,15 +175,8 @@ function roleText(
   return t('publishEnvironmentRoleNone');
 }
 
-/** 默认版本号：v + 时间戳（m-c：不用 release- 英文词）。 */
+/** 默认版本号保持 canonical x.y.z；用户可在创建前调整。 */
 function suggestVersion(): string {
   const now = new Date();
-  const stamp = [
-    now.getFullYear(),
-    String(now.getMonth() + 1).padStart(2, '0'),
-    String(now.getDate()).padStart(2, '0'),
-    String(now.getHours()).padStart(2, '0'),
-    String(now.getMinutes()).padStart(2, '0'),
-  ].join('');
-  return `v${stamp}`;
+  return `${now.getFullYear()}.${now.getMonth() + 1}.${now.getDate()}`;
 }

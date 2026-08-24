@@ -1,123 +1,109 @@
+/**
+ * 发布单一行预警条：图标 + 单行摘要 + 计数 + 修复入口。
+ *
+ * 置于页面标题正下方（ReleaseWorkbenchHeader 的 alert 插槽）。
+ * ready 态为中性提示，blocked/error 为警告；构建/发布等执行动作
+ * 由步骤条与右侧轮次信息卡承载，预警条只回答「当前能否继续、卡在哪」。
+ *
+ * PX-34：blocked 不再用黄底 + 红徽章叠加，改为中性底 + 左侧红色状态条；
+ * 计数文案保留红色以示阻断。
+ */
 'use client';
 
-import { ArrowRight, Hammer, LockKey, WarningCircle } from '@phosphor-icons/react';
+import { ArrowRight, Info, WarningCircle } from '@phosphor-icons/react';
 import { useTranslations } from 'next-intl';
-import { Button, LinkButton, StatusTag } from '@/components/ui';
-import type { ReleaseActionGate } from '../release-action-gate.model';
-import { releaseOrderStepLabelKey } from '../release-order-stepper.model';
+import { Button, LinkButton } from '@/components/ui';
+import { FlowStatusTag } from './release-flow-status-tag';
 import type { ReleaseOrderStep } from '../../types/release-order.types';
+import { releaseOrderStepLabelKey } from '../release-order-stepper.model';
 import type { ReleaseWorkbenchGateSummary } from './release-workbench-summary.model';
 
 interface Props {
   decisionStep: ReleaseOrderStep;
-  executionStep: ReleaseOrderStep;
-  selectedStep: ReleaseOrderStep;
   gate: ReleaseWorkbenchGateSummary;
-  actionGate: ReleaseActionGate;
-  building: boolean;
-  buildFrozen: boolean;
   targetRepairHref?: string;
-  onBuildLatest: () => void;
   onReviewGate: () => void;
-  onReturnToExecution: () => void;
 }
 
 export function ReleaseWorkbenchDecisionCard(props: Props) {
   const t = useTranslations('projects');
   const blocked = props.gate.state === 'blocked' || props.gate.state === 'error';
-  const canBuild =
-    (props.decisionStep === 'preflight' || props.decisionStep === 'build') &&
-    props.gate.state === 'ready' &&
-    props.actionGate.allowed &&
-    !props.buildFrozen;
-  const role = blocked ? 'alert' : 'status';
-  const viewingHistory = props.selectedStep !== props.executionStep;
+  const hasCounts =
+    props.gate.blockerCount > 0 || props.gate.warningCount > 0 || props.gate.manualCount > 0;
 
   return (
     <section
       data-release-decision
-      role={role}
-      className="border-l-4 border-l-primary bg-muted/35 px-4 py-4 sm:px-5"
+      role={blocked ? 'alert' : 'status'}
       aria-labelledby="release-decision-heading"
+      className={`flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md border px-3 py-2 text-sm ${
+        blocked
+          ? 'border-border border-l-4 border-l-destructive bg-muted/40'
+          : 'border-border bg-muted/40'
+      }`}
     >
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0 max-w-3xl">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
-              {t('releaseWorkbenchDecisionFor', {
-                step: t(releaseOrderStepLabelKey(props.decisionStep)),
-              })}
-            </p>
-            <StatusTag
-              status={decisionTone(props.gate.state)}
-              label={t(`releaseWorkbenchGateState.${props.gate.state}`)}
-            />
-          </div>
-          <h3
-            id="release-decision-heading"
-            className="mt-2 text-lg font-semibold"
-          >
-            {t(`releaseWorkbenchDecisionTitle.${props.gate.state}`)}
-          </h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {decisionMessage(t, props.gate)}
-          </p>
-          <p className="mt-2 text-xs text-muted-foreground">
-            {t('releaseWorkbenchGateCounts', {
+      {blocked ? (
+        <WarningCircle
+          size={17}
+          weight="fill"
+          aria-hidden="true"
+          className="shrink-0 text-destructive"
+        />
+      ) : (
+        <Info
+          size={17}
+          weight="fill"
+          aria-hidden="true"
+          className="shrink-0 text-muted-foreground"
+        />
+      )}
+      <span
+        id="release-decision-heading"
+        data-testid="release-decision-heading"
+        className="min-w-0 flex-1 truncate"
+      >
+        {t('releaseWorkbenchDecisionFor', {
+          step: t(releaseOrderStepLabelKey(props.decisionStep)),
+        })}
+        {' · '}
+        <FlowStatusTag
+          status={decisionTone(props.gate.state)}
+          label={t(`releaseWorkbenchGateState.${props.gate.state}`)}
+        />
+        {hasCounts
+          ? ` · ${t('releaseWorkbenchGateCounts', {
               blocked: props.gate.blockerCount,
               warning: props.gate.warningCount,
               manual: props.gate.manualCount,
-            })}
-          </p>
-        </div>
-
-        <div className="flex shrink-0 flex-wrap items-center gap-2 lg:max-w-[320px] lg:justify-end">
-          {blocked ? (
-            props.targetRepairHref ? (
-              <LinkButton
-                href={props.targetRepairHref}
-                data-testid="primary-release-action"
-              >
-                {t('releaseWorkbenchOpenTargetSettings')}
-                <ArrowRight size={16} aria-hidden="true" />
-              </LinkButton>
-            ) : (
-              <Button
-                onClick={props.onReviewGate}
-                data-testid="primary-release-action"
-              >
-                <WarningCircle size={17} weight="bold" aria-hidden="true" />
-                {t('releaseWorkbenchReviewGateDetails')}
-              </Button>
-            )
-          ) : null}
-          {canBuild ? (
-            <Button
-              loading={props.building}
-              onClick={props.onBuildLatest}
-              data-testid="primary-release-action"
-            >
-              <Hammer size={17} weight="bold" aria-hidden="true" />
-              {t('buildLatestCode')}
-            </Button>
-          ) : null}
-          {props.buildFrozen &&
-          (props.decisionStep === 'preflight' || props.decisionStep === 'build') ? (
-            <span className="inline-flex min-h-11 items-center gap-2 text-sm text-muted-foreground">
-              <LockKey size={17} aria-hidden="true" />
-              {t('releaseBuildFrozenReason')}
-            </span>
-          ) : null}
-          {viewingHistory ? (
-            <Button
-              variant="outline"
-              onClick={props.onReturnToExecution}
-            >
-              {t('releaseWorkbenchReturnToExecution')}
-            </Button>
-          ) : null}
-        </div>
-      </div>
+            })}`
+          : ''}
+      </span>
+      {blocked ? (
+        props.targetRepairHref ? (
+          <LinkButton
+            href={props.targetRepairHref}
+            size="sm"
+            variant="outline"
+            data-testid="primary-release-action"
+          >
+            {t('releaseWorkbenchOpenTargetSettings')}
+            <ArrowRight
+              size={15}
+              aria-hidden="true"
+            />
+          </LinkButton>
+        ) : (
+          /* PX-19：主 CTA 用带边框 secondary，不再是无按钮感的透明文本。 */
+          <Button
+            size="sm"
+            variant="outline"
+            data-testid="primary-release-action"
+            onClick={props.onReviewGate}
+          >
+            {t('releaseWorkbenchReviewGateDetails')}
+          </Button>
+        )
+      ) : null}
     </section>
   );
 }
@@ -126,14 +112,4 @@ function decisionTone(state: ReleaseWorkbenchGateSummary['state']) {
   if (state === 'ready') return 'succeeded' as const;
   if (state === 'loading') return 'running' as const;
   return 'failed' as const;
-}
-
-function decisionMessage(
-  t: ReturnType<typeof useTranslations<'projects'>>,
-  gate: ReleaseWorkbenchGateSummary,
-) {
-  if ((gate.state === 'blocked' || gate.state === 'error') && gate.reason) {
-    return t('releaseWorkbenchBlockedReason', { reason: gate.reason });
-  }
-  return t(`releaseWorkbenchGateMessage.${gate.state}`);
 }

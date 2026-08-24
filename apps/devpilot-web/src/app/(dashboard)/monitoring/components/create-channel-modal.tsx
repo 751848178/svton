@@ -8,7 +8,7 @@
 
 import { useForm } from 'react-hook-form';
 import { useTranslations } from 'next-intl';
-import { ErrorBanner, Modal } from '@/components/ui';
+import { Checkbox, ErrorBanner, Input, Modal, Select } from '@/components/ui';
 import { feedback } from '@/components/ui/feedback/feedback';
 import {
   notificationChannelTargetPlaceholders,
@@ -105,17 +105,13 @@ export function CreateChannelModal({
           variant="inline"
         />
         <FieldLabel label={tc('name')}>
-          <input
+          <Input
             {...register('name', { required: true })}
             required
-            className="min-h-11 w-full rounded-md border px-3"
           />
         </FieldLabel>
         <FieldLabel label={tc('type')}>
-          <select
-            {...register('type')}
-            className="min-h-11 w-full rounded-md border px-3"
-          >
+          <Select {...register('type')}>
             {Object.entries(notificationChannelTypeLabels).map(([value, label]) => (
               <option
                 key={value}
@@ -124,31 +120,26 @@ export function CreateChannelModal({
                 {label}
               </option>
             ))}
-          </select>
+          </Select>
         </FieldLabel>
         {isEmail ? (
           <>
             <FieldLabel label={t('formEmailRecipients')}>
-              <input
+              <Input
                 {...register('emailRecipients', { required: isEmail })}
                 required={isEmail}
-                className="min-h-11 w-full rounded-md border px-3"
                 placeholder={notificationChannelTargetPlaceholders.email}
               />
             </FieldLabel>
             <FieldLabel label={t('formEmailSubjectPrefix')}>
-              <input
-                {...register('emailSubjectPrefix')}
-                className="min-h-11 w-full rounded-md border px-3"
-              />
+              <Input {...register('emailSubjectPrefix')} />
             </FieldLabel>
           </>
         ) : (
           <FieldLabel label={t('formWebhookUrl')}>
-            <input
+            <Input
               {...register('webhookUrl', { required: !isEmail })}
               required={!isEmail}
-              className="min-h-11 w-full rounded-md border px-3"
               placeholder={notificationChannelTargetPlaceholders[channelType] || ''}
             />
           </FieldLabel>
@@ -161,8 +152,7 @@ export function CreateChannelModal({
                 key={status}
                 className="flex items-center gap-1.5"
               >
-                <input
-                  type="checkbox"
+                <Checkbox
                   value={status}
                   {...register('eventStatuses')}
                 />
@@ -172,9 +162,8 @@ export function CreateChannelModal({
           </div>
         </fieldset>
         <FieldLabel label={t('formSeverityFilter')}>
-          <input
+          <Input
             {...register('severityFilter')}
-            className="min-h-11 w-full rounded-md border px-3"
             placeholder="warning, critical"
           />
         </FieldLabel>

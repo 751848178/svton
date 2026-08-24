@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { usePersistFn } from '@svton/hooks';
 import { Tag } from '@svton/ui';
-import { Button, ErrorBanner } from '@/components/ui';
+import { Button, Checkbox, ErrorBanner } from '@/components/ui';
 import { useProjectConfigStore } from '@/store/hooks';
 
 interface StepProps {
@@ -102,8 +102,7 @@ export function StepSubProjects({ onNext, onPrev }: StepProps) {
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">{t(`sub_${id}_desc`)}</p>
               </div>
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={config.subProjects[id]}
                 onChange={() => {}}
                 className="mt-1 h-5 w-5"
@@ -117,11 +116,9 @@ export function StepSubProjects({ onNext, onPrev }: StepProps) {
           <h3 className="mb-4 text-lg font-medium">{t('frontendLibs')}</h3>
           {config.subProjects.admin ? (
             <label className="mb-3 flex cursor-pointer items-center gap-3">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={config.uiLibrary.admin}
                 onChange={(e) => setUiLibrary({ admin: e.target.checked })}
-                className="h-4 w-4"
               />
               <span className="text-sm">
                 {t.rich('useUiLibAdmin', {
@@ -132,11 +129,9 @@ export function StepSubProjects({ onNext, onPrev }: StepProps) {
           ) : null}
           {config.subProjects.mobile ? (
             <label className="mb-3 flex cursor-pointer items-center gap-3">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={config.uiLibrary.mobile}
                 onChange={(e) => setUiLibrary({ mobile: e.target.checked })}
-                className="h-4 w-4"
               />
               <span className="text-sm">
                 {t.rich('useUiLibMobile', {
@@ -146,11 +141,9 @@ export function StepSubProjects({ onNext, onPrev }: StepProps) {
             </label>
           ) : null}
           <label className="flex cursor-pointer items-center gap-3">
-            <input
-              type="checkbox"
+            <Checkbox
               checked={config.hooks}
               onChange={(e) => setHooks(e.target.checked)}
-              className="h-4 w-4"
             />
             <span className="text-sm">
               {t.rich('useHooksLib', {

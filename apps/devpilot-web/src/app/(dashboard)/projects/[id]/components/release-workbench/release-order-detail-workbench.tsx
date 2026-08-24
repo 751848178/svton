@@ -1,21 +1,40 @@
+/**
+ * 预发发布工作台组合：
+ * 页头（标题 → 预警条 → 基本信息）
+ * + 环境发布链（预发发布 → 生产发布，串行切换）
+ * + [预发节点：三步步骤条（右上角「发布」）+ 步骤内联当前轮次面板 + 右侧轮次信息栏
+ *    | 生产节点：生产发布视图（复用预发验证制品）]
+ * + 历史抽屉（构建/部署全量记录，二层日志抽屉）。
+ */
 'use client';
 
-import { useLocale } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import type { ReleaseBuildsController } from '../../hooks/use-release-builds';
 import type { ReleaseOrderEvidenceHook } from '../../hooks/use-release-order-evidence';
+import type { ReleaseStagingDeploymentsController } from '../../hooks/use-release-staging-deployments';
 import type { ReleaseOrderWorkbenchNavigation } from '../../hooks/use-release-order-workbench-navigation';
 import type { useReleaseGateCatalog } from '../../hooks/use-release-gate-catalog';
 import type { ProjectDeliverySummary } from '../../types/project-delivery-summary.types';
 import type { ReleaseOrderDetail } from '../../types/release-order.types';
 import type { buildReleaseOrderGateView } from '../release-order-gate-view.model';
-import { ReleaseOrderStepContent } from '../release-order-step-content';
-import { buildReleaseOrderStepViews } from '../release-order-stepper.model';
-import { ReleaseOrderStepper } from '../release-order-stepper';
 import { ReleaseWorkbenchDecisionCard } from './release-workbench-decision-card';
 import { ReleaseWorkbenchHeader } from './release-workbench-header';
-import { ReleaseWorkbenchLayout } from './release-workbench-layout';
-import { ReleaseWorkbenchRail } from './release-workbench-rail';
-import { ReleaseWorkbenchTechnicalDetails } from './release-workbench-technical-details';
+import { ReleaseBuildHistoryDrawer } from './release-build-history-drawer';
+import { ReleaseDeployHistoryDrawer } from './release-deploy-history-drawer';
+import { ReleaseEnvironmentChain } from './release-environment-chain';
+import { buildReleaseChainViews } from './release-environment-chain.model';
+import { ReleaseProductionView } from './release-production-view';
+import {
+  buildWorkbenchDecisionGate,
+  workbenchPublishState,
+} from './release-workbench-actions.model';
+import {
+  latestStagingDeployment,
+  latestSuccessfulManifestBuild,
+  productionManifestBuild,
+  stagingProvenBuild,
+} from './release-round.model';
+import { ReleaseStagingView } from './release-staging-view';
 import {
   buildReleaseWorkbenchGateSummary,
   releaseWorkbenchDecisionStep,
@@ -27,6 +46,7 @@ interface Props {
   projectSummary?: ProjectDeliverySummary;
   detail: ReleaseOrderDetail;
   builds: ReleaseBuildsController;
+  deployments: ReleaseStagingDeploymentsController;
   evidence: ReleaseOrderEvidenceHook;
   gateCatalog: ReturnType<typeof useReleaseGateCatalog>;
   gateView: ReturnType<typeof buildReleaseOrderGateView>;
@@ -36,29 +56,41 @@ interface Props {
 }
 
 export function ReleaseOrderDetailWorkbench(props: Props) {
-  const { detail, builds, evidence, gateCatalog, navigation } = props;
+  const { detail, builds, deployments, evidence, navigation } = props;
   const locale = useLocale();
+  const t = useTranslations('projects');
   const decisionStep = releaseWorkbenchDecisionStep(detail);
   const catalogGate = buildReleaseWorkbenchGateSummary({
     step: decisionStep,
-    catalog: gateCatalog.catalog,
-    loading: gateCatalog.loading,
-    error: gateCatalog.error,
+    catalog: props.gateCatalog.catalog,
+    loading: props.gateCatalog.loading,
+    error: props.gateCatalog.error,
     locale,
   });
   const actionGate = decisionStep === 'staging' ? props.gateView.staging : props.gateView.build;
-  const gate =
-    decisionStep !== 'production' && !actionGate.allowed && catalogGate.state === 'ready'
-      ? {
-          ...catalogGate,
-          state: 'blocked' as const,
-          blockerCount: Math.max(1, catalogGate.blockerCount),
-          reason: actionGate.reason,
-        }
-      : catalogGate;
-  const reviewGate = () => {
-    navigation.selectStep('preflight');
-    requestAnimationFrame(() => requestAnimationFrame(openGateDetails));
+  const gate = buildWorkbenchDecisionGate({ decisionStep, catalogGate, actionGate });
+  const buildFrozen = detail.counts.releaseRuns > 0;
+  const deployableBuild = latestSuccessfulManifestBuild(builds.items);
+  const productionRuns = evidence.evidence?.productionReleaseRuns.items ?? [];
+  const stagingProofRun = stagingProvenBuild(deployments.items, builds.items)
+    ? latestStagingDeployment(
+        deployments.items.filter((item) => item.status.toLowerCase() === 'completed' && !item.dryRun),
+      )
+    : null;
+  const publish = workbenchPublishState({
+    deployableBuild,
+    stagingGate: props.gateView.staging,
+    deploying: deployments.deploying,
+  });
+  const publishTitle = publish.noManifest
+    ? t('releaseWorkbenchPublishDisabledNoManifest')
+    : publish.blockedByGate
+      ? props.gateView.staging.reason
+      : undefined;
+  const triggerPublish = () => {
+    const manifestId = deployableBuild?.manifest?.id;
+    if (publish.disabled || !manifestId) return;
+    void deployments.deploy(manifestId);
   };
 
   return (
@@ -67,83 +99,87 @@ export function ReleaseOrderDetailWorkbench(props: Props) {
         detail={detail}
         projectSummary={props.projectSummary}
         evidence={evidence.evidence}
-        onBack={navigation.back}
-      />
-      <ReleaseWorkbenchLayout
-        main={
-          <div className="space-y-4">
-            <ReleaseWorkbenchDecisionCard
-              decisionStep={decisionStep}
-              executionStep={detail.resumeStep}
-              selectedStep={navigation.step}
-              gate={gate}
-              actionGate={actionGate}
-              building={builds.building}
-              buildFrozen={detail.counts.releaseRuns > 0}
-              targetRepairHref={
-                decisionStep === 'staging' &&
-                catalogGate.state === 'ready' &&
-                props.gateView.staging.repairArea === 'targets'
-                  ? props.gateView.stagingHref
-                  : undefined
-              }
-              onBuildLatest={props.onBuildLatest}
-              onReviewGate={reviewGate}
-              onReturnToExecution={() => navigation.selectStep(detail.resumeStep)}
-            />
-            <ReleaseOrderStepper
-              steps={buildReleaseOrderStepViews(detail)}
-              selectedStep={navigation.step}
-              onSelect={navigation.selectStep}
-            >
-              <ReleaseOrderStepContent
-                detail={detail}
-                builds={builds}
-                evidence={evidence}
-                gateCatalog={gateCatalog}
-                step={navigation.step}
-                projectId={props.projectId}
-                releaseOrderId={props.releaseOrderId}
-                focusedBuildRunId={navigation.buildRunId}
-                focusedDeploymentRunId={navigation.deploymentRunId}
-                focusedReleaseRunId={navigation.releaseRunId}
-                onChanged={props.onRefresh}
-                onOpenBuildLog={navigation.openBuildLog}
-                onCloseBuildLog={navigation.closeBuildLog}
-                onFocusStaging={navigation.focusStaging}
-                onCloseStaging={navigation.closeStaging}
-                onFocusProduction={navigation.focusProduction}
-                onOpenProductionLog={navigation.focusProduction}
-                onCloseProductionLog={navigation.closeProductionLog}
-                recoveryHref={navigation.recoveryHref}
-                buildGate={props.gateView.build}
-                stagingGate={props.gateView.staging}
-                stagingRepairHref={props.gateView.stagingHref}
-              />
-            </ReleaseOrderStepper>
-          </div>
-        }
-        rail={
-          <ReleaseWorkbenchRail
-            detail={detail}
-            evidence={evidence}
-            catalog={gateCatalog.catalog}
-            onOpenActivity={navigation.openActivity}
-            onSelectStep={navigation.selectStep}
+        alert={
+          <ReleaseWorkbenchDecisionCard
+            decisionStep={decisionStep}
+            gate={gate}
+            targetRepairHref={
+              decisionStep === 'staging' &&
+              catalogGate.state === 'ready' &&
+              props.gateView.staging.repairArea === 'targets'
+                ? props.gateView.stagingHref
+                : undefined
+            }
+            onReviewGate={() => navigation.selectStep('preflight')}
           />
         }
+        onBack={navigation.back}
       />
-      <ReleaseWorkbenchTechnicalDetails
-        detail={detail}
-        evidence={evidence.evidence}
+      <ReleaseEnvironmentChain
+        nodes={buildReleaseChainViews({
+          detail,
+          stagingProven: Boolean(stagingProofRun),
+          productionRuns,
+        })}
+        selected={navigation.release}
+        onSelect={navigation.selectRelease}
+      />
+      {navigation.release === 'production' ? (
+        <ReleaseProductionView
+          projectId={props.projectId}
+          releaseOrderId={props.releaseOrderId}
+          manifestBuild={productionManifestBuild({
+            productionRuns,
+            stagingRuns: deployments.items,
+            builds: builds.items,
+          })}
+          stagingProof={stagingProofRun}
+          productionRuns={productionRuns}
+          stagingProven={Boolean(stagingProofRun)}
+          onChanged={props.onRefresh}
+          environmentHref={navigation.recoveryHref}
+          focusedRunId={navigation.releaseRunId}
+          onFocusRun={navigation.openProductionLog}
+          onCloseRunLog={navigation.closeProductionLog}
+        />
+      ) : (
+        <ReleaseStagingView
+          projectId={props.projectId}
+          releaseOrderId={props.releaseOrderId}
+          detail={detail}
+          builds={builds}
+          deployments={deployments}
+          gateCatalog={props.gateCatalog}
+          buildGate={props.gateView.build}
+          navigation={navigation}
+          publish={publish}
+          publishTitle={publishTitle}
+          onPublish={triggerPublish}
+          onBuildLatest={props.onBuildLatest}
+        />
+      )}
+      <ReleaseBuildHistoryDrawer
+        open={navigation.history === 'builds'}
+        projectId={props.projectId}
+        releaseOrderId={props.releaseOrderId}
+        builds={builds}
+        focusedBuildRunId={navigation.buildRunId}
+        onOpenLog={navigation.openBuildHistoryLog}
+        onCloseLog={navigation.closeLog}
+        onClose={navigation.closeHistory}
+      />
+      <ReleaseDeployHistoryDrawer
+        open={navigation.history === 'deploys'}
+        projectId={props.projectId}
+        releaseOrderId={props.releaseOrderId}
+        builds={builds}
+        deployments={deployments}
+        focusedDeploymentRunId={navigation.deploymentRunId}
+        deployGate={props.gateView.staging}
+        onOpenLog={navigation.openDeployHistoryLog}
+        onCloseLog={navigation.closeLog}
+        onClose={navigation.closeHistory}
       />
     </div>
   );
-}
-
-function openGateDetails() {
-  const section = document.getElementById('release-gate-details');
-  const details = section?.querySelector('details');
-  if (details instanceof HTMLDetailsElement) details.open = true;
-  section?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
