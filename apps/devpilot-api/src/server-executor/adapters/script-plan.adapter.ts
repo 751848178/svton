@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { stripSecretEnv } from '../../deployment/deployment-secret-strip.utils';
+import { redactCommandPlanForPersistence } from '../../deployment/deployment-secret-strip.utils';
 import {
   ServerExecutionInput,
   ServerExecutionResult,
@@ -21,7 +21,7 @@ export class ScriptPlanServerExecutorAdapter implements ServerExecutorAdapter {
     const warnings = [...(input.warnings || [])];
     const executable = warnings.length === 0 && input.steps.every((step) => !step.required || step.command);
     // F1: strip `secretEnv` (plaintext credentials) from the persisted plan.
-    const persistedSteps = stripSecretEnv(input.steps);
+    const persistedSteps = redactCommandPlanForPersistence(input.steps);
     const commandPlan = this.buildPlan(input, warnings, executable, persistedSteps);
 
     if (input.cancellationToken?.isCancellationRequested()) {
@@ -122,7 +122,7 @@ export class ScriptPlanServerExecutorAdapter implements ServerExecutorAdapter {
     input: ServerExecutionInput,
     warnings: string[],
     executable: boolean,
-    steps: ReturnType<typeof stripSecretEnv>,
+    steps: ReturnType<typeof redactCommandPlanForPersistence>,
   ): Prisma.InputJsonValue {
     return this.toJsonValue({
       executorKey: 'server-executor',

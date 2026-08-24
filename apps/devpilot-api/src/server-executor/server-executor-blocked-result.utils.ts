@@ -1,4 +1,4 @@
-import { stripSecretEnv } from "../deployment/deployment-secret-strip.utils";
+import { redactCommandPlanForPersistence } from "../deployment/deployment-secret-strip.utils";
 import {
   ServerCommandPolicyResult,
   ServerExecutionInput,
@@ -26,7 +26,7 @@ export function buildServerExecutorPolicyBlockedResult(
   const warnings = [...(input.warnings || []), ...policy.warnings];
   const error = `Server executor 命令策略阻断: ${policy.blockedReasons.join("；")}`;
   // F1: never persist `secretEnv` (plaintext credentials).
-  const persistedSteps = stripSecretEnv(input.steps);
+  const persistedSteps = redactCommandPlanForPersistence(input.steps);
 
   return {
     status: "blocked",
@@ -60,7 +60,7 @@ export function buildServerExecutorConcurrencyBlockedResult(
     : "目标服务器已有 live 执行正在运行，请等待释放后重试";
   const warnings = [...(input.warnings || []), warning];
   // F1: never persist `secretEnv` (plaintext credentials).
-  const persistedSteps = stripSecretEnv(input.steps);
+  const persistedSteps = redactCommandPlanForPersistence(input.steps);
 
   return {
     status: "blocked",
@@ -95,7 +95,7 @@ function buildPolicyCommandPlan(
   input: ServerExecutionInput,
   policy: ServerCommandPolicyResult,
   warnings: string[],
-  steps: ReturnType<typeof stripSecretEnv>,
+  steps: ReturnType<typeof redactCommandPlanForPersistence>,
 ) {
   return toJsonValue({
     executorKey: "server-executor",
@@ -131,7 +131,7 @@ function buildConcurrencyCommandPlan(
   blockingLease: ServerExecutorBlockingLeaseSnapshot | null,
   blockedLeaseId: string,
   warnings: string[],
-  steps: ReturnType<typeof stripSecretEnv>,
+  steps: ReturnType<typeof redactCommandPlanForPersistence>,
 ) {
   return toJsonValue({
     executorKey: "server-executor",

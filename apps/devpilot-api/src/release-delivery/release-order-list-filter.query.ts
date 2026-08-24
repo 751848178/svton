@@ -21,6 +21,7 @@ function searchFilter(input: ReleaseOrderListQueryInput, query: string) {
       : Prisma.sql` OR br.revision = ${revision}`;
   return Prisma.sql`(
     LOWER(ro.releaseVersion) LIKE LOWER(${pattern}) ESCAPE '='
+    OR LOWER(ro.releaseName) LIKE LOWER(${pattern}) ESCAPE '='
     OR LOWER(COALESCE(ro.note, '')) LIKE LOWER(${pattern}) ESCAPE '='
     OR EXISTS (
       SELECT 1 FROM BuildRun br

@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { ServerExecutionInput } from "../server-executor.types";
+import { redactCommandPlanForPersistence } from "../../deployment/deployment-secret-strip.utils";
 import {
   isRecord,
   readOptionalString,
@@ -40,7 +41,11 @@ export function buildServerAgentCommandPlan(
     warnings,
     metadata: input.metadata || {},
     dispatchEnvelope: buildServerAgentDispatchEnvelope(input),
-    steps: input.steps,
+    // DEP-1 兜底：server-agent 路径此前把 input.steps 原样写入持久化 commandPlan，
+    // 队列边界重解析后的真实 secretEnvExport/明文命令会落库。此处统一走
+    // redactCommandPlanForPersistence（剥离 secret 字段 + 深度文本脱敏，
+    // $DEVPILOT_* 占位符保留，不影响 agent 执行契约——agent 执行读 inputSnapshot）。
+    steps: redactCommandPlanForPersistence(input.steps),
   });
 }
 

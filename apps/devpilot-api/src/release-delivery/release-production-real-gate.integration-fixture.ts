@@ -48,6 +48,7 @@ import { ReleaseGateSourceCapabilityProvider } from "./release-gate-source-capab
 import { ReleaseProductionRepository } from "./release-production.repository";
 import { ReleaseProductionService } from "./release-production.service";
 import { ReleaseProductionPreflightService } from "./release-production-preflight.service";
+import { ReleaseProductionConcurrencyReadService } from "./release-production-concurrency-read.service";
 import { ReleaseProductionDnsProbeService } from "./release-production-dns-probe.service";
 import { ProductionPromotionAwaitingRepository } from "./production-promotion-awaiting.repository";
 import { ProductionPromotionService } from "./production-promotion.service";
@@ -695,6 +696,7 @@ export async function createProductionRealGateFixture(
       capacity,
       dns,
     ),
+    new ReleaseProductionConcurrencyReadService(db),
   );
 
   return {

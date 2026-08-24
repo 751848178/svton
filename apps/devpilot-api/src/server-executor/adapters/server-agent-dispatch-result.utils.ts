@@ -3,6 +3,7 @@ import {
   ServerExecutionInput,
   ServerExecutionResult,
 } from "../server-executor.types";
+import { redactCommandPlanForPersistence } from "../../deployment/deployment-secret-strip.utils";
 import { toJsonValue } from "./server-agent-dispatch-json.utils";
 import {
   buildServerAgentCorrelation,
@@ -28,7 +29,7 @@ export function buildServerAgentCancelledResult(
     adapterKey: input.adapterKey,
     executable: false,
     warnings,
-    commandSteps: input.steps,
+    commandSteps: redactCommandPlanForPersistence(input.steps),
     commandPlan,
     logs: toJsonValue([
       { level: "warn", message: "Server agent dispatch 已在执行前取消。" },
@@ -62,7 +63,7 @@ export function buildServerAgentDryRunResult(
     adapterKey: input.adapterKey,
     executable,
     warnings,
-    commandSteps: input.steps,
+    commandSteps: redactCommandPlanForPersistence(input.steps),
     commandPlan,
     logs: toJsonValue([
       {
@@ -107,7 +108,7 @@ export function buildServerAgentBlockedResult(
     adapterKey: input.adapterKey,
     executable: false,
     warnings: [...warnings, reason],
-    commandSteps: input.steps,
+    commandSteps: redactCommandPlanForPersistence(input.steps),
     commandPlan,
     logs: toJsonValue([{ level: "warn", message: reason }]),
     result: toJsonValue({
@@ -143,7 +144,7 @@ export function buildServerAgentDispatchFailureResult(
     adapterKey: input.adapterKey,
     executable: false,
     warnings: [...warnings, message],
-    commandSteps: input.steps,
+    commandSteps: redactCommandPlanForPersistence(input.steps),
     commandPlan,
     logs: toJsonValue([{ level: "error", message }]),
     result: toJsonValue({

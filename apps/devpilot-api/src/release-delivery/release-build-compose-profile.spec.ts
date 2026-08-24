@@ -23,15 +23,18 @@ describe("F426 V13 compose profile", () => {
     );
   });
 
-  it("keeps the base API explicitly disabled", async () => {
+  it("keeps build execution disabled and staging deployment explicitly enabled", async () => {
     const source = await readFile(
       resolve(root, "docker-compose.devpilot-app.yml"),
       "utf8",
     );
+    // 构建执行仍 fail-closed（需 v13 external-OCI-launcher 设施）；
+    // 预发部署 2026-08-22 起按用户要求显式启用（local-filesystem-v1），
+    // 保证既有发布单 预发→生产 审批链可执行。此测试仍钉死两值，防漂移。
     expect(source).toContain('RELEASE_BUILD_EXECUTION_ENABLED: "false"');
     expect(source).toContain("RELEASE_BUILD_EXECUTOR_PROFILE: disabled");
-    expect(source).toContain('RELEASE_STAGING_DEPLOYMENT_ENABLED: "false"');
-    expect(source).toContain("RELEASE_DEPLOYMENT_PROVIDER_PROFILE: disabled");
+    expect(source).toContain('RELEASE_STAGING_DEPLOYMENT_ENABLED: "true"');
+    expect(source).toContain("RELEASE_DEPLOYMENT_PROVIDER_PROFILE: local-filesystem-v1");
   });
 
   it("requires the explicit acceptance profile and controlled volume", async () => {

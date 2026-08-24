@@ -1,4 +1,4 @@
-import { stripSecretEnv } from "../deployment/deployment-secret-strip.utils";
+import { redactCommandPlanForPersistence } from "../deployment/deployment-secret-strip.utils";
 import { toJsonValue } from "./server-executor-json.utils";
 import {
   ServerExecutionInput,
@@ -17,7 +17,7 @@ export function buildServerExecutorCancelledResult(
 ): ServerExecutionResult {
   const warning = "Server executor 执行已取消";
   // F1: never persist `secretEnv` (plaintext credentials).
-  const persistedSteps = stripSecretEnv(input.steps);
+  const persistedSteps = redactCommandPlanForPersistence(input.steps);
 
   return {
     status: "cancelled",
@@ -60,7 +60,7 @@ export function buildServerExecutorQueuedResult(
 ): ServerQueuedExecutionResult {
   const warning = "Server executor 执行已加入队列";
   // F1: never persist `secretEnv` (plaintext credentials).
-  const persistedSteps = stripSecretEnv(input.steps);
+  const persistedSteps = redactCommandPlanForPersistence(input.steps);
 
   return {
     status: "queued",

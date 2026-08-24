@@ -18,6 +18,7 @@
  */
 
 import { ServerCommandStep } from '../server-executor';
+import { redactSecretsInObject } from '../common/secret-redaction.utils';
 
 /**
  * Return a copy of `steps` with the `secretEnv` and `secretEnvExport` fields
@@ -40,4 +41,24 @@ export function stripSecretEnv(steps: ServerCommandStep[]): ServerCommandStep[] 
     const { secretEnv: _removed, secretEnvExport: _removedExport, ...rest } = step;
     return rest as ServerCommandStep;
   });
+}
+
+/**
+ * 命令计划持久化统一脱敏入口（DEP-1，2026-08-22）。
+ *
+ * 在 stripSecretEnv（剥离 secretEnv/secretEnvExport 字段）之上，再对整个步骤
+ * 数组做深度文本脱敏（redactSecretsInObject）：即使某个构建器把真实密钥写进了
+ * `command` 字符串（历史泄露形态：write_env heredoc 里的 `DATABASE_URL=mysql://
+ * user:pwd@…`、`JWT_SECRET=…`、`BOOTSTRAP_ADMIN_PASSWORD=…`），落库前也会被替换为
+ * `[REDACTED]`。脱敏只发生在写入/存储侧；执行边界仍通过 secretEnv 重解析机制
+ * 取回真实值（键名在脱敏后保留，`reapplyDeploymentEnvWriteSecrets` 依赖这一点）。
+ *
+ * 所有 `DeploymentRun.commandPlan` / `ServerExecutionJob.inputSnapshot` /
+ * `ServerExecutionResult.commandPlan·commandSteps` 的写入点必须经由本函数，
+ * 禁止各自调用 stripSecretEnv 后直接持久化。
+ */
+export function redactCommandPlanForPersistence(
+  steps: ServerCommandStep[],
+): ServerCommandStep[] {
+  return redactSecretsInObject(stripSecretEnv(steps));
 }

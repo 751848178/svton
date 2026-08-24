@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import type { ServerAgentTaskPullFinishDto } from "./dto/server-execution-lease.dto";
 import { rehydrateServerExecutionInput } from "./server-executor-input-snapshot.utils";
+import { redactCommandPlanForPersistence } from "../deployment/deployment-secret-strip.utils";
 import {
   isRecord,
   readOptionalString,
@@ -95,7 +96,7 @@ export function buildServerAgentTaskPullFinishSyncExecutionResult(
     adapterKey: job.adapterKey,
     executable: dto.status === "completed",
     warnings: input.warnings || [],
-    commandSteps: input.steps,
+    commandSteps: redactCommandPlanForPersistence(input.steps),
     commandPlan: toJsonValue(dto.commandPlan ?? null),
     logs: toJsonValue(dto.logs ?? []),
     result: toJsonValue(

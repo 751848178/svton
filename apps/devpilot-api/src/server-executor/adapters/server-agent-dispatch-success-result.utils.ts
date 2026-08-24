@@ -3,6 +3,7 @@ import {
   ServerExecutionInput,
   ServerExecutionResult,
 } from "../server-executor.types";
+import { redactCommandPlanForPersistence } from "../../deployment/deployment-secret-strip.utils";
 import { redactServerAgentDispatcherUrl } from "./server-agent-dispatch-config.utils";
 import { toJsonValue } from "./server-agent-dispatch-json.utils";
 import {
@@ -31,7 +32,7 @@ export function buildServerAgentDispatchSuccessResult(
     adapterKey: input.adapterKey,
     executable: dispatcher.status === "completed",
     warnings: [...warnings, ...dispatcher.responseWarnings],
-    commandSteps: input.steps,
+    commandSteps: redactCommandPlanForPersistence(input.steps),
     commandPlan,
     logs: toJsonValue(dispatcher.logs),
     result: toJsonValue({

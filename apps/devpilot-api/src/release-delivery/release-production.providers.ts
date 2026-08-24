@@ -3,6 +3,7 @@ import { ReleaseProductionPreflightService } from "./release-production-prefligh
 import { ReleaseProductionRepository } from "./release-production.repository";
 import { ReleaseProductionService } from "./release-production.service";
 import { ReleaseProductionWorkloadService } from "./release-production-workload.service";
+import { ReleaseProductionConcurrencyReadService } from "./release-production-concurrency-read.service";
 import { ReleaseServerCapacityRepository } from "./release-server-capacity.repository";
 import { ReleaseServerCapacityService } from "./release-server-capacity.service";
 
@@ -14,4 +15,5 @@ export const releaseProductionProviders = [
   ReleaseServerCapacityRepository,
   ReleaseServerCapacityService,
   ReleaseProductionDnsProbeService,
+  ReleaseProductionConcurrencyReadService,
 ];

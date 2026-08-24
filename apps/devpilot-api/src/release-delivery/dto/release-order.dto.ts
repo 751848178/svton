@@ -11,6 +11,14 @@ export class CreateReleaseOrderDto {
   @MinLength(1)
   @MaxLength(100)
   @Matches(/\S/)
+  releaseName: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
+  @Matches(/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/, {
+    message: "版本号必须使用 x.y.z 格式",
+  })
   releaseVersion: string;
 
   @IsString()

@@ -11,6 +11,45 @@ const present = (record: ReturnType<typeof projectDirectoryRecord>) =>
   toProjectDirectoryItem(record, "ssh-v1");
 
 describe("project directory presenter", () => {
+  it("exposes every environment with its current version and derives latestReleaseAt", () => {
+    const record = projectDirectoryRecord();
+    const item = present(record);
+    // 列表页动态环境列：每个环境一项，键与版本齐备
+    expect(item.environments.length).toBe(record.environments.length);
+    for (const environment of record.environments) {
+      const column = item.environments.find((entry) => entry.id === environment.id);
+      expect(column).toBeDefined();
+      expect(column?.key).toBe(environment.key);
+    }
+    // latestReleaseAt = 各环境当前版本生效时间的最大值
+    const effectiveDates = item.environments
+      .map((entry) => entry.currentVersionEffectiveAt)
+      .filter((value): value is string => Boolean(value));
+    expect(item.latestReleaseAt).toBe(
+      effectiveDates.reduce((latest, value) => (value > latest ? value : latest), effectiveDates[0]),
+    );
+  });
+
+  it("exposes components with the first declared port", () => {
+    const item = present(projectDirectoryRecord());
+    expect(Array.isArray(item.components)).toBe(true);
+    for (const component of item.components) {
+      expect(typeof component.name).toBe("string");
+      expect(component.port === null || Number.isInteger(component.port)).toBe(true);
+    }
+  });
+
+  it("nulls latestReleaseAt when no environment has a live version", () => {
+    const record = projectDirectoryRecord();
+    for (const environment of record.environments) {
+      environment.currentEnvironmentVersion = null;
+      environment.currentEnvironmentVersionId = null;
+    }
+    const item = present(record);
+    expect(item.environments.every((entry) => entry.currentVersion === null)).toBe(true);
+    expect(item.latestReleaseAt).toBeNull();
+  });
+
   it("projects the exact detail readiness checkpoints and next action", () => {
     const record = projectDirectoryRecord();
     const directory = present(record);

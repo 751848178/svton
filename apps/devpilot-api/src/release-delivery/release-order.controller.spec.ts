@@ -56,7 +56,11 @@ describe("ReleaseOrderController", () => {
   });
 
   it("authorizes create and forwards only the validated DTO", async () => {
-    const dto = { releaseVersion: "2.4.1", note: "First" };
+    const dto = {
+      releaseName: "Stable",
+      releaseVersion: "2.4.1",
+      note: "First",
+    };
     await controller.create(request, "project-1", dto);
     expect(access.assertCreate).toHaveBeenCalled();
     expect(orders.create).toHaveBeenCalledWith(

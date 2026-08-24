@@ -28,6 +28,7 @@ describe("ReleaseOrderWithdrawService", () => {
         teamId: "team-1",
         projectId: "project-1",
         createdById: "actor-1",
+        releaseName: "Stable",
         releaseVersion: "2.4.1",
         note: null,
         status: "canceled",

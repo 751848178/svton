@@ -1,6 +1,6 @@
 import { BadRequestException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
-import { stripSecretEnv } from "../deployment/deployment-secret-strip.utils";
+import { redactCommandPlanForPersistence } from "../deployment/deployment-secret-strip.utils";
 import {
   isRecord,
   readBoolean,
@@ -38,7 +38,7 @@ export function buildServerExecutionInputSnapshot(
     adapterKey: input.adapterKey,
     dryRun: input.dryRun,
     target: input.target,
-    steps: stripSecretEnv(input.steps),
+    steps: redactCommandPlanForPersistence(input.steps),
     warnings: input.warnings || [],
     metadata: input.metadata || {},
     blockOnWarnings: input.blockOnWarnings,

@@ -1,9 +1,10 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { hasVerifiedStagingProof } from "./environment-version-policy.service";
-
 const versionInclude = {
-  releaseOrder: { select: { id: true, releaseVersion: true } },
+  releaseOrder: {
+    select: { id: true, releaseName: true, releaseVersion: true },
+  },
   artifactManifest: {
     select: {
       id: true,
@@ -15,7 +16,6 @@ const versionInclude = {
     select: { id: true, status: true, createdAt: true, finishedAt: true },
   },
 } as const;
-
 const exactCurrentVersionInclude = {
   select: {
     id: true,
@@ -32,6 +32,7 @@ const exactCurrentVersionInclude = {
         id: true,
         teamId: true,
         projectId: true,
+        releaseName: true,
         releaseVersion: true,
       },
     },
@@ -59,9 +60,14 @@ const exactCurrentVersionInclude = {
     },
     releaseRun: {
       select: {
-        id: true, teamId: true, projectId: true, environmentId: true,
-        releaseOrderId: true, artifactManifestId: true,
-        status: true, verifiedDigest: true,
+        id: true,
+        teamId: true,
+        projectId: true,
+        environmentId: true,
+        releaseOrderId: true,
+        artifactManifestId: true,
+        status: true,
+        verifiedDigest: true,
       },
     },
   },
@@ -96,10 +102,20 @@ export class EnvironmentVersionReadRepository {
         releaseRuns: {
           where: {
             OR: [
-              { status: { in: ["awaiting_approval", "running", "awaiting_validation"] } },
-              { status: "succeeded", productionPromotionCommands: { some: {
-                legacyReconcileRequired: true, status: "running",
-              } } },
+              {
+                status: {
+                  in: ["awaiting_approval", "running", "awaiting_validation"],
+                },
+              },
+              {
+                status: "succeeded",
+                productionPromotionCommands: {
+                  some: {
+                    legacyReconcileRequired: true,
+                    status: "running",
+                  },
+                },
+              },
             ],
           },
           orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -138,9 +154,17 @@ export class EnvironmentVersionReadRepository {
       select: {
         id: true,
         digest: true,
-        releaseOrder: { select: { id: true, releaseVersion: true } },
+        createdAt: true,
+        releaseOrder: {
+          select: { id: true, releaseName: true, releaseVersion: true },
+        },
         buildRun: {
-          select: { id: true, revision: true, sourceCommitSha: true },
+          select: {
+            id: true,
+            revision: true,
+            sourceBranch: true,
+            sourceCommitSha: true,
+          },
         },
         deploymentRuns: {
           where: {

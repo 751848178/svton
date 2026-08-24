@@ -9,7 +9,7 @@ import {
 export function releaseOrderListCountQuery(input: ReleaseOrderListQueryInput) {
   return Prisma.sql`
     WITH scoped_orders AS (
-      SELECT ro.id, ro.teamId, ro.projectId, ro.releaseVersion,
+      SELECT ro.id, ro.teamId, ro.projectId, ro.releaseVersion, ro.releaseName,
         ro.note, ro.status, ro.createdAt, ro.updatedAt
       FROM ReleaseOrder ro
       INNER JOIN Project p
@@ -26,7 +26,7 @@ export function releaseOrderListCountQuery(input: ReleaseOrderListQueryInput) {
 export function releaseOrderListRowsQuery(input: ReleaseOrderListQueryInput) {
   return Prisma.sql`
     WITH scoped_orders AS (
-      SELECT ro.id, ro.teamId, ro.projectId, ro.releaseVersion,
+      SELECT ro.id, ro.teamId, ro.projectId, ro.releaseVersion, ro.releaseName,
         ro.note, ro.status, ro.createdAt, ro.updatedAt
       FROM ReleaseOrder ro
       INNER JOIN Project p

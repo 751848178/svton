@@ -27,6 +27,7 @@ export class ReleaseOrderRepository {
     teamId: string;
     projectId: string;
     actorId: string;
+    releaseName: string;
     releaseVersion: string;
     note: string | null;
   }) {
@@ -35,6 +36,7 @@ export class ReleaseOrderRepository {
         teamId: input.teamId,
         projectId: input.projectId,
         createdById: input.actorId,
+        releaseName: input.releaseName,
         releaseVersion: input.releaseVersion,
         note: input.note,
       },

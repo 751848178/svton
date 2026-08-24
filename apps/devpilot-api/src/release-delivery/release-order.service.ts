@@ -20,23 +20,31 @@ export class ReleaseOrderService {
     teamId: string,
     actorId: string,
     projectId: string,
-    dto: CreateReleaseOrderDto,
+    dto: Omit<CreateReleaseOrderDto, "releaseName"> & { releaseName?: string },
   ) {
     await this.assertProject(teamId, projectId);
     const releaseVersion = dto.releaseVersion.trim();
+    const releaseName = dto.releaseName?.trim() || releaseVersion;
     const note = normalizeNote(dto.note);
     const existing = await this.repository.findByVersion(
       projectId,
       releaseVersion,
     );
     if (existing) {
-      return this.replayOrConflict(existing, note, teamId, projectId);
+      return this.replayOrConflict(
+        existing,
+        releaseName,
+        note,
+        teamId,
+        projectId,
+      );
     }
     try {
       const created = await this.repository.create({
         teamId,
         actorId,
         projectId,
+        releaseName,
         releaseVersion,
         note,
       });
@@ -48,7 +56,13 @@ export class ReleaseOrderService {
         releaseVersion,
       );
       if (!concurrent) throw error;
-      return this.replayOrConflict(concurrent, note, teamId, projectId);
+      return this.replayOrConflict(
+        concurrent,
+        releaseName,
+        note,
+        teamId,
+        projectId,
+      );
     }
   }
 
@@ -64,15 +78,26 @@ export class ReleaseOrderService {
   }
 
   private replayOrConflict(
-    existing: { id: string; note: string | null },
+    existing: {
+      id: string;
+      releaseName: string | null;
+      releaseVersion: string;
+      note: string | null;
+    },
+    releaseName: string,
     note: string | null,
     teamId: string,
     projectId: string,
   ) {
-    if (existing.note === note) {
+    if (
+      (existing.releaseName ?? existing.releaseVersion) === releaseName &&
+      existing.note === note
+    ) {
       return this.canonicalDetail(teamId, projectId, existing.id);
     }
-    throw new ConflictException("该发布版本号已存在，且说明与原请求不一致");
+    throw new ConflictException(
+      "该发布版本号已存在，且名称或说明与原请求不一致",
+    );
   }
 
   private async canonicalDetail(

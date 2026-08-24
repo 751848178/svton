@@ -9,6 +9,7 @@ interface DetailRecord {
   id: string;
   projectId: string;
   releaseVersion: string;
+  releaseName?: string | null;
   note: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -60,6 +61,7 @@ export function presentReleaseOrderDetail(input: {
     id: order.id,
     projectId: order.projectId,
     releaseVersion: order.releaseVersion,
+    releaseName: order.releaseName ?? order.releaseVersion,
     note: order.note,
     createdAt: order.createdAt,
     updatedAt: order.updatedAt,

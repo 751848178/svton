@@ -2,6 +2,10 @@ import { ReleaseGateCapabilityRegistryService } from "./release-gate-capability-
 import type { ReleaseGateCapabilityId } from "./release-gate-catalog.types";
 import type { ReleaseGateEvidenceContext } from "./release-gate-evidence.repository";
 import { RELEASE_GATE_DEFINITIONS } from "./release-gate-definition.catalog";
+import {
+  buildEvidence,
+  commitBuildEvidenceContext,
+} from "./release-gate-commit-build-provider.spec-fixture";
 import { createReleaseGateRegistry } from "./release-gate-test-registry.spec-utils";
 
 const NOW = new Date("2026-08-03T08:45:00.000Z");
@@ -10,7 +14,7 @@ describe("Commit/Build release gate providers", () => {
   const registry = createReleaseGateRegistry();
 
   it("reports positive real M01-M05 evidence with freshness metadata", () => {
-    const context = evidenceContext();
+    const context = commitBuildEvidenceContext();
     const checks = evaluate(registry, context);
     for (const id of [
       "C01",
@@ -47,7 +51,7 @@ describe("Commit/Build release gate providers", () => {
   });
 
   it("blocks failed build, security, test, and corrupt Manifest evidence", () => {
-    const context = evidenceContext();
+    const context = commitBuildEvidenceContext();
     const build = context.buildRuns[0];
     build.status = "failed";
     build.errorCode = "BUILD_COMMAND_FAILED";
@@ -70,12 +74,13 @@ describe("Commit/Build release gate providers", () => {
   });
 
   it("turns expired source and analysis evidence into unchecked", () => {
-    const context = evidenceContext();
+    const context = commitBuildEvidenceContext();
     const old = new Date("2026-07-01T00:00:00.000Z");
     context.project.repositoryConnection!.verifiedAt = old;
     context.project.repositoryConnection!.updatedAt = old;
     context.project.repositoryAnalysisRuns[0].finishedAt = old;
     context.buildRuns[0].finishedAt = old;
+    context.decisionTarget = undefined;
     const checks = evaluate(registry, context);
     expect(checks.C01).toMatchObject({
       status: "unchecked",
@@ -95,7 +100,7 @@ describe("Commit/Build release gate providers", () => {
   });
 
   it("keeps missing source state and scanner providers unavailable", () => {
-    const context = evidenceContext();
+    const context = commitBuildEvidenceContext();
     context.decisionTarget = undefined;
     context.buildRuns[0].gateSummary = { build: { status: "passed" } };
     context.project.repositoryAnalysisRuns[0].result = {
@@ -118,7 +123,7 @@ describe("Commit/Build release gate providers", () => {
   });
 
   it("does not reuse a historical BuildRun when current source resolution fails", () => {
-    const context = evidenceContext();
+    const context = commitBuildEvidenceContext();
     context.decisionTarget = { sourceResolution: "unavailable" };
     const checks = evaluate(registry, context);
     expect(checks.C01).toMatchObject({
@@ -128,7 +133,7 @@ describe("Commit/Build release gate providers", () => {
   });
 
   it("rejects a stale frozen source policy revision", () => {
-    const context = evidenceContext();
+    const context = commitBuildEvidenceContext();
     context.project.currentSourcePolicyRevision!.id = "policy-2";
     const checks = evaluate(registry, context);
     expect(checks.C03).toMatchObject({
@@ -152,132 +157,4 @@ function evaluate(
       registry.evaluate(definition, context, NOW),
     ]),
   );
-}
-
-function evidenceContext() {
-  const at = new Date("2026-08-03T08:00:00.000Z");
-  const digest = `sha256:${"a".repeat(64)}`;
-  return {
-    id: "order-1",
-    releaseVersion: "2.4.1",
-    project: {
-      currentSourcePolicyRevision: {
-        id: "policy-1",
-        profileId: "controlled-local-acceptance-v2",
-        profileVersion: 2,
-        externalRequiredChecks: 0,
-        requiredIndependentApprovals: 1,
-        snapshotHash: "policy-snapshot-hash",
-      },
-      repositoryConnection: {
-        id: "connection-1",
-        provider: "github",
-        status: "connected",
-        defaultBranch: "main",
-        selectedBranch: "main",
-        commitSha: "abc123",
-        verifiedAt: at,
-        errorCode: null,
-        errorMessage: null,
-        updatedAt: at,
-      },
-      repositoryAnalysisRuns: [
-        {
-          id: "analysis-1",
-          status: "succeeded",
-          branch: "main",
-          commitSha: "abc123",
-          parserVersion: "f402.1",
-          result: {
-            repository: {
-              monorepo: false,
-              packageManager: "pnpm",
-              lockfiles: ["pnpm-lock.yaml"],
-            },
-            services: [{ key: "api" }],
-            changeImpact: { highRiskDirectories: [] },
-          },
-          errorCode: null,
-          errorMessage: null,
-          finishedAt: at,
-          createdAt: at,
-        },
-      ],
-    },
-    buildRuns: [
-      {
-        id: "build-1",
-        revision: 1,
-        status: "succeeded",
-        sourceBranch: "main",
-        sourceCommitSha: "abc123",
-        inputSnapshot: {},
-        errorCode: null,
-        errorMessage: null,
-        gateSummary: {
-          source: { status: "passed" },
-          install: buildEvidence("install"),
-          quality: buildEvidence("quality"),
-          build: { status: "passed" },
-          tests: buildEvidence("tests"),
-          security: {
-            secretScan: buildEvidence("secretScan"),
-            sast: buildEvidence("sast"),
-            vulnerabilities: buildEvidence("vulnerabilities"),
-          },
-        },
-        startedAt: at,
-        finishedAt: at,
-        createdAt: at,
-        manifest: {
-          id: "manifest-1",
-          digest,
-          provenance: {},
-          sbom: {},
-          signature: {},
-          createdAt: at,
-          items: [
-            { componentKey: "project-bundle", digest, artifactType: "zip" },
-          ],
-        },
-      },
-    ],
-    decisionTarget: {
-      sourceBranch: "main",
-      sourceCommitSha: "abc123",
-      sourceEvidence: {
-        status: "passed",
-        reasonCode: "source_state_verified",
-        checkedAt: at.toISOString(),
-        evidenceRef: "release-evidence://source-abc123/source-state.json",
-        evidenceHash: "source-evidence-hash",
-        exactCommit: "abc123",
-        defaultHead: "abc123",
-        baselineCommit: "abc122",
-        mergeBase: "abc122",
-        ahead: 1,
-        behind: 0,
-        mergeTreeClean: true,
-        changedPaths: ["apps/api/src/main.ts"],
-        highRiskPaths: [],
-        commitAuthorUserId: "author-1",
-        sourcePolicyRevision: {
-          id: "policy-1",
-          profileId: "controlled-local-acceptance-v2",
-          profileVersion: 2,
-          externalRequiredChecks: 0,
-          requiredIndependentApprovals: 1,
-          snapshotHash: "policy-snapshot-hash",
-        },
-      },
-    },
-  } as unknown as ReleaseGateEvidenceContext;
-}
-
-function buildEvidence(category: string) {
-  return {
-    status: "passed",
-    evidenceRef: `release-evidence://build-1/${category}.json`,
-    evidenceHash: `${category}-evidence-hash`,
-  };
 }

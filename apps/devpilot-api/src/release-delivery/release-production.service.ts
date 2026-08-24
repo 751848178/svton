@@ -1,8 +1,13 @@
-import { ConflictException, Injectable, UnprocessableEntityException } from "@nestjs/common";
+import {
+  ConflictException,
+  Injectable,
+  UnprocessableEntityException,
+} from "@nestjs/common";
 import { ReleaseProductionRepository } from "./release-production.repository";
 import { ReleaseStrategyCapabilityService } from "./release-strategy-capability.service";
 import type { ReleaseStrategy } from "./release-strategy-capability.types";
 import { ReleaseProductionPreflightService } from "./release-production-preflight.service";
+import { ReleaseProductionConcurrencyReadService } from "./release-production-concurrency-read.service";
 
 @Injectable()
 export class ReleaseProductionService {
@@ -10,6 +15,7 @@ export class ReleaseProductionService {
     private readonly repository: ReleaseProductionRepository,
     private readonly capabilities: ReleaseStrategyCapabilityService,
     private readonly preflight: ReleaseProductionPreflightService,
+    private readonly concurrency: ReleaseProductionConcurrencyReadService,
   ) {}
 
   async preview(
@@ -22,19 +28,14 @@ export class ReleaseProductionService {
   ) {
     this.capabilities.requireExecutable(strategy);
     const preview = await this.repository.preview(
-      teamId, projectId, orderId, manifestId, strategy,
+      teamId,
+      projectId,
+      orderId,
+      manifestId,
+      strategy,
     );
     if (!actorId) return preview;
-    return {
-      ...preview,
-      preflight: await this.preflight.preview({
-        teamId,
-        projectId,
-        releaseOrderId: orderId,
-        actorId,
-        preview,
-      }),
-    };
+    return this.withPreflight({ teamId, projectId, orderId, actorId, preview });
   }
 
   async list(teamId: string, projectId: string, releaseOrderId: string) {
@@ -52,15 +53,20 @@ export class ReleaseProductionService {
   ) {
     this.capabilities.requireExecutable(strategy);
     const preview = await this.repository.preview(
-      teamId, projectId, orderId, manifestId, strategy,
+      teamId,
+      projectId,
+      orderId,
+      manifestId,
+      strategy,
     );
-    return {
-      ...preview,
-      preflight: await this.preflight.preview({
-        teamId, projectId, releaseOrderId: orderId, actorId, preview,
-        refreshEvidence: true,
-      }),
-    };
+    return this.withPreflight({
+      teamId,
+      projectId,
+      orderId,
+      actorId,
+      preview,
+      refreshEvidence: true,
+    });
   }
 
   async confirm(input: {
@@ -76,8 +82,11 @@ export class ReleaseProductionService {
     const strategy = input.strategy ?? "standard";
     this.capabilities.requireExecutable(strategy);
     const preview = await this.repository.preview(
-      input.teamId, input.projectId, input.releaseOrderId,
-      input.manifestId, strategy,
+      input.teamId,
+      input.projectId,
+      input.releaseOrderId,
+      input.manifestId,
+      strategy,
     );
     if (preview.inputHash !== input.expectedInputHash) {
       throw new ConflictException(
@@ -104,5 +113,31 @@ export class ReleaseProductionService {
       providerKey: this.preflight.providerKey,
       admissionProof: preflight.admissionProof,
     });
+  }
+
+  private async withPreflight(input: {
+    teamId: string;
+    projectId: string;
+    orderId: string;
+    actorId: string;
+    preview: Awaited<ReturnType<ReleaseProductionRepository["preview"]>>;
+    refreshEvidence?: boolean;
+  }) {
+    const [preflight, concurrency] = await Promise.all([
+      this.preflight.preview({
+        teamId: input.teamId,
+        projectId: input.projectId,
+        releaseOrderId: input.orderId,
+        actorId: input.actorId,
+        preview: input.preview,
+        ...(input.refreshEvidence ? { refreshEvidence: true } : {}),
+      }),
+      this.concurrency.inspect({
+        teamId: input.teamId,
+        projectId: input.projectId,
+        environmentId: input.preview.snapshot.environment.id,
+      }),
+    ]);
+    return { ...input.preview, preflight: { ...preflight, concurrency } };
   }
 }

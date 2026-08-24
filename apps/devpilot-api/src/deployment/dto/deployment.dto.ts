@@ -6,6 +6,11 @@ export class ListDeploymentRunsQueryDto {
   @IsString()
   projectId?: string;
 
+  /** 按发布单过滤（部署记录跟随发布的 Drawer 数据源）。 */
+  @IsOptional()
+  @IsString()
+  releaseOrderId?: string;
+
   @IsOptional()
   @IsString()
   applicationId?: string;

@@ -64,9 +64,11 @@ export const DEPLOYMENT_RUN_INCLUDE = {
         select: {
           id: true,
           name: true,
-          releasePlan: { select: { id: true, name: true, status: true } },
+          releasePlan: { select: { id: true, name: true, status: true, releaseOrderId: true } },
         },
       },
     },
   },
+  // 归属链之一：artifactManifest.releaseOrderId（当前库的可靠链）。
+  artifactManifest: { select: { id: true, releaseOrderId: true } },
 } satisfies Prisma.DeploymentRunInclude;

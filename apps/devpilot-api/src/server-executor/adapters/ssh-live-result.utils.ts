@@ -1,5 +1,5 @@
 import { Prisma } from "@prisma/client";
-import { stripSecretEnv } from "../../deployment/deployment-secret-strip.utils";
+import { redactCommandPlanForPersistence } from "../../deployment/deployment-secret-strip.utils";
 import {
   ServerExecutionInput,
   ServerExecutionResult,
@@ -43,7 +43,7 @@ export function buildSshLivePlan(
     },
     warnings,
     metadata: input.metadata || {},
-    steps: stripSecretEnv(input.steps),
+    steps: redactCommandPlanForPersistence(input.steps),
   });
 }
 
@@ -60,7 +60,7 @@ export function buildSshLiveBlockedResult(
     adapterKey: input.adapterKey,
     executable: false,
     warnings,
-    commandSteps: stripSecretEnv(input.steps),
+    commandSteps: redactCommandPlanForPersistence(input.steps),
     commandPlan,
     logs: toJsonValue([{ level: "warn", message: error }]),
     result: toJsonValue({
@@ -87,7 +87,7 @@ export function buildSshLiveCancelledResult(
     adapterKey: input.adapterKey,
     executable: false,
     warnings,
-    commandSteps: stripSecretEnv(input.steps),
+    commandSteps: redactCommandPlanForPersistence(input.steps),
     commandPlan,
     // TODO(F8): stdout/stderr are truncated but NOT scrubbed of known secret
     // values. A later step that prints the env (or runs `set -x`) could echo a

@@ -30,6 +30,7 @@ export interface ReleaseOrderListItem {
   id: string;
   projectId: string;
   releaseVersion: string;
+  releaseName: string;
   note: string | null;
   persistedStatus: ReleaseOrderPersistedStatus;
   lifecycle: ReleaseOrderLifecycle;

@@ -42,7 +42,7 @@ import {
   listEnvVarKeys,
   resolveDeploymentEnvVars,
 } from "./deployment-env-injection.utils";
-import { stripSecretEnv } from "./deployment-secret-strip.utils";
+import { redactCommandPlanForPersistence } from "./deployment-secret-strip.utils";
 import {
   isRecord,
   readString,
@@ -158,6 +158,23 @@ export class DeploymentService {
 
     if (query.projectId) {
       where.projectId = query.projectId;
+    }
+    if (query.releaseOrderId) {
+      // 归属双链（数据事实）：
+      //  1) DeploymentRun.artifactManifestId → ArtifactManifest.releaseOrderId
+      //     ——当前库中唯一可靠链（29 个遗留 ReleasePlan 的 releaseOrderId 均为 NULL）。
+      //  2) releaseStageAttempts → ReleaseStage → ReleasePlan.releaseOrderId
+      //     ——发布编排回填后的前瞻链。
+      where.OR = [
+        { artifactManifest: { releaseOrderId: query.releaseOrderId } },
+        {
+          releaseStageAttempts: {
+            some: {
+              releaseStage: { releasePlan: { releaseOrderId: query.releaseOrderId } },
+            },
+          },
+        },
+      ];
     }
     if (query.applicationId) {
       where.applicationId = query.applicationId;
@@ -412,7 +429,7 @@ export class DeploymentService {
         data: {
           status: DeploymentRunStatus.BLOCKED,
           operationApprovalId: approval.id,
-          commandPlan: this.toJsonValue(stripSecretEnv(steps)),
+          commandPlan: this.toJsonValue(redactCommandPlanForPersistence(steps)),
           logs: this.toJsonValue([
             {
               level: "info",
@@ -970,7 +987,7 @@ export class DeploymentService {
         data: {
           status: DeploymentRunStatus.BLOCKED,
           operationApprovalId: approval.id,
-          commandPlan: this.toJsonValue(stripSecretEnv(steps)),
+          commandPlan: this.toJsonValue(redactCommandPlanForPersistence(steps)),
           logs: this.toJsonValue([
             {
               level: "info",

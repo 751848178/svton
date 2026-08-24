@@ -29,6 +29,17 @@ export interface ProjectDirectoryIntakeSummary {
   componentCount: number | null;
 }
 
+export interface ProjectDirectoryEnvironmentVersionColumn {
+  id: string;
+  key: string;
+  name: string;
+  baselineRole: string | null;
+  /** 该环境当前生效的发布版本号（无版本为 null）。 */
+  currentVersion: string | null;
+  /** 当前版本生效时间（ISO，无版本为 null）。 */
+  currentVersionEffectiveAt: string | null;
+}
+
 export interface ProjectDirectoryItem {
   id: string;
   name: string;
@@ -46,6 +57,12 @@ export interface ProjectDirectoryItem {
     currentVersion: string | null;
     domain: string | null;
   };
+  /** 项目全部环境及其当前版本（驱动列表页动态环境列）。 */
+  environments: ProjectDirectoryEnvironmentVersionColumn[];
+  /** 项目组件（名称 + 首个端口），驱动列表页「组件」列。 */
+  components: Array<{ name: string; port: number | null }>;
+  /** 最近一次发布时间：各环境当前版本生效时间的最大值（ISO，从未发布为 null）。 */
+  latestReleaseAt: string | null;
   activity: ProjectDirectoryActivity;
   checkpoints: import("../release-delivery/project-delivery-summary.types").ProjectDeliveryCheckpoint[];
   nextAction: import("../release-delivery/project-delivery-summary.types").ProjectDeliveryAction | null;

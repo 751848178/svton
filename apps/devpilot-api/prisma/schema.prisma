@@ -3021,6 +3021,7 @@ model ReleaseOrder {
   teamId         String
   projectId      String
   releaseVersion String
+  releaseName    String?  @db.VarChar(100)
   note           String?  @db.Text
   status         String   @default("draft") // draft | active | succeeded | failed | canceled
   createdById    String?

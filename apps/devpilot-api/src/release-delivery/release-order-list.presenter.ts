@@ -10,6 +10,7 @@ export interface ReleaseOrderListRow extends ReleaseOrderLifecycleRow {
   id: string;
   projectId: string;
   releaseVersion: string;
+  releaseName: string | null;
   note: string | null;
   createdAt: Date;
   sourceBranch: string | null;
@@ -46,6 +47,7 @@ export function presentReleaseOrderListRow(
     id: row.id,
     projectId: row.projectId,
     releaseVersion: row.releaseVersion,
+    releaseName: row.releaseName ?? row.releaseVersion,
     note: row.note,
     ...presentReleaseOrderLifecycle(row),
     createdAt: iso(row.createdAt),

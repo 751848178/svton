@@ -16,6 +16,7 @@ describe("ReleaseOrderService", () => {
     id: "order-1",
     teamId: "team-1",
     projectId: "project-1",
+    releaseName: "2.4.1",
     releaseVersion: "2.4.1",
     note: "First release",
     status: "draft",
@@ -69,6 +70,7 @@ describe("ReleaseOrderService", () => {
       teamId: "team-1",
       actorId: "user-1",
       projectId: "project-1",
+      releaseName: "2.4.1",
       releaseVersion: "2.4.1",
       note: "First release",
     });
