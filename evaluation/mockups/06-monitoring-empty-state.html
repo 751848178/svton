@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>设计稿 06 · 监控空态修复（F2）</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; font-size: 14px; color: #0f172a; background: #f8fafc; }
+  .note { background: #eff6ff; border-left: 4px solid #2563eb; padding: 12px 16px; font-size: 13px; color: #1e3a8a; line-height: 1.6; }
+  .note strong { color: #1d4ed8; }
+  .shell { display: flex; min-height: calc(100vh - 46px); }
+  .sidebar { width: 220px; background: #e2e8f0; padding: 16px 0; flex-shrink: 0; }
+  .sidebar .logo { font-weight: 700; font-size: 16px; padding: 0 20px 16px; border-bottom: 1px solid #cbd5e1; margin-bottom: 12px; }
+  .sidebar .menu { padding: 6px 20px; color: #475569; font-size: 13px; }
+  .sidebar .menu.active { background: #cbd5e1; color: #0f172a; font-weight: 600; }
+  .content { flex: 1; padding: 24px; }
+  .page-title { font-size: 20px; font-weight: 700; margin-bottom: 16px; }
+  .cols { display: flex; gap: 20px; align-items: flex-start; }
+  .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; }
+  .card h2 { font-size: 15px; font-weight: 600; }
+  .col-metrics { flex: 3; }
+  .col-slo { flex: 2; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .card-head h2 { margin-bottom: 0; }
+  .timerange { display: flex; gap: 4px; background: #f1f5f9; border-radius: 6px; padding: 2px; }
+  .timerange span { padding: 4px 10px; font-size: 12px; border-radius: 4px; color: #94a3b8; cursor: not-allowed; }
+  .timerange span.disabled { background: transparent; }
+  .tooltip-wrap { position: relative; }
+  .tooltip-wrap .tip { visibility: hidden; opacity: 0; position: absolute; bottom: 130%; right: 0; background: #0f172a; color: #fff; font-size: 12px; padding: 6px 10px; border-radius: 6px; white-space: nowrap; transition: opacity .15s; z-index: 10; }
+  .tooltip-wrap:hover .tip { visibility: visible; opacity: 1; }
+  .empty-state { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 32px 16px; }
+  .chart-skel { width: 220px; height: 110px; border: 2px dashed #cbd5e1; border-radius: 8px; position: relative; margin-bottom: 18px; background: linear-gradient(to top, transparent 24px, #f1f5f9 25px), linear-gradient(to right, transparent 43px, #f1f5f9 44px); background-size: 100% 26px, 44px 100%; }
+  .chart-skel::after { content: ""; position: absolute; left: 20px; right: 20px; bottom: 26px; height: 2px; border-top: 2px dashed #cbd5e1; }
+  .empty-title { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+  .empty-reason { font-size: 13px; color: #64748b; margin-bottom: 16px; line-height: 1.6; }
+  .btn { display: inline-block; padding: 8px 16px; border-radius: 6px; font-size: 13px; cursor: pointer; border: none; }
+  .btn-primary { background: #2563eb; color: #fff; }
+  .btn-outline { background: #fff; color: #2563eb; border: 1px solid #2563eb; }
+  .empty-actions { display: flex; gap: 10px; }
+  .slo-list { display: flex; flex-direction: column; }
+  .slo-row { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-bottom: 1px solid #f1f5f9; }
+  .slo-row:last-child { border-bottom: none; }
+  .slo-name { font-weight: 600; font-size: 13px; }
+  .slo-name .svc-sub { font-weight: 400; font-size: 12px; color: #64748b; display: block; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; color: #64748b; background: #f1f5f9; white-space: nowrap; }
+  .slo-reason { font-size: 12px; color: #94a3b8; margin-left: auto; }
+  .link-disabled { color: #94a3b8; font-size: 13px; cursor: not-allowed; text-decoration: none; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="note">
+  <strong>F2 · 监控空态修复：</strong>「资源指标」面板无数据时不再整块空白，显示原因说明与可执行动作；时间范围切换器置灰并说明原因；「服务 SLO」的「无数据」补充原因小字，不可用的「详情」链接置灰。
+</div>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="logo">Devpilot</div>
+    <div class="menu">项目</div>
+    <div class="menu">发布</div>
+    <div class="menu">资源</div>
+    <div class="menu active">监控告警</div>
+  </aside>
+  <main class="content">
+    <h1 class="page-title">监控告警 · Picshare</h1>
+    <div class="cols">
+      <div class="card col-metrics">
+        <div class="card-head">
+          <h2>资源指标</h2>
+          <div class="tooltip-wrap">
+            <div class="timerange"><span>15m</span><span>1h</span><span>6h</span><span>24h</span></div>
+            <span class="tip">有数据后可切换时间范围</span>
+          </div>
+        </div>
+        <div class="empty-state">
+          <div class="chart-skel"></div>
+          <div class="empty-title">暂无资源指标数据</div>
+          <div class="empty-reason">尚未同步服务器资源，或所选时间范围内无采样。</div>
+          <div class="empty-actions">
+            <button class="btn btn-primary">前往资源操作同步 →</button>
+            <button class="btn btn-outline">了解指标采集 →</button>
+          </div>
+        </div>
+      </div>
+      <div class="card col-slo">
+        <div class="card-head"><h2>服务 SLO</h2></div>
+        <div class="slo-list">
+          <div class="slo-row">
+            <span class="slo-name">backend<span class="svc-sub">@picshare/mobile 后端服务</span></span>
+            <span class="tag">无数据</span>
+            <span class="slo-reason">近 1 小时无部署与请求</span>
+            <a class="link-disabled">详情</a>
+          </div>
+          <div class="slo-row">
+            <span class="slo-name">picshare-proxy<span class="svc-sub">边缘代理</span></span>
+            <span class="tag">无数据</span>
+            <span class="slo-reason">近 1 小时无部署与请求</span>
+            <a class="link-disabled">详情</a>
+          </div>
+          <div class="slo-row">
+            <span class="slo-name">admin<span class="svc-sub">管理后台</span></span>
+            <span class="tag">无数据</span>
+            <span class="slo-reason">近 1 小时无部署与请求</span>
+            <a class="link-disabled">详情</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>设计稿 03 · 发布单列表与门禁详情修复（P2/P5/P6/P7）</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; font-size: 14px; color: #0f172a; background: #f8fafc; }
+  .note { background: #eff6ff; border-left: 4px solid #2563eb; padding: 12px 16px; font-size: 13px; color: #1e3a8a; line-height: 1.6; }
+  .note strong { color: #1d4ed8; }
+  .shell { display: flex; min-height: calc(100vh - 46px); }
+  .sidebar { width: 220px; background: #e2e8f0; padding: 16px 0; flex-shrink: 0; }
+  .sidebar .logo { font-weight: 700; font-size: 16px; padding: 0 20px 16px; border-bottom: 1px solid #cbd5e1; margin-bottom: 12px; }
+  .sidebar .menu { padding: 6px 20px; color: #475569; font-size: 13px; }
+  .sidebar .menu.active { background: #cbd5e1; color: #0f172a; font-weight: 600; }
+  .content { flex: 1; padding: 24px; }
+  .page-title { font-size: 20px; font-weight: 700; margin-bottom: 16px; }
+  .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 20px; }
+  .card h2 { font-size: 15px; font-weight: 600; margin-bottom: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th { text-align: left; padding: 10px 12px; background: #f8fafc; color: #64748b; font-weight: 600; font-size: 12px; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+  tbody td { padding: 12px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+  .rel-link { color: #2563eb; font-weight: 600; text-decoration: none; cursor: pointer; }
+  .rel-link:hover { text-decoration: underline; }
+  .sub { font-size: 12px; color: #64748b; margin-top: 2px; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; white-space: nowrap; }
+  .tag-blue { color: #2563eb; background: #eff6ff; }
+  .tag-red { color: #dc2626; background: #fef2f2; }
+  .tag-amber { color: #d97706; background: #fffbeb; }
+  .link { color: #2563eb; text-decoration: none; cursor: pointer; margin-right: 10px; white-space: nowrap; }
+  .link:hover { text-decoration: underline; }
+  .gate-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+  .gate-head h2 { margin-bottom: 0; }
+  .gate-summary { font-size: 13px; color: #64748b; }
+  .gate-summary b { color: #dc2626; }
+  .gate-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .gate-item { border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .gate-item .g-head { display: flex; align-items: center; justify-content: space-between; }
+  .gate-item .g-name { font-weight: 600; }
+  .gate-item .g-desc { font-size: 13px; color: #475569; line-height: 1.6; }
+  .gate-item .g-expire { font-size: 12px; color: #d97706; }
+  .gate-item .g-actions { margin-top: auto; padding-top: 6px; border-top: 1px dashed #e2e8f0; }
+  .picker { border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; background: #f8fafc; }
+  .picker .p-label { font-size: 12px; color: #64748b; margin-bottom: 6px; }
+  .picker select { width: 100%; padding: 8px 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; background: #fff; }
+  .tech-detail { margin-top: 8px; font-size: 12px; color: #64748b; background: #f1f5f9; border-radius: 6px; padding: 8px 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .tech-detail code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+  .copy-ic { cursor: pointer; color: #2563eb; flex-shrink: 0; }
+</style>
+</head>
+<body>
+<div class="note">
+  <strong>P2/P5/P6/P7 · 发布单列表与门禁修复：</strong>发布单行不再显示 raw cuid、名称与版本号不重复；阻断计数全页一致（均为 5）；制品下拉显示人类可读文案、raw ID 折叠进「技术细节」；门禁项附修复入口；过期时间使用自然语言格式。
+</div>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="logo">Devpilot</div>
+    <div class="menu">项目</div>
+    <div class="menu active">发布</div>
+    <div class="menu">资源</div>
+    <div class="menu">监控告警</div>
+  </aside>
+  <main class="content">
+    <h1 class="page-title">发布 · Picshare</h1>
+
+    <div class="card">
+      <h2>发布单</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>发布单</th>
+            <th>状态</th>
+            <th>变更来源</th>
+            <th>当前阶段</th>
+            <th>最近更新</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <a class="rel-link">0.0.1 · 首个稳定版</a>
+              <div class="sub">由 zhaoxb 创建于 2026-08-10</div>
+            </td>
+            <td><span class="tag tag-blue">预发（Staging）发布</span></td>
+            <td>master @ 8e7c465d</td>
+            <td>发布门禁检查</td>
+            <td>2026-08-10 19:37</td>
+            <td>
+              <a class="link">查看发布单</a><a class="link">查看构建</a><a class="link">查看部署</a><a class="link">⋯</a>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="gate-head">
+        <h2>发布门禁</h2>
+        <span class="gate-summary"><b>阻断 5</b> · 警告 0 · 待确认 0</span>
+      </div>
+      <div class="gate-grid">
+        <div class="gate-item">
+          <div class="g-head">
+            <span class="g-name">来源与必需 CI</span>
+            <span class="tag tag-red">阻断 2</span>
+          </div>
+          <div class="g-desc">缺少精确 Commit 与基线的 Git 证据，且必需 CI 流水线未通过。</div>
+          <div class="g-expire">证据已于 3 天前过期（2026-08-17 09:11）</div>
+          <div class="g-actions"><a class="link">去补齐 CI 流水线 →</a><a class="link">重新检查</a></div>
+        </div>
+        <div class="gate-item">
+          <div class="g-head">
+            <span class="g-name">变更影响识别</span>
+            <span class="tag tag-red">阻断 1</span>
+          </div>
+          <div class="g-desc">未识别本次变更影响的组件（@picshare/mobile、picshare-proxy、admin、backend），无法评估影响面。</div>
+          <div class="g-actions"><a class="link">去运行影响分析 →</a><a class="link">重新检查</a></div>
+        </div>
+        <div class="gate-item">
+          <div class="g-head">
+            <span class="g-name">Secret 与高危漏洞</span>
+            <span class="tag tag-red">阻断 1</span>
+          </div>
+          <div class="g-desc">代码仓库尚未连接安全扫描，无法确认是否存在 Secret 泄露或高危漏洞。</div>
+          <div class="g-actions"><a class="link">去连接安全扫描 →</a><a class="link">重新检查</a></div>
+        </div>
+        <div class="gate-item">
+          <div class="g-head">
+            <span class="g-name">依赖与静态质量</span>
+            <span class="tag tag-red">阻断 1</span>
+          </div>
+          <div class="g-desc">依赖审计与静态质量检查报告缺失，不满足生产发布要求。</div>
+          <div class="g-actions"><a class="link">去生成质量报告 →</a><a class="link">重新检查</a></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>选择制品</h2>
+      <div class="picker">
+        <div class="p-label">构建制品</div>
+        <select>
+          <option>R10 · master @ 8e7c465d · 2026-08-10 18:07 构建</option>
+          <option>R9 · master @ 3fa21b9c · 2026-08-09 15:42 构建</option>
+        </select>
+        <div class="tech-detail">
+          <span>技术细节：<code>BuildRun cmsn2f… · Manifest cmsn21… · sha256:32bf…</code></span>
+          <span class="copy-ic" title="复制完整标识">⧉ 复制</span>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>
