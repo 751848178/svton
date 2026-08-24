@@ -30,6 +30,7 @@ On first run in Codex, approve the repo hook via `/hooks`; the project is alread
 - Keep generic workflow skills at user level: planning, verification, codegraph navigation, and noisy-tool isolation.
 - Treat `project-skills/` as inactive source for svton-specific project skills; do not sync it to user-level skill directories by default.
 - Keep project skills focused on svton-specific behavior only. Do not duplicate generic workflow skills into project install layers.
+- Before changing Devpilot project-detail, release, project-configuration, domain/entry, environment-version, repository-analysis, or deployment-workbench UI, read and apply `project-skills/devpilot-project-workbench-design/SKILL.md` and `project-skills/devpilot-product-design-lessons/SKILL.md`.
 
 ## Noisy Commands
 

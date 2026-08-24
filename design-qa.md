@@ -37,3 +37,79 @@
 No P0, P1, or P2 issue remains against the approved subtractive workbench target. Remaining density inside expanded historical tables is a non-blocking P3 follow-up.
 
 final result: passed
+
+---
+
+# Project Workbench Design QA
+
+## Target and state
+
+- Approved source:
+  `/Users/zhaoxingbo/.codex/generated_images/01a01ff0-b46b-7c02-967f-1d890287b373/exec-87319ad5-db85-41af-8dcc-41dbb7c072bb.png`
+- Implementation route:
+  `/projects/cmrwxl1ks000k6enjiclutd5a/settings`
+- Desktop implementation evidence:
+  `/tmp/codex-tool-runs/svton/project-workbench/browser/project-config-final-portal-hover.png`
+- Desktop viewport and source pixels: 1487×1058.
+- Browser CSS viewport: 1487×1058; device pixel ratio: 2; visual scale: 1.
+- State: Production selected, one real version candidate selected, overflow
+  action open.
+
+## Full-view comparison
+
+The approved image and implementation screenshot were inspected together in a
+single comparison input at the same dimensions and state.
+
+Matched hierarchy:
+
+- project facts and one `创建发布` primary action;
+- `项目信息 / 发布 / 项目配置 / 域名与入口 / 部署记录` navigation;
+- compact contextual issue and inline repair link;
+- configuration rail with an existing-environment selector;
+- current version, compact version table, and evidence detail rail;
+- three direct operations plus an ellipsis overflow menu.
+
+Intentional differences:
+
+- Devpilot's real global application sidebar remains visible because it is part
+  of the existing platform shell.
+- Actual project/version data replaces the illustrative data in the approved
+  image. Empty current-version fields remain empty instead of being fabricated.
+
+## Focused interaction evidence
+
+- Overflow menu parent: `BODY`.
+- Menu bounds: left 1006, right 1166, top 735, bottom 777.
+- Table bottom: 752; viewport right/bottom: 1487/1058.
+- Result: the menu opens below the table without being clipped by its horizontal
+  overflow container.
+- Component tests cover both click and hover/focus entry paths and the
+  no-overflow case for three or fewer actions.
+
+## Iteration history
+
+1. P1: the default environment opened an empty Development state. Fixed by
+   preferring the real Production baseline when present.
+2. P1: the version surface lacked a decision-oriented evidence rail and exposed
+   insufficient source facts. Fixed with actual branch, commit, release,
+   creation, approval, and change evidence.
+3. P2: a long backend approval sentence consumed the status column. Fixed with
+   the concise `待生产审批` status and detailed evidence in the rail.
+4. P2: the operation column background was transparent and the overflow menu
+   was clipped. Fixed with an opaque sticky cell and a portal-backed menu.
+5. P2: at 390px the Grid's implicit minimum width was expanded by the 780px
+   table, preventing the sticky action column from reaching the visible edge.
+   Source is fixed with `minmax(0, 1fr)` so the table owns horizontal scrolling.
+
+## Verification result
+
+**BLOCKED — not passed yet.**
+
+There are no open desktop P0/P1/P2 findings. Docker Desktop was recovered
+without deleting images or volumes; fresh Web/API images and containers are
+healthy, their HTTP checks return 200, and no migration is pending. The
+remaining gate is a final runtime rerun of item 5 at 390×844. Automated
+navigation to the local project URL is currently blocked by browser security
+policy, so a user-opened local tab is required. Do not mark this report `passed`
+until that narrow state confirms the operation column remains visible with no
+document-level overflow.
