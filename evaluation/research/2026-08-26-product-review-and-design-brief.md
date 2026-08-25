@@ -86,7 +86,9 @@ Devpilot 不需要重做信息架构；应保留“真实状态优先、项目�
 - 旧 deployment deep link 不允许无限 loading：可迁移则重定向到 release + Drawer；不可迁移则错误态给返回发布列表。
 - 域名/验证空态在内容近场说明用途、影响、一个真实动作；没有真实创建路径则只给目的地链接。
 
-## 6. OpenPencil frame 清单（12 个）
+## 6. OpenPencil frame 清单（30 个顶层 frame）
+
+架构裁决后的单页由 F00-A–F00-D 证据/契约板、F01–F12 核心 workbench、F13–F23 三条缺失流程和 F24–F26 移动验收组成。下表保留 F01–F12 的核心决策；完整精确名称见本节表后索引。
 
 | ID | Frame 名 | 视口 | 主决策 |
 |---|---|---:|---|
@@ -95,13 +97,15 @@ Devpilot 不需要重做信息架构；应保留“真实状态优先、项目�
 | F03 | Project Information / Desktop | 1440×1000 | 当前仓库/组件事实是否可用于发布 |
 | F04 | Release Orders / Desktop | 1440×1000 | 选择发布单并理解粗状态/阶段 |
 | F05 | Release Detail / Staging Blocked | 1440×1000 | 为什么预发不可继续、去哪里修复 |
-| F06 | Release Detail / Production Approval | 1440×1000 | 是否满足生产确认条件 |
+| F06 | Release Detail / Production Approval Request States | 1440×1000 | 在 blocked/review/submit-ready/awaiting-approval 四态中提交审批请求；不伪称已生成 EnvironmentVersion |
 | F07 | Release Detail / Mobile | 390×844 | 纵向保持环境、步骤、结论一致 |
 | F08 | Settings Version / Desktop | 1440×1000 | 选择已有版本并发起受审计切换 |
 | F09 | Settings Version / Mobile | 390×844 | 无横向裁切地完成同一决策 |
-| F10 | Variables & Secrets / Staged | 1440×1000 | 审阅环境修订中的变量/引用变更 |
-| F11 | Domains & Entries / Empty + Ready Row | 1440×1000 | 为所选环境建立或修复入口 |
-| F12 | Deployment Evidence / Log Drawer | 1440×1000 | 从失败摘要追溯受控原始证据 |
+| F10 | Variables & Secrets / Revision Conflict | 1440×1000 | stale/collision 阻断保存，reload 后重算；Secret 只显示 reference |
+| F11 | Domains & Entries / Selected Environment | 1440×1000 | 单一环境空态；ready 行仅 specimen/API shape |
+| F12 | DeploymentRun Evidence / Drawer States | 1440×1000 | 当前 completed DeploymentRun 的 collapsed/expanded 受控证据；BuildRun #10 仅为 source |
+
+完整索引：F00-A `Evidence Index & Capability Verdict`；F00-B `Domain & State Flow`；F00-C `Action Contract Ledger`；F00-D `State, Responsive & A11y Matrix`；F13–F15 `Existing Repository Intake` 的 Connect/Analysis Review/Baseline Finalize；F16–F20 `Generated Project` 的 Basic Information/Subprojects/Features/Resources/Preview & ZIP Result States；F21–F23 `Quick Publish` 的 Select Staging Environment/Effective Config Review/Confirm, Execute & Handoff；F24–F26 分别为这三条流程的 Mobile Review/Mobile Resources/Mobile Conflict & Retry。
 
 ## 7. 每 frame 的真实字段、排版与动作
 
@@ -169,7 +173,7 @@ Domains 读取 Sites/servers/environments/proxy configs/sync runs → server rec
 
 ### 10.2 写路径
 
-Create ReleaseOrder → BuildRun → ArtifactManifest → staging ReleaseRun → production confirm → EnvironmentVersion；每一步保持真实独立状态。
+Create ReleaseOrder → BuildRun → ArtifactManifest → Staging DeploymentRun → production preview → POST production release → `ReleaseRun.awaiting_approval + OperationApproval.pending` → approval decision → Production DeploymentRun → EnvironmentVersion；每一步保持真实独立状态，POST 成功本身不生成 EnvironmentVersion。
 
 Production preview → 用户核对 → `expectedInputHash + idempotencyKey` confirm；设计必须显示确认对象，不能把 preview 当成功。
 
@@ -181,7 +185,7 @@ Site create/update/delete 或 dry-run sync plan → Site/SiteSyncRun；preview �
 
 ### 10.3 审计与机密
 
-- AuditEvent 关联 team/actor/project/environment/site/deployment，记录 category/action/target/risk/status/summary/metadata/time。
+- AuditEvent 关联 team/actor/project/environment/site/deployment，记录 category/action/target/risk/status/summary/metadata/time；它不是所有写操作的通用终点。当前可证明的是 config revision 同事务 audit、intake connect/finalize 与 worker 终态、Site sync execution 和 approval decision 链。ReleaseOrder create/build/Staging、Site CRUD 与 review submit 不得泛化为“已审计”。
 - 配置审计只保留 key/reference，不保留 plain/secret values；UI 仍可能显示 plain value，不得宣称所有值都隐藏。
 - Secret 只显示 reference metadata，不显示 secret value。
 - Repo inline secret 连接后清内存；日志由 server presenter 截断/脱敏。
@@ -209,7 +213,7 @@ Site create/update/delete 或 dry-run sync plan → Site/SiteSyncRun；preview �
 
 ### 12.1 文档结构
 
-- 单页 `Devpilot Project Workbench Review`，12 个 root frame，按 F01–F12 从左到右、桌面/移动配对排列。
+- 单页 `Devpilot Project Workbench Review`，精确 30 个 top-level root：F00-A–F00-D + F01–F26；桌面/移动按流程成组排列。
 - Root 使用 `frame`；内部只用 auto-layout，layout container 子节点不写 x/y。
 - 重复表行/列表行使用 script loop 或 reusable frame/ref；不复制粘贴近似节点。
 - 推荐层次：`WorkbenchShell / PageHeader / ContextIssueRow / ScopeControl / DecisionSummary / Content / EvidenceDisclosure`。
@@ -248,7 +252,7 @@ Site create/update/delete 或 dry-run sync plan → Site/SiteSyncRun；preview �
 
 ## 13. OpenPencil 与实现验收
 
-1. 12 个 frame 全部存在，名称、尺寸、状态与本 brief 一致。
+1. 30 个 frame 全部存在，名称、尺寸、状态与本 brief 一致。
 2. F05/F06/F07 的 header/env/step/CTA 由同一环境变量生成，不出现跨环境文案。
 3. F08 状态、时间、操作不重叠；F09 无横向裁切且主动作首屏可达。
 4. 每个 frame 都有 empty/loading/error/blocked/approval/staged 的明确变体或 `N/A + 原因`。
@@ -257,7 +261,7 @@ Site create/update/delete 或 dry-run sync plan → Site/SiteSyncRun；preview �
 7. disabled action 旁有可见原因；状态同时使用文本/图标/颜色。
 8. Release/Deployment 首屏先结论和原因，原始 gate/log/digest 不抢主层级。
 9. 每个按钮/链接均有 route 或 API 标注；无真实 destination 的控件已删除或标 unresolved。
-10. Version switch、production confirm、config revision、Site mutation 标明结果 model 与 AuditEvent。
+10. Version switch、production confirm、config revision、Site mutation 标明结果 model，并逐动作明确 AuditEvent 为“已有 / 无直接写 / 需契约”，不得统一宣称已审计。
 11. Secret 不显示值；mock log 不包含 token/credential；plain value 边界描述真实。
 12. Mobile reading order 符合：对象 → 状态/阻断 → 关键事实 → 主动作 → 证据。
 13. OpenPencil 树无 layout child x/y、无 `fit_content` parent 内 `fill_container` 循环、同级宽度策略一致。

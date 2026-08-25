@@ -396,7 +396,7 @@
 | 生成项目 | registry + local form | `/projects/generate` | self-service write, medium | Project + artifact claim；下载 audit |
 | 仓库 intake | intake state/contract/analysis | draft/connect/run/review/finalize | team_member + project read/write；branch revise high | repository identity/revision/snapshot/finalization；连接/分析/应用 audit |
 | 项目信息 | `/projects/:id` + delivery summary | repo connect/run/apply；资源 bulk-bind 辅助 | 子对象逐项 read filter；写 medium/high | Project relations、analysis runs、audit |
-| 发布 | delivery release/detail/build/deploy/prod/evidence/gates | create/build/staging/production/manual confirm | read low、create medium、执行 high | ReleaseOrder、BuildRun、ArtifactManifest、ReleaseRun、EnvironmentVersion、GateDecision、AuditEvent |
+| 发布 | delivery release/detail/build/deploy/prod/evidence/gates | create/build/staging/production/manual confirm | read low、create medium、执行 high | ReleaseOrder、BuildRun、ArtifactManifest、Staging/Production DeploymentRun、ReleaseRun、OperationApproval、EnvironmentVersion、GateDecision；AuditEvent 仅按已证明边界列入 |
 | settings | project environments/revisions/targets/versions/policies | append config revision、bind/unbind server、version action | environment scoped read/write；动作 risk 分级 | current pointer + append-only revision；audit 同 transaction |
 | domains | sites/targets/proxy/sync runs | site CRUD、dry-run plan | CRUD team_member scoped；sync team_admin；delete high | Site、SiteSyncRun、audit |
 | publish 快捷向导 | environments/effective config | create → build → staging | 沿用 release 三层 access | 与 release workbench 同一模型，不是独立发布模型 |
@@ -459,3 +459,10 @@
 6. Settings：六个 tab 各一张；mobile tab select；no revision、dirty、collision、save error、target empty/error、resource mapping repair、local acceptance warning。
 7. Domains：production empty issue、add/edit、preview diff/warning/config、delete confirm、sync loading/error。
 8. Publish：staging 0/1/多基线、config conflict、unknown secret、create/build/deploy failure retry、成功跳 workbench。
+
+## 15. 架构裁决后的真实写链与审计边界
+
+- Release 的真实顺序是：`ReleaseOrder → BuildRun → ArtifactManifest → Staging DeploymentRun → production preview → POST production-releases → ReleaseRun.awaiting_approval + OperationApproval.pending → approval decision → Production DeploymentRun → EnvironmentVersion`。`BuildRun`、`ReleaseRun` 与 `DeploymentRun` 不可互换；生产 POST 成功也不可直接画成 `EnvironmentVersion`。
+- Config 独立走 `draft → POST config-revisions(expected current, changeSummary) → append-only EnvironmentConfigRevision + current pointer transaction → AuditEvent project_environment.config_revision.create`。
+- Site 独立走 CRUD 与 sync-plan/sync execution；Site 不是 Version 的后继。dry-run 只产生 plan/`SiteSyncRun` 证据，不宣称 live applied。
+- `AuditEvent` 不是所有写路径的万能结果。当前可证明：repository connect、analysis worker 终态、intake finalize、config revision、Site sync execution、operation approval decision。当前不得声称有直接 AuditEvent：intake review、ReleaseOrder create、build、Staging deployment、Site CRUD。只读 preview/log 也不产生新 AuditEvent。

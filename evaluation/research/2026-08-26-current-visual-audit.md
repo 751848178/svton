@@ -145,6 +145,9 @@
 - **B2 — destructive-release-actions-not-exercised**：为保持只读审计，没有创建新发布、触发构建、发布生产、修改配置、绑定资源或新增域名；创建弹窗、禁用原因和现有发布执行状态均已覆盖。
 - **B3 — deep-accessibility-interaction-not-proven**：本轮验证了可访问名称与基础结构，但未执行完整键盘、焦点、屏幕阅读器、缩放和颜色数值审计。
 - **B4 — repository-analysis-below-fold-not-exhausted**：项目信息主截图覆盖仓库与组件关键字段；页面下方的完整仓库分析长内容未逐段截图，本轮不以其作为视觉结论依据。
+- **B5 — existing-repository-intake-no-healthy-current-screenshot**：`/projects/create` 的三步 connect / analysis review / baseline finalize 未取得一组健康当前截图；不能由项目详情或仓库分析折叠区替代该流程证据。
+- **B6 — generated-project-wizard-no-healthy-current-screenshot**：`/projects/new` 的五步 basic / subprojects / features / resources / preview+ZIP 未取得健康当前截图；registry、资源模式和生成失败恢复仍是 named visual gap。
+- **B7 — quick-publish-flow-no-healthy-current-screenshot**：`/projects/:id/publish` 的 Staging 选择、effective config review、create/build/deploy 与分阶段 retry 未取得健康当前截图。当前 release create Modal 只证明 `releases?create=true` 创建 ReleaseOrder，**不是** `/publish` 三步快捷发布的视觉证据；兼容深链 `/projects/:id/publish/:releaseOrderId` 也仅能以 redirect contract 证明。
 
 ## 8. 总结
 

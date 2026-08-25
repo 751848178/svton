@@ -173,16 +173,16 @@ Vercel、Railway、Render、EdgeOne 都把“摘要/阶段”和“原始日志�
 
 ### P0：直接纳入设计稿
 
-1. **项目 Overview 四问**：当前生产版本是谁、是否健康、最后一次变更是什么、下一步动作是什么（Vercel）。
-2. **Release 状态三层模型**：粗状态、当前阶段、终态原因；阶段日志与原始日志分层（Railway、EdgeOne）。
-3. **Release detail 首屏摘要**：环境、版本、目标、触发来源、发起人、开始/完成时间、健康结果、gate 结论；日志放二级 Tab/Drawer。
-4. **配置 staged changes**：修改变量后形成待发布 diff，Review 后进入 Release（Railway）。
-5. **变量保存影响选择**：保存但不发布 / 使用现有物料重新部署 / 重新构建并部署；每项显示耗时和风险（Render）。
-6. **回滚影响矩阵**：代码/物料、变量、命令、实例、域名、持久卷、数据库分别使用目标值还是当前值（Render、Zeabur）。
-7. **事故保护**：Rollback 后明确自动发布状态，可临时锁定，避免坏提交再次覆盖（Netlify、Render）。
-8. **域名任务流**：记录组、复制、验证状态、预期生效时间、访问测试、精确修复动作（Cloudflare、Railway、Render）；国内区补备案/区域/证书（EdgeOne）。
-9. **故障摘要在日志前**：失败阶段、首个根因、关联配置和推荐动作；任何摘要可跳到原始证据（Netlify）。
-10. **一个空态一个动作**：项目无服务时只引导创建/导入服务（Zeabur）。
+1. **项目 Overview 四问** `[证据 B/C；当前前端可直接借鉴]`：当前生产版本、健康、最近变更、下一步；字段缺失时显示未知，不发明健康结论（Vercel）。
+2. **Release 状态三层模型** `[证据 B/C；当前 ReleaseOrder/Run 可直接映射]`：粗状态、当前阶段、终态原因；阶段日志与原始日志分层（Railway、EdgeOne）。
+3. **Release detail 首屏摘要** `[证据 B/C；当前字段条件借鉴]`：环境、版本、目标、触发来源、时间与 gate；只展示 API 已返回事实，日志放二级 Drawer。
+4. **配置 staged changes** `[证据 B；仅限当前变量 draft/revision]`：变量/Secret reference/resource binding 的变更进入本地 draft，保存生成 append-only config revision；不宣称所有设置变更都会进入 Release（Railway）。
+5. **变量保存影响选择** `[证据 B；needs backend]`：Render 的 save-only/redeploy/rebuild 三分支只保留为未来影响模型；当前 Devpilot 没有三种执行 API，不画可点击能力。
+6. **回滚影响矩阵** `[证据 B/C；needs backend]`：代码/物料/变量/域名/数据差异可作为未来只读契约；当前缺完整 rollback policy 与执行模型，不纳入可用动作。
+7. **事故保护** `[证据 B/C；needs backend]`：发布锁与自动发布覆盖保护需要新的持久状态、权限和恢复契约；当前不得展示可执行 lock（Netlify、Render）。
+8. **域名任务流** `[证据 B/C；needs backend]`：DNS 记录组、传播 ETA、访问测试、备案/区域/证书都依赖未返回字段与执行器；当前只借鉴“状态紧邻精确动作”，仅展示 Site 字段和 dry-run plan。
+9. **故障摘要在日志前** `[证据 B/C；当前 presenter 可直接借鉴]`：先显示失败阶段、根因、影响与决定，再展开 server-sanitized evidence（Netlify）。
+10. **一个空态一个动作** `[证据 C；当前前端可直接借鉴]`：项目无服务或当前环境无 Site 时只保留一个精确创建动作（Zeabur）。
 
 ### P1：有条件借鉴
 
