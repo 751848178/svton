@@ -132,6 +132,7 @@ function cell(parent, width, content, props = {}) {
   if (content !== undefined) text(node, content, {
     width: Math.max(20, width - 4),
     textGrowth: "fixed-width",
+    fontFamily: props.fontFamily || T.font,
     fontSize: props.fontSize || 13,
     fontWeight: props.fontWeight || 400,
     fill: F(props.color || T.body),

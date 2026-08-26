@@ -5,10 +5,8 @@ function projectTitle(parent, options = {}) {
   text(crumb, "Picshare", { fontSize: 13, fontWeight: 500, fill: F(T.ink) });
 
   const row = frame(parent, { width: "fill_container", height: 64, layout: "horizontal", alignItems: "center", justifyContent: "space_between" });
-  const identity = frame(row, { width: "fit_content", height: 58, layout: "horizontal", gap: 12, alignItems: "center" });
-  const folder = frame(identity, { width: 38, height: 38, layout: "horizontal", alignItems: "center", justifyContent: "center", cornerRadius: 8, fill: F(T.blue50) });
-  icon(folder, "folder", { width: 21, height: 21, fill: F(T.blue) });
-  const copy = frame(identity, { width: 560, height: "fit_content", layout: "vertical", gap: 4 });
+  const identity = frame(row, { width: "fit_content", height: 58, layout: "horizontal", alignItems: "center" });
+  const copy = frame(identity, { width: 610, height: "fit_content", layout: "vertical", gap: 4 });
   text(copy, "Picshare", { fontSize: 23, fontWeight: 700, fill: F(T.ink) });
   const meta = frame(copy, { width: "fit_content", height: 22, layout: "horizontal", gap: 9, alignItems: "center" });
   text(meta, "仓库", { fontSize: 12, fill: F(T.muted) });

@@ -173,6 +173,7 @@ function cell(parent, width, content, props = {}) {
   if (content !== undefined) text(node, content, {
     width: Math.max(20, width - 4),
     textGrowth: "fixed-width",
+    fontFamily: props.fontFamily || T.font,
     fontSize: props.fontSize || 13,
     fontWeight: props.fontWeight || 400,
     fill: F(props.color || T.body),
@@ -305,10 +306,8 @@ function projectTitle(parent, options = {}) {
   text(crumb, "Picshare", { fontSize: 13, fontWeight: 500, fill: F(T.ink) });
 
   const row = frame(parent, { width: "fill_container", height: 64, layout: "horizontal", alignItems: "center", justifyContent: "space_between" });
-  const identity = frame(row, { width: "fit_content", height: 58, layout: "horizontal", gap: 12, alignItems: "center" });
-  const folder = frame(identity, { width: 38, height: 38, layout: "horizontal", alignItems: "center", justifyContent: "center", cornerRadius: 8, fill: F(T.blue50) });
-  icon(folder, "folder", { width: 21, height: 21, fill: F(T.blue) });
-  const copy = frame(identity, { width: 560, height: "fit_content", layout: "vertical", gap: 4 });
+  const identity = frame(row, { width: "fit_content", height: 58, layout: "horizontal", alignItems: "center" });
+  const copy = frame(identity, { width: 610, height: "fit_content", layout: "vertical", gap: 4 });
   text(copy, "Picshare", { fontSize: 23, fontWeight: 700, fill: F(T.ink) });
   const meta = frame(copy, { width: "fit_content", height: 22, layout: "horizontal", gap: 9, alignItems: "center" });
   text(meta, "仓库", { fontSize: 12, fill: F(T.muted) });
@@ -347,278 +346,6 @@ function configRail(parent) {
   return rail;
 }
 
-function directoryToolbar(parent) {
-  const toolbar = frame(parent, { width: "fill_container", height: 56, layout: "horizontal", alignItems: "center", justifyContent: "space_between" });
-  const filters = frame(toolbar, { width: "fit_content", height: 42, layout: "horizontal", gap: 10, alignItems: "center" });
-  const search = frame(filters, { name: "Search projects", role: "search-bar", width: 340, height: 40, layout: "horizontal", padding: [0, 12], gap: 8, alignItems: "center", cornerRadius: 6, fill: F(T.bg), stroke: S(T.lineStrong) });
-  icon(search, "search", { width: 17, height: 17, fill: F(T.muted) });
-  text(search, "搜索项目名称、仓库或域名", { fontSize: 13, fill: F(T.muted) });
-  const state = frame(filters, { name: "Filter by status", role: "button", width: 122, height: 40, layout: "horizontal", padding: [0, 12], alignItems: "center", justifyContent: "space_between", cornerRadius: 6, fill: F(T.bg), stroke: S(T.lineStrong) });
-  text(state, "全部状态", { fontSize: 13, fontWeight: 500, fill: F(T.body) });
-  icon(state, "chevron-down", { width: 15, height: 15, fill: F(T.muted) });
-  text(toolbar, "6 个项目 · 最近活动优先", { fontSize: 13, fill: F(T.muted) });
-}
-
-const PROJECT_ROWS = [
-  { name: "Picshare", meta: "Monorepo · master", state: "在线", tone: "green", release: "图库重构 1.4.0", time: "08-25 16:42", issues: "0", actions: ["进入项目", "创建发布"] },
-  { name: "Atlas Docs", meta: "Web · main", state: "待配置", tone: "orange", release: "—", time: "08-25 10:18", issues: "2 项", actions: ["配置生产", "进入项目"] },
-  { name: "Storefront", meta: "Monorepo · main", state: "在线", tone: "green", release: "夏季活动 2.7.1", time: "08-24 21:03", issues: "0", actions: ["进入项目", "创建发布"] },
-  { name: "Ops Console", meta: "Web · release", state: "预发中", tone: "blue", release: "权限收敛 0.9.8", time: "08-24 18:27", issues: "1 项", actions: ["查看发布", "进入项目"] },
-  { name: "Design Assets", meta: "Static · main", state: "已暂停", tone: "orange", release: "资源迁移 1.2.0", time: "08-21 09:12", issues: "0", actions: ["进入项目", "恢复发布"] },
-  { name: "Mobile Service", meta: "Service · main", state: "在线", tone: "green", release: "会话更新 3.3.4", time: "08-20 15:36", issues: "0", actions: ["进入项目", "创建发布"] },
-];
-
-function projectTable(parent) {
-  const table = frame(parent, { name: "Project directory table", role: "table", width: "fill_container", height: 404, layout: "vertical", cornerRadius: 8, clipContent: true, fill: F(T.bg), stroke: S(T.lineStrong) });
-  const widths = [260, 110, 190, 160, 120, 268];
-  const head = frame(table, { role: "table-header", width: "fill_container", height: 46, layout: "horizontal", padding: [0, 16], alignItems: "center", fill: F(T.surface) });
-  ["项目", "状态", "最近发布", "最近活动", "问题", "操作"].forEach((label, index) => cell(head, widths[index], label, { fontSize: 12, fontWeight: 600, color: T.muted }));
-  for (const project of PROJECT_ROWS) {
-    const row = frame(table, { name: `Project: ${project.name}`, role: "table-row", width: "fill_container", height: 59, layout: "horizontal", padding: [0, 16], alignItems: "center", fill: F(T.bg), stroke: S(T.line) });
-    const identity = cell(row, widths[0]);
-    const projectMark = frame(identity, { width: 32, height: 32, layout: "horizontal", alignItems: "center", justifyContent: "center", cornerRadius: 7, fill: F(T.blue50) });
-    icon(projectMark, "folder", { width: 17, height: 17, fill: F(T.blue) });
-    const copy = frame(identity, { width: 194, height: "fit_content", layout: "vertical", gap: 2 });
-    text(copy, project.name, { fontSize: 14, fontWeight: 600, fill: F(T.ink) });
-    text(copy, project.meta, { fontSize: 12, fill: F(T.muted) });
-    const stateCell = cell(row, widths[1]);
-    status(stateCell, project.state, project.tone);
-    cell(row, widths[2], project.release, { fontSize: 13, fontWeight: project.release === "—" ? 400 : 500, color: project.release === "—" ? T.faint : T.body });
-    cell(row, widths[3], project.time, { fontSize: 13, color: T.muted });
-    const issueCell = cell(row, widths[4]);
-    if (project.issues === "0") text(issueCell, "无", { fontSize: 13, fill: F(T.muted) });
-    else {
-      icon(issueCell, "circle-alert", { width: 15, height: 15, fill: F(T.orange) });
-      text(issueCell, project.issues, { fontSize: 13, fontWeight: 600, fill: F(T.orange) });
-    }
-    const actions = cell(row, widths[5]);
-    for (const label of project.actions) textAction(actions, label);
-    iconAction(actions, "ellipsis", `${project.name} 更多操作`);
-  }
-  return table;
-}
-
-function buildDirectory() {
-  const { main } = createScreen("V2-01 Project Directory", 0);
-  const content = frame(main, { width: "fill_container", height: "fill_container", layout: "vertical", padding: [28, 32], gap: 18 });
-  const titleRow = frame(content, { width: "fill_container", height: 64, layout: "horizontal", alignItems: "center", justifyContent: "space_between" });
-  const title = frame(titleRow, { width: 650, height: "fit_content", layout: "vertical", gap: 5 });
-  text(title, "我的项目", { fontSize: 26, fontWeight: 700, fill: F(T.ink) });
-  text(title, "查看项目的发布状态、最新版本与需要处理的问题。", { fontSize: 14, fill: F(T.muted) });
-  button(titleRow, "创建项目", { kind: "primary", icon: "plus" });
-  const summary = frame(content, { width: "fill_container", height: 38, layout: "horizontal", gap: 26, alignItems: "center" });
-  text(summary, "6 个项目", { fontSize: 14, fontWeight: 600, fill: F(T.ink) });
-  text(summary, "4 个正常运行", { fontSize: 14, fill: F(T.green) });
-  text(summary, "2 个需要处理", { fontSize: 14, fill: F(T.orange) });
-  divider(content);
-  directoryToolbar(content);
-  projectTable(content);
-}
-
-const VERSION_ROWS = [
-  { version: "1.4.0", name: "图库重构", source: "master @ a1b2c3d", change: "组件 2 · 配置 3", time: "08-20 08:31", state: "运行中", selected: false },
-  { version: "1.3.2", name: "稳定版", source: "release/1.3 @ 8f7e6d5", change: "组件 1 · 配置 2", time: "08-10 14:22", state: "已通过", selected: true },
-  { version: "1.3.1", name: "登录修复", source: "hotfix/login @ 3c2b1a0", change: "组件 1 · 配置 1", time: "08-03 11:09", state: "已通过", selected: false },
-];
-
-function currentVersion(parent) {
-  const card = frame(parent, { name: "Current version summary", width: "fill_container", height: 102, layout: "horizontal", padding: [16, 18], alignItems: "center", justifyContent: "space_between", cornerRadius: 7, fill: F(T.bg), stroke: S(T.lineStrong) });
-  const fields = [["当前版本", "1.4.0  图库重构"], ["状态", "运行中"], ["来源", "master  @  a1b2c3d"], ["创建时间", "2026-08-20 08:31"]];
-  const widths = [190, 120, 190, 170];
-  fields.forEach(([label, value], index) => {
-    const field = frame(card, { width: widths[index], height: "fit_content", layout: "vertical", gap: 8 });
-    text(field, label, { fontSize: 12, fontWeight: 500, fill: F(T.muted) });
-    if (index === 1) {
-      const running = frame(field, { width: "fit_content", height: 22, layout: "horizontal", gap: 7, alignItems: "center" });
-      I(running, { type: "ellipse", width: 7, height: 7, fill: F(T.green) });
-      text(running, value, { fontSize: 13, fontWeight: 600, fill: F(T.green) });
-    } else text(field, value, { fontSize: index === 0 ? 17 : 13, fontWeight: index === 0 ? 700 : 500, fill: F(index === 0 ? T.blue : T.ink) });
-  });
-}
-
-function versionsTable(parent) {
-  const table = frame(parent, { name: "Existing versions table", role: "table", width: "fill_container", height: 218, layout: "vertical", clipContent: true, cornerRadius: 7, fill: F(T.bg), stroke: S(T.lineStrong) });
-  const widths = [100, 135, 90, 90, 70, 198];
-  const head = frame(table, { role: "table-header", width: "fill_container", height: 44, layout: "horizontal", padding: [0, 12], alignItems: "center", fill: F(T.surface) });
-  ["版本", "变更来源", "配置变更", "创建时间", "状态", "操作"].forEach((label, index) => cell(head, widths[index], label, { fontSize: 12, fontWeight: 600, color: T.muted }));
-  for (const version of VERSION_ROWS) {
-    const row = frame(table, { name: `Version ${version.version}${version.selected ? " — selected" : ""}`, role: "table-row", width: "fill_container", height: 58, layout: "horizontal", padding: [0, 12], alignItems: "center", fill: F(version.selected ? T.blue50 : T.bg), stroke: S(T.line) });
-    const versionCell = cell(row, widths[0]);
-    if (version.selected) I(versionCell, { type: "ellipse", width: 8, height: 8, fill: F(T.blue) });
-    const versionCopy = frame(versionCell, { width: 88, height: "fit_content", layout: "vertical", gap: 1 });
-    text(versionCopy, version.version, { fontSize: 13, fontWeight: 700, fill: F(T.blue) });
-    text(versionCopy, version.name, { fontSize: 12, fontWeight: 500, fill: F(T.body) });
-    const sourceCell = cell(row, widths[1]);
-    const [branch, commit] = version.source.split(" @ ");
-    const sourceCopy = frame(sourceCell, { width: 150, height: "fit_content", layout: "vertical", gap: 1 });
-    text(sourceCopy, branch, { fontSize: 12, fontWeight: 500, fill: F(T.body) });
-    text(sourceCopy, commit, { fontSize: 12, fill: F(T.blue) });
-    cell(row, widths[2], version.change.replaceAll(" ", ""), { fontSize: 13, color: T.body });
-    cell(row, widths[3], version.time, { fontSize: 12, color: T.muted });
-    const stateCell = cell(row, widths[4]);
-    icon(stateCell, "circle-check", { width: 15, height: 15, fill: F(T.green) });
-    text(stateCell, version.state, { fontSize: 12, fontWeight: 600, fill: F(T.green) });
-    const actions = cell(row, widths[5]);
-    for (const label of version.selected ? ["详情", "变更", "切换"] : ["详情", "变更", "证据"]) textAction(actions, label);
-    iconAction(actions, "ellipsis", `${version.version} 更多操作`);
-  }
-}
-
-function versionInspector(parent) {
-  const pane = frame(parent, { name: "Selected version details", width: 220, height: "fill_container", layout: "vertical", padding: [4, 0, 0, 20], gap: 15, stroke: S(T.line) });
-  text(pane, "版本详情", { fontSize: 14, fontWeight: 700, fill: F(T.ink) });
-  const hero = frame(pane, { width: "fill_container", height: 52, layout: "horizontal", alignItems: "center", justifyContent: "space_between" });
-  text(hero, "1.3.2", { fontSize: 21, fontWeight: 700, fill: F(T.ink) });
-  const passed = frame(hero, { width: "fit_content", height: 28, layout: "horizontal", gap: 5, alignItems: "center" });
-  icon(passed, "circle-check", { width: 15, height: 15, fill: F(T.green) });
-  text(passed, "已通过", { fontSize: 12, fontWeight: 600, fill: F(T.green) });
-  divider(pane);
-  text(pane, "配置变更概览", { fontSize: 12, fontWeight: 600, fill: F(T.muted) });
-  for (const [glyph, label, count] of [["box", "组件变更", "1 个"], ["sliders-horizontal", "配置变更", "2 项"]]) {
-    const item = frame(pane, { width: "fill_container", height: 34, layout: "horizontal", gap: 9, alignItems: "center" });
-    icon(item, glyph, { width: 16, height: 16, fill: F(T.ink) });
-    text(item, label, { width: 118, textGrowth: "fixed-width", fontSize: 13, fill: F(T.body) });
-    text(item, count, { fontSize: 13, fontWeight: 500, fill: F(T.body) });
-  }
-  divider(pane);
-  const fields = [["变更来源", "release/1.3 @ 8f7e6d5"], ["创建时间", "2026-08-10 14:22"], ["变更说明", "修复公开入口问题并优化图片处理"]];
-  for (const [label, value] of fields) {
-    const field = frame(pane, { width: "fill_container", height: "fit_content", layout: "vertical", gap: 6 });
-    text(field, label, { fontSize: 12, fontWeight: 500, fill: F(T.muted) });
-    text(field, value, { width: 196, textGrowth: "fixed-width", fontSize: 12, lineHeight: 1.55, fill: F(T.body) });
-  }
-  divider(pane);
-  textAction(pane, "查看技术证据", { arrow: true });
-}
-
-function buildVersionConfiguration() {
-  const { main } = createScreen("V2-02 Version Configuration", 1520);
-  const content = frame(main, { width: "fill_container", height: "fill_container", layout: "vertical", padding: [20, 28], gap: 10 });
-  projectTitle(content, { primary: "创建发布", primaryIcon: "plus" });
-  projectTabs(content, "项目配置");
-  const issue = frame(content, { name: "Production entry issue", width: "fill_container", height: 44, layout: "horizontal", padding: [0, 12], gap: 10, alignItems: "center", cornerRadius: 6, fill: F(T.orange50), stroke: S("#FED7AA") });
-  icon(issue, "triangle-alert", { width: 17, height: 17, fill: F(T.orange) });
-  text(issue, "生产环境缺少入口，完成配置后才能发布。", { fontSize: 13, fontWeight: 500, fill: F(T.body) });
-  textAction(issue, "配置生产入口", { arrow: true });
-  const workbench = frame(content, { width: "fill_container", height: "fill_container", layout: "horizontal", gap: 12, padding: [10, 0, 0, 0] });
-  configRail(workbench);
-  const center = frame(workbench, { name: "Version configuration", width: 714, height: "fill_container", layout: "vertical", gap: 12 });
-  const titleRow = frame(center, { width: "fill_container", height: 48, layout: "horizontal", alignItems: "center", justifyContent: "space_between" });
-  const title = frame(titleRow, { width: 380, height: "fit_content", layout: "vertical", gap: 4 });
-  text(title, "版本配置", { fontSize: 21, fontWeight: 700, fill: F(T.ink) });
-  text(title, "切换后创建一次受审计的部署操作，不会直接覆盖运行状态。", { fontSize: 12, fill: F(T.muted) });
-  const environment = frame(titleRow, { width: 230, height: 40, layout: "horizontal", gap: 10, alignItems: "center", justifyContent: "end" });
-  text(environment, "当前环境", { fontSize: 12, fontWeight: 500, fill: F(T.muted) });
-  const select = frame(environment, { name: "Environment selector", role: "button", width: 154, height: 38, layout: "horizontal", padding: [0, 11], alignItems: "center", justifyContent: "space_between", cornerRadius: 6, fill: F(T.bg), stroke: S(T.lineStrong) });
-  text(select, "生产环境", { fontSize: 13, fontWeight: 500, fill: F(T.ink) });
-  icon(select, "chevron-down", { width: 15, height: 15, fill: F(T.muted) });
-  currentVersion(center);
-  text(center, "已有版本", { fontSize: 15, fontWeight: 700, fill: F(T.ink) });
-  versionsTable(center);
-  versionInspector(workbench);
-}
-
-const PREFLIGHT_CHECKS = [
-  { check: "生产入口", result: "未通过", detail: "Production 尚未绑定公开入口", tone: "red" },
-  { check: "制品完整性", result: "已通过", detail: "签名与内容校验一致", tone: "green" },
-  { check: "发布审批", result: "已通过", detail: "生产发布审批已完成", tone: "green" },
-  { check: "并发策略", result: "已通过", detail: "当前没有冲突的生产发布", tone: "green" },
-];
-
-function stageChain(parent) {
-  const chain = frame(parent, { name: "Release stages", width: "fill_container", height: 46, layout: "horizontal", gap: 0, alignItems: "center", fill: F(T.bg), stroke: S(T.lineStrong), cornerRadius: 7, clipContent: true });
-  const stages = [["构建", "check", T.green, T.green50], ["预发验证", "check", T.green, T.green50], ["生产预检", "circle-alert", T.red, T.red50], ["生产部署", "clock-3", T.faint, T.shell]];
-  stages.forEach(([label, glyph, color, bg], index) => {
-    const item = frame(chain, { width: "fill_container", height: "fill_container", layout: "horizontal", gap: 8, alignItems: "center", justifyContent: "center", fill: F(bg), stroke: index < stages.length - 1 ? S(T.line) : undefined });
-    icon(item, glyph, { width: 16, height: 16, fill: F(color) });
-    text(item, label, { fontSize: 13, fontWeight: 600, fill: F(color) });
-  });
-}
-
-function artifactSummary(parent) {
-  const summary = frame(parent, { name: "Release summary", width: "fill_container", height: 92, layout: "horizontal", padding: [14, 16], gap: 0, alignItems: "center", cornerRadius: 7, fill: F(T.bg), stroke: S(T.lineStrong) });
-  const fields = [["当前版本", "图库重构 1.4.0"], ["候选制品", "picshare-web · 86.4 MB"], ["来源", "master @ a1b2c3d"], ["预发验证", "已通过"]];
-  fields.forEach(([label, value], index) => {
-    const item = frame(summary, { width: "fill_container", height: "fill_container", layout: "vertical", gap: 8, justifyContent: "center", padding: index === 0 ? [0, 10, 0, 0] : [0, 10, 0, 16], stroke: index === 0 ? undefined : S(T.line) });
-    text(item, label, { fontSize: 12, fontWeight: 500, fill: F(T.muted) });
-    if (index === 3) {
-      const passed = frame(item, { width: "fit_content", height: 22, layout: "horizontal", gap: 6, alignItems: "center" });
-      icon(passed, "circle-check", { width: 15, height: 15, fill: F(T.green) });
-      text(passed, value, { fontSize: 13, fontWeight: 600, fill: F(T.green) });
-    } else text(item, value, { fontSize: 13, fontWeight: 600, fill: F(T.ink) });
-  });
-}
-
-function checksTable(parent) {
-  const table = frame(parent, { name: "Production preflight checks", role: "table", width: "fill_container", height: 270, layout: "vertical", clipContent: true, cornerRadius: 7, fill: F(T.bg), stroke: S(T.lineStrong) });
-  const widths = [176, 118, 370, 90];
-  const head = frame(table, { role: "table-header", width: "fill_container", height: 46, layout: "horizontal", padding: [0, 14], alignItems: "center", fill: F(T.surface) });
-  ["检查项", "结果", "检查说明", "操作"].forEach((label, index) => cell(head, widths[index], label, { fontSize: 12, fontWeight: 600, color: T.muted }));
-  for (const check of PREFLIGHT_CHECKS) {
-    const failed = check.tone === "red";
-    const row = frame(table, { name: `Check: ${check.check}${failed ? " — selected" : ""}`, role: "table-row", width: "fill_container", height: 56, layout: "horizontal", padding: [0, 14], alignItems: "center", fill: F(failed ? T.red50 : T.bg), stroke: S(T.line) });
-    const checkCell = cell(row, widths[0]);
-    icon(checkCell, failed ? "circle-x" : "circle-check", { width: 17, height: 17, fill: F(failed ? T.red : T.green) });
-    text(checkCell, check.check, { fontSize: 13, fontWeight: 600, fill: F(T.ink) });
-    const resultCell = cell(row, widths[1]);
-    text(resultCell, check.result, { fontSize: 13, fontWeight: 600, fill: F(failed ? T.red : T.green) });
-    cell(row, widths[2], check.detail, { fontSize: 13, color: failed ? T.body : T.muted });
-    const action = cell(row, widths[3]);
-    textAction(action, failed ? "查看证据" : "详情");
-  }
-}
-
-function evidencePane(parent) {
-  const pane = frame(parent, { name: "Evidence drawer", width: 310, height: "fill_container", layout: "vertical", padding: 18, gap: 16, cornerRadius: 8, fill: F(T.bg), stroke: S(T.lineStrong), effects: SHADOW });
-  const title = frame(pane, { width: "fill_container", height: 32, layout: "horizontal", alignItems: "center", justifyContent: "space_between" });
-  text(title, "检查证据", { fontSize: 16, fontWeight: 700, fill: F(T.ink) });
-  iconAction(title, "x", "关闭证据");
-  divider(pane);
-  status(pane, "生产入口未通过", "red");
-  const summary = frame(pane, { width: "fill_container", height: "fit_content", layout: "vertical", gap: 7 });
-  text(summary, "检查结论", { fontSize: 12, fontWeight: 600, fill: F(T.muted) });
-  text(summary, "生产环境没有可接收外部流量的入口，当前版本不能继续部署。", { width: 274, textGrowth: "fixed-width", fontSize: 14, fontWeight: 500, lineHeight: 1.6, fill: F(T.ink) });
-  const evidence = frame(pane, { width: "fill_container", height: "fit_content", layout: "vertical", gap: 10, padding: 14, cornerRadius: 7, fill: F(T.surface), stroke: S(T.line) });
-  text(evidence, "检测结果", { fontSize: 12, fontWeight: 600, fill: F(T.muted) });
-  for (const [label, value] of [["环境", "生产环境"], ["目标组件", "picshare-web"], ["当前入口", "未配置"], ["最近检查", "2026-08-26 10:42"]]) {
-    const item = frame(evidence, { width: "fill_container", height: 28, layout: "horizontal", alignItems: "center", justifyContent: "space_between" });
-    text(item, label, { fontSize: 12, fill: F(T.muted) });
-    text(item, value, { fontSize: 12, fontWeight: 600, fill: F(value === "未配置" ? T.red : T.body) });
-  }
-  divider(pane);
-  text(pane, "完成配置后返回本页重新检查；已通过的制品、审批和并发检查会保留。", { width: 274, textGrowth: "fixed-width", fontSize: 12, lineHeight: 1.65, fill: F(T.muted) });
-}
-
-function buildProductionPreflight() {
-  const { main } = createScreen("V2-03 Production Preflight Blocked", 3040);
-  const content = frame(main, { width: "fill_container", height: "fill_container", layout: "vertical", padding: [20, 28], gap: 10 });
-  projectTitle(content);
-  projectTabs(content, "发布");
-  const releaseHead = frame(content, { width: "fill_container", height: 58, layout: "horizontal", alignItems: "center", justifyContent: "space_between" });
-  const heading = frame(releaseHead, { width: 640, height: "fit_content", layout: "vertical", gap: 4 });
-  const headingLine = frame(heading, { width: "fit_content", height: 30, layout: "horizontal", gap: 10, alignItems: "center" });
-  text(headingLine, "Picshare R1 · 生产预检", { fontSize: 22, fontWeight: 700, fill: F(T.ink) });
-  status(headingLine, "已阻断", "red");
-  text(heading, "预发验证已完成，生产部署将在全部预检通过后开始。", { fontSize: 13, fill: F(T.muted) });
-  text(releaseHead, "最近检查  2026-08-26 10:42", { fontSize: 12, fill: F(T.muted) });
-  stageChain(content);
-  const blocker = frame(content, { name: "Blocking issue and repair action", width: "fill_container", height: 70, layout: "horizontal", padding: [0, 14], gap: 12, alignItems: "center", justifyContent: "space_between", cornerRadius: 7, fill: F(T.red50), stroke: S("#FECDD3") });
-  const message = frame(blocker, { width: 810, height: "fit_content", layout: "horizontal", gap: 11, alignItems: "center" });
-  icon(message, "circle-alert", { width: 19, height: 19, fill: F(T.red) });
-  const copy = frame(message, { width: 760, height: "fit_content", layout: "vertical", gap: 4 });
-  text(copy, "生产环境缺少公开入口", { fontSize: 14, fontWeight: 700, fill: F(T.ink) });
-  text(copy, "影响：外部流量无法访问 picshare-web，本次生产部署不能继续。", { fontSize: 13, fill: F(T.body) });
-  button(blocker, "配置生产入口", { kind: "primary", icon: "external-link", width: 156 });
-  const lower = frame(content, { width: "fill_container", height: "fill_container", layout: "horizontal", gap: 18, padding: [4, 0, 0, 0] });
-  const left = frame(lower, { width: 778, height: "fill_container", layout: "vertical", gap: 12 });
-  artifactSummary(left);
-  const checksTitle = frame(left, { width: "fill_container", height: 32, layout: "horizontal", alignItems: "center", justifyContent: "space_between" });
-  text(checksTitle, "生产预检", { fontSize: 15, fontWeight: 700, fill: F(T.ink) });
-  text(checksTitle, "3 项通过 · 1 项未通过", { fontSize: 12, fontWeight: 500, fill: F(T.red) });
-  checksTable(left);
-  evidencePane(lower);
-}
-
 const CURRENT_RELEASE = {
   version: "1.4.0",
   name: "图库重构",
@@ -635,14 +362,7 @@ const CANDIDATE_RELEASE = {
 
 function createProjectMoment(name, x, options = {}) {
   const { root, main } = createScreen(name, x);
-  const content = frame(main, {
-    name: "Project moment content",
-    width: "fill_container",
-    height: "fill_container",
-    layout: "vertical",
-    padding: [20, 28],
-    gap: 10,
-  });
+  const content = frame(main, { name: "Project moment content", width: "fill_container", height: "fill_container", layout: "vertical", padding: [20, 28], gap: 10 });
   projectTitle(content, options.primary ? { primary: options.primary, primaryIcon: options.primaryIcon } : {});
   projectTabs(content, options.tab || "发布");
   return { root, main, content };
@@ -660,20 +380,28 @@ function momentHeading(parent, options) {
   return row;
 }
 
+function progressStyle(state) {
+  if (state === "completed") return { line: "#93C5FD", fill: T.blue100, stroke: "#93C5FD", text: T.blue700, glyph: "check" };
+  if (state === "current") return { line: T.blue, fill: T.blue, stroke: T.blue, text: T.blue, glyph: "current" };
+  if (state === "blocked") return { line: T.red, fill: T.red50, stroke: T.red, text: T.red, glyph: "blocked" };
+  if (state === "pending") return { line: T.faint, fill: T.bg, stroke: T.faint, text: T.muted, glyph: "pending" };
+  return { line: T.lineStrong, fill: T.shell, stroke: T.lineStrong, text: T.faint, glyph: "disabled" };
+}
+
 function releaseProgress(parent, stages) {
-  const chain = frame(parent, { name: "Current release progress", width: "fill_container", height: 46, layout: "horizontal", gap: 0, alignItems: "center", cornerRadius: 7, clipContent: true, fill: F(T.bg), stroke: S(T.lineStrong) });
-  for (const [label, state] of stages) {
-    const palette = state === "done"
-      ? ["check", T.green, T.green50]
-      : state === "active"
-        ? ["loader-circle", T.blue, T.blue50]
-        : state === "blocked"
-          ? ["circle-alert", T.red, T.red50]
-          : ["clock-3", T.faint, T.shell];
-    const item = frame(chain, { width: "fill_container", height: "fill_container", layout: "horizontal", gap: 8, alignItems: "center", justifyContent: "center", fill: F(palette[2]), stroke: S(T.line) });
-    icon(item, palette[0], { width: 16, height: 16, fill: F(palette[1]) });
-    text(item, label, { fontSize: 13, fontWeight: 600, fill: F(palette[1]) });
-  }
+  const chain = frame(parent, { name: "Current release progress", width: "fill_container", height: 56, layout: "horizontal", gap: 0, fill: F(T.bg) });
+  stages.forEach(([label, state], index) => {
+    const style = progressStyle(state);
+    const nextStyle = progressStyle(stages[index + 1]?.[1] || state);
+    const item = frame(chain, { name: `Release step: ${label} — ${state}`, width: "fill_container", height: 56, layout: "none" });
+    if (index > 0) frame(item, { x: 0, y: 13, width: 144, height: 2, fill: F(style.line) });
+    if (index < stages.length - 1) frame(item, { x: 143, y: 13, width: 144, height: 2, fill: F(nextStyle.line) });
+    const node = frame(item, { x: 131, y: 2, width: 26, height: 26, layout: "horizontal", alignItems: "center", justifyContent: "center", cornerRadius: 13, fill: F(style.fill), stroke: S(style.stroke, state === "current" || state === "blocked" ? 2 : 1) });
+    if (style.glyph === "check") icon(node, "check", { width: 14, height: 14, fill: F(T.blue700) });
+    else if (style.glyph === "blocked") icon(node, "circle-alert", { width: 14, height: 14, fill: F(T.red) });
+    else I(node, { type: "ellipse", width: state === "current" ? 8 : 6, height: state === "current" ? 8 : 6, fill: F(state === "current" ? T.bg : style.text) });
+    text(item, label, { x: 0, y: 34, width: 287, textGrowth: "fixed-width", textAlign: "center", fontSize: 13, fontWeight: state === "current" || state === "blocked" ? 700 : 600, fill: F(style.text) });
+  });
   return chain;
 }
 
@@ -702,6 +430,306 @@ function checkLine(parent, glyph, label, detail, tone = "green") {
   text(copy, label, { fontSize: 13, fontWeight: 600, fill: F(T.ink) });
   text(copy, detail, { fontSize: 12, fill: F(T.muted) });
   return row;
+}
+
+function directoryToolbar(parent) {
+  const toolbar = frame(parent, { width: "fill_container", height: 56, layout: "horizontal", alignItems: "center", justifyContent: "space_between" });
+  const filters = frame(toolbar, { width: "fit_content", height: 44, layout: "horizontal", gap: 10, alignItems: "center" });
+  const search = frame(filters, { name: "Search projects", role: "search-bar", width: 340, height: 40, layout: "horizontal", padding: [0, 12], gap: 8, alignItems: "center", cornerRadius: 6, fill: F(T.bg), stroke: S(T.lineStrong) });
+  icon(search, "search", { width: 17, height: 17, fill: F(T.muted) });
+  text(search, "搜索项目名称、仓库或域名", { fontSize: 13, fill: F(T.muted) });
+  const state = frame(filters, { name: "Filter by status", role: "button", width: 122, height: 40, layout: "horizontal", padding: [0, 12], alignItems: "center", justifyContent: "space_between", cornerRadius: 6, fill: F(T.bg), stroke: S(T.lineStrong) });
+  text(state, "全部状态", { fontSize: 13, fontWeight: 500, fill: F(T.body) });
+  icon(state, "chevron-down", { width: 15, height: 15, fill: F(T.muted) });
+  const order = frame(toolbar, { width: "fit_content", height: 44, layout: "horizontal", gap: 6, alignItems: "center" });
+  text(order, "6 个项目 · 最近活动优先", { fontSize: 13, fill: F(T.muted) });
+  textAction(order, "配置");
+}
+
+const PROJECT_TYPE_LABELS = {
+  web_application: "Web 应用",
+  backend_service: "后端服务",
+  static_site: "静态站点",
+  mixed_application: "混合应用",
+};
+
+const ARCHITECTURE_LABELS = { monorepo: "Monorepo", single_repository: "单仓库" };
+
+const PROJECT_ROWS = [
+  { name: "Picshare", intake: { projectType: "backend_service", architecture: "monorepo" }, state: "运行中", components: "web:3000 · worker:3001", version: "1.4.0", domain: "picshare.example.com", time: "2026-08-25 16:42" },
+  { name: "Atlas Docs", intake: { projectType: "static_site", architecture: "single_repository" }, state: "待配置", components: "docs-web:3000", version: "—", domain: "—", time: "2026-08-25 10:18", nextAction: "补全生产变量" },
+  { name: "Storefront", intake: { projectType: "mixed_application", architecture: "monorepo" }, state: "运行中", components: "web:3000 · api:3001", version: "2.7.1", domain: "shop.example.com", time: "2026-08-24 21:03" },
+  { name: "Ops Console", intake: { projectType: "web_application", architecture: "single_repository" }, state: "待配置", components: "ops-web:3000", version: "0.9.8", domain: "ops.example.com", time: "2026-08-24 18:27", nextAction: "配置生产入口" },
+  { name: "Design Assets", intake: { projectType: "static_site", architecture: "single_repository" }, state: "运行中", components: "assets-web:4173", version: "1.2.0", domain: "assets.example.com", time: "2026-08-21 09:12" },
+  { name: "Mobile Service", intake: { projectType: "backend_service", architecture: "single_repository" }, state: "运行中", components: "mobile-api:3000", version: "3.3.4", domain: "api.example.com", time: "2026-08-20 15:36" },
+];
+
+function projectMeta(project) {
+  return [PROJECT_TYPE_LABELS[project.intake?.projectType], ARCHITECTURE_LABELS[project.intake?.architecture]].filter(Boolean).join(" · ");
+}
+
+function directoryActions(parent, project) {
+  const direct = project.nextAction ? [project.nextAction, "进入项目", "发布"] : ["进入项目", "发布", "项目配置"];
+  for (const label of direct) textAction(parent, label);
+  iconAction(parent, "ellipsis", `${project.name} 更多操作：${project.nextAction ? "项目配置、域名与入口" : "域名与入口"}`);
+}
+
+function projectTable(parent) {
+  const table = frame(parent, { name: "Project directory table", role: "table", width: "fill_container", height: 404, layout: "vertical", cornerRadius: 8, clipContent: true, fill: F(T.bg), stroke: S(T.lineStrong) });
+  const widths = [190, 76, 185, 200, 180, 277];
+  const head = frame(table, { role: "table-header", width: "fill_container", height: 46, layout: "horizontal", padding: [0, 16], alignItems: "center", fill: F(T.surface) });
+  ["项目", "状态", "组件", "线上版本", "最新发布时间", "操作"].forEach((label, index) => cell(head, widths[index], label, { fontSize: 12, fontWeight: 600, color: T.muted }));
+  for (const project of PROJECT_ROWS) {
+    const row = frame(table, { name: `Project: ${project.name}`, role: "table-row", width: "fill_container", height: 59, layout: "horizontal", padding: [0, 16], alignItems: "center", fill: F(T.bg), stroke: S(T.line) });
+    const identity = cell(row, widths[0]);
+    const projectCopy = frame(identity, { width: 184, height: "fit_content", layout: "vertical", gap: 2 });
+    text(projectCopy, project.name, { fontSize: 14, fontWeight: 400, fill: F(T.ink) });
+    const meta = projectMeta(project);
+    if (meta) text(projectCopy, meta, { fontSize: 12, fill: F(T.muted) });
+    const stateCell = cell(row, widths[1]);
+    text(stateCell, project.state, { fontSize: 13, fontWeight: 600, fill: F(project.state === "运行中" ? T.green : T.orange) });
+    cell(row, widths[2], project.components, { fontSize: 12, fontWeight: 500, color: T.body, fontFamily: "Roboto Mono" });
+    const versionCell = cell(row, widths[3]);
+    const versionCopy = frame(versionCell, { width: 194, height: "fit_content", layout: "vertical", gap: 2 });
+    text(versionCopy, project.version, { fontSize: 13, fontWeight: project.version === "—" ? 400 : 600, fill: F(project.version === "—" ? T.faint : T.ink) });
+    text(versionCopy, `Production · ${project.domain}`, { fontSize: 12, fill: F(project.domain === "—" ? T.faint : T.muted) });
+    cell(row, widths[4], project.time, { fontSize: 12, color: T.muted });
+    directoryActions(cell(row, widths[5]), project);
+  }
+  return table;
+}
+
+function buildDirectory() {
+  const { main } = createScreen("V2-01 Project Directory", 0);
+  const content = frame(main, { width: "fill_container", height: "fill_container", layout: "vertical", padding: [28, 32], gap: 18 });
+  const titleRow = frame(content, { width: "fill_container", height: 64, layout: "horizontal", alignItems: "center", justifyContent: "space_between" });
+  const title = frame(titleRow, { width: 650, height: "fit_content", layout: "vertical", gap: 5 });
+  text(title, "我的项目", { fontSize: 26, fontWeight: 700, fill: F(T.ink) });
+  text(title, "查看项目的生产状态、运行组件和线上版本。", { fontSize: 14, fill: F(T.muted) });
+  button(titleRow, "创建项目", { kind: "primary", icon: "plus" });
+  const summary = frame(content, { width: "fill_container", height: 38, layout: "horizontal", gap: 8, alignItems: "center" });
+  text(summary, "6 个项目", { fontSize: 14, fontWeight: 600, fill: F(T.ink) });
+  text(summary, "·", { fontSize: 14, fill: F(T.faint) });
+  text(summary, "4 运行中", { fontSize: 14, fontWeight: 600, fill: F(T.green) });
+  text(summary, "·", { fontSize: 14, fill: F(T.faint) });
+  text(summary, "2 待配置", { fontSize: 14, fontWeight: 600, fill: F(T.orange) });
+  divider(content);
+  directoryToolbar(content);
+  projectTable(content);
+}
+
+const VERSION_ROWS = [
+  { version: "1.4.0", name: "图库重构", source: "master @ a1b2c3d", time: "2026-08-20 08:31", state: "当前部署", current: true },
+  { version: "1.3.2", name: "稳定版", source: "release/1.3 @ 8f7e6d5", time: "2026-08-10 14:22", state: "可切换", selected: true },
+  { version: "1.3.1", name: "登录修复", source: "hotfix/login @ 3c2b1a0", time: "2026-08-03 11:09", state: "可切换" },
+];
+
+function currentVersion(parent) {
+  const card = frame(parent, { name: "Current version summary", width: "fill_container", height: 106, layout: "horizontal", padding: [16, 18], alignItems: "center", cornerRadius: 7, fill: F(T.bg), stroke: S(T.lineStrong) });
+  const fields = [
+    ["当前版本", "1.4.0", "图库重构", 190],
+    ["提交", "a1b2c3d", "", 180],
+    ["状态", "当前部署", "", 120],
+    ["生效时间", "2026-08-20 09:06", "", 180],
+  ];
+  fields.forEach(([label, value, detail, width], index) => {
+    const field = frame(card, { width, height: "fill_container", layout: "vertical", gap: 6, justifyContent: "center", padding: index === 0 ? [0, 10, 0, 0] : [0, 10, 0, 16], stroke: index === 0 ? undefined : S(T.line) });
+    text(field, label, { fontSize: 12, fontWeight: 500, fill: F(T.muted) });
+    text(field, value, { fontSize: index === 0 ? 18 : 13, fontWeight: 700, fill: F(index === 0 ? T.blue : index === 2 ? T.green : T.ink) });
+    if (detail) text(field, detail, { fontSize: 12, fontWeight: 500, fill: F(T.body) });
+  });
+}
+
+function disabledVersionAction(parent, label) {
+  const node = frame(parent, { name: `Disabled action: ${label} — 已是当前部署`, role: "button", width: 70, height: 44, layout: "vertical", gap: 1, alignItems: "center", justifyContent: "center", opacity: 0.62 });
+  text(node, label, { fontSize: 13, fontWeight: 500, fill: F(T.muted) });
+  text(node, "已是当前部署", { fontSize: 10, fontWeight: 500, fill: F(T.muted) });
+}
+
+function versionRowActions(parent, version) {
+  textAction(parent, "查看详情");
+  textAction(parent, "查看变更");
+  if (version.current) disabledVersionAction(parent, "切换版本");
+  else textAction(parent, "切换版本");
+  iconAction(parent, "ellipsis", `${version.version} 更多操作：查看技术证据`);
+}
+
+function versionsTable(parent) {
+  const table = frame(parent, { name: "Switchable versions table", role: "table", width: "fill_container", height: 218, layout: "vertical", clipContent: true, cornerRadius: 7, fill: F(T.bg), stroke: S(T.lineStrong) });
+  const widths = [92, 140, 146, 100, 244];
+  const head = frame(table, { role: "table-header", width: "fill_container", height: 44, layout: "horizontal", padding: [0, 12], alignItems: "center", fill: F(T.surface) });
+  ["版本", "来源", "制品创建时间", "状态", "操作"].forEach((label, index) => cell(head, widths[index], label, { fontSize: 12, fontWeight: 600, color: T.muted }));
+  for (const version of VERSION_ROWS) {
+    const row = frame(table, { name: `Version ${version.version}${version.selected ? " — selected" : ""}`, role: "table-row", width: "fill_container", height: 58, layout: "horizontal", padding: [0, 12], alignItems: "center", fill: F(version.selected ? T.blue50 : T.bg), stroke: S(T.line) });
+    const versionCell = cell(row, widths[0]);
+    const versionCopy = frame(versionCell, { width: 92, height: "fit_content", layout: "vertical", gap: 1 });
+    text(versionCopy, version.version, { fontSize: 13, fontWeight: 700, fill: F(T.blue) });
+    text(versionCopy, version.name, { fontSize: 12, fill: F(T.body) });
+    const sourceCell = cell(row, widths[1]);
+    const [branch, commit] = version.source.split(" @ ");
+    const sourceCopy = frame(sourceCell, { width: 146, height: "fit_content", layout: "vertical", gap: 1 });
+    text(sourceCopy, branch, { fontSize: 12, fontWeight: 500, fill: F(T.body) });
+    text(sourceCopy, commit, { fontSize: 12, fontFamily: "Roboto Mono", fill: F(T.blue) });
+    cell(row, widths[2], version.time, { fontSize: 12, color: T.muted });
+    const stateCell = cell(row, widths[3]);
+    icon(stateCell, version.current ? "circle-check" : "circle-dot", { width: 15, height: 15, fill: F(version.current ? T.green : T.blue) });
+    text(stateCell, version.state, { fontSize: 12, fontWeight: 600, fill: F(version.current ? T.green : T.blue) });
+    versionRowActions(cell(row, widths[4]), version);
+  }
+}
+
+function inspectorField(parent, label, value) {
+  const field = frame(parent, { width: "fill_container", height: 44, layout: "vertical", gap: 4 });
+  text(field, label, { fontSize: 12, fontWeight: 500, fill: F(T.muted) });
+  text(field, value, { width: 194, textGrowth: "fixed-width", fontSize: 12, fontWeight: 600, fill: F(T.body) });
+}
+
+function versionInspector(parent) {
+  const pane = frame(parent, { name: "Selected version evidence", width: 218, height: "fill_container", layout: "vertical", padding: [4, 0, 0, 18], gap: 12, stroke: S(T.line) });
+  text(pane, "版本详情", { fontSize: 14, fontWeight: 700, fill: F(T.ink) });
+  const hero = frame(pane, { width: "fill_container", height: 48, layout: "horizontal", alignItems: "center", justifyContent: "space_between" });
+  const heroCopy = frame(hero, { width: 110, height: "fit_content", layout: "vertical", gap: 1 });
+  text(heroCopy, "稳定版", { fontSize: 12, fill: F(T.muted) });
+  text(heroCopy, "1.3.2", { fontSize: 21, fontWeight: 700, fill: F(T.ink) });
+  text(hero, "可切换", { fontSize: 12, fontWeight: 600, fill: F(T.blue) });
+  divider(pane);
+  inspectorField(pane, "构建修订", "Build R18");
+  inspectorField(pane, "预发部署证据", "2 条");
+  inspectorField(pane, "生产资格", "审批已通过 · 尚未执行");
+  inspectorField(pane, "来源", "release/1.3 @ 8f7e6d5");
+  inspectorField(pane, "制品创建时间", "2026-08-10 14:22");
+  inspectorField(pane, "状态", "可切换");
+  const empty = frame(pane, { name: "No component or config changes", width: "fill_container", height: 82, layout: "vertical", padding: 12, gap: 5, cornerRadius: 6, fill: F(T.surface), stroke: S(T.line) });
+  text(empty, "没有变更明细", { fontSize: 12, fontWeight: 700, fill: F(T.ink) });
+  text(empty, "该版本没有记录组件/配置变更明细，请以变更来源分支与提交为准。", { width: 172, textGrowth: "fixed-width", fontSize: 12, lineHeight: 1.5, fill: F(T.muted) });
+  const disclosure = frame(pane, { name: "Technical IDs — collapsed", role: "button", width: "fill_container", height: 50, layout: "horizontal", alignItems: "center", justifyContent: "space_between", padding: [0, 10], cornerRadius: 6, fill: F(T.bg), stroke: S(T.line) });
+  const disclosureCopy = frame(disclosure, { width: 148, height: "fit_content", layout: "vertical", gap: 2 });
+  text(disclosureCopy, "技术标识", { fontSize: 12, fontWeight: 600, fill: F(T.ink) });
+  text(disclosureCopy, "默认收起", { fontSize: 11, fill: F(T.muted) });
+  icon(disclosure, "chevron-down", { width: 15, height: 15, fill: F(T.muted) });
+}
+
+function buildVersionConfiguration() {
+  const { main } = createScreen("V2-02 Version Configuration", 1520);
+  const content = frame(main, { width: "fill_container", height: "fill_container", layout: "vertical", padding: [20, 28], gap: 10 });
+  projectTitle(content, { primary: "创建发布", primaryIcon: "plus" });
+  projectTabs(content, "项目配置");
+  const issue = frame(content, { name: "Production entry evidence issue", width: "fill_container", height: 44, layout: "horizontal", padding: [0, 12], gap: 10, alignItems: "center", cornerRadius: 6, fill: F(T.orange50), stroke: S("#FED7AA") });
+  icon(issue, "triangle-alert", { width: 17, height: 17, fill: F(T.orange) });
+  text(issue, "生产入口已配置，DNS/TLS 真实探测证据尚未就绪。", { fontSize: 13, fontWeight: 500, fill: F(T.body) });
+  textAction(issue, "查看生产入口", { arrow: true });
+  const workbench = frame(content, { width: "fill_container", height: "fill_container", layout: "horizontal", gap: 12, padding: [10, 0, 0, 0] });
+  configRail(workbench);
+  const center = frame(workbench, { name: "Version configuration", width: 746, height: "fill_container", layout: "vertical", gap: 12 });
+  const titleRow = frame(center, { width: "fill_container", height: 40, layout: "horizontal", alignItems: "center", justifyContent: "space_between" });
+  text(titleRow, "版本配置", { fontSize: 21, fontWeight: 700, fill: F(T.ink) });
+  const environment = frame(titleRow, { width: 230, height: 40, layout: "horizontal", gap: 10, alignItems: "center", justifyContent: "end" });
+  text(environment, "当前环境", { fontSize: 12, fontWeight: 500, fill: F(T.muted) });
+  const select = frame(environment, { name: "Environment selector", role: "button", width: 154, height: 38, layout: "horizontal", padding: [0, 11], alignItems: "center", justifyContent: "space_between", cornerRadius: 6, fill: F(T.bg), stroke: S(T.lineStrong) });
+  text(select, "生产环境", { fontSize: 13, fontWeight: 500, fill: F(T.ink) });
+  icon(select, "chevron-down", { width: 15, height: 15, fill: F(T.muted) });
+  text(center, "只能从已创建并通过相应发布校验的版本中切换；切换会创建一次受审计的部署，不会直接覆盖运行状态。", { width: 746, textGrowth: "fixed-width", fontSize: 12, lineHeight: 1.45, fill: F(T.muted) });
+  currentVersion(center);
+  text(center, "可切换版本", { fontSize: 15, fontWeight: 700, fill: F(T.ink) });
+  versionsTable(center);
+  versionInspector(workbench);
+}
+
+const PREFLIGHT_CHECKS = [
+  { id: "D14", check: "DNS 记录与域名归属", result: "不可用", detail: "缺少 Production DNS 真实探测证据", tone: "red", selected: true },
+  { id: "D15", check: "TLS 证书与密钥引用", result: "不可用", detail: "缺少 Production TLS 真实探测证据", tone: "red" },
+  { id: "D13", check: "审批、变更窗口与冻结期", result: "待后续审批", detail: "生产审批将在预检通过后创建", tone: "orange" },
+  { id: "D08", check: "数据库与中间件连通", result: "已通过", detail: "资源引用均有真实连接探测", tone: "green" },
+];
+
+function preflightChecksTable(parent) {
+  const table = frame(parent, { name: "Production preflight checks", role: "table", width: "fill_container", height: 270, layout: "vertical", clipContent: true, cornerRadius: 7, fill: F(T.bg), stroke: S(T.lineStrong) });
+  const widths = [240, 120, 314, 98];
+  const head = frame(table, { role: "table-header", width: "fill_container", height: 46, layout: "horizontal", padding: [0, 14], alignItems: "center", fill: F(T.surface) });
+  ["检查项", "结果", "检查说明", "操作"].forEach((label, index) => cell(head, widths[index], label, { fontSize: 12, fontWeight: 600, color: T.muted }));
+  for (const check of PREFLIGHT_CHECKS) {
+    const color = check.tone === "red" ? T.red : check.tone === "orange" ? T.orange : T.green;
+    const glyph = check.tone === "red" ? "circle-x" : check.tone === "orange" ? "clock-3" : "circle-check";
+    const row = frame(table, { name: `Check ${check.id}${check.selected ? " — selected" : ""}`, role: "table-row", width: "fill_container", height: 56, layout: "horizontal", padding: [0, 14], alignItems: "center", fill: F(check.selected ? T.red50 : T.bg), stroke: S(T.line) });
+    const checkCell = cell(row, widths[0]);
+    icon(checkCell, glyph, { width: 17, height: 17, fill: F(color) });
+    text(checkCell, `${check.id}  ${check.check}`, { fontSize: 13, fontWeight: 600, fill: F(T.ink) });
+    const resultCell = cell(row, widths[1]);
+    text(resultCell, check.result, { fontSize: 13, fontWeight: 600, fill: F(color) });
+    cell(row, widths[2], check.detail, { fontSize: 13, color: check.tone === "green" ? T.muted : T.body });
+    textAction(cell(row, widths[3]), check.tone === "red" ? "查看证据" : "详情");
+  }
+}
+
+function evidenceField(parent, label, value, options = {}) {
+  const row = frame(parent, { width: "fill_container", height: options.height || 34, layout: "horizontal", gap: 10, alignItems: "center", justifyContent: "space_between" });
+  text(row, label, { fontSize: 12, fill: F(T.muted) });
+  text(row, value, { width: options.width || 176, textGrowth: "fixed-width", textAlign: "right", fontFamily: options.mono ? "Roboto Mono" : T.font, fontSize: 12, fontWeight: 600, fill: F(options.color || T.body) });
+}
+
+function preflightEvidencePane(parent) {
+  const pane = frame(parent, { name: "D14 evidence drawer", width: 330, height: "fill_container", layout: "vertical", padding: 18, gap: 14, cornerRadius: 8, fill: F(T.bg), stroke: S(T.lineStrong), effects: SHADOW });
+  const title = frame(pane, { width: "fill_container", height: 32, layout: "horizontal", alignItems: "center", justifyContent: "space_between" });
+  const titleCopy = frame(title, { width: 220, height: "fit_content", layout: "vertical", gap: 1 });
+  text(titleCopy, "D14 检查证据", { fontSize: 16, fontWeight: 700, fill: F(T.ink) });
+  text(titleCopy, "DNS 记录与域名归属", { fontSize: 11, fill: F(T.muted) });
+  iconAction(title, "x", "关闭证据");
+  divider(pane);
+  status(pane, "不可用", "red");
+  const conclusion = frame(pane, { width: "fill_container", height: "fit_content", layout: "vertical", gap: 7 });
+  text(conclusion, "原因", { fontSize: 12, fontWeight: 600, fill: F(T.muted) });
+  text(conclusion, "没有新鲜的 Production DNS 真实探测结果", { width: 294, textGrowth: "fixed-width", fontSize: 14, fontWeight: 600, lineHeight: 1.55, fill: F(T.ink) });
+  const evidence = frame(pane, { width: "fill_container", height: "fit_content", layout: "vertical", gap: 6, padding: 14, cornerRadius: 7, fill: F(T.surface), stroke: S(T.line) });
+  text(evidence, "证据详情", { fontSize: 12, fontWeight: 600, fill: F(T.muted) });
+  evidenceField(evidence, "Provider", "site_dns_tls_route", { mono: true, width: 190 });
+  evidenceField(evidence, "证据", "—");
+  evidenceField(evidence, "检查时间", "—");
+  evidenceField(evidence, "修复目标", "生产环境 / 域名与入口", { height: 42 });
+  divider(pane);
+  text(pane, "修复或等待 Provider 同步后重新检查；配置、工作负载或证据变化会重新计算。", { width: 294, textGrowth: "fixed-width", fontSize: 12, lineHeight: 1.65, fill: F(T.muted) });
+}
+
+function preflightIssue(parent) {
+  const blocker = frame(parent, { name: "Blocking evidence and retry action", width: "fill_container", height: 76, layout: "horizontal", padding: [0, 14], gap: 12, alignItems: "center", justifyContent: "space_between", cornerRadius: 7, fill: F(T.red50), stroke: S("#FECDD3") });
+  const message = frame(blocker, { width: 724, height: "fit_content", layout: "horizontal", gap: 11, alignItems: "center" });
+  icon(message, "circle-alert", { width: 19, height: 19, fill: F(T.red) });
+  const copy = frame(message, { width: 690, height: "fit_content", layout: "vertical", gap: 4 });
+  text(copy, "生产入口缺少新鲜的 DNS/TLS 真实探测证据", { fontSize: 14, fontWeight: 700, fill: F(T.ink) });
+  text(copy, "影响：2 项预审批门禁阻断，当前不能创建生产审批。", { fontSize: 13, fill: F(T.body) });
+  const actions = frame(blocker, { width: 350, height: 44, layout: "horizontal", gap: 10, alignItems: "center", justifyContent: "end" });
+  textAction(actions, "查看生产入口");
+  button(actions, "重新检查生产预检", { kind: "primary", icon: "refresh-cw", width: 188 });
+}
+
+function buildProductionPreflight() {
+  const { content } = createProjectMoment("V2-03 Production Preflight Blocked", 3040, { tab: "发布" });
+  momentHeading(content, {
+    title: "Picshare R1 · 生产预检",
+    status: "2 项阻断",
+    tone: "red",
+    description: "同一 Manifest 已完成 Staging DeploymentRun；全部预审批门禁通过后才能创建生产审批。",
+    meta: "2026-08-26 10:52",
+  });
+  releaseProgress(content, [["构建", "completed"], ["预发部署", "completed"], ["生产预检", "blocked"], ["生产审批", "disabled"]]);
+  preflightIssue(content);
+  const lower = frame(content, { width: "fill_container", height: "fill_container", layout: "horizontal", gap: 18, padding: [4, 0, 0, 0] });
+  const left = frame(lower, { width: 800, height: "fill_container", layout: "vertical", gap: 10 });
+  releaseFacts(left, [
+    ["当前生产", "图库重构 1.4.0"],
+    ["候选版本", "图片压缩 1.5.0"],
+    ["来源", "master @ b7c9e21"],
+    ["制品", "picshare-web · 86.4 MB"],
+  ], { name: "Preflight release facts", height: 86 });
+  const checksHeading = frame(left, { width: "fill_container", height: 34, layout: "horizontal", alignItems: "center", justifyContent: "space_between" });
+  text(checksHeading, "关键预检项", { fontSize: 15, fontWeight: 700, fill: F(T.ink) });
+  const checksMeta = frame(checksHeading, { width: "fit_content", height: 34, layout: "horizontal", gap: 8, alignItems: "center" });
+  text(checksMeta, "16 项通过 · 2 项阻断 · 1 项待后续审批", { fontSize: 12, fill: F(T.muted) });
+  textAction(checksMeta, "查看全部 19 项");
+  preflightChecksTable(left);
+  const concurrency = frame(left, { name: "Production concurrency", width: "fill_container", height: 44, layout: "horizontal", padding: [0, 14], alignItems: "center", justifyContent: "space_between", cornerRadius: 7, fill: F(T.surface), stroke: S(T.line) });
+  text(concurrency, "生产并发", { fontSize: 13, fontWeight: 600, fill: F(T.ink) });
+  text(concurrency, "可用 · 限制 1 个活动生产运行", { fontSize: 13, fontWeight: 600, fill: F(T.green) });
+  preflightEvidencePane(lower);
 }
 
 function overviewReleaseTable(parent) {
@@ -826,56 +854,52 @@ function buildReleaseOrders() {
 }
 
 const STAGING_EVENTS = [
-  ["10:49:12", "准备目标", "已完成", "预发环境资源检查通过"],
-  ["10:50:03", "拉取制品", "已完成", "picshare-web 86.4 MB 校验一致"],
-  ["10:50:41", "启动组件", "已完成", "新实例已进入健康检查"],
-  ["10:51:16", "健康检查", "进行中", "2 / 3 个实例已就绪"],
-  ["—", "入口验证", "等待中", "将在全部实例就绪后开始"],
+  ["2026-08-26 10:49", "部署运行已创建", "completed", "DeploymentRun 已创建并开始执行"],
+  ["运行中", "执行器运行中", "current", "正在执行已冻结的预发部署计划"],
+  ["—", "结果与证据", "disabled", "执行完成后写入技术结果与受控日志"],
 ];
 
-function stagingEventsTable(parent) {
-  const table = frame(parent, { name: "Live staging events", role: "table", width: "fill_container", height: 326, layout: "vertical", clipContent: true, cornerRadius: 7, fill: F(T.bg), stroke: S(T.lineStrong) });
-  const widths = [90, 130, 112, 400];
-  const head = frame(table, { role: "table-header", width: "fill_container", height: 46, layout: "horizontal", padding: [0, 14], alignItems: "center", fill: F(T.surface) });
-  ["时间", "事件", "状态", "说明"].forEach((label, index) => cell(head, widths[index], label, { fontSize: 12, fontWeight: 600, color: T.muted }));
-  for (const event of STAGING_EVENTS) {
-    const active = event[2] === "进行中";
-    const row = frame(table, { role: "table-row", width: "fill_container", height: 56, layout: "horizontal", padding: [0, 14], alignItems: "center", fill: F(active ? T.blue50 : T.bg), stroke: S(T.line) });
-    cell(row, widths[0], event[0], { fontSize: 12, color: T.muted });
-    cell(row, widths[1], event[1], { fontSize: 13, fontWeight: 600, color: T.ink });
-    const stateCell = cell(row, widths[2]);
-    if (active) {
-      icon(stateCell, "loader-circle", { width: 15, height: 15, fill: F(T.blue) });
-      text(stateCell, event[2], { fontSize: 13, fontWeight: 600, fill: F(T.blue) });
-    } else if (event[2] === "已完成") {
-      icon(stateCell, "circle-check", { width: 15, height: 15, fill: F(T.green) });
-      text(stateCell, event[2], { fontSize: 13, fontWeight: 600, fill: F(T.green) });
-    } else text(stateCell, event[2], { fontSize: 13, fontWeight: 500, fill: F(T.faint) });
-    cell(row, widths[3], event[3], { fontSize: 12, color: active ? T.body : T.muted });
-  }
+function stagingEventsTimeline(parent) {
+  const timeline = frame(parent, { name: "Staging run progress", role: "list", width: "fill_container", height: 326, layout: "vertical", padding: [16, 0], fill: F(T.bg) });
+  STAGING_EVENTS.forEach(([time, label, state, detail], index) => {
+    const style = progressStyle(state);
+    const nextStyle = progressStyle(STAGING_EVENTS[index + 1]?.[2] || state);
+    const row = frame(timeline, { name: `Staging run state: ${label} — ${state}`, role: "list-item", width: "fill_container", height: 94, layout: "horizontal", padding: [0, 10], gap: 12, alignItems: "center" });
+    const marker = frame(row, { width: 28, height: 94, layout: "none" });
+    if (index > 0) frame(marker, { x: 13, y: 0, width: 2, height: 47, fill: F(style.line) });
+    if (index < STAGING_EVENTS.length - 1) frame(marker, { x: 13, y: 47, width: 2, height: 47, fill: F(nextStyle.line) });
+    const node = frame(marker, { x: 3, y: 36, width: 22, height: 22, layout: "horizontal", alignItems: "center", justifyContent: "center", cornerRadius: 11, fill: F(style.fill), stroke: S(style.stroke, state === "current" ? 2 : 1) });
+    if (state === "completed") icon(node, "check", { width: 12, height: 12, fill: F(T.blue700) });
+    else I(node, { type: "ellipse", width: state === "current" ? 7 : 5, height: state === "current" ? 7 : 5, fill: F(state === "current" ? T.bg : style.text) });
+    text(row, time, { width: 138, textGrowth: "fixed-width", fontFamily: "Roboto Mono", fontSize: 12, fill: F(state === "disabled" ? T.faint : T.muted) });
+    const copy = frame(row, { width: "fill_container", height: "fit_content", layout: "vertical", gap: 3 });
+    text(copy, label, { fontSize: 13, fontWeight: state === "current" ? 700 : 600, fill: F(state === "disabled" ? T.faint : T.ink) });
+    text(copy, detail, { fontSize: 12, fill: F(state === "disabled" ? T.faint : T.muted) });
+    const stateLabel = state === "completed" ? "已完成" : state === "current" ? "进行中" : "未启用";
+    text(row, stateLabel, { width: 66, textGrowth: "fixed-width", textAlign: "right", fontSize: 12, fontWeight: 600, fill: F(style.text) });
+  });
 }
 
-function stagingLogSummary(parent) {
-  const panel = frame(parent, { name: "Staging log summary", width: "fill_container", height: 350, layout: "vertical", padding: 16, gap: 12, cornerRadius: 7, fill: F("#111827") });
+function stagingRunStatusSummary(parent) {
+  const panel = frame(parent, { name: "Staging run status summary", width: "fill_container", height: 350, layout: "vertical", padding: 16, gap: 12, cornerRadius: 7, fill: F(T.bg), stroke: S(T.lineStrong) });
   const head = frame(panel, { width: "fill_container", height: 32, layout: "horizontal", alignItems: "center", justifyContent: "space_between" });
-  text(head, "实时日志摘要", { fontSize: 14, fontWeight: 700, fill: F(T.bg) });
+  text(head, "运行状态摘要", { fontSize: 14, fontWeight: 700, fill: F(T.ink) });
   const live = frame(head, { width: "fit_content", height: 26, layout: "horizontal", gap: 6, alignItems: "center" });
-  I(live, { type: "ellipse", width: 7, height: 7, fill: F("#22C55E") });
-  text(live, "持续更新", { fontSize: 12, fontWeight: 600, fill: F("#86EFAC") });
-  const logs = [
-    ["10:50:41", "picshare-web 实例启动完成"],
-    ["10:50:56", "实例 1 健康检查通过"],
-    ["10:51:04", "实例 2 健康检查通过"],
-    ["10:51:16", "等待实例 3 返回就绪状态"],
+  I(live, { type: "ellipse", width: 7, height: 7, fill: F(T.blue) });
+  text(live, "运行中", { fontSize: 12, fontWeight: 600, fill: F(T.blue) });
+  const facts = [
+    ["运行状态", "进行中"],
+    ["运行对象", "预发 DeploymentRun"],
+    ["结果与证据", "执行完成后写入"],
   ];
-  for (const [time, message] of logs) {
-    const line = frame(panel, { width: "fill_container", height: 42, layout: "horizontal", gap: 10, alignItems: "center", stroke: S("#263244") });
-    text(line, time, { width: 70, textGrowth: "fixed-width", fontSize: 12, fill: F("#94A3B8") });
-    text(line, message, { width: 250, textGrowth: "fixed-width", fontSize: 12, fill: F("#E5E7EB") });
+  for (const [label, value] of facts) {
+    const line = frame(panel, { width: "fill_container", height: 48, layout: "horizontal", alignItems: "center", justifyContent: "space_between", stroke: S(T.line) });
+    text(line, label, { fontSize: 12, fill: F(T.muted) });
+    text(line, value, { fontSize: 12, fontWeight: 600, fill: F(value === "进行中" ? T.blue : T.body) });
   }
-  const note = frame(panel, { width: "fill_container", height: 48, layout: "horizontal", padding: [0, 10], gap: 8, alignItems: "center", cornerRadius: 6, fill: F("#1E293B") });
-  icon(note, "info", { width: 16, height: 16, fill: F("#60A5FA") });
-  text(note, "最近 4 条关键事件；完整日志按日志策略保留。", { fontSize: 12, fill: F("#CBD5E1") });
+  const note = frame(panel, { width: "fill_container", height: 52, layout: "horizontal", padding: [0, 10], gap: 8, alignItems: "center", cornerRadius: 6, fill: F(T.surface) });
+  icon(note, "info", { width: 16, height: 16, fill: F(T.blue) });
+  text(note, "运行结束后写入受控日志与结果证据。", { fontSize: 12, fill: F(T.muted) });
 }
 
 function buildStagingDeploymentRunning() {
@@ -884,11 +908,11 @@ function buildStagingDeploymentRunning() {
     title: "Picshare R1 · 预发部署",
     status: "进行中",
     tone: "blue",
-    description: "候选制品正在部署到预发环境，完成后自动开始预发验证。",
-    primary: "打开实时日志",
+    description: "已冻结的预发部署计划正在执行，完成后写入技术结果与受控日志。",
+    primary: "查看运行详情",
     primaryIcon: "scroll-text",
   });
-  releaseProgress(content, [["构建", "done"], ["预发部署", "active"], ["预发验证", "pending"], ["生产发布", "pending"]]);
+  releaseProgress(content, [["构建", "completed"], ["预发部署", "current"], ["预发验证", "disabled"], ["生产发布", "disabled"]]);
   releaseFacts(content, [
     ["候选版本", `${CANDIDATE_RELEASE.name} ${CANDIDATE_RELEASE.version}`],
     ["来源", CANDIDATE_RELEASE.source],
@@ -897,11 +921,11 @@ function buildStagingDeploymentRunning() {
   ]);
   const lower = frame(content, { width: "fill_container", height: "fill_container", layout: "horizontal", gap: 18, padding: [4, 0, 0, 0] });
   const events = frame(lower, { width: 760, height: "fit_content", layout: "vertical", gap: 8 });
-  sectionHeading(events, "实时事件", "自动刷新");
-  stagingEventsTable(events);
+  sectionHeading(events, "执行进度", "DeploymentRun · 运行中");
+  stagingEventsTimeline(events);
   const logs = frame(lower, { width: "fill_container", height: "fit_content", layout: "vertical", gap: 8 });
-  sectionHeading(logs, "日志摘要", "最近关键事件");
-  stagingLogSummary(logs);
+  sectionHeading(logs, "状态摘要", "由当前运行状态派生");
+  stagingRunStatusSummary(logs);
 }
 
 function releaseComparison(parent) {
@@ -942,7 +966,7 @@ function buildProductionReleaseReview() {
     primary: "提交生产审批",
     primaryIcon: "send",
   });
-  releaseProgress(content, [["构建", "done"], ["预发验证", "done"], ["生产核对", "active"], ["等待审批", "pending"]]);
+  releaseProgress(content, [["构建", "completed"], ["预发验证", "completed"], ["生产核对", "current"], ["等待审批", "pending"]]);
   releaseFacts(content, [
     ["当前生产", `${CURRENT_RELEASE.name} ${CURRENT_RELEASE.version}`],
     ["候选发布", `${CANDIDATE_RELEASE.name} ${CANDIDATE_RELEASE.version}`],
@@ -1013,7 +1037,7 @@ function buildAwaitingApproval() {
     description: "申请已提交，审批完成前不会开始生产部署。",
     meta: "提交于  2026-08-26 11:04",
   });
-  releaseProgress(content, [["构建", "done"], ["预发验证", "done"], ["生产核对", "done"], ["等待审批", "active"]]);
+  releaseProgress(content, [["构建", "completed"], ["预发验证", "completed"], ["生产核对", "completed"], ["等待审批", "current"]]);
   releaseFacts(content, [
     ["候选版本", `${CANDIDATE_RELEASE.name} ${CANDIDATE_RELEASE.version}`],
     ["候选来源", CANDIDATE_RELEASE.source],
@@ -1088,7 +1112,7 @@ function drawProductionSuccess(main) {
     primary: "打开生产站点",
     primaryIcon: "external-link",
   });
-  releaseProgress(content, [["构建", "done"], ["预发验证", "done"], ["生产部署", "done"], ["入口探测", "done"]]);
+  releaseProgress(content, [["构建", "completed"], ["预发验证", "completed"], ["生产部署", "completed"], ["入口探测", "completed"]]);
   const success = frame(content, { name: "Production success message", width: "fill_container", height: 62, layout: "horizontal", padding: [0, 14], gap: 10, alignItems: "center", cornerRadius: 7, fill: F(T.green50), stroke: S("#BBF7D0") });
   icon(success, "circle-check", { width: 19, height: 19, fill: F(T.green) });
   const successCopy = frame(success, { width: "fill_container", height: "fit_content", layout: "vertical", gap: 2 });

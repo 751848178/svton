@@ -48,7 +48,7 @@ function buildAwaitingApproval() {
     description: "申请已提交，审批完成前不会开始生产部署。",
     meta: "提交于  2026-08-26 11:04",
   });
-  releaseProgress(content, [["构建", "done"], ["预发验证", "done"], ["生产核对", "done"], ["等待审批", "active"]]);
+  releaseProgress(content, [["构建", "completed"], ["预发验证", "completed"], ["生产核对", "completed"], ["等待审批", "current"]]);
   releaseFacts(content, [
     ["候选版本", `${CANDIDATE_RELEASE.name} ${CANDIDATE_RELEASE.version}`],
     ["候选来源", CANDIDATE_RELEASE.source],

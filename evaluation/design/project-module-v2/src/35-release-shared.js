@@ -14,14 +14,7 @@ const CANDIDATE_RELEASE = {
 
 function createProjectMoment(name, x, options = {}) {
   const { root, main } = createScreen(name, x);
-  const content = frame(main, {
-    name: "Project moment content",
-    width: "fill_container",
-    height: "fill_container",
-    layout: "vertical",
-    padding: [20, 28],
-    gap: 10,
-  });
+  const content = frame(main, { name: "Project moment content", width: "fill_container", height: "fill_container", layout: "vertical", padding: [20, 28], gap: 10 });
   projectTitle(content, options.primary ? { primary: options.primary, primaryIcon: options.primaryIcon } : {});
   projectTabs(content, options.tab || "发布");
   return { root, main, content };
@@ -39,20 +32,28 @@ function momentHeading(parent, options) {
   return row;
 }
 
+function progressStyle(state) {
+  if (state === "completed") return { line: "#93C5FD", fill: T.blue100, stroke: "#93C5FD", text: T.blue700, glyph: "check" };
+  if (state === "current") return { line: T.blue, fill: T.blue, stroke: T.blue, text: T.blue, glyph: "current" };
+  if (state === "blocked") return { line: T.red, fill: T.red50, stroke: T.red, text: T.red, glyph: "blocked" };
+  if (state === "pending") return { line: T.faint, fill: T.bg, stroke: T.faint, text: T.muted, glyph: "pending" };
+  return { line: T.lineStrong, fill: T.shell, stroke: T.lineStrong, text: T.faint, glyph: "disabled" };
+}
+
 function releaseProgress(parent, stages) {
-  const chain = frame(parent, { name: "Current release progress", width: "fill_container", height: 46, layout: "horizontal", gap: 0, alignItems: "center", cornerRadius: 7, clipContent: true, fill: F(T.bg), stroke: S(T.lineStrong) });
-  for (const [label, state] of stages) {
-    const palette = state === "done"
-      ? ["check", T.green, T.green50]
-      : state === "active"
-        ? ["loader-circle", T.blue, T.blue50]
-        : state === "blocked"
-          ? ["circle-alert", T.red, T.red50]
-          : ["clock-3", T.faint, T.shell];
-    const item = frame(chain, { width: "fill_container", height: "fill_container", layout: "horizontal", gap: 8, alignItems: "center", justifyContent: "center", fill: F(palette[2]), stroke: S(T.line) });
-    icon(item, palette[0], { width: 16, height: 16, fill: F(palette[1]) });
-    text(item, label, { fontSize: 13, fontWeight: 600, fill: F(palette[1]) });
-  }
+  const chain = frame(parent, { name: "Current release progress", width: "fill_container", height: 56, layout: "horizontal", gap: 0, fill: F(T.bg) });
+  stages.forEach(([label, state], index) => {
+    const style = progressStyle(state);
+    const nextStyle = progressStyle(stages[index + 1]?.[1] || state);
+    const item = frame(chain, { name: `Release step: ${label} — ${state}`, width: "fill_container", height: 56, layout: "none" });
+    if (index > 0) frame(item, { x: 0, y: 13, width: 144, height: 2, fill: F(style.line) });
+    if (index < stages.length - 1) frame(item, { x: 143, y: 13, width: 144, height: 2, fill: F(nextStyle.line) });
+    const node = frame(item, { x: 131, y: 2, width: 26, height: 26, layout: "horizontal", alignItems: "center", justifyContent: "center", cornerRadius: 13, fill: F(style.fill), stroke: S(style.stroke, state === "current" || state === "blocked" ? 2 : 1) });
+    if (style.glyph === "check") icon(node, "check", { width: 14, height: 14, fill: F(T.blue700) });
+    else if (style.glyph === "blocked") icon(node, "circle-alert", { width: 14, height: 14, fill: F(T.red) });
+    else I(node, { type: "ellipse", width: state === "current" ? 8 : 6, height: state === "current" ? 8 : 6, fill: F(state === "current" ? T.bg : style.text) });
+    text(item, label, { x: 0, y: 34, width: 287, textGrowth: "fixed-width", textAlign: "center", fontSize: 13, fontWeight: state === "current" || state === "blocked" ? 700 : 600, fill: F(style.text) });
+  });
   return chain;
 }
 

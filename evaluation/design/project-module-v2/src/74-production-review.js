@@ -36,7 +36,7 @@ function buildProductionReleaseReview() {
     primary: "提交生产审批",
     primaryIcon: "send",
   });
-  releaseProgress(content, [["构建", "done"], ["预发验证", "done"], ["生产核对", "active"], ["等待审批", "pending"]]);
+  releaseProgress(content, [["构建", "completed"], ["预发验证", "completed"], ["生产核对", "current"], ["等待审批", "pending"]]);
   releaseFacts(content, [
     ["当前生产", `${CURRENT_RELEASE.name} ${CURRENT_RELEASE.version}`],
     ["候选发布", `${CANDIDATE_RELEASE.name} ${CANDIDATE_RELEASE.version}`],

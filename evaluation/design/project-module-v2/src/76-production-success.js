@@ -52,7 +52,7 @@ function drawProductionSuccess(main) {
     primary: "打开生产站点",
     primaryIcon: "external-link",
   });
-  releaseProgress(content, [["构建", "done"], ["预发验证", "done"], ["生产部署", "done"], ["入口探测", "done"]]);
+  releaseProgress(content, [["构建", "completed"], ["预发验证", "completed"], ["生产部署", "completed"], ["入口探测", "completed"]]);
   const success = frame(content, { name: "Production success message", width: "fill_container", height: 62, layout: "horizontal", padding: [0, 14], gap: 10, alignItems: "center", cornerRadius: 7, fill: F(T.green50), stroke: S("#BBF7D0") });
   icon(success, "circle-check", { width: 19, height: 19, fill: F(T.green) });
   const successCopy = frame(success, { width: "fill_container", height: "fit_content", layout: "vertical", gap: 2 });

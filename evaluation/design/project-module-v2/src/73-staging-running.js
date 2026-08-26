@@ -1,54 +1,50 @@
 const STAGING_EVENTS = [
-  ["10:49:12", "准备目标", "已完成", "预发环境资源检查通过"],
-  ["10:50:03", "拉取制品", "已完成", "picshare-web 86.4 MB 校验一致"],
-  ["10:50:41", "启动组件", "已完成", "新实例已进入健康检查"],
-  ["10:51:16", "健康检查", "进行中", "2 / 3 个实例已就绪"],
-  ["—", "入口验证", "等待中", "将在全部实例就绪后开始"],
+  ["2026-08-26 10:49", "部署运行已创建", "completed", "DeploymentRun 已创建并开始执行"],
+  ["运行中", "执行器运行中", "current", "正在执行已冻结的预发部署计划"],
+  ["—", "结果与证据", "disabled", "执行完成后写入技术结果与受控日志"],
 ];
 
-function stagingEventsTable(parent) {
-  const table = frame(parent, { name: "Live staging events", role: "table", width: "fill_container", height: 326, layout: "vertical", clipContent: true, cornerRadius: 7, fill: F(T.bg), stroke: S(T.lineStrong) });
-  const widths = [90, 130, 112, 400];
-  const head = frame(table, { role: "table-header", width: "fill_container", height: 46, layout: "horizontal", padding: [0, 14], alignItems: "center", fill: F(T.surface) });
-  ["时间", "事件", "状态", "说明"].forEach((label, index) => cell(head, widths[index], label, { fontSize: 12, fontWeight: 600, color: T.muted }));
-  for (const event of STAGING_EVENTS) {
-    const active = event[2] === "进行中";
-    const row = frame(table, { role: "table-row", width: "fill_container", height: 56, layout: "horizontal", padding: [0, 14], alignItems: "center", fill: F(active ? T.blue50 : T.bg), stroke: S(T.line) });
-    cell(row, widths[0], event[0], { fontSize: 12, color: T.muted });
-    cell(row, widths[1], event[1], { fontSize: 13, fontWeight: 600, color: T.ink });
-    const stateCell = cell(row, widths[2]);
-    if (active) {
-      icon(stateCell, "loader-circle", { width: 15, height: 15, fill: F(T.blue) });
-      text(stateCell, event[2], { fontSize: 13, fontWeight: 600, fill: F(T.blue) });
-    } else if (event[2] === "已完成") {
-      icon(stateCell, "circle-check", { width: 15, height: 15, fill: F(T.green) });
-      text(stateCell, event[2], { fontSize: 13, fontWeight: 600, fill: F(T.green) });
-    } else text(stateCell, event[2], { fontSize: 13, fontWeight: 500, fill: F(T.faint) });
-    cell(row, widths[3], event[3], { fontSize: 12, color: active ? T.body : T.muted });
-  }
+function stagingEventsTimeline(parent) {
+  const timeline = frame(parent, { name: "Staging run progress", role: "list", width: "fill_container", height: 326, layout: "vertical", padding: [16, 0], fill: F(T.bg) });
+  STAGING_EVENTS.forEach(([time, label, state, detail], index) => {
+    const style = progressStyle(state);
+    const nextStyle = progressStyle(STAGING_EVENTS[index + 1]?.[2] || state);
+    const row = frame(timeline, { name: `Staging run state: ${label} — ${state}`, role: "list-item", width: "fill_container", height: 94, layout: "horizontal", padding: [0, 10], gap: 12, alignItems: "center" });
+    const marker = frame(row, { width: 28, height: 94, layout: "none" });
+    if (index > 0) frame(marker, { x: 13, y: 0, width: 2, height: 47, fill: F(style.line) });
+    if (index < STAGING_EVENTS.length - 1) frame(marker, { x: 13, y: 47, width: 2, height: 47, fill: F(nextStyle.line) });
+    const node = frame(marker, { x: 3, y: 36, width: 22, height: 22, layout: "horizontal", alignItems: "center", justifyContent: "center", cornerRadius: 11, fill: F(style.fill), stroke: S(style.stroke, state === "current" ? 2 : 1) });
+    if (state === "completed") icon(node, "check", { width: 12, height: 12, fill: F(T.blue700) });
+    else I(node, { type: "ellipse", width: state === "current" ? 7 : 5, height: state === "current" ? 7 : 5, fill: F(state === "current" ? T.bg : style.text) });
+    text(row, time, { width: 138, textGrowth: "fixed-width", fontFamily: "Roboto Mono", fontSize: 12, fill: F(state === "disabled" ? T.faint : T.muted) });
+    const copy = frame(row, { width: "fill_container", height: "fit_content", layout: "vertical", gap: 3 });
+    text(copy, label, { fontSize: 13, fontWeight: state === "current" ? 700 : 600, fill: F(state === "disabled" ? T.faint : T.ink) });
+    text(copy, detail, { fontSize: 12, fill: F(state === "disabled" ? T.faint : T.muted) });
+    const stateLabel = state === "completed" ? "已完成" : state === "current" ? "进行中" : "未启用";
+    text(row, stateLabel, { width: 66, textGrowth: "fixed-width", textAlign: "right", fontSize: 12, fontWeight: 600, fill: F(style.text) });
+  });
 }
 
-function stagingLogSummary(parent) {
-  const panel = frame(parent, { name: "Staging log summary", width: "fill_container", height: 350, layout: "vertical", padding: 16, gap: 12, cornerRadius: 7, fill: F("#111827") });
+function stagingRunStatusSummary(parent) {
+  const panel = frame(parent, { name: "Staging run status summary", width: "fill_container", height: 350, layout: "vertical", padding: 16, gap: 12, cornerRadius: 7, fill: F(T.bg), stroke: S(T.lineStrong) });
   const head = frame(panel, { width: "fill_container", height: 32, layout: "horizontal", alignItems: "center", justifyContent: "space_between" });
-  text(head, "实时日志摘要", { fontSize: 14, fontWeight: 700, fill: F(T.bg) });
+  text(head, "运行状态摘要", { fontSize: 14, fontWeight: 700, fill: F(T.ink) });
   const live = frame(head, { width: "fit_content", height: 26, layout: "horizontal", gap: 6, alignItems: "center" });
-  I(live, { type: "ellipse", width: 7, height: 7, fill: F("#22C55E") });
-  text(live, "持续更新", { fontSize: 12, fontWeight: 600, fill: F("#86EFAC") });
-  const logs = [
-    ["10:50:41", "picshare-web 实例启动完成"],
-    ["10:50:56", "实例 1 健康检查通过"],
-    ["10:51:04", "实例 2 健康检查通过"],
-    ["10:51:16", "等待实例 3 返回就绪状态"],
+  I(live, { type: "ellipse", width: 7, height: 7, fill: F(T.blue) });
+  text(live, "运行中", { fontSize: 12, fontWeight: 600, fill: F(T.blue) });
+  const facts = [
+    ["运行状态", "进行中"],
+    ["运行对象", "预发 DeploymentRun"],
+    ["结果与证据", "执行完成后写入"],
   ];
-  for (const [time, message] of logs) {
-    const line = frame(panel, { width: "fill_container", height: 42, layout: "horizontal", gap: 10, alignItems: "center", stroke: S("#263244") });
-    text(line, time, { width: 70, textGrowth: "fixed-width", fontSize: 12, fill: F("#94A3B8") });
-    text(line, message, { width: 250, textGrowth: "fixed-width", fontSize: 12, fill: F("#E5E7EB") });
+  for (const [label, value] of facts) {
+    const line = frame(panel, { width: "fill_container", height: 48, layout: "horizontal", alignItems: "center", justifyContent: "space_between", stroke: S(T.line) });
+    text(line, label, { fontSize: 12, fill: F(T.muted) });
+    text(line, value, { fontSize: 12, fontWeight: 600, fill: F(value === "进行中" ? T.blue : T.body) });
   }
-  const note = frame(panel, { width: "fill_container", height: 48, layout: "horizontal", padding: [0, 10], gap: 8, alignItems: "center", cornerRadius: 6, fill: F("#1E293B") });
-  icon(note, "info", { width: 16, height: 16, fill: F("#60A5FA") });
-  text(note, "最近 4 条关键事件；完整日志按日志策略保留。", { fontSize: 12, fill: F("#CBD5E1") });
+  const note = frame(panel, { width: "fill_container", height: 52, layout: "horizontal", padding: [0, 10], gap: 8, alignItems: "center", cornerRadius: 6, fill: F(T.surface) });
+  icon(note, "info", { width: 16, height: 16, fill: F(T.blue) });
+  text(note, "运行结束后写入受控日志与结果证据。", { fontSize: 12, fill: F(T.muted) });
 }
 
 function buildStagingDeploymentRunning() {
@@ -57,11 +53,11 @@ function buildStagingDeploymentRunning() {
     title: "Picshare R1 · 预发部署",
     status: "进行中",
     tone: "blue",
-    description: "候选制品正在部署到预发环境，完成后自动开始预发验证。",
-    primary: "打开实时日志",
+    description: "已冻结的预发部署计划正在执行，完成后写入技术结果与受控日志。",
+    primary: "查看运行详情",
     primaryIcon: "scroll-text",
   });
-  releaseProgress(content, [["构建", "done"], ["预发部署", "active"], ["预发验证", "pending"], ["生产发布", "pending"]]);
+  releaseProgress(content, [["构建", "completed"], ["预发部署", "current"], ["预发验证", "disabled"], ["生产发布", "disabled"]]);
   releaseFacts(content, [
     ["候选版本", `${CANDIDATE_RELEASE.name} ${CANDIDATE_RELEASE.version}`],
     ["来源", CANDIDATE_RELEASE.source],
@@ -70,9 +66,9 @@ function buildStagingDeploymentRunning() {
   ]);
   const lower = frame(content, { width: "fill_container", height: "fill_container", layout: "horizontal", gap: 18, padding: [4, 0, 0, 0] });
   const events = frame(lower, { width: 760, height: "fit_content", layout: "vertical", gap: 8 });
-  sectionHeading(events, "实时事件", "自动刷新");
-  stagingEventsTable(events);
+  sectionHeading(events, "执行进度", "DeploymentRun · 运行中");
+  stagingEventsTimeline(events);
   const logs = frame(lower, { width: "fill_container", height: "fit_content", layout: "vertical", gap: 8 });
-  sectionHeading(logs, "日志摘要", "最近关键事件");
-  stagingLogSummary(logs);
+  sectionHeading(logs, "状态摘要", "由当前运行状态派生");
+  stagingRunStatusSummary(logs);
 }
