@@ -405,6 +405,30 @@ function releaseProgress(parent, stages) {
   return chain;
 }
 
+function releaseArrowProgress(parent, stages) {
+  const chain = frame(parent, { name: "Staging arrow progress", width: "fill_container", height: 56, layout: "horizontal", gap: 0, alignItems: "center", fill: F(T.bg) });
+  stages.forEach(([label, state], index) => {
+    const style = progressStyle(state);
+    const active = state === "current" || state === "blocked";
+    const foreground = state === "current" ? T.bg : style.text;
+    const segment = frame(chain, {
+      name: `Arrow release step: ${label} — ${state}`,
+      width: 287,
+      height: 40,
+      layout: "none",
+    });
+    const copy = frame(segment, { x: index === 0 ? 18 : 28, y: 0, width: 216, height: 40, layout: "horizontal", gap: 8, alignItems: "center", justifyContent: "center" });
+    if (state === "completed") icon(copy, "check", { width: 14, height: 14, fill: F(T.blue700) });
+    else if (state === "blocked") icon(copy, "circle-alert", { width: 14, height: 14, fill: F(T.red) });
+    else I(copy, { type: "ellipse", width: active ? 8 : 6, height: active ? 8 : 6, fill: F(state === "current" ? T.bg : style.text) });
+    text(copy, label, { fontSize: 13, fontWeight: active ? 700 : 600, fill: F(foreground) });
+    if (index > 0) I(segment, { type: "polygon", x: 0, y: 0, width: 20, height: 40, polygonCount: 3, rotation: 90, fill: F(T.bg) });
+    I(segment, { type: "polygon", x: 247, y: 0, width: 40, height: 40, polygonCount: 3, rotation: 90, fill: F(style.fill) });
+    frame(segment, { x: 0, y: 0, width: 267, height: 40, cornerRadius: index === 0 ? [6, 0, 0, 6] : 0, fill: F(style.fill) });
+  });
+  return chain;
+}
+
 function releaseFacts(parent, fields, options = {}) {
   const strip = frame(parent, { name: options.name || "Release facts", width: "fill_container", height: options.height || 86, layout: "horizontal", cornerRadius: 7, fill: F(T.bg), stroke: S(T.lineStrong) });
   fields.forEach(([label, value, tone], index) => {
@@ -912,7 +936,7 @@ function buildStagingDeploymentRunning() {
     primary: "查看运行详情",
     primaryIcon: "scroll-text",
   });
-  releaseProgress(content, [["构建", "completed"], ["预发部署", "current"], ["预发验证", "disabled"], ["生产发布", "disabled"]]);
+  releaseArrowProgress(content, [["构建", "completed"], ["预发部署", "current"], ["预发验证", "disabled"], ["生产发布", "disabled"]]);
   releaseFacts(content, [
     ["候选版本", `${CANDIDATE_RELEASE.name} ${CANDIDATE_RELEASE.version}`],
     ["来源", CANDIDATE_RELEASE.source],

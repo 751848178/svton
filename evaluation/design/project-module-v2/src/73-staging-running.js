@@ -57,7 +57,7 @@ function buildStagingDeploymentRunning() {
     primary: "查看运行详情",
     primaryIcon: "scroll-text",
   });
-  releaseProgress(content, [["构建", "completed"], ["预发部署", "current"], ["预发验证", "disabled"], ["生产发布", "disabled"]]);
+  releaseArrowProgress(content, [["构建", "completed"], ["预发部署", "current"], ["预发验证", "disabled"], ["生产发布", "disabled"]]);
   releaseFacts(content, [
     ["候选版本", `${CANDIDATE_RELEASE.name} ${CANDIDATE_RELEASE.version}`],
     ["来源", CANDIDATE_RELEASE.source],

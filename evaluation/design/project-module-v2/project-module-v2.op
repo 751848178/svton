@@ -20854,11 +20854,12 @@
                     {
                       "type": "frame",
                       "id": "n1554",
-                      "name": "Current release progress",
+                      "name": "Staging arrow progress",
                       "width": "fill_container",
                       "height": 56.0,
                       "layout": "horizontal",
                       "gap": 0.0,
+                      "alignItems": "center",
                       "fill": [
                         {
                           "type": "solid",
@@ -20868,61 +20869,47 @@
                       "children": [
                         {
                           "type": "frame",
-                          "id": "n1555",
-                          "name": "Release step: 构建 — completed",
-                          "width": "fill_container",
-                          "height": 56.0,
+                          "id": "n3031",
+                          "name": "Arrow release step: 构建 — completed",
+                          "width": 287.0,
+                          "height": 40.0,
                           "layout": "none",
                           "children": [
                             {
                               "type": "frame",
-                              "id": "n1556",
-                              "x": 143.0,
-                              "y": 13.0,
-                              "width": 144.0,
-                              "height": 2.0,
-                              "fill": [
-                                {
-                                  "type": "solid",
-                                  "color": "#0F62FE"
-                                }
-                              ],
-                              "children": []
-                            },
-                            {
-                              "type": "frame",
-                              "id": "n1557",
-                              "x": 131.0,
-                              "y": 2.0,
-                              "width": 26.0,
-                              "height": 26.0,
+                              "id": "n3032",
+                              "x": 18.0,
+                              "y": 0.0,
+                              "width": 216.0,
+                              "height": 40.0,
                               "layout": "horizontal",
+                              "gap": 8.0,
                               "justifyContent": "center",
                               "alignItems": "center",
-                              "cornerRadius": 13.0,
-                              "fill": [
-                                {
-                                  "type": "solid",
-                                  "color": "#DBEAFE"
-                                }
-                              ],
-                              "stroke": {
-                                "thickness": 1.0,
-                                "align": "inside",
-                                "fill": [
-                                  {
-                                    "type": "solid",
-                                    "color": "#93C5FD"
-                                  }
-                                ]
-                              },
                               "children": [
                                 {
                                   "type": "icon_font",
-                                  "id": "n1558",
+                                  "id": "n3033",
                                   "iconFontName": "check",
                                   "width": 14.0,
                                   "height": 14.0,
+                                  "fill": [
+                                    {
+                                      "type": "solid",
+                                      "color": "#1D4ED8"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "n3034",
+                                  "width": "fit_content",
+                                  "height": "fit_content",
+                                  "content": "构建",
+                                  "fontFamily": "Noto Sans SC",
+                                  "fontSize": 13.0,
+                                  "fontWeight": 600,
+                                  "lineHeight": 1.4,
                                   "fill": [
                                     {
                                       "type": "solid",
@@ -20933,99 +20920,86 @@
                               ]
                             },
                             {
-                              "type": "text",
-                              "id": "n1559",
-                              "x": 0.0,
-                              "y": 34.0,
-                              "width": 287.0,
-                              "height": "fit_content",
-                              "content": "构建",
-                              "fontFamily": "Noto Sans SC",
-                              "fontSize": 13.0,
-                              "fontWeight": 600,
-                              "lineHeight": 1.4,
-                              "textAlign": "center",
-                              "textGrowth": "fixed-width",
+                              "type": "polygon",
+                              "id": "n3035",
+                              "x": 247.0,
+                              "y": 0.0,
+                              "rotation": 90.0,
+                              "polygonCount": 3,
+                              "width": 40.0,
+                              "height": 40.0,
                               "fill": [
                                 {
                                   "type": "solid",
-                                  "color": "#1D4ED8"
+                                  "color": "#DBEAFE"
                                 }
                               ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "n3036",
+                              "x": 0.0,
+                              "y": 0.0,
+                              "width": 267.0,
+                              "height": 40.0,
+                              "cornerRadius": [
+                                6.0,
+                                0.0,
+                                0.0,
+                                6.0
+                              ],
+                              "fill": [
+                                {
+                                  "type": "solid",
+                                  "color": "#DBEAFE"
+                                }
+                              ],
+                              "children": []
                             }
                           ]
                         },
                         {
                           "type": "frame",
-                          "id": "n1560",
-                          "name": "Release step: 预发部署 — current",
-                          "width": "fill_container",
-                          "height": 56.0,
+                          "id": "n3037",
+                          "name": "Arrow release step: 预发部署 — current",
+                          "width": 287.0,
+                          "height": 40.0,
                           "layout": "none",
                           "children": [
                             {
                               "type": "frame",
-                              "id": "n1561",
-                              "x": 0.0,
-                              "y": 13.0,
-                              "width": 144.0,
-                              "height": 2.0,
-                              "fill": [
-                                {
-                                  "type": "solid",
-                                  "color": "#0F62FE"
-                                }
-                              ],
-                              "children": []
-                            },
-                            {
-                              "type": "frame",
-                              "id": "n1562",
-                              "x": 143.0,
-                              "y": 13.0,
-                              "width": 144.0,
-                              "height": 2.0,
-                              "fill": [
-                                {
-                                  "type": "solid",
-                                  "color": "#D0D5DD"
-                                }
-                              ],
-                              "children": []
-                            },
-                            {
-                              "type": "frame",
-                              "id": "n1563",
-                              "x": 131.0,
-                              "y": 2.0,
-                              "width": 26.0,
-                              "height": 26.0,
+                              "id": "n3038",
+                              "x": 28.0,
+                              "y": 0.0,
+                              "width": 216.0,
+                              "height": 40.0,
                               "layout": "horizontal",
+                              "gap": 8.0,
                               "justifyContent": "center",
                               "alignItems": "center",
-                              "cornerRadius": 13.0,
-                              "fill": [
-                                {
-                                  "type": "solid",
-                                  "color": "#0F62FE"
-                                }
-                              ],
-                              "stroke": {
-                                "thickness": 2.0,
-                                "align": "inside",
-                                "fill": [
-                                  {
-                                    "type": "solid",
-                                    "color": "#0F62FE"
-                                  }
-                                ]
-                              },
                               "children": [
                                 {
                                   "type": "ellipse",
-                                  "id": "n1564",
+                                  "id": "n3039",
                                   "width": 8.0,
                                   "height": 8.0,
+                                  "fill": [
+                                    {
+                                      "type": "solid",
+                                      "color": "#FFFFFF"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "n3040",
+                                  "width": "fit_content",
+                                  "height": "fit_content",
+                                  "content": "预发部署",
+                                  "fontFamily": "Noto Sans SC",
+                                  "fontSize": 13.0,
+                                  "fontWeight": 700,
+                                  "lineHeight": 1.4,
                                   "fill": [
                                     {
                                       "type": "solid",
@@ -21036,99 +21010,97 @@
                               ]
                             },
                             {
-                              "type": "text",
-                              "id": "n1565",
+                              "type": "polygon",
+                              "id": "n3041",
                               "x": 0.0,
-                              "y": 34.0,
-                              "width": 287.0,
-                              "height": "fit_content",
-                              "content": "预发部署",
-                              "fontFamily": "Noto Sans SC",
-                              "fontSize": 13.0,
-                              "fontWeight": 700,
-                              "lineHeight": 1.4,
-                              "textAlign": "center",
-                              "textGrowth": "fixed-width",
+                              "y": 0.0,
+                              "rotation": 90.0,
+                              "polygonCount": 3,
+                              "width": 20.0,
+                              "height": 40.0,
+                              "fill": [
+                                {
+                                  "type": "solid",
+                                  "color": "#FFFFFF"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "polygon",
+                              "id": "n3042",
+                              "x": 247.0,
+                              "y": 0.0,
+                              "rotation": 90.0,
+                              "polygonCount": 3,
+                              "width": 40.0,
+                              "height": 40.0,
                               "fill": [
                                 {
                                   "type": "solid",
                                   "color": "#0F62FE"
                                 }
                               ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "n3043",
+                              "x": 0.0,
+                              "y": 0.0,
+                              "width": 267.0,
+                              "height": 40.0,
+                              "cornerRadius": 0.0,
+                              "fill": [
+                                {
+                                  "type": "solid",
+                                  "color": "#0F62FE"
+                                }
+                              ],
+                              "children": []
                             }
                           ]
                         },
                         {
                           "type": "frame",
-                          "id": "n1566",
-                          "name": "Release step: 预发验证 — disabled",
-                          "width": "fill_container",
-                          "height": 56.0,
+                          "id": "n3044",
+                          "name": "Arrow release step: 预发验证 — disabled",
+                          "width": 287.0,
+                          "height": 40.0,
                           "layout": "none",
                           "children": [
                             {
                               "type": "frame",
-                              "id": "n1567",
-                              "x": 0.0,
-                              "y": 13.0,
-                              "width": 144.0,
-                              "height": 2.0,
-                              "fill": [
-                                {
-                                  "type": "solid",
-                                  "color": "#D0D5DD"
-                                }
-                              ],
-                              "children": []
-                            },
-                            {
-                              "type": "frame",
-                              "id": "n1568",
-                              "x": 143.0,
-                              "y": 13.0,
-                              "width": 144.0,
-                              "height": 2.0,
-                              "fill": [
-                                {
-                                  "type": "solid",
-                                  "color": "#D0D5DD"
-                                }
-                              ],
-                              "children": []
-                            },
-                            {
-                              "type": "frame",
-                              "id": "n1569",
-                              "x": 131.0,
-                              "y": 2.0,
-                              "width": 26.0,
-                              "height": 26.0,
+                              "id": "n3045",
+                              "x": 28.0,
+                              "y": 0.0,
+                              "width": 216.0,
+                              "height": 40.0,
                               "layout": "horizontal",
+                              "gap": 8.0,
                               "justifyContent": "center",
                               "alignItems": "center",
-                              "cornerRadius": 13.0,
-                              "fill": [
-                                {
-                                  "type": "solid",
-                                  "color": "#F8FAFC"
-                                }
-                              ],
-                              "stroke": {
-                                "thickness": 1.0,
-                                "align": "inside",
-                                "fill": [
-                                  {
-                                    "type": "solid",
-                                    "color": "#D0D5DD"
-                                  }
-                                ]
-                              },
                               "children": [
                                 {
                                   "type": "ellipse",
-                                  "id": "n1570",
+                                  "id": "n3046",
                                   "width": 6.0,
                                   "height": 6.0,
+                                  "fill": [
+                                    {
+                                      "type": "solid",
+                                      "color": "#98A2B3"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "n3047",
+                                  "width": "fit_content",
+                                  "height": "fit_content",
+                                  "content": "预发验证",
+                                  "fontFamily": "Noto Sans SC",
+                                  "fontSize": 13.0,
+                                  "fontWeight": 600,
+                                  "lineHeight": 1.4,
                                   "fill": [
                                     {
                                       "type": "solid",
@@ -21139,84 +21111,97 @@
                               ]
                             },
                             {
-                              "type": "text",
-                              "id": "n1571",
+                              "type": "polygon",
+                              "id": "n3048",
                               "x": 0.0,
-                              "y": 34.0,
-                              "width": 287.0,
-                              "height": "fit_content",
-                              "content": "预发验证",
-                              "fontFamily": "Noto Sans SC",
-                              "fontSize": 13.0,
-                              "fontWeight": 600,
-                              "lineHeight": 1.4,
-                              "textAlign": "center",
-                              "textGrowth": "fixed-width",
+                              "y": 0.0,
+                              "rotation": 90.0,
+                              "polygonCount": 3,
+                              "width": 20.0,
+                              "height": 40.0,
                               "fill": [
                                 {
                                   "type": "solid",
-                                  "color": "#98A2B3"
+                                  "color": "#FFFFFF"
                                 }
                               ]
-                            }
-                          ]
-                        },
-                        {
-                          "type": "frame",
-                          "id": "n1572",
-                          "name": "Release step: 生产发布 — disabled",
-                          "width": "fill_container",
-                          "height": 56.0,
-                          "layout": "none",
-                          "children": [
+                            },
                             {
-                              "type": "frame",
-                              "id": "n1573",
-                              "x": 0.0,
-                              "y": 13.0,
-                              "width": 144.0,
-                              "height": 2.0,
+                              "type": "polygon",
+                              "id": "n3049",
+                              "x": 247.0,
+                              "y": 0.0,
+                              "rotation": 90.0,
+                              "polygonCount": 3,
+                              "width": 40.0,
+                              "height": 40.0,
                               "fill": [
                                 {
                                   "type": "solid",
-                                  "color": "#D0D5DD"
+                                  "color": "#F8FAFC"
                                 }
-                              ],
-                              "children": []
+                              ]
                             },
                             {
                               "type": "frame",
-                              "id": "n1574",
-                              "x": 131.0,
-                              "y": 2.0,
-                              "width": 26.0,
-                              "height": 26.0,
-                              "layout": "horizontal",
-                              "justifyContent": "center",
-                              "alignItems": "center",
-                              "cornerRadius": 13.0,
+                              "id": "n3050",
+                              "x": 0.0,
+                              "y": 0.0,
+                              "width": 267.0,
+                              "height": 40.0,
+                              "cornerRadius": 0.0,
                               "fill": [
                                 {
                                   "type": "solid",
                                   "color": "#F8FAFC"
                                 }
                               ],
-                              "stroke": {
-                                "thickness": 1.0,
-                                "align": "inside",
-                                "fill": [
-                                  {
-                                    "type": "solid",
-                                    "color": "#D0D5DD"
-                                  }
-                                ]
-                              },
+                              "children": []
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "n3051",
+                          "name": "Arrow release step: 生产发布 — disabled",
+                          "width": 287.0,
+                          "height": 40.0,
+                          "layout": "none",
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "n3052",
+                              "x": 28.0,
+                              "y": 0.0,
+                              "width": 216.0,
+                              "height": 40.0,
+                              "layout": "horizontal",
+                              "gap": 8.0,
+                              "justifyContent": "center",
+                              "alignItems": "center",
                               "children": [
                                 {
                                   "type": "ellipse",
-                                  "id": "n1575",
+                                  "id": "n3053",
                                   "width": 6.0,
                                   "height": 6.0,
+                                  "fill": [
+                                    {
+                                      "type": "solid",
+                                      "color": "#98A2B3"
+                                    }
+                                  ]
+                                },
+                                {
+                                  "type": "text",
+                                  "id": "n3054",
+                                  "width": "fit_content",
+                                  "height": "fit_content",
+                                  "content": "生产发布",
+                                  "fontFamily": "Noto Sans SC",
+                                  "fontSize": 13.0,
+                                  "fontWeight": 600,
+                                  "lineHeight": 1.4,
                                   "fill": [
                                     {
                                       "type": "solid",
@@ -21227,25 +21212,52 @@
                               ]
                             },
                             {
-                              "type": "text",
-                              "id": "n1576",
+                              "type": "polygon",
+                              "id": "n3055",
                               "x": 0.0,
-                              "y": 34.0,
-                              "width": 287.0,
-                              "height": "fit_content",
-                              "content": "生产发布",
-                              "fontFamily": "Noto Sans SC",
-                              "fontSize": 13.0,
-                              "fontWeight": 600,
-                              "lineHeight": 1.4,
-                              "textAlign": "center",
-                              "textGrowth": "fixed-width",
+                              "y": 0.0,
+                              "rotation": 90.0,
+                              "polygonCount": 3,
+                              "width": 20.0,
+                              "height": 40.0,
                               "fill": [
                                 {
                                   "type": "solid",
-                                  "color": "#98A2B3"
+                                  "color": "#FFFFFF"
                                 }
                               ]
+                            },
+                            {
+                              "type": "polygon",
+                              "id": "n3056",
+                              "x": 247.0,
+                              "y": 0.0,
+                              "rotation": 90.0,
+                              "polygonCount": 3,
+                              "width": 40.0,
+                              "height": 40.0,
+                              "fill": [
+                                {
+                                  "type": "solid",
+                                  "color": "#F8FAFC"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "frame",
+                              "id": "n3057",
+                              "x": 0.0,
+                              "y": 0.0,
+                              "width": 267.0,
+                              "height": 40.0,
+                              "cornerRadius": 0.0,
+                              "fill": [
+                                {
+                                  "type": "solid",
+                                  "color": "#F8FAFC"
+                                }
+                              ],
+                              "children": []
                             }
                           ]
                         }
