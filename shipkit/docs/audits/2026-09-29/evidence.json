@@ -1,0 +1,150 @@
+{
+  "date": "2026-09-29",
+  "baseline_head": "47daa01d2010a31cd2b150021f31986cdc5fbcc4",
+  "scope": "untracked shipkit local working copy; baseline HEAD does not contain these files",
+  "original_tests": {
+    "pass": 28,
+    "fail": 0
+  },
+  "build_exit": 0,
+  "typecheck_exit": 0,
+  "bootstrap_bash_syntax_exit": 0,
+  "reproduction_count": 25,
+  "method": "R01-R21 use mocked exec, health, fetch and cloud clients with real handlers and isolated filesystem; R22-R25 use real local fs, child process, tar and docker compose config",
+  "cloud_calls": 0,
+  "containers_started": 0,
+  "records": [
+    {
+      "id": "R01",
+      "confirmed": true,
+      "detail": "manual rollback restores v1 image with v2 environment and ports"
+    },
+    {
+      "id": "R02",
+      "confirmed": true,
+      "detail": "compose up failure does not attempt rollback; env/spec already overwritten"
+    },
+    {
+      "id": "R03",
+      "confirmed": true,
+      "detail": "rollback health failure still returns rolledBackTo as if recovery completed"
+    },
+    {
+      "id": "R04",
+      "confirmed": true,
+      "detail": "no-port deployments become current without any container health or running-state verification"
+    },
+    {
+      "id": "R05",
+      "confirmed": true,
+      "detail": "single container port is treated as fixed host port although compose allocates a host port"
+    },
+    {
+      "id": "R06",
+      "confirmed": true,
+      "detail": "tarball source id escapes workRoot/sources"
+    },
+    {
+      "id": "R07",
+      "confirmed": true,
+      "detail": "two tarball builds in the same minute generate the same tag"
+    },
+    {
+      "id": "R08",
+      "confirmed": true,
+      "detail": "cached private clone fetch does not use the supplied token"
+    },
+    {
+      "id": "R09",
+      "confirmed": true,
+      "detail": "plain git tag v1.0.0 is rewritten to origin/v1.0.0"
+    },
+    {
+      "id": "R10",
+      "confirmed": true,
+      "detail": "failed authenticated clone error contains credential URL (fake token)"
+    },
+    {
+      "id": "R11",
+      "confirmed": true,
+      "detail": "repo-relative Dockerfile is resolved from the context directory, producing app/app/Dockerfile"
+    },
+    {
+      "id": "R12",
+      "confirmed": true,
+      "detail": "unknown status target returns successful empty result"
+    },
+    {
+      "id": "R13",
+      "confirmed": true,
+      "detail": "doctor passes wrong builder role and unverified token because it probes only public health"
+    },
+    {
+      "id": "R14",
+      "confirmed": true,
+      "detail": "project-a deploy silently selects project-b last image"
+    },
+    {
+      "id": "R15",
+      "confirmed": true,
+      "detail": "accepted registry URL with https scheme creates an invalid Docker image reference"
+    },
+    {
+      "id": "R16",
+      "confirmed": true,
+      "detail": "invalid optional spec field types silently disappear"
+    },
+    {
+      "id": "R17",
+      "confirmed": true,
+      "detail": "corrupt app state silently becomes an empty deployment history"
+    },
+    {
+      "id": "R18",
+      "confirmed": true,
+      "detail": "CVM allocated then DescribeInstances fails: no termination and no persisted instance id"
+    },
+    {
+      "id": "R19",
+      "confirmed": true,
+      "detail": "unhealthy young CVM is replaced and state overwritten without releasing old instance"
+    },
+    {
+      "id": "R20",
+      "confirmed": true,
+      "detail": "custom install URL never receives generated agent token; readiness also accepts wrong role/docker=false"
+    },
+    {
+      "id": "R21",
+      "confirmed": true,
+      "detail": "build pipeline fails after allocation without releasing dynamic builder"
+    },
+    {
+      "id": "R22",
+      "detail": "concurrent state writes collide on state.json.tmp",
+      "failures": 9,
+      "code": "ENOENT"
+    },
+    {
+      "id": "R23",
+      "detail": "job persistence failure produces unhandled rejection and terminates process",
+      "exit": 1
+    },
+    {
+      "id": "R24",
+      "detail": "from-dir packing includes runtime env and controller config"
+    },
+    {
+      "id": "R25",
+      "detail": "real Compose config consumes runtime env as Compose control, interpolates literal secret, and assigns dynamic host port",
+      "name": "other-app",
+      "ports": [
+        {
+          "mode": "ingress",
+          "target": 3000,
+          "protocol": "tcp"
+        }
+      ]
+    }
+  ]
+}

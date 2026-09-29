@@ -1,0 +1,72 @@
+{
+  "date": "2026-09-29",
+  "scope": [
+    "F09",
+    "F20",
+    "F34",
+    "related lifecycle and release protection"
+  ],
+  "existing_tests": {
+    "pass": 50,
+    "fail": 0
+  },
+  "build_exit": 0,
+  "typecheck_exit": 0,
+  "shell_syntax_exit": 0,
+  "real_cloud_calls": 0,
+  "real_images_deleted": 0,
+  "reproductions": [
+    {
+      "id": "A01",
+      "confirmed": true,
+      "detail": "corrupt previous snapshot is silently excluded from protection and its rollback image is passed to docker rmi"
+    },
+    {
+      "id": "A02",
+      "confirmed": true,
+      "detail": "snapshot created after protection scan does not prevent removal of newly referenced image"
+    },
+    {
+      "id": "A03",
+      "confirmed": true,
+      "detail": "after 35 releases earliest image is neither protected nor discoverable for GC",
+      "candidates": 8
+    },
+    {
+      "id": "A04",
+      "confirmed": true,
+      "detail": "Docker daemon errors become missing images and GC reports zero failures"
+    },
+    {
+      "id": "A05",
+      "confirmed": true,
+      "detail": "provider becomes ready without querying installed SDK timer API; logs registered with verified=false"
+    },
+    {
+      "id": "A06",
+      "confirmed": true,
+      "detail": "dynamic builder URL remains public HTTP despite HTTPS installUrl"
+    },
+    {
+      "id": "A07",
+      "confirmed": true,
+      "detail": "builder with only 31 minutes remaining is admitted for build/push whose individual timeouts are 60 minutes"
+    },
+    {
+      "id": "A08",
+      "confirmed": true,
+      "detail": "second ensure after 40 minutes destroys ready builder without asking whether first build is still running"
+    },
+    {
+      "id": "A09",
+      "confirmed": true,
+      "detail": "withLock never enters callback when ledger parent directory does not exist; child forcibly stopped after 800ms",
+      "code": "ETIMEDOUT"
+    },
+    {
+      "id": "A10",
+      "confirmed": true,
+      "detail": "second caller enters lock while first holder is still running once lock mtime exceeds 10 minutes; age simulated via utimes"
+    }
+  ]
+}

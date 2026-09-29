@@ -1,0 +1,24 @@
+{
+  "targets": [
+    {
+      "name": "server-a",
+      "url": "http://119.29.14.77:7410",
+      "ok": true,
+      "status": {
+        "role": "runtime",
+        "version": "0.1.0",
+        "workRoot": "/opt/shipkit-data",
+        "docker": true,
+        "activeJobs": 0,
+        "apps": [
+          {
+            "app": "demo-web",
+            "current": "172.16.48.10:5000/team/demo-web:v2",
+            "previous": "172.16.48.10:5000/team/demo-web:202609290203",
+            "updatedAt": "2026-09-28T18:05:34.522Z"
+          }
+        ]
+      }
+    }
+  ]
+}

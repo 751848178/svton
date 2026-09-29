@@ -1,0 +1,30 @@
+{
+  "checks": [
+    {
+      "name": "node",
+      "ok": true,
+      "detail": "v22.17.0 (need >=20)"
+    },
+    {
+      "name": "spec",
+      "ok": true,
+      "detail": "no ship.yaml in cwd (only needed for build/deploy)"
+    },
+    {
+      "name": "registry",
+      "ok": true,
+      "detail": "172.16.48.10:5000/team"
+    },
+    {
+      "name": "builder(dynamic)",
+      "ok": true,
+      "detail": "no active builder — one will be created on next `ship build`"
+    },
+    {
+      "name": "runtime:server-a",
+      "ok": true,
+      "detail": "http://119.29.14.77:7410 role=runtime docker=true"
+    }
+  ],
+  "allOk": true
+}

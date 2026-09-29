@@ -1,0 +1,550 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Shipkit · 图文使用手册</title><style>
+:root{--ink:#142c46;--muted:#607080;--teal:#17656c;--line:#dce3e7;--paper:#fffefa;--canvas:#f1f3f3}*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:28px}body{margin:0;background:var(--canvas);color:var(--ink);font:16px/1.85 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif}a{color:var(--teal);text-decoration-thickness:1px;text-underline-offset:4px}a:hover{color:#003d47}aside{position:fixed;inset:0 auto 0 0;width:272px;padding:40px 24px;background:#142c46;color:#dce8ef;overflow:auto}.brand{font-size:26px;letter-spacing:4px;font-weight:750;color:#fff}.edition{font-size:12px;letter-spacing:2px;color:#a9bccd;margin:4px 0 28px}.toc-label{font-size:12px;color:#91afb6;margin-bottom:10px}nav{display:grid;gap:3px}nav a{display:block;font-size:14px;text-decoration:none;color:#dce8ef;padding:10px 12px;border-radius:6px;line-height:1.5}nav a:hover,nav a.active{background:#29465e;color:#fff}.aside-foot{border-top:1px solid #385065;margin-top:25px;padding-top:22px;font-size:12px;color:#acbdcb}.aside-foot a{color:#d4eee9}main{max-width:1210px;margin-left:272px;padding:34px 54px 90px}article{max-width:950px;margin:0 auto;background:var(--paper);padding:42px 46px 60px;border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 45px #18394b06}.topline{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 auto 24px;max-width:950px;font-size:12px;color:var(--muted);letter-spacing:1px}.tools{display:flex;gap:16px;align-items:center}button{font:inherit;cursor:pointer;border:1px solid #c7d6db;background:transparent;color:var(--teal);border-radius:5px;padding:5px 10px}button:hover{background:#e8f1ed}h1{font-size:40px;letter-spacing:-1.3px;line-height:1.25;margin:6px 0 28px}h2{font-size:25px;line-height:1.45;margin:56px 0 24px;padding-top:26px;border-top:1px solid var(--line)}h3{font-size:19px;margin:32px 0 16px}p{margin:16px 0}li{margin:9px 0}ul,ol{padding-left:24px}strong{font-weight:650}blockquote{margin:24px 0;padding:4px 20px;border-left:4px solid #33858a;background:#eaf2f1;color:#375569;border-radius:0 8px 8px 0;font-size:14px}code{font:0.9em/1.7 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:#ebefef;border-radius:4px;padding:2px 5px;overflow-wrap:anywhere}pre{position:relative;background:#112a3b;color:#e2eff5;padding:22px 20px;border-radius:9px;overflow:auto;margin:22px 0;line-height:1.7}pre code{background:none;color:inherit;padding:0;font-size:13px;white-space:pre;overflow-wrap:normal}.copy{float:right;margin:0 0 6px 8px;color:#bfd7dc;border-color:#45616f;font-size:11px}.copy:hover{background:#2a4555}.table-wrap{overflow-x:auto;margin:22px 0;border:1px solid var(--line);border-radius:8px}table{border-collapse:collapse;width:100%;font-size:14px;min-width:560px}th{background:#eaf0f1;color:#234652;font-weight:650;text-align:left}th,td{padding:13px 15px;border-bottom:1px solid var(--line);vertical-align:top}tr:last-child td{border-bottom:0}td:first-child{font-weight:550}figure{margin:30px -12px}figure .diagram{overflow-x:auto;border:1px solid #e0e7ed;border-radius:12px;background:#f4f7fa}figure img{display:block;width:100%;height:auto;min-width:660px}figcaption{font-size:12px;color:var(--muted);line-height:1.65;padding:10px 6px}figcaption span{display:none;margin-top:3px}hr{border:0;border-top:1px solid var(--line);margin:44px 0}::selection{background:#c3e8dd}footer{max-width:950px;margin:24px auto 0;color:var(--muted);font-size:12px}
+@media(min-width:1550px){main{margin-right:auto;margin-left:calc(272px + (100vw - 1550px)/2)}}@media(max-width:1100px){aside{width:230px;padding:28px 14px}main{margin-left:230px;padding:25px}article{padding:30px}h1{font-size:34px}}@media(max-width:780px){aside{position:static;width:auto;padding:22px}.brand{font-size:22px}.edition{margin-bottom:16px}nav{display:flex;gap:4px;overflow-x:auto}nav a{flex-shrink:0;font-size:13px}.toc-label,.aside-foot{display:none}main{margin:0;padding:18px 12px 40px}article{padding:24px 18px;border-radius:8px}h1{font-size:31px}h2{font-size:23px;margin-top:40px}pre{margin-left:-4px;margin-right:-4px}.topline{font-size:10px;letter-spacing:0}figure{margin-left:0;margin-right:0}figcaption span{display:block}body{font-size:15px}}
+@media print{aside,.topline,.copy,footer{display:none!important}main{margin:0;padding:0;max-width:none}article{border:0;box-shadow:none;padding:0;max-width:none}body{background:white;font-size:10pt;line-height:1.6}h1{font-size:26pt}h2{font-size:18pt;break-after:avoid}h3{break-after:avoid}pre{white-space:pre-wrap;background:#f3f5f6;color:#172c3c;break-inside:avoid}pre code{white-space:pre-wrap;font-size:9pt}figure{break-inside:avoid}figure img{min-width:0}table{min-width:0;font-size:9pt}th,td{padding:7px}a{color:inherit}figcaption span{display:none}@page{size:A4;margin:16mm}}
+</style></head><body><aside><div class="brand">SHIPKIT</div><div class="edition">使用手册 / FIELD GUIDE</div><div class="toc-label">从第一次安装到日常交付</div><nav aria-label="章节目录"><a href="#section-1">1. Shipkit 能帮你做什么</a><a href="#section-2">2. 第一次使用前准备什么</a><a href="#section-3">3. 准备控制器命令</a><a href="#section-4">4. 安装 agent 并接通 HTTPS</a><a href="#section-5">5. 准备示例应用和配置</a><a href="#section-6">6. 完成第一次发布</a><a href="#section-7">7. 日常操作速查</a><a href="#section-8">8. 发布失败、回滚与清理</a><a href="#section-9">9. 进阶：按需创建腾讯云构建机</a><a href="#section-10">10. 常见卡点与当前验收范围</a></nav><div class="aside-foot">核对日期 2026.09.29<br>配图为操作示意<br>真实环境验收仍待完成<br><br><a href="user-guide.md">查看 Markdown 源文档 ↗</a></div></aside><main><div class="topline"><span>BUILD → PUSH → DEPLOY</span><div class="tools"><a href="user-guide.md">源文档</a><button id="print" type="button">打印 / 保存 PDF</button></div></div><article><h1>Shipkit 图文使用手册</h1>
+<blockquote>
+<p>从准备机器到发布、回滚与清理。适用于当前仓库版本，核对日期：2026-09-29。</p>
+<p>本文的域名、令牌和资源 ID 都是示例。流程图是操作示意，不是真机验收截图。当前本地回归记录为 92/92 通过；TLS 实机、云端到期销毁、真实 Docker 长 GC 仍待环境验收。</p>
+</blockquote>
+<p><strong>阅读路线：</strong> 第一次使用按 1–6 节操作；日常发布查第 7 节；出错查第 8 节；需要临时云构建机再看第 9 节。</p>
+<h2 id="section-1">1. Shipkit 能帮你做什么</h2>
+<p>Shipkit 把应用源码构建成 Docker 镜像，推送到镜像仓库，再让指定服务器拉取镜像并启动应用。它提供 CLI 和机器上的 agent，适合从本机发起交付。目前使用 Docker Compose 运行应用。</p>
+<figure><div class="diagram"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDgwIiBoZWlnaHQ9IjYyMiIgdmlld0JveD0iMCAwIDEwODAgNjIyIiByb2xlPSJpbWciIGFyaWEtbGFiZWxsZWRieT0idGl0bGUgZGVzYyI+PHRpdGxlIGlkPSJ0aXRsZSI+U2hpcGtpdCDns7vnu5/liIblt6U8L3RpdGxlPjxkZXNjIGlkPSJkZXNjIj7mjqfliLblmajlkJHmnoTlu7rmnLrlkozov5DooYzmnLrmj5DkuqTku7vliqHvvJvmnoTlu7rmnLrmjqjpgIHplZzlg4/vvIzov5DooYzmnLrku47ku5PlupPmi4nlj5bplZzlg4/jgII8L2Rlc2M+PGRlZnM+PG1hcmtlciBpZD0iYXJyb3ciIG1hcmtlcldpZHRoPSI4IiBtYXJrZXJIZWlnaHQ9IjgiIHJlZlg9IjciIHJlZlk9IjQiIG9yaWVudD0iYXV0byI+PHBhdGggZD0iTTAgMEw4IDRMMCA4IiBmaWxsPSJub25lIiBzdHJva2U9IiM1MjY5ODIiIHN0cm9rZS13aWR0aD0iMS41Ii8+PC9tYXJrZXI+PC9kZWZzPjxzdHlsZT50ZXh0e2ZvbnQtZmFtaWx5OkludGVyLCdQaW5nRmFuZyBTQycsJ01pY3Jvc29mdCBZYUhlaScsc2Fucy1zZXJpZjtmaWxsOiMxNDJjNDZ9LnRpdGxle2ZvbnQtc2l6ZToyOHB4O2ZvbnQtd2VpZ2h0OjcwMH0uc3Vie2ZvbnQtc2l6ZToxN3B4O2ZpbGw6IzUzNmE4MH0ubGFiZWx7Zm9udC1zaXplOjIwcHg7Zm9udC13ZWlnaHQ6NjUwfS5ib2R5e2ZvbnQtc2l6ZToxOHB4fS50aW55e2ZvbnQtc2l6ZToxNnB4O2ZpbGw6IzUzNmE4MH0ubnVte2ZvbnQtc2l6ZToxN3B4O2ZvbnQtd2VpZ2h0OjcwMDtmaWxsOiNmZmZ9PC9zdHlsZT48cmVjdCB3aWR0aD0iMTA4MCIgaGVpZ2h0PSI2MjIiIHJ4PSIyMCIgZmlsbD0iI2Y0ZjdmYSIvPjx0ZXh0IHg9IjM0IiB5PSI0OCIgY2xhc3M9InRpdGxlIj7ku47mupDnoIHliLDmnI3liqHvvJrlm5vkuKrnu4Tku7bvvIzlkITlj7jlhbbogYw8L3RleHQ+PHRleHQgeD0iMzQiIHk9IjgxIiBjbGFzcz0ic3ViIj7lrp7nur/ooajnpLrkuLvopoHku7vliqHkuI7plZzlg4/mtYHlkJHvvJvmjqfliLblmajotJ/otKPmj5DkuqTku7vliqHlubbor7vlj5bnu5PmnpzjgII8L3RleHQ+PHJlY3QgeD0iMzQiIHk9IjEzMiIgd2lkdGg9IjI2OCIgaGVpZ2h0PSIxNzgiIHJ4PSIxNCIgZmlsbD0iI2ZmZiIgc3Ryb2tlPSIjY2ZkYWU1Ii8+PHJlY3QgeD0iNTQiIHk9IjE1MSIgd2lkdGg9IjMwIiBoZWlnaHQ9IjMwIiByeD0iOSIgZmlsbD0iIzE3NjU2YyIvPjx0ZXh0IHg9IjYzIiB5PSIxNzIiIGNsYXNzPSJudW0iPjE8L3RleHQ+PHRleHQgeD0iOTgiIHk9IjE3MyIgY2xhc3M9ImxhYmVsIj7mjqfliLblmaggLyBzaGlwIENMSTwvdGV4dD48dGV4dCB4PSI1NiIgeT0iMjEwIiBjbGFzcz0iYm9keSI+6K+75Y+W5Lik5LiqIFlBTUwg6YWN572uPC90ZXh0Pjx0ZXh0IHg9IjU2IiB5PSIyMzkiIGNsYXNzPSJib2R5Ij7mj5DkuqTku7vliqEgwrcg562J5b6F57uT5p6cPC90ZXh0Pjx0ZXh0IHg9IjU2IiB5PSIyNjgiIGNsYXNzPSJib2R5Ij7kv53lrZjmnIDov5HkuIDmrKHmnoTlu7rorrDlvZU8L3RleHQ+PHJlY3QgeD0iMzg5IiB5PSIxMzIiIHdpZHRoPSIyOTAiIGhlaWdodD0iMTc4IiByeD0iMTQiIGZpbGw9IiNmZmYiIHN0cm9rZT0iI2NmZGFlNSIvPjxyZWN0IHg9IjQwOSIgeT0iMTUxIiB3aWR0aD0iMzAiIGhlaWdodD0iMzAiIHJ4PSI5IiBmaWxsPSIjMTc2NTZjIi8+PHRleHQgeD0iNDE4IiB5PSIxNzIiIGNsYXNzPSJudW0iPjI8L3RleHQ+PHRleHQgeD0iNDUzIiB5PSIxNzMiIGNsYXNzPSJsYWJlbCI+5p6E5bu65py6IC8gYnVpbGRlcjwvdGV4dD48dGV4dCB4PSI0MTEiIHk9IjIxMCIgY2xhc3M9ImJvZHkiPuiOt+WPliBHaXQg5oiW5LiK5Lyg55qE5rqQ56CBPC90ZXh0Pjx0ZXh0IHg9IjQxMSIgeT0iMjM5IiBjbGFzcz0iYm9keSI+RG9ja2VyIGJ1aWxkIOKGkiBwdXNoPC90ZXh0Pjx0ZXh0IHg9IjQxMSIgeT0iMjY4IiBjbGFzcz0iYm9keSI+5Zu65a6a5py65Zmo5oiW5Li05pe25LqR5a6e5L6LPC90ZXh0PjxyZWN0IHg9Ijc2NCIgeT0iMTMyIiB3aWR0aD0iMjgyIiBoZWlnaHQ9IjE3OCIgcng9IjE0IiBmaWxsPSIjZmZmIiBzdHJva2U9IiNjZmRhZTUiLz48cmVjdCB4PSI3ODQiIHk9IjE1MSIgd2lkdGg9IjMwIiBoZWlnaHQ9IjMwIiByeD0iOSIgZmlsbD0iIzE3NjU2YyIvPjx0ZXh0IHg9Ijc5MyIgeT0iMTcyIiBjbGFzcz0ibnVtIj4zPC90ZXh0Pjx0ZXh0IHg9IjgyOCIgeT0iMTczIiBjbGFzcz0ibGFiZWwiPumVnOWDj+S7k+W6kyAvIFJlZ2lzdHJ5PC90ZXh0Pjx0ZXh0IHg9Ijc4NiIgeT0iMjEwIiBjbGFzcz0iYm9keSI+5L+d5a2Y6ZWc5YOP5LiOIGRpZ2VzdDwvdGV4dD48dGV4dCB4PSI3ODYiIHk9IjIzOSIgY2xhc3M9ImJvZHkiPmJ1aWxkZXIg5o6o6YCBPC90ZXh0Pjx0ZXh0IHg9Ijc4NiIgeT0iMjY4IiBjbGFzcz0iYm9keSI+cnVudGltZSDmi4nlj5Y8L3RleHQ+PHBhdGggZD0iTTMwMiAyMjAgTDM4MiAyMjAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzUyNjk4MiIgc3Ryb2tlLXdpZHRoPSIyIiBtYXJrZXItZW5kPSJ1cmwoI2Fycm93KSIvPjx0ZXh0IHg9IjMxMiIgeT0iMjAxIiBjbGFzcz0idGlueSI+5p6E5bu6PC90ZXh0PjxwYXRoIGQ9Ik02NzkgMjIwIEw3NTcgMjIwIiBmaWxsPSJub25lIiBzdHJva2U9IiM1MjY5ODIiIHN0cm9rZS13aWR0aD0iMiIgbWFya2VyLWVuZD0idXJsKCNhcnJvdykiLz48dGV4dCB4PSI2OTIiIHk9IjIwMSIgY2xhc3M9InRpbnkiPnB1c2g8L3RleHQ+PHJlY3QgeD0iMzg5IiB5PSIzNzAiIHdpZHRoPSIyOTAiIGhlaWdodD0iMTY4IiByeD0iMTQiIGZpbGw9IiNmZmYiIHN0cm9rZT0iI2NmZGFlNSIvPjxyZWN0IHg9IjQwOSIgeT0iMzg5IiB3aWR0aD0iMzAiIGhlaWdodD0iMzAiIHJ4PSI5IiBmaWxsPSIjMTc2NTZjIi8+PHRleHQgeD0iNDE4IiB5PSI0MTAiIGNsYXNzPSJudW0iPjQ8L3RleHQ+PHRleHQgeD0iNDUzIiB5PSI0MTEiIGNsYXNzPSJsYWJlbCI+6L+Q6KGM5py6IC8gcnVudGltZTwvdGV4dD48dGV4dCB4PSI0MTEiIHk9IjQ0OCIgY2xhc3M9ImJvZHkiPuaLieWPlumVnOWDjyDihpIgQ29tcG9zZSDlkK/liqg8L3RleHQ+PHRleHQgeD0iNDExIiB5PSI0NzciIGNsYXNzPSJib2R5Ij7lgaXlurfmo4Dmn6Ugwrcg5b+r54Wn5Zue5ruaPC90ZXh0Pjx0ZXh0IHg9IjQxMSIgeT0iNTA2IiBjbGFzcz0iYm9keSI+5Y+R5biD6LSm5pysIMK3IOmVnOWDj+a4heeQhjwvdGV4dD48cGF0aCBkPSJNMTY4IDMxMCBWNDUzIEgzODEiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzUyNjk4MiIgc3Ryb2tlLXdpZHRoPSIyIiBtYXJrZXItZW5kPSJ1cmwoI2Fycm93KSIvPjx0ZXh0IHg9IjE4MCIgeT0iNDMzIiBjbGFzcz0idGlueSI+6YOo572yIC8g5Zue5ruaIC8g5p+l6K+iPC90ZXh0PjxwYXRoIGQ9Ik05MDUgMzEwIFY0NTMgSDY4NyIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNTI2OTgyIiBzdHJva2Utd2lkdGg9IjIiIG1hcmtlci1lbmQ9InVybCgjYXJyb3cpIi8+PHRleHQgeD0iODAxIiB5PSI0MzMiIGNsYXNzPSJ0aW55Ij5wdWxsPC90ZXh0Pjx0ZXh0IHg9IjM0IiB5PSI1ODkiIGNsYXNzPSJzdWIiPueuoeeQhua1gemHj++8muWFrOe9keS9v+eUqCBIVFRQUyDmiJblj5fmjqfliqDlr4bpgJrpgZPjgILkuJrliqHlhaXlj6PkuI4gYWdlbnQg566h55CG5YWl5Y+j5YiG5Yir6YWN572u44CCPC90ZXh0Pjwvc3ZnPg==" alt="Shipkit 系统分工：控制器编排，构建机制作镜像，仓库存储镜像，运行机部署应用"></div><figcaption>Shipkit 系统分工：控制器编排，构建机制作镜像，仓库存储镜像，运行机部署应用<span>小屏可横向滚动查看</span></figcaption></figure>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>组件</th>
+<th>放在哪里</th>
+<th>负责什么</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>控制器 <code>ship</code></td>
+<td>你的电脑或交付服务器</td>
+<td>读取配置、提交任务、等待结果</td>
+</tr>
+<tr>
+<td>builder agent</td>
+<td>固定构建机或临时腾讯云 CVM</td>
+<td>获取源码、构建和推送镜像</td>
+</tr>
+<tr>
+<td>镜像仓库</td>
+<td>已有 ACR、TCR 或自建 Registry</td>
+<td>保存可交付镜像</td>
+</tr>
+<tr>
+<td>runtime agent</td>
+<td>应用运行服务器</td>
+<td>拉取镜像、部署、健康检查、回滚、清理镜像</td>
+</tr>
+</tbody></table></div>
+<p>CLI 的日常编排使用 HTTP API；公网链路需配 HTTPS，受控内网可按网络方案接入。首次安装允许由管理员通过 SSH 或现有运维工具完成。</p>
+<p><strong>三个容易混淆的文件：</strong></p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>文件</th>
+<th>回答的问题</th>
+<th>是否应提交 Git</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>ship.yaml</code></td>
+<td>应用叫什么、怎么构建、端口与健康检查是什么</td>
+<td>通常提交</td>
+</tr>
+<tr>
+<td><code>ship.config.yaml</code></td>
+<td>使用哪台构建机、哪个仓库、部署到哪里</td>
+<td>含 agent token，勿提交真实配置</td>
+</tr>
+<tr>
+<td><code>deploy.env</code></td>
+<td>运行时需要哪些环境变量</td>
+<td>含密钥时勿提交；可提交脱敏的 <code>.example</code></td>
+</tr>
+</tbody></table></div>
+<h2 id="section-2">2. 第一次使用前准备什么</h2>
+<p>本手册先用 <strong>static 固定构建机</strong> 跑通完整流程，避免首次上手同时处理云资源生命周期。</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>准备项</th>
+<th>需要满足的条件</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>控制器</td>
+<td>Node.js ≥ 20、pnpm、仓库依赖；Git 源码模式需要 Git，本地上传模式需要 tar</td>
+</tr>
+<tr>
+<td>两台 Linux 机器</td>
+<td>一台 builder、一台 runtime；安装脚本支持 apt/dnf/yum 与 systemd；有 Docker 和 Compose 插件，或允许安装</td>
+</tr>
+<tr>
+<td>镜像仓库</td>
+<td>已建好目标命名空间；builder 有推送凭证，runtime 有拉取凭证</td>
+</tr>
+<tr>
+<td>网络</td>
+<td>控制器能访问两个 agent；builder 能访问源码、依赖和仓库；runtime 能访问仓库</td>
+</tr>
+<tr>
+<td>TLS</td>
+<td>公网访问时准备两个 agent 域名及对应证书/反代；本文用 <code>builder.example.com</code>、<code>runtime.example.com</code></td>
+</tr>
+<tr>
+<td>应用</td>
+<td>Dockerfile、<code>ship.yaml</code>、运行环境变量，以及一个实际可用的健康检查路径</td>
+</tr>
+</tbody></table></div>
+<p>两种角色也可以共用专用测试机，但需要明确 agent 角色、端口和资源占用。本文以分开的机器为例。</p>
+<figure><div class="diagram"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDgwIiBoZWlnaHQ9IjYzNSIgdmlld0JveD0iMCAwIDEwODAgNjM1IiByb2xlPSJpbWciIGFyaWEtbGFiZWxsZWRieT0idGl0bGUgZGVzYyI+PHRpdGxlIGlkPSJ0aXRsZSI+6aaW5qyh6YOo572y55qE5YWt5Liq5q2l6aqkPC90aXRsZT48ZGVzYyBpZD0iZGVzYyI+5YeG5aSH5ZG95Luk44CB5a6J6KOF5py65Zmo44CB5aGr5YaZ6YWN572u44CB5qOA5p+l6L+e5o6l44CB5p6E5bu66YOo572y44CB6aqM6K+B5Lia5Yqh44CCPC9kZXNjPjxkZWZzPjxtYXJrZXIgaWQ9ImFycm93IiBtYXJrZXJXaWR0aD0iOCIgbWFya2VySGVpZ2h0PSI4IiByZWZYPSI3IiByZWZZPSI0IiBvcmllbnQ9ImF1dG8iPjxwYXRoIGQ9Ik0wIDBMOCA0TDAgOCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNTI2OTgyIiBzdHJva2Utd2lkdGg9IjEuNSIvPjwvbWFya2VyPjwvZGVmcz48c3R5bGU+dGV4dHtmb250LWZhbWlseTpJbnRlciwnUGluZ0ZhbmcgU0MnLCdNaWNyb3NvZnQgWWFIZWknLHNhbnMtc2VyaWY7ZmlsbDojMTQyYzQ2fS50aXRsZXtmb250LXNpemU6MjhweDtmb250LXdlaWdodDo3MDB9LnN1Yntmb250LXNpemU6MTdweDtmaWxsOiM1MzZhODB9LmxhYmVse2ZvbnQtc2l6ZToyMHB4O2ZvbnQtd2VpZ2h0OjY1MH0uYm9keXtmb250LXNpemU6MThweH0udGlueXtmb250LXNpemU6MTZweDtmaWxsOiM1MzZhODB9Lm51bXtmb250LXNpemU6MTdweDtmb250LXdlaWdodDo3MDA7ZmlsbDojZmZmfTwvc3R5bGU+PHJlY3Qgd2lkdGg9IjEwODAiIGhlaWdodD0iNjM1IiByeD0iMjAiIGZpbGw9IiNmNGY3ZmEiLz48dGV4dCB4PSIzNCIgeT0iNDgiIGNsYXNzPSJ0aXRsZSI+56ys5LiA5qyh5Y+R5biD77ya6LWw6YCa5YWt5q2l77yM5YaN5ZCI5bm25oiQ5LiA5p2h5ZG95LukPC90ZXh0Pjx0ZXh0IHg9IjM0IiB5PSI4MSIgY2xhc3M9InN1YiI+5Li75rWB56iL5L2/55So5Zu65a6a5p6E5bu65py677yb5q+P5LiA5q2l6YO95qOA5p+l5a6M5oiQ5qCH5b+X44CCPC90ZXh0PjxyZWN0IHg9IjM0IiB5PSIxMjYiIHdpZHRoPSIyOTgiIGhlaWdodD0iMTUzIiByeD0iMTQiIGZpbGw9IiNmZmYiIHN0cm9rZT0iI2NmZGFlNSIvPjxyZWN0IHg9IjU0IiB5PSIxNDUiIHdpZHRoPSIzMCIgaGVpZ2h0PSIzMCIgcng9IjkiIGZpbGw9IiMxNzY1NmMiLz48dGV4dCB4PSI2MyIgeT0iMTY2IiBjbGFzcz0ibnVtIj4xPC90ZXh0Pjx0ZXh0IHg9Ijk4IiB5PSIxNjciIGNsYXNzPSJsYWJlbCI+5YeG5aSHIENMSTwvdGV4dD48dGV4dCB4PSI1NiIgeT0iMjA0IiBjbGFzcz0iYm9keSI+57yW6K+RIHNoaXBraXQ8L3RleHQ+PHRleHQgeD0iNTYiIHk9IjIzMyIgY2xhc3M9ImJvZHkiPnNoaXAgaGVscCDog73mmL7npLrlkb3ku6Q8L3RleHQ+PHJlY3QgeD0iMzkxIiB5PSIxMjYiIHdpZHRoPSIyOTgiIGhlaWdodD0iMTUzIiByeD0iMTQiIGZpbGw9IiNmZmYiIHN0cm9rZT0iI2NmZGFlNSIvPjxyZWN0IHg9IjQxMSIgeT0iMTQ1IiB3aWR0aD0iMzAiIGhlaWdodD0iMzAiIHJ4PSI5IiBmaWxsPSIjMTc2NTZjIi8+PHRleHQgeD0iNDIwIiB5PSIxNjYiIGNsYXNzPSJudW0iPjI8L3RleHQ+PHRleHQgeD0iNDU1IiB5PSIxNjciIGNsYXNzPSJsYWJlbCI+5o6l5YWl5py65ZmoPC90ZXh0Pjx0ZXh0IHg9IjQxMyIgeT0iMjA0IiBjbGFzcz0iYm9keSI+5a6J6KOFIGFnZW50ICsg5LuT5bqT5Yet6K+BPC90ZXh0Pjx0ZXh0IHg9IjQxMyIgeT0iMjMzIiBjbGFzcz0iYm9keSI+SFRUUFMg5YWl5Y+j5Y+v6K6/6ZeuPC90ZXh0PjxyZWN0IHg9Ijc0OCIgeT0iMTI2IiB3aWR0aD0iMjk4IiBoZWlnaHQ9IjE1MyIgcng9IjE0IiBmaWxsPSIjZmZmIiBzdHJva2U9IiNjZmRhZTUiLz48cmVjdCB4PSI3NjgiIHk9IjE0NSIgd2lkdGg9IjMwIiBoZWlnaHQ9IjMwIiByeD0iOSIgZmlsbD0iIzE3NjU2YyIvPjx0ZXh0IHg9Ijc3NyIgeT0iMTY2IiBjbGFzcz0ibnVtIj4zPC90ZXh0Pjx0ZXh0IHg9IjgxMiIgeT0iMTY3IiBjbGFzcz0ibGFiZWwiPuWhq+WGmemFjee9rjwvdGV4dD48dGV4dCB4PSI3NzAiIHk9IjIwNCIgY2xhc3M9ImJvZHkiPnNoaXAuY29uZmlnLnlhbWw8L3RleHQ+PHRleHQgeD0iNzcwIiB5PSIyMzMiIGNsYXNzPSJib2R5Ij5zaGlwLnlhbWwgKyBkZXBsb3kuZW52PC90ZXh0PjxyZWN0IHg9IjM0IiB5PSIzNTgiIHdpZHRoPSIyOTgiIGhlaWdodD0iMTUzIiByeD0iMTQiIGZpbGw9IiNmZmYiIHN0cm9rZT0iI2NmZGFlNSIvPjxyZWN0IHg9IjU0IiB5PSIzNzciIHdpZHRoPSIzMCIgaGVpZ2h0PSIzMCIgcng9IjkiIGZpbGw9IiMxNzY1NmMiLz48dGV4dCB4PSI2MyIgeT0iMzk4IiBjbGFzcz0ibnVtIj40PC90ZXh0Pjx0ZXh0IHg9Ijk4IiB5PSIzOTkiIGNsYXNzPSJsYWJlbCI+5qOA5p+l6L+e5o6lPC90ZXh0Pjx0ZXh0IHg9IjU2IiB5PSI0MzYiIGNsYXNzPSJib2R5Ij5zaGlwIGRvY3RvcjwvdGV4dD48dGV4dCB4PSI1NiIgeT0iNDY1IiBjbGFzcz0iYm9keSI+6Ym05p2D44CB6KeS6Imy44CBRG9ja2VyIOWPr+eUqDwvdGV4dD48cmVjdCB4PSIzOTEiIHk9IjM1OCIgd2lkdGg9IjI5OCIgaGVpZ2h0PSIxNTMiIHJ4PSIxNCIgZmlsbD0iI2ZmZiIgc3Ryb2tlPSIjY2ZkYWU1Ii8+PHJlY3QgeD0iNDExIiB5PSIzNzciIHdpZHRoPSIzMCIgaGVpZ2h0PSIzMCIgcng9IjkiIGZpbGw9IiMxNzY1NmMiLz48dGV4dCB4PSI0MjAiIHk9IjM5OCIgY2xhc3M9Im51bSI+NTwvdGV4dD48dGV4dCB4PSI0NTUiIHk9IjM5OSIgY2xhc3M9ImxhYmVsIj7mnoTlu7rkuI7pg6jnvbI8L3RleHQ+PHRleHQgeD0iNDEzIiB5PSI0MzYiIGNsYXNzPSJib2R5Ij5zaGlwIGJ1aWxkIC0tZnJvbS1kaXIgLjwvdGV4dD48dGV4dCB4PSI0MTMiIHk9IjQ2NSIgY2xhc3M9ImJvZHkiPnNoaXAgZGVwbG95IC0tdG8gc3RhZ2luZzwvdGV4dD48cmVjdCB4PSI3NDgiIHk9IjM1OCIgd2lkdGg9IjI5OCIgaGVpZ2h0PSIxNTMiIHJ4PSIxNCIgZmlsbD0iI2ZmZiIgc3Ryb2tlPSIjY2ZkYWU1Ii8+PHJlY3QgeD0iNzY4IiB5PSIzNzciIHdpZHRoPSIzMCIgaGVpZ2h0PSIzMCIgcng9IjkiIGZpbGw9IiMxNzY1NmMiLz48dGV4dCB4PSI3NzciIHk9IjM5OCIgY2xhc3M9Im51bSI+NjwvdGV4dD48dGV4dCB4PSI4MTIiIHk9IjM5OSIgY2xhc3M9ImxhYmVsIj7pqozor4HlupTnlKg8L3RleHQ+PHRleHQgeD0iNzcwIiB5PSI0MzYiIGNsYXNzPSJib2R5Ij5zaGlwIHN0YXR1cyAtLXRvIHN0YWdpbmc8L3RleHQ+PHRleHQgeD0iNzcwIiB5PSI0NjUiIGNsYXNzPSJib2R5Ij7miZPlvIDkuJrliqHpobUgKyAvaGVhbHRoPC90ZXh0PjxwYXRoIGQ9Ik0zMzIgMjAyIEwzODMgMjAyIiBmaWxsPSJub25lIiBzdHJva2U9IiM1MjY5ODIiIHN0cm9rZS13aWR0aD0iMiIgbWFya2VyLWVuZD0idXJsKCNhcnJvdykiLz48cGF0aCBkPSJNNjg5IDIwMiBMNzQwIDIwMiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNTI2OTgyIiBzdHJva2Utd2lkdGg9IjIiIG1hcmtlci1lbmQ9InVybCgjYXJyb3cpIi8+PHBhdGggZD0iTTg5NyAyNzkgVjMxOSBIMTgzIFYzNTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzUyNjk4MiIgc3Ryb2tlLXdpZHRoPSIyIiBtYXJrZXItZW5kPSJ1cmwoI2Fycm93KSIvPjxwYXRoIGQ9Ik0zMzIgNDM0IEwzODMgNDM0IiBmaWxsPSJub25lIiBzdHJva2U9IiM1MjY5ODIiIHN0cm9rZS13aWR0aD0iMiIgbWFya2VyLWVuZD0idXJsKCNhcnJvdykiLz48cGF0aCBkPSJNNjg5IDQzNCBMNzQwIDQzNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNTI2OTgyIiBzdHJva2Utd2lkdGg9IjIiIG1hcmtlci1lbmQ9InVybCgjYXJyb3cpIi8+PHJlY3QgeD0iMzQiIHk9IjU1MCIgd2lkdGg9IjEwMTIiIGhlaWdodD0iNTUiIHJ4PSIxMiIgZmlsbD0iI2RmZWVlZCIvPjx0ZXh0IHg9IjU3IiB5PSI1ODQiIGNsYXNzPSJsYWJlbCI+5pel5bi45Y+R5biD77yac2hpcCByZWxlYXNlIC0tZnJvbS1kaXIgLiAtLXRvIHN0YWdpbmc8L3RleHQ+PC9zdmc+" alt="首次部署路线：准备 CLI、安装 agent、填写配置、检查、构建发布、验证应用"></div><figcaption>首次部署路线：准备 CLI、安装 agent、填写配置、检查、构建发布、验证应用<span>小屏可横向滚动查看</span></figcaption></figure>
+<h2 id="section-3">3. 准备控制器命令</h2>
+<p>在 <strong>svton 仓库根目录</strong> 执行。新检出的仓库若尚未安装依赖，先按仓库约定运行 <code>pnpm install</code>。</p>
+<pre><code class="language-bash">pnpm --filter shipkit build
+export SHIPKIT_ROOT=&quot;$PWD/shipkit&quot;
+ship() { node &quot;$SHIPKIT_ROOT/dist/cli/main.js&quot; &quot;$@&quot;; }
+ship help
+</code></pre>
+<p>这里的 <code>ship</code> 是当前终端中的 shell 函数，避免依赖全局安装。新开终端后需重新设置绝对路径与函数。后面的 <code>ship</code> 命令均沿用它。</p>
+<p><strong>完成标志：</strong> 帮助中能看到 <code>build</code>、<code>deploy</code>、<code>release</code>、<code>rollback</code>、<code>status</code>、<code>doctor</code>、<code>builder</code>、<code>gc</code>。</p>
+<h2 id="section-4">4. 安装 agent 并接通 HTTPS</h2>
+<h3>4.1 打包 agent，交给机器管理员</h3>
+<p>为使首次安装不依赖临时公网 HTTP 服务，主流程使用本地安装包。以下在 <strong>控制器</strong> 执行，只生成文件：</p>
+<pre><code class="language-bash">SHIP_BUNDLE_STAGE=$(mktemp -d)
+cp -R &quot;$SHIPKIT_ROOT/dist/.&quot; &quot;$SHIP_BUNDLE_STAGE/&quot;
+printf &#39;%s\n&#39; &#39;{&quot;type&quot;:&quot;module&quot;,&quot;private&quot;:true}&#39; &gt; &quot;$SHIP_BUNDLE_STAGE/package.json&quot;
+tar -czf &quot;$SHIP_BUNDLE_STAGE/../ship-agent-$(basename &quot;$SHIP_BUNDLE_STAGE&quot;).tgz&quot; -C &quot;$SHIP_BUNDLE_STAGE&quot; .
+printf &#39;安装包路径：%s\n&#39; &quot;$SHIP_BUNDLE_STAGE/../ship-agent-$(basename &quot;$SHIP_BUNDLE_STAGE&quot;).tgz&quot;
+printf &#39;安装脚本：%s\n&#39; &quot;$SHIPKIT_ROOT/bootstrap/install.sh&quot;
+</code></pre>
+<p>通过已受信的 SSH/SCP 或运维文件传输，把安装包与 <code>install.sh</code> 送到两台目标机，分别保存为 <code>/root/ship-agent.tgz</code>、<code>/root/ship-install.sh</code>。这是首次安装的人工准备步骤。</p>
+<h3>4.2 分别安装两种角色</h3>
+<p>在 <strong>builder 的 root Bash 终端</strong> 执行。先为本机生成并安全保存一个独立 agent token，再在提示中输入；该值稍后要填进控制器配置。</p>
+<pre><code class="language-bash">read -r -s -p &#39;Builder agent token: &#39; AGENT_TOKEN; echo
+export AGENT_TOKEN
+ROLE=builder AGENT_PORT=7410 AGENT_BIND=127.0.0.1 \
+  TARBALL=/root/ship-agent.tgz bash /root/ship-install.sh
+unset AGENT_TOKEN
+</code></pre>
+<p>在 <strong>runtime 的 root Bash 终端</strong> 使用另一枚 token：</p>
+<pre><code class="language-bash">read -r -s -p &#39;Runtime agent token: &#39; AGENT_TOKEN; echo
+export AGENT_TOKEN
+ROLE=runtime AGENT_PORT=7410 AGENT_BIND=127.0.0.1 \
+  TARBALL=/root/ship-agent.tgz bash /root/ship-install.sh
+unset AGENT_TOKEN
+</code></pre>
+<p>安装脚本会检查或安装 Docker、Compose 和 Node，写入 <code>/opt/shipkit</code>、<code>/etc/shipkit/agent.env</code> 与 systemd 服务，然后启动 agent。默认数据目录是 <code>/opt/shipkit-data</code>。<strong>重复执行安装会替换 agent 程序、重写凭证文件并重启服务</strong>，已有安装应安排维护窗口并保留所需配置。</p>
+<h3>4.3 配置仓库凭证</h3>
+<p>在各机器上用受控编辑器修改 <code>/etc/shipkit/agent.env</code>，保留原来的 <code>SHIP_AGENT_TOKEN</code>：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>机器</th>
+<th>填写字段</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>builder</td>
+<td><code>SHIP_PUSH_USER</code>、<code>SHIP_PUSH_PASSWORD</code></td>
+<td>登录仓库并推送镜像</td>
+</tr>
+<tr>
+<td>runtime</td>
+<td><code>SHIP_PULL_USER</code>、<code>SHIP_PULL_PASSWORD</code></td>
+<td>拉取私有镜像，优先使用只读账号</td>
+</tr>
+</tbody></table></div>
+<p>在 <strong>各目标机</strong> 保存后执行：</p>
+<pre><code class="language-bash">chmod 600 /etc/shipkit/agent.env
+systemctl restart ship-agent
+systemctl is-active ship-agent
+curl -fsS http://127.0.0.1:7410/health
+</code></pre>
+<p><code>/health</code> 只证明进程与基础状态可访问；后面还要通过 <code>doctor</code> 验证带鉴权的接口和角色。只在控制器运行 <code>docker login</code>，不会为远端 agent 配好仓库凭证。</p>
+<h3>4.4 给两个 agent 配置 TLS 反向代理</h3>
+<p>由机器管理员安装 Caddy、配置 DNS 和证书。在各机器上按 <a href="../bootstrap/caddy/Caddyfile.tmpl">agent Caddy 模板</a> 配置入口；例如 runtime：</p>
+<pre><code class="language-caddyfile">runtime.example.com {
+    reverse_proxy 127.0.0.1:7410
+    request_body {
+        max_size 320MB
+    }
+}
+</code></pre>
+<p>builder 使用 <code>builder.example.com</code>。已有 Caddy 站点时合并配置，避免覆盖其他站点。确认配置有效后再 reload。外部只开放网络方案所需的入口，7410 保持本机可达，证书校验保持开启。</p>
+<p><strong>完成标志：</strong> 控制器可通过正确域名访问 HTTPS agent，证书身份匹配；无需关闭证书校验。应用自己的业务域名和端口需另外配置，它们与 agent 管理入口不同。</p>
+<h3>4.5 可选：临时分发服务</h3>
+<p>已有受控内网或加密隧道时，可在控制器运行：</p>
+<pre><code class="language-bash">ship serve-bundle --host CONTROLLER_PRIVATE_IP --minutes 30
+</code></pre>
+<p>它输出 runtime、builder 各自的安装 URL 和 token；显式指定 30 分钟后自动关闭。当前 CLI 默认时长实际为 <strong>45 分钟</strong>，并支持 <code>--port</code>。</p>
+<p>当前 <code>serve-bundle</code> 命令生成 HTTP 地址，监听 <code>0.0.0.0</code>，没有 <code>--https</code> 或 <code>--bundle-base-url</code> 参数。不要直接将它的明文安装命令作为公网安装方案。配置 HTTPS 分发时，<strong>安装脚本与脚本内部下载的 agent 包都必须走 HTTPS</strong>；只改外层 curl 的地址不够。动态模式的 <code>bundleBaseUrl</code> 见第 9 节。</p>
+<h2 id="section-5">5. 准备示例应用和配置</h2>
+<h3>5.1 在独立目录里准备 demo</h3>
+<p>在 <strong>控制器</strong> 执行，避免修改仓库自带的演示文件：</p>
+<pre><code class="language-bash">mkdir -p &quot;$HOME/shipkit-demo&quot;
+cp &quot;$SHIPKIT_ROOT/examples/demo-web/app.js&quot; &quot;$HOME/shipkit-demo/&quot;
+cp &quot;$SHIPKIT_ROOT/examples/demo-web/Dockerfile&quot; &quot;$HOME/shipkit-demo/&quot;
+cd &quot;$HOME/shipkit-demo&quot;
+</code></pre>
+<h3>5.2 创建 <code>ship.config.yaml</code></h3>
+<p>把域名、仓库、命名空间及两枚 token 替换成已准备好的值。<code>registry.url</code> 填 Registry 主机名，不带 <code>https://</code>。</p>
+<pre><code class="language-yaml">builder:
+  mode: static
+  static:
+    url: https://builder.example.com
+    token: REPLACE_WITH_BUILDER_TOKEN
+
+registry:
+  url: registry.example.com
+  namespace: myteam
+
+runtime:
+  targets:
+    staging:
+      url: https://runtime.example.com
+      token: REPLACE_WITH_RUNTIME_TOKEN
+</code></pre>
+<p>配置查找顺序为：显式 <code>--config PATH</code> → 当前目录的 <code>ship.config.yaml/.yml/.json</code> → <code>~/.ship/config.yaml</code>。参数放在子命令后，例如 <code>ship doctor --config /absolute/path/ship.config.yaml</code>。</p>
+<h3>5.3 创建 <code>ship.yaml</code></h3>
+<pre><code class="language-yaml">name: demo-web
+dockerfile: Dockerfile
+context: .
+ports:
+  - &#39;3000:3000&#39;
+envFile: deploy.env
+healthcheck:
+  path: /health
+  hostPort: 3000
+  timeoutSeconds: 60
+</code></pre>
+<p><code>3000:3000</code> 表示“运行服务器的 3000 端口 → 容器内的 3000 端口”。<code>healthcheck.hostPort</code> 应指向宿主机端口；本例 demo 提供 <code>/health</code>。</p>
+<h3>5.4 创建 <code>deploy.env</code></h3>
+<pre><code class="language-dotenv">PORT=3000
+APP_VERSION=1.0.0
+</code></pre>
+<p>把 <code>ship.config.yaml</code>、<code>deploy.env</code> 加入本项目的 <code>.gitignore</code>，并限制文件权限：</p>
+<pre><code class="language-bash">chmod 600 ship.config.yaml deploy.env
+</code></pre>
+<p>运行时变量在部署阶段发给 runtime。构建时公开变量可用 <code>buildArgs</code>；默认 <code>strict</code> 策略只接受 <code>NEXT_PUBLIC_</code>、<code>VITE_</code>、<code>PUBLIC_</code>、<code>REACT_APP_</code> 前缀。不要把密钥放入 Docker build args。</p>
+<h2 id="section-6">6. 完成第一次发布</h2>
+<p>所有命令在 <strong>包含 <code>ship.yaml</code> 的应用目录</strong> 中执行。</p>
+<h3>6.1 先检查连接</h3>
+<pre><code class="language-bash">ship doctor
+</code></pre>
+<p>检查 Node、配置、builder/runtime 的鉴权、角色和 Docker 可用性。仓库检查主要确认配置存在，<strong>不替代真实 push/pull</strong>；动态模式下它不会创建构建机。公网 HTTP 提示可能只是警告，即使退出码为 0，也仍需处理传输问题。</p>
+<h3>6.2 分两步发布，便于观察</h3>
+<pre><code class="language-bash">ship build --from-dir .
+ship deploy --to staging
+ship status --to staging
+</code></pre>
+<p><code>build</code> 包含构建和推送。<code>deploy</code> 默认使用本机记录的该应用最近一次构建结果；拿到镜像 digest 时会优先按 digest 部署。</p>
+<p><strong>判断成功：</strong> build 和 deploy 都以退出码 0 结束；status 中目标应用的镜像/发布记录符合预期；再打开业务地址并验证健康接口。例如，已经通过防火墙或隧道开放业务端口时：</p>
+<pre><code class="language-bash">curl -fsS http://RUNTIME_TEST_IP:3000/health
+curl -fsS http://RUNTIME_TEST_IP:3000/
+</code></pre>
+<p>预期 <code>/health</code> 返回 <code>ok</code>，首页包含 <code>demo-web 1.0.0 on 3000</code>。这是 demo 的响应示例，不是本次文档编写时的实测结果。如果业务使用 HTTPS 域名，应改用实际业务 URL。</p>
+<h3>6.3 熟悉后合并成一条命令</h3>
+<pre><code class="language-bash">ship release --from-dir . --to staging
+</code></pre>
+<p>它依次执行 build → push → deploy → 健康检查。单独 <code>deploy</code> 的默认等待预算为 15 分钟；build/release 默认使用 60 分钟预算。可传 <code>--timeout-min N</code> 调整客户端等待；它不等于服务器任务一定在同一时刻被取消。</p>
+<h2 id="section-7">7. 日常操作速查</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>想做什么</th>
+<th>命令</th>
+<th>需要知道</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>发布当前本地目录</td>
+<td><code>ship release --from-dir . --to staging</code></td>
+<td>包含尚未提交的本地源码，仍从当前目录读取 <code>ship.yaml</code></td>
+</tr>
+<tr>
+<td>发布已推送的 Git 提交</td>
+<td><code>ship release --to staging</code></td>
+<td>默认使用 origin 与当前 HEAD，远端需能取到该提交</td>
+</tr>
+<tr>
+<td>只构建并推送</td>
+<td><code>ship build --from-dir .</code></td>
+<td>不改变运行机上的应用</td>
+</tr>
+<tr>
+<td>部署指定镜像</td>
+<td><code>ship deploy --ref registry.example.com/myteam/demo-web:TAG --to staging</code></td>
+<td>仍需本地 <code>ship.yaml</code> 与运行环境配置</td>
+</tr>
+<tr>
+<td>使用另一份环境变量</td>
+<td><code>ship deploy --env-file staging.env --to staging</code></td>
+<td>指定文件必须存在</td>
+</tr>
+<tr>
+<td>沿用运行机现有环境变量</td>
+<td><code>ship deploy --keep-env --to staging</code></td>
+<td>适用于已部署过的应用；显式 <code>--env-file</code> 优先</td>
+</tr>
+<tr>
+<td>查看全部目标</td>
+<td><code>ship status --to all</code></td>
+<td>不触发构建或部署</td>
+</tr>
+<tr>
+<td>查看机器可读结果</td>
+<td><code>ship status --to staging --json</code></td>
+<td>stdout 为结果，进度日志在 stderr</td>
+</tr>
+<tr>
+<td>回到上一版</td>
+<td><code>ship rollback demo-web --to staging</code></td>
+<td>恢复上一发布的镜像、配置与环境变量</td>
+</tr>
+<tr>
+<td>预览镜像清理</td>
+<td><code>ship gc --to staging</code></td>
+<td>默认不删除</td>
+</tr>
+<tr>
+<td>执行镜像清理</td>
+<td><code>ship gc --to staging --execute</code></td>
+<td>真实删除候选镜像，先审核预览范围</td>
+</tr>
+</tbody></table></div>
+<h3>源码怎么选</h3>
+<ul>
+<li><strong>Git 模式：</strong> 适合正式发布已推送提交。私有仓库访问可配置 <code>source.repo/ref/token</code>；本地未提交的修改不会被远端 clone 到。</li>
+<li><strong>本地目录模式：</strong> 适合 demo 和本地验证。自动排除 <code>.git</code>、<code>node_modules</code>、<code>.env</code>、<code>deploy.env</code>、<code>*.pem</code>、标准控制器配置名和 <code>spec.envFile</code>。其他自定义秘密文件仍需自行移出上传目录；不要把上传行为当作完整密钥扫描。</li>
+<li>本地上传有应用侧 500MB 上限；示例 Caddy 的请求体限制为 320MB，实际受链路中更小的限制约束。</li>
+</ul>
+<h3>多个部署目标</h3>
+<p>在 <code>runtime.targets</code> 下增加 <code>prod</code> 等命名目标，每个目标各填 URL 和 token。<code>deploy</code>、<code>release</code>、<code>rollback</code>、<code>gc</code> 一次指定一个目标；<code>--to all</code> 用于 <code>status</code>。未给部署目标时会选配置中的第一个目标，日常建议显式写 <code>--to</code>。</p>
+<h2 id="section-8">8. 发布失败、回滚与清理</h2>
+<figure><div class="diagram"><img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDgwIiBoZWlnaHQ9IjY4MyIgdmlld0JveD0iMCAwIDEwODAgNjgzIiByb2xlPSJpbWciIGFyaWEtbGFiZWxsZWRieT0idGl0bGUgZGVzYyI+PHRpdGxlIGlkPSJ0aXRsZSI+5Y+R5biD57uT5p6c5LiO5oGi5aSN6Lev5b6EPC90aXRsZT48ZGVzYyBpZD0iZGVzYyI+6YOo572y5oiQ5Yqf6aqM6K+B5Lia5Yqh77yb6YCA5Ye656CBNeajgOafpeiHquWKqOaBouWkje+8mzTmiJY25p+l5aSx6LSl5pel5b+X44CC5Li75Yqo5Zue5rua5LiN5oGi5aSN5pWw5o2u5bqT44CCPC9kZXNjPjxkZWZzPjxtYXJrZXIgaWQ9ImFycm93IiBtYXJrZXJXaWR0aD0iOCIgbWFya2VySGVpZ2h0PSI4IiByZWZYPSI3IiByZWZZPSI0IiBvcmllbnQ9ImF1dG8iPjxwYXRoIGQ9Ik0wIDBMOCA0TDAgOCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNTI2OTgyIiBzdHJva2Utd2lkdGg9IjEuNSIvPjwvbWFya2VyPjwvZGVmcz48c3R5bGU+dGV4dHtmb250LWZhbWlseTpJbnRlciwnUGluZ0ZhbmcgU0MnLCdNaWNyb3NvZnQgWWFIZWknLHNhbnMtc2VyaWY7ZmlsbDojMTQyYzQ2fS50aXRsZXtmb250LXNpemU6MjhweDtmb250LXdlaWdodDo3MDB9LnN1Yntmb250LXNpemU6MTdweDtmaWxsOiM1MzZhODB9LmxhYmVse2ZvbnQtc2l6ZToyMHB4O2ZvbnQtd2VpZ2h0OjY1MH0uYm9keXtmb250LXNpemU6MThweH0udGlueXtmb250LXNpemU6MTZweDtmaWxsOiM1MzZhODB9Lm51bXtmb250LXNpemU6MTdweDtmb250LXdlaWdodDo3MDA7ZmlsbDojZmZmfTwvc3R5bGU+PHJlY3Qgd2lkdGg9IjEwODAiIGhlaWdodD0iNjgzIiByeD0iMjAiIGZpbGw9IiNmNGY3ZmEiLz48dGV4dCB4PSIzNCIgeT0iNDgiIGNsYXNzPSJ0aXRsZSI+5Y+R5biD5LmL5ZCO77ya5oyJ57uT5p6c5Yaz5a6a5LiL5LiA5q2lPC90ZXh0Pjx0ZXh0IHg9IjM0IiB5PSI4MSIgY2xhc3M9InN1YiI+6Ieq5Yqo5oGi5aSN5oiQ5Yqf5Lmf5Luj6KGo5pys5qyh5paw54mI5pys5Y+R5biD5aSx6LSl77yb5LiN6KaB5Y+q55yL5pyN5Yqh6L+Y6IO95LiN6IO95omT5byA44CCPC90ZXh0PjxyZWN0IHg9IjM3MyIgeT0iMTE0IiB3aWR0aD0iMzM0IiBoZWlnaHQ9IjEwMiIgcng9IjE0IiBmaWxsPSIjZmZmIiBzdHJva2U9IiNjZmRhZTUiLz48dGV4dCB4PSIzOTUiIHk9IjE1NSIgY2xhc3M9ImxhYmVsIj7miafooYwgZGVwbG95IC8gcmVsZWFzZTwvdGV4dD48dGV4dCB4PSIzOTUiIHk9IjE5MiIgY2xhc3M9ImJvZHkiPuivu+WPlumAgOWHuueggeS4juS7u+WKoee7k+aenDwvdGV4dD48cGF0aCBkPSJNNTQwIDIxNiBWMjU2IEgxOTUgVjMwMCBNNTQwIDI1NiBWMzAwIE01NDAgMjU2IEg4ODUgVjMwMCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjNTI2OTgyIiBzdHJva2Utd2lkdGg9IjIiLz48cmVjdCB4PSI0NCIgeT0iMzAwIiB3aWR0aD0iMzAyIiBoZWlnaHQ9IjE3MSIgcng9IjE0IiBmaWxsPSIjZTZmMmVlIiBzdHJva2U9IiNjZmRhZTUiLz48dGV4dCB4PSI2NiIgeT0iMzQxIiBjbGFzcz0ibGFiZWwiPumAgOWHuueggSAwPC90ZXh0Pjx0ZXh0IHg9IjY2IiB5PSIzNzgiIGNsYXNzPSJib2R5Ij7pg6jnvbLmiJDlip88L3RleHQ+PHRleHQgeD0iNjYiIHk9IjQwNyIgY2xhc3M9ImJvZHkiPuajgOafpSBzdGF0dXMg5LiO5Lia5Yqh6aG16Z2iPC90ZXh0Pjx0ZXh0IHg9IjY2IiB5PSI0MzYiIGNsYXNzPSJib2R5Ij7noa7orqTov5DooYznmoTmmK/pooTmnJ/niYjmnKw8L3RleHQ+PHJlY3QgeD0iMzg5IiB5PSIzMDAiIHdpZHRoPSIzMDIiIGhlaWdodD0iMTcxIiByeD0iMTQiIGZpbGw9IiNmZmYyZGMiIHN0cm9rZT0iI2NmZGFlNSIvPjx0ZXh0IHg9IjQxMSIgeT0iMzQxIiBjbGFzcz0ibGFiZWwiPumAgOWHuueggSA1PC90ZXh0Pjx0ZXh0IHg9IjQxMSIgeT0iMzc4IiBjbGFzcz0iYm9keSI+5paw54mI5pys5aSx6LSl77yM5pen54mI5bey5oGi5aSNPC90ZXh0Pjx0ZXh0IHg9IjQxMSIgeT0iNDA3IiBjbGFzcz0iYm9keSI+5p+l5aSx6LSl5pel5b+X77yM5L+u5aSN5paw54mI5pysPC90ZXh0Pjx0ZXh0IHg9IjQxMSIgeT0iNDM2IiBjbGFzcz0iYm9keSI+6aqM6K+B5b2T5YmN5pyN5Yqh5LuN54S25q2j5bi4PC90ZXh0PjxyZWN0IHg9IjczNCIgeT0iMzAwIiB3aWR0aD0iMzAyIiBoZWlnaHQ9IjE3MSIgcng9IjE0IiBmaWxsPSIjZmNlYWU4IiBzdHJva2U9IiNjZmRhZTUiLz48dGV4dCB4PSI3NTYiIHk9IjM0MSIgY2xhc3M9ImxhYmVsIj7pgIDlh7rnoIEgNCAvIDY8L3RleHQ+PHRleHQgeD0iNzU2IiB5PSIzNzgiIGNsYXNzPSJib2R5Ij7ku7vliqHlpLHotKUgLyDmgaLlpI3kuZ/lpLHotKU8L3RleHQ+PHRleHQgeD0iNzU2IiB5PSI0MDciIGNsYXNzPSJib2R5Ij7mn6Ugam9iIOS4jui/kOihjOacuuacjeWKoeaXpeW/lzwvdGV4dD48dGV4dCB4PSI3NTYiIHk9IjQzNiIgY2xhc3M9ImJvZHkiPuWIpOaWreaYr+WQpumcgOimgeS6uuW3peaBouWkjTwvdGV4dD48dGV4dCB4PSI0OCIgeT0iNTI4IiBjbGFzcz0ibGFiZWwiPumcgOimgeS4u+WKqOWbnuWIsOS4iuS4gOeJiO+8nzwvdGV4dD48dGV4dCB4PSI0OCIgeT0iNTY1IiBjbGFzcz0iYm9keSI+c2hpcCByb2xsYmFjayBkZW1vLXdlYiAtLXRvIHN0YWdpbmc8L3RleHQ+PHRleHQgeD0iNDgiIHk9IjYwNiIgY2xhc3M9InN1YiI+5Zue5rua6IyD5Zu077ya6ZWc5YOPICsg546v5aKD5Y+Y6YePICsg5Y+R5biD6YWN572u77yb5pWw5o2u5bqT5LiO5aSW6YOo5pWw5o2u6ZyA5Y+m6KGM5oGi5aSN44CCPC90ZXh0Pjx0ZXh0IHg9IjQ4IiB5PSI2NTEiIGNsYXNzPSJzdWIiPui2heaXtuaIluaWrei/nu+8muWFiOafpeWOnyBqb2LvvIzmnI3liqHlmajku7vliqHlj6/og73ku43lnKjmiafooYzjgII8L3RleHQ+PC9zdmc+" alt="发布结果判断：成功后验证应用；失败后区分已恢复、恢复失败和首次部署失败"></div><figcaption>发布结果判断：成功后验证应用；失败后区分已恢复、恢复失败和首次部署失败<span>小屏可横向滚动查看</span></figcaption></figure>
+<h3>8.1 先看退出码</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>退出码</th>
+<th>含义</th>
+<th>下一步</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0</td>
+<td>命令成功</td>
+<td>检查 status，再验证实际业务</td>
+</tr>
+<tr>
+<td>1</td>
+<td>doctor 发现问题</td>
+<td>按失败检查项修配置或环境</td>
+</tr>
+<tr>
+<td>2</td>
+<td>参数、配置或规范错误等</td>
+<td>检查错误字段、文件路径、参数支持情况</td>
+</tr>
+<tr>
+<td>3</td>
+<td>agent 不可达或 API 请求失败</td>
+<td>检查域名、TLS、网络、token、角色与服务日志</td>
+</tr>
+<tr>
+<td>4</td>
+<td>任务失败，未成功恢复到旧发布</td>
+<td>查任务日志；首次部署可能没有可恢复快照</td>
+</tr>
+<tr>
+<td>5</td>
+<td>新部署失败，已恢复上一发布</td>
+<td>当前服务可能已恢复，但此次新版本发布仍失败</td>
+</tr>
+<tr>
+<td>6</td>
+<td>新部署失败，自动恢复也失败</td>
+<td>检查运行机和日志，人工恢复服务后再发布</td>
+</tr>
+</tbody></table></div>
+<p>终端断开或客户端超时后，服务器任务可能仍在运行。先查原任务状态，避免立即重复提交部署或清理。</p>
+<h3>8.2 回滚示例</h3>
+<p>先把 <code>deploy.env</code> 中的 <code>APP_VERSION</code> 改为 <code>2.0.0</code>，再发布一次并验证首页。需要恢复时执行：</p>
+<pre><code class="language-bash">ship rollback demo-web --to staging
+ship status --to staging
+</code></pre>
+<p>回滚恢复镜像、环境变量和发布配置的快照。<strong>数据库内容、外部存储和数据库迁移不在回滚范围内</strong>。第一次发布没有上一成功版本，不能靠 rollback 恢复不存在的版本。</p>
+<h3>8.3 查看任务与服务日志</h3>
+<p>CLI 会输出任务 ID，并在任务失败时展示日志尾部。目前没有 <code>ship logs</code> 子命令，可按日志中的 jobId 调用 API：</p>
+<pre><code class="language-bash"># 在控制器 Bash 中；输入 runtime 的 token，不把真实 token 写进示例
+read -r -s -p &#39;Runtime agent token: &#39; SHIP_RUNTIME_TOKEN; echo
+export SHIP_RUNTIME_TOKEN
+SHIP_RUNTIME_URL=https://runtime.example.com
+SHIP_JOB_ID=REPLACE_WITH_JOB_ID
+curl -fsS -H &quot;Authorization: Bearer $SHIP_RUNTIME_TOKEN&quot; \
+  &quot;$SHIP_RUNTIME_URL/api/jobs/$SHIP_JOB_ID&quot;
+curl -fsS -H &quot;Authorization: Bearer $SHIP_RUNTIME_TOKEN&quot; \
+  &quot;$SHIP_RUNTIME_URL/api/jobs/$SHIP_JOB_ID/log?tail=100&quot;
+unset SHIP_RUNTIME_TOKEN
+</code></pre>
+<p>目标机管理员也可以运行 <code>journalctl -u ship-agent --no-pager -n 100</code> 查看服务日志。动态构建机的引导日志位于 <code>/var/log/ship-bootstrap.log</code>。</p>
+<h3>8.4 清理镜像</h3>
+<p>先运行 <code>ship gc --to staging</code> 审核候选列表；确认范围后才运行 <code>ship gc --to staging --execute</code>。它针对运行机的发布镜像账本，保护发布快照引用，并以可查询的 job 执行删除。它不清理远端 Registry，也不等同于 <code>docker system prune</code>，没有候选不代表磁盘所有占用都能清掉。</p>
+<p>真实 Docker 长任务验收尚待专用环境；不要把本地模拟测试通过当成目标机已经完成清理验收。</p>
+<h2 id="section-9">9. 进阶：按需创建腾讯云构建机</h2>
+<p>使用 dynamic 前，先完成固定运行机接入，并准备云凭证、地域/网络参数、允许创建和销毁的测试范围、费用上限与最长存活时间。<code>builder up</code>、动态 <code>build/release</code> 可能创建收费实例；<code>builder down</code> 会释放对应实例。</p>
+<p>下面仅展示替换后的 <code>builder</code> 块；第 5 节的 <code>registry</code> 和 <code>runtime</code> 保留。占位资源必须替换成账号内实际可用的值。</p>
+<pre><code class="language-yaml">builder:
+  mode: dynamic
+  dynamic:
+    provider: tencent
+    keepMinutes: 0
+    tencent:
+      region: REGION
+      zone: ZONE
+      instanceType: INSTANCE_TYPE
+      imageId: IMAGE_ID
+      vpcId: VPC_ID
+      subnetId: SUBNET_ID
+      securityGroupIds: [SECURITY_GROUP_ID]
+      advertiseHost: CONTROLLER_REACHABLE_HOST
+      bundlePort: 7411
+      bundleBaseUrl: https://bundle.example.com
+      agentScheme: https
+      agentHost: builder.example.com
+      agentPort: 443
+      maxLifetimeMinutes: 180
+</code></pre>
+<p>控制器进程读取 <code>TENCENTCLOUD_SECRET_ID</code> 和 <code>TENCENTCLOUD_SECRET_KEY</code>。通过本机凭证管理方式注入，文档或聊天中只提供变量名称。</p>
+<h3>接通以下链路后再运行</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>配置/准备</th>
+<th>实际责任</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>bundleBaseUrl</code></td>
+<td>是安装脚本与 agent 包的 HTTPS 分发入口；需要真实反代转发到此次控制器分发服务</td>
+</tr>
+<tr>
+<td>bundle 路径 token</td>
+<td>每次分发随机生成；<a href="../bootstrap/caddy/Caddyfile.bundle.tmpl">分发模板</a> 的路径规则必须能匹配当次 token，静态占位符不能直接使用</td>
+</tr>
+<tr>
+<td><code>agentHost</code></td>
+<td>是纯主机名，不含协议、端口、路径；必须实际路由到本次新建实例，代码不会自动更新 DNS 或反代后端</td>
+</tr>
+<tr>
+<td><code>agentPort</code></td>
+<td>表示对外访问端口；设置 443 不会自动安装 Caddy、签发证书或把本机 agent 改为 HTTPS</td>
+</tr>
+<tr>
+<td>新机器初始化</td>
+<td>镜像/自托管引导/<code>preInstallScript</code> 等需预先安排 TLS 入口、网络和 builder 推送凭证；控制器仓库配置不会自动把推送密码安装到新机器</td>
+</tr>
+<tr>
+<td>安全组和出站</td>
+<td>控制器能访问 agent，新机能访问引导源、依赖和镜像仓库；限制管理入口的可访问来源</td>
+</tr>
+</tbody></table></div>
+<p>如果采用自托管安装脚本，<code>installUrl</code> 与 <code>installToken</code> 必须成对配置，脚本内的 agent token 要匹配；内部下载地址也需正确。自托管入口的维护由环境方负责。</p>
+<p>公网接入默认采用域名和可续期证书。使用 IP 证书时，先确认实际签发、续期和客户端验证链路；不要通过关闭 TLS 校验绕过配置问题。</p>
+<h3>生命周期怎么理解</h3>
+<ul>
+<li><code>keepMinutes: 0</code> 且不传 <code>--keep-builder</code>：构建/推送流程结束时尝试释放临时机器。</li>
+<li><code>keepMinutes</code> 大于 0：请求保留以便后续复用；下次任务还会检查空闲时间与云端剩余寿命，不能保证每次复用。</li>
+<li>复用窗口不是常驻后台的精确关机定时器。真正独立于控制器退出的兜底，是创建时提交的云端到期销毁任务；其真实执行仍待验收。</li>
+<li><code>--keep-builder</code> 不取消云端寿命上限。需要主动结束时执行 <code>ship builder down</code>，并确认云侧释放结果。</li>
+<li>当前构建预算约为 <code>2 × timeout-min + 15</code> 分钟，新建时再加 35 分钟供给预算。默认 <code>timeout-min=60</code> 时需至少 170 分钟，示例配置 180 分钟。调整预算时同步调整寿命上限。</li>
+<li>创建流程核验官方 <code>ActionTimers</code> 返回中的实例、动作、时间与明确的 <code>UNDO</code> 状态；不通过时尝试补偿销毁。补偿失败必须按错误中的实例 ID 处理。</li>
+</ul>
+<p>环境准备完毕并确认资源范围后，日常命令仍是 <code>ship release</code> 或 <code>ship release --from-dir .</code>；<code>ship builder status</code> 用于检查状态。</p>
+<h2 id="section-10">10. 常见卡点与当前验收范围</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>现象</th>
+<th>优先检查</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>找不到 <code>ship</code></td>
+<td>第 3 节函数只在当前终端生效，或直接用绝对路径运行 CLI</td>
+</tr>
+<tr>
+<td>找不到 <code>ship.yaml</code></td>
+<td>build/deploy/release 从当前工作目录读规范；<code>--from-dir</code> 不会替你切换目录</td>
+</tr>
+<tr>
+<td>Git 模式没构建最新修改</td>
+<td>修改是否 commit 并 push；需要当前目录内容时改用 <code>--from-dir .</code></td>
+</tr>
+<tr>
+<td>push/pull unauthorized</td>
+<td>凭证是否在对应 agent 的 <code>/etc/shipkit/agent.env</code>，权限与仓库是否匹配，修改后是否重启</td>
+</tr>
+<tr>
+<td>证书名不匹配</td>
+<td>URL 主机名、DNS 指向、证书身份、反代转发是否一致</td>
+</tr>
+<tr>
+<td><code>envFile</code> 不存在</td>
+<td>创建声明的文件，或在已有部署上明确选择 <code>--keep-env</code></td>
+</tr>
+<tr>
+<td>HTTP 413 / 上传失败</td>
+<td>源码包体积及反代请求体限制；移除不需要的文件或改用 Git 模式</td>
+</tr>
+<tr>
+<td>部署退出码 5</td>
+<td>新发布失败但旧版已恢复；修复新版问题后再发布</td>
+</tr>
+<tr>
+<td>GC 超时或客户端断开</td>
+<td>查原 job 状态与日志，确认是否还在执行</td>
+</tr>
+<tr>
+<td>动态机器无法复用</td>
+<td>idle 窗口、lease、剩余寿命、任务预算与持久化入口是否符合本轮条件</td>
+</tr>
+</tbody></table></div>
+<p><strong>截至 2026-09-29：</strong> 本轮代码修正与 92 项本地回归已记录，以下实机项仍待完成：</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>验收项</th>
+<th>需要的环境</th>
+<th>应留下的证据</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>TLS</td>
+<td>测试机、域名/证书、DNS、网络修改范围</td>
+<td>agent 与引导包全链路证书验证通过</td>
+</tr>
+<tr>
+<td>云端到期销毁</td>
+<td>临时实例创建/销毁授权、云参数、预算和最长寿命</td>
+<td>真实定时器响应、到期后的实例状态与释放记录</td>
+</tr>
+<tr>
+<td>Docker 长 GC</td>
+<td>专用 Docker 环境、测试对象范围和资源上限</td>
+<td>长任务、断连后查询、部署互斥、删除结果与日志</td>
+</tr>
+</tbody></table></div>
+<p>具体步骤见 <a href="audits/2026-09-29/acceptance-next-steps.md">后续验收清单</a>，修复过程见 <a href="audits/2026-09-29/remediation.md">remediation</a>。历史实测记录见 <a href="e2e-report-2026-09-28.md">早期 E2E 报告</a>；历史结果不能替代当前版本的上述环境验收。</p>
+<hr>
+<p>维护说明：本手册根据当前 CLI、配置校验、安装脚本和发布流程整理；静态与动态 YAML 示例经过当前校验器检查。图示与排版不代表本次执行了部署、云资源创建或镜像清理。</p>
+</article><footer>Shipkit · 文档与图示根据当前仓库实现整理。HTML 已内嵌配图，无需联网即可阅读。</footer></main><script>
+document.getElementById('print').onclick=()=>window.print();
+document.querySelectorAll('pre').forEach(pre=>{const button=document.createElement('button');button.className='copy';button.textContent='复制';button.type='button';button.setAttribute('aria-label','复制代码');button.onclick=async()=>{try{await navigator.clipboard.writeText(pre.querySelector('code').textContent);button.textContent='已复制'}catch{button.textContent='请手动选择复制'}setTimeout(()=>button.textContent='复制',1800)};pre.prepend(button)});
+const observer=new IntersectionObserver(entries=>{for(const entry of entries){if(entry.isIntersecting){document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('active',a.hash==='#'+entry.target.id))}}},{rootMargin:'0px 0px -65% 0px'});document.querySelectorAll('h2[id]').forEach(h=>observer.observe(h));
+</script></body></html>

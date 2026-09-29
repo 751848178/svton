@@ -1,0 +1,7 @@
+{"ts":"2026-09-28T18:05:54.623Z","level":"info","msg":"rollback started","app":"demo-web","target":"server-a","jobId":"2ae83e81-e760-4a9c-803d-af998c80ebe5"}
+{
+  "app": "demo-web",
+  "imageRef": "172.16.48.10:5000/team/demo-web:202609290203",
+  "rolledBack": true,
+  "target": "server-a"
+}

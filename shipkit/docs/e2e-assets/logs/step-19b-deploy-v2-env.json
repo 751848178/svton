@@ -1,0 +1,10 @@
+{"ts":"2026-09-28T18:05:21.462Z","level":"info","msg":"attaching runtime env file","file":"deploy-v2.env","redacted":true}
+{"ts":"2026-09-28T18:05:21.463Z","level":"info","msg":"deploying","app":"demo-web","imageRef":"172.16.48.10:5000/team/demo-web:v2","target":"server-a"}
+{"ts":"2026-09-28T18:05:21.671Z","level":"info","msg":"deploy running","jobId":"3ff32708-6c15-40af-8893-fc5ec2a195af"}
+{
+  "app": "demo-web",
+  "imageRef": "172.16.48.10:5000/team/demo-web:v2",
+  "rolledBack": false,
+  "rolledBackTo": null,
+  "target": "server-a"
+}

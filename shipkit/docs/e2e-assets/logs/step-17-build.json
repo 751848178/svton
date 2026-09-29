@@ -1,0 +1,12 @@
+{"ts":"2026-09-28T18:03:42.336Z","level":"info","msg":"reusing active builder instance","instanceId":"ins-m66pm1pi","url":"http://159.75.104.63:7410"}
+{"ts":"2026-09-28T18:03:42.354Z","level":"info","msg":"uploading source tarball","bytes":1612,"from":"."}
+{"ts":"2026-09-28T18:03:42.559Z","level":"info","msg":"build running","jobId":"93eff8de-b7d1-43f0-95fc-e133e81b178e"}
+{"ts":"2026-09-28T18:03:48.867Z","level":"info","msg":"push running","jobId":"715c6bbe-bec6-4d9f-8de1-c8d13456cb74"}
+{"ts":"2026-09-28T18:03:50.926Z","level":"info","msg":"releasing dynamic builder"}
+{
+  "app": "demo-web",
+  "imageRef": "172.16.48.10:5000/team/demo-web:202609290203",
+  "tag": "202609290203",
+  "digest": "sha256:5bed4da7d082979f7422c9588276d759f948485da9e87a4e6e9bd0daf39c23b1",
+  "builderUrl": "http://159.75.104.63:7410"
+}
