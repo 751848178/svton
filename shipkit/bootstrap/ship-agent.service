@@ -1,0 +1,19 @@
+# Reference copy of the systemd unit written by bootstrap/install.sh.
+# install.sh bakes real values into this shape; use it directly only for manual setups.
+
+[Unit]
+Description=ship agent (ROLE)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Environment=SHIP_AGENT_ROLE=builder
+Environment=SHIP_AGENT_TOKEN=change-me
+Environment=SHIP_AGENT_PORT=7410
+Environment=SHIP_WORK_ROOT=/opt/shipkit-data
+ExecStart=/usr/bin/env node /opt/shipkit/agent/server.js
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

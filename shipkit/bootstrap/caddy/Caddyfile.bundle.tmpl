@@ -1,0 +1,12 @@
+# shipkit bundle 分发反代模板（RA06 / acceptance §C）。
+# 场景: serve-bundle 在控制器本机监听 127.0.0.1:7411，由本入口以 HTTPS 对外分发安装脚本与 agent 包。
+# 用法: 替换 __SHIP_HOST__ 与 __BUNDLE_TOKEN__（serve-bundle 打印的 URL 路径 token），放入 /etc/caddy/Caddyfile 后 reload。
+# 控制器配置: builder.dynamic.tencent.bundleBaseUrl: https://__SHIP_HOST__
+# 证书校验保持开启（automatic HTTPS）；不得添加 tls_insecure_skip_verify。
+__SHIP_HOST__ {
+	@bundle path /__BUNDLE_TOKEN__/*
+	handle @bundle {
+		reverse_proxy 127.0.0.1:7411
+	}
+	respond 404
+}

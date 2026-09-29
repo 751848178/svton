@@ -1,0 +1,12 @@
+# ship-agent TLS terminator template (RA06).
+# Usage: replace __SHIP_DOMAIN__ and __AGENT_PORT__, place at /etc/caddy/Caddyfile, then
+#   systemctl reload caddy. The agent must listen locally only:
+#   install with AGENT_BIND=127.0.0.1 (bootstrap/install.sh) and REMOVE public 7410 ingress
+#   from the machine's security group. Certificate verification stays ON (automatic HTTPS);
+#   never add tls_insecure_skip_verify here.
+__SHIP_DOMAIN__ {
+	reverse_proxy 127.0.0.1:__AGENT_PORT__
+	request_body {
+		max_size 320MB
+	}
+}

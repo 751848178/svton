@@ -1,0 +1,11 @@
+# ship 项目交付规范 —— 一个文件描述“怎么构建 + 怎么运行”
+name: demo-web
+dockerfile: Dockerfile      # 默认值, 可省略
+context: .
+ports:
+  - '3000:3000'
+envFile: deploy.env         # 运行时私密变量: 控制器部署时直传运行服务器, 不经过构建机
+healthcheck:
+  path: /health
+  hostPort: 3000
+  timeoutSeconds: 60

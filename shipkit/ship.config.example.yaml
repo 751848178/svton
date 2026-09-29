@@ -1,0 +1,61 @@
+# ship 控制器配置 —— 复制为 ship.config.yaml（或 ~/.ship/config.yaml）后填写
+# 所有 url 指向目标机上 ship-agent 的 HTTP 开放接口（默认端口 7410）
+
+builder:
+  # static = 绑定一台既有构建机；dynamic = 按需动态创建（用完释放）
+  mode: static
+  static:
+    url: 'http://203.0.113.10:7410'
+    token: 'change-me-builder-agent-token'
+  # dynamic:
+  #   provider: tencent            # 后续可扩展 aliyun / aws（见 src/providers/provider.ts 接口）
+  #   keepMinutes: 30              # 空闲复用窗口：自上次使用起计算，窗口内重复 build 复用
+  #   tencent:
+  #     maxLifetimeMinutes: 180     # 云端定时销毁上限(RunInstances ActionTimer), 控制器退出后仍生效
+  #                                  # 下限 60; 必须覆盖 任务预算+35分钟供给, 否则创建前直接拒绝
+  #     agentScheme: https           # 经 TLS 反代访问构建机 agent 时设为 https (RA06)
+  #     agentHost: builder.internal.example.com  # 命名入口(裸主机名, 禁带端口, 端口用 agentPort)
+  #                                  # https 强烈推荐配 host: 证书身份可控可续期。注: 部分 CA 已支持 IP 证书
+  #                                  # (如 Let's Encrypt 2025-07 起的短期 IP 证书), 该场景可不设 agentHost
+  #     agentPort: 7410
+  #     bundleBaseUrl: https://<分发域名>  # 引导包经 HTTPS 反代分发 (serve-bundle 本地监听不变)
+  #   tencent:
+  #     region: ap-guangzhou
+  #     zone: ap-guangzhou-3
+  #     instanceType: S5.MEDIUM4
+  #     imageId: img-xxx            # 建议 Ubuntu 22.04+ 公共镜像（需带 curl/cloud-init）
+  #     vpcId: vpc-xxx
+  #     subnetId: subnet-xxx
+  #     securityGroupIds: [sg-xxx]  # 需放行 7410(agent) 与 7411(引导分发)，建议仅限控制器来源 IP
+  #     advertiseHost: 198.51.100.5 # 控制器对构建机可达的 IP（动态引导分发 agent 包用）
+  #     bundlePort: 7411
+  #     # installUrl: http://<自托管引导源>/install.sh   # 高级: 直接指定渲染好的安装脚本(跳过内置分发)
+  #     # installToken: <该安装脚本内烘焙的 agent token>   # 与 installUrl 必须成对出现
+  #     # preInstallScript: mkdir -p /etc/docker && echo '{"registry-mirrors":[...]}' > /etc/docker/daemon.json
+  #     # loginPassword: '<调试用 SSH 密码, 可选>'        # 控制器自身从不 SSH, 仅供人工排查
+  #     # instanceName: ship-builder
+  #     # internetMaxBandwidthOut: 5
+
+registry:
+  # 推送目标：阿里云 ACR / 腾讯云 TCR / 自建 registry 均可
+  url: 'registry.example.com'
+  namespace: 'myteam'
+
+runtime:
+  # 多目标即插即用：ship deploy --to server-b；缺省用第一个
+  targets:
+    server-a:
+      url: 'http://203.0.113.20:7410'
+      token: 'change-me-runtime-agent-token'
+    # server-b:
+    #   url: 'http://203.0.113.21:7410'
+    #   token: 'change-me'
+
+source:
+  # 缺省取当前目录 git 仓库的 origin remote 与 HEAD；也可在此固定
+  # repo: 'https://git.example.com/team/app.git'
+  # token: '<私有仓库访问 token>'   # 仅注入 git 认证,不落盘、不进日志
+  # ref: 'main'
+
+# 注意: 若复用已有安全组, 请确认其【出站规则】放行(API 新建的安全组默认无出站放行,
+# 会导致构建机拉不到安装包/镜像)。参照 docs/e2e-report-2026-09-28.md §4.2
