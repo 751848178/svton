@@ -1445,6 +1445,28 @@ importers:
         specifier: ^3.0.0
         version: 3.2.6(@types/node@20.19.27)(jsdom@26.1.0)
 
+  shipkit:
+    dependencies:
+      js-yaml:
+        specifier: ^4.1.0
+        version: 4.1.1
+      tencentcloud-sdk-nodejs-cvm:
+        specifier: ^4.0.1145
+        version: 4.1.316
+      tencentcloud-sdk-nodejs-vpc:
+        specifier: ^4.1.317
+        version: 4.1.317
+    devDependencies:
+      '@types/js-yaml':
+        specifier: ^4.0.9
+        version: 4.0.9
+      '@types/node':
+        specifier: ^20.14.0
+        version: 20.19.27
+      typescript:
+        specifier: ^5.5.4
+        version: 5.9.3
+
 packages:
 
   /@adobe/css-tools@4.5.0:
@@ -13642,7 +13664,6 @@ packages:
     hasBin: true
     dependencies:
       argparse: 2.0.1
-    dev: true
 
   /js-yaml@5.2.1:
     resolution: {integrity: sha512-zfLtNfQqxVqq3uaTqSkh4x4hZw3KHobGUA0fJUj4wawW8bsQLTVqpHdXSIzidh7o+4lEW36tANuAGdaFx6Zgnw==}
@@ -17612,6 +17633,28 @@ packages:
       node-fetch: 2.7.0
       tslib: 1.13.0
       uuid: 9.0.1
+    transitivePeerDependencies:
+      - encoding
+      - supports-color
+    dev: false
+
+  /tencentcloud-sdk-nodejs-cvm@4.1.316:
+    resolution: {integrity: sha512-O1Tdvi+IsFUBOpFD46FN4DWPOH7imR1eZg++o/Qqlx/7Fp3yF+Hj3ZQ07g5Hq5d6+uBZVu4r74Fzfb8oHLVYQA==}
+    engines: {node: '>=10'}
+    dependencies:
+      tencentcloud-sdk-nodejs-common: 4.1.220
+      tslib: 1.13.0
+    transitivePeerDependencies:
+      - encoding
+      - supports-color
+    dev: false
+
+  /tencentcloud-sdk-nodejs-vpc@4.1.317:
+    resolution: {integrity: sha512-W255KEB44n1hF5BRtQA0O+6gr1i8sYZUAS8rBVVN8hvHnJmRRiW+5h2E7Z+v8dfpbM7DQvB9R5wG+cWcEQ1BVw==}
+    engines: {node: '>=10'}
+    dependencies:
+      tencentcloud-sdk-nodejs-common: 4.1.220
+      tslib: 1.13.0
     transitivePeerDependencies:
       - encoding
       - supports-color
