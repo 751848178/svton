@@ -1,0 +1,29 @@
+{
+  "name": "shipkit",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Lightweight build/push/deploy toolchain (controller CLI + machine agents), decoupled from devpilot",
+  "type": "module",
+  "bin": {
+    "ship": "./dist/cli/main.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && chmod +x dist/cli/main.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "tsc -p tsconfig.json && node --experimental-test-module-mocks --test 'dist/**/*.test.js'",
+    "agent": "node dist/agent/server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0",
+    "tencentcloud-sdk-nodejs-cvm": "^4.0.1145",
+    "tencentcloud-sdk-nodejs-vpc": "^4.1.317"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^20.14.0",
+    "typescript": "^5.5.4"
+  }
+}
