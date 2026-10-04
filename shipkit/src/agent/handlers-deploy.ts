@@ -2,17 +2,16 @@
 // prepare(snapshot) → activate(pull+up) → verify(health) → commit(state.shift);
 // any failure after the previous release exists triggers full-snapshot recovery.
 
-import { rm } from 'node:fs/promises';
 import path from 'node:path';
 import { validateSpec } from '../shared/spec-schema.js';
 import type { DeployRequest, DeployResult, RollbackRequest } from '../shared/types.js';
 import { withAppLock, withDeploySlot } from './app-lock.js';
 import { ImageLedger } from './image-ledger.js';
 import { ledgerFileFor } from './gc.js';
-import { writeFileAtomic } from './atomic.js';
-import { COMPOSE_ENV_FILE, explicitHostPort, firstContainerPort, renderComposeFile, writeComposeFile } from './compose.js';
-import { compose, composePort, imageExists, pullAuthCtx, type DockerAuthCtx } from './docker.js';
-import { waitHealthy } from './healthcheck.js';
+import { assertProjectBinding } from './project-binding.js';
+import { assertComposeOwnership, pullAuthCtx, type DockerAuthCtx } from './docker.js';
+import { resolvePullCreds } from './registry-creds.js';
+import { attempt } from './deployment-activation.js';
 import type { JobContext } from './jobs.js';
 import { ReleaseStore, type AppRelease } from './release.js';
 
@@ -27,64 +26,27 @@ export class DeployFailure extends Error {
   }
 }
 
-interface Attempt {
-  ok: boolean;
-  skipped?: string;
+type Activation = Parameters<typeof attempt>[0];
+
+async function recover(o: Activation, previous: AppRelease | null, reason: string): Promise<never> {
+  if (previous) o.log(`${reason} — recovering full previous release ${previous.id} (${previous.imageRef})`);
+  const result = previous ? await attempt({ ...o, release: previous }) : null;
+  throw new DeployFailure(
+    `${reason}; ${previous ? `recovery to ${previous.imageRef} ${result?.ok ? 'succeeded' : 'FAILED'}` : 'no previous release exists to recover to'}`,
+    { attempted: true, succeeded: result?.ok ?? false, target: previous?.imageRef ?? null },
+  );
 }
 
-async function activate(o: { appDir: string; app: string; release: AppRelease; log: Log; env?: Record<string, string> }): Promise<void> {
-  const { app, release, log } = o;
-  await writeComposeFile(o.appDir, renderComposeFile(app, release.imageRef, release.spec, release.env !== undefined));
-  // runtime env reflects THIS release only (F02); name is not `.env` so it never controls compose (F15)
-  const envFile = path.join(o.appDir, 'runtime.env');
-  if (release.env !== undefined) {
-    await writeFileAtomic(envFile, release.env.endsWith('\n') ? release.env : `${release.env}\n`, 0o600);
-  } else {
-    await rm(envFile, { force: true });
-  }
-  await writeFileAtomic(path.join(o.appDir, COMPOSE_ENV_FILE), '');
-  // pull policy (F16): digest-pinned refs may reuse a local copy; mutable tags must hit the registry first
-  const immutable = /@sha256:[0-9a-f]{64}$/.test(release.imageRef);
-  if (immutable && (await imageExists(release.imageRef))) {
-    log(`image ${release.imageRef} present locally (digest-pinned) — skipping pull`);
-  } else {
-    try {
-      await compose({ appDir: o.appDir, app, args: ['pull'], log, env: o.env });
-    } catch (e) {
-      if (await imageExists(release.imageRef)) {
-        log(`registry pull failed — falling back to local ${release.imageRef} (tag may be stale)`);
-      } else {
-        throw e;
-      }
-    }
-  }
-  await compose({ appDir: o.appDir, app, args: ['up', '-d', '--remove-orphans'], log, env: o.env });
-}
-
-async function verify(o: { appDir: string; app: string; release: AppRelease; log: Log }): Promise<Attempt> {
-  const spec = o.release.spec;
-  let hostPort = explicitHostPort(spec);
-  if (!hostPort && spec.healthcheck?.path) {
-    const cp = firstContainerPort(spec);
-    if (cp) hostPort = await composePort({ appDir: o.appDir, app: o.app, service: o.app, containerPort: cp }) ?? undefined;
-  }
-  if (!hostPort || !spec.healthcheck?.path) {
-    o.log('no healthcheck resolvable — post-deploy verification SKIPPED');
-    return { ok: true, skipped: 'verification skipped: no healthcheck/port resolvable' };
-  }
-  const url = `http://127.0.0.1:${hostPort}${spec.healthcheck.path}`;
-  const outcome = await waitHealthy({ url, timeoutMs: (spec.healthcheck.timeoutSeconds ?? 120) * 1000, log: o.log });
-  return outcome.healthy ? { ok: true } : { ok: false };
-}
-
-async function attempt(o: { appDir: string; app: string; release: AppRelease; log: Log; env?: Record<string, string> }): Promise<Attempt> {
+async function commit(store: ReleaseStore, o: Activation, previous: AppRelease | null, event: 'deploy' | 'rollback'): Promise<void> {
+  let cleanupError: string | undefined;
   try {
-    await activate(o);
-    return await verify(o);
+    ({ cleanupError } = await store.shift(o.app, o.release.id, event));
   } catch (e) {
-    o.log(`activation failed: ${(e as Error).message}`);
-    return { ok: false };
+    // Activation changed the running app but state still names the previous
+    // release. Restore that snapshot before reporting this failed transaction.
+    await recover(o, previous, `${event} state commit failed: ${(e as Error).message}`);
   }
+  if (cleanupError) o.log(`release snapshot cleanup failed after successful state commit: ${cleanupError}`);
 }
 
 export async function runDeploy(appsRoot: string, req: DeployRequest, log: Log): Promise<DeployResult> {
@@ -93,36 +55,34 @@ export async function runDeploy(appsRoot: string, req: DeployRequest, log: Log):
   const store = new ReleaseStore(appsRoot);
   const result: DeployResult = await withDeploySlot(() => withAppLock(app, async () => {
     const appDir = store.appDir(app);
+    // a same-named project/container owned by ANOTHER deployment (another
+    // environment, repo or an external actor) must be refused BEFORE this
+    // deployment writes or modifies anything
+    const hasContainers = await assertComposeOwnership({ appDir, app });
+    await assertProjectBinding(appDir, { app, project: req.project, env: req.env }, hasContainers);
     const before = await store.loadState(app);
+    // Validate the recovery snapshot before touching the running release;
+    // --keep-env copies that committed environment into this new snapshot.
+    const previous = before.current ? await store.loadRelease(app, before.current) : null;
+    if (req.keepEnv && req.envFileContent === undefined && !previous) {
+      throw new Error('--keep-env requires a current successful release; restore its state or provide --env-file explicitly');
+    }
     const release = await store.saveRelease(
       app,
       req.imageRef,
       spec,
-      typeof req.envFileContent === 'string' ? req.envFileContent : undefined,
+      typeof req.envFileContent === 'string' ? req.envFileContent : req.keepEnv ? previous?.env : undefined,
     );
-    const pullCtx: DockerAuthCtx | null = await pullAuthCtx(req.imageRef, log).catch((e: unknown) => {
+    const pullCreds = await resolvePullCreds(path.dirname(appsRoot));
+    const pullCtx: DockerAuthCtx | null = await pullAuthCtx(req.imageRef, log, pullCreds).catch((e: unknown) => {
       log(`pull login failed: ${(e as Error).message}`);
       return null;
     });
     try {
-      const outcome = await attempt({ appDir, app, release, log, env: pullCtx?.env });
-      if (!outcome.ok) {
-        if (before.current) {
-          const prev = await store.loadRelease(app, before.current);
-          log(`deploy failed — recovering full previous release ${prev.id} (${prev.imageRef})`);
-          const rec = await attempt({ appDir, app, release: prev, log, env: pullCtx?.env });
-          throw new DeployFailure(
-            `deploy of ${release.imageRef} failed; recovery to ${prev.imageRef} ${rec.ok ? 'succeeded' : 'FAILED'}`,
-            { attempted: true, succeeded: rec.ok, target: prev.imageRef },
-          );
-        }
-        throw new DeployFailure(`deploy of ${release.imageRef} failed and no previous release exists to recover to`, {
-          attempted: true,
-          succeeded: false,
-          target: null,
-        });
-      }
-      await store.shift(app, release.id, 'deploy');
+      const activation = { appDir, app, release, identity: req, log, env: pullCtx?.env };
+      const outcome = await attempt(activation);
+      if (!outcome.ok) await recover(activation, previous, `deploy of ${release.imageRef} failed`);
+      await commit(store, activation, previous, 'deploy');
       return {
         app,
         imageRef: release.imageRef,
@@ -146,11 +106,17 @@ export async function runRollback(appsRoot: string, req: RollbackRequest, log: L
     const state = await store.loadState(app);
     if (!state.previous) throw new Error(`app '${app}' has no previous release to roll back to`);
     const target = await store.loadRelease(app, state.previous);
+    const current = state.current ? await store.loadRelease(app, state.current) : null;
     const appDir = store.appDir(app);
+    // rollback mutates the same resources — verify ownership first, refuse on
+    // any foreign same-named project/container before touching anything
+    const hasContainers = await assertComposeOwnership({ appDir, app });
+    await assertProjectBinding(appDir, { app, project: req.project, env: req.env }, hasContainers);
     log(`rolling back ${app} to release ${target.id} (${target.imageRef})`);
-    const pullCtx = await pullAuthCtx(target.imageRef, log).catch(() => null);
+    const pullCtx = await pullAuthCtx(target.imageRef, log, await resolvePullCreds(path.dirname(appsRoot))).catch(() => null);
     try {
-      const outcome = await attempt({ appDir, app, release: target, log, env: pullCtx?.env });
+      const activation = { appDir, app, release: target, identity: req, log, env: pullCtx?.env };
+      const outcome = await attempt(activation);
       if (!outcome.ok) {
         throw new DeployFailure(`rollback to ${target.imageRef} failed activation/health`, {
           attempted: true,
@@ -158,7 +124,7 @@ export async function runRollback(appsRoot: string, req: RollbackRequest, log: L
           target: target.imageRef,
         });
       }
-      await store.shift(app, target.id, 'rollback');
+      await commit(store, activation, current, 'rollback');
       return {
         app,
         imageRef: target.imageRef,

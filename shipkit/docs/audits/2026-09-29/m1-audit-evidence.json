@@ -1,0 +1,270 @@
+{
+  "date": "2026-09-29",
+  "version": "0.3.0",
+  "head": "d9f1e899ad1dfa3a9f0f54e854d769a02957590b",
+  "assessment": "M1 independent audit not accepted",
+  "findings": {
+    "M1": {
+      "P1": 5,
+      "P2": 6
+    },
+    "preexisting": {
+      "P1": 1
+    }
+  },
+  "baseline": {
+    "build": 0,
+    "typecheck": 0,
+    "tests": {
+      "total": 127,
+      "passed": 127,
+      "failed": 0
+    },
+    "pack": 0,
+    "offlineIsolatedInstall": 0
+  },
+  "packageSmoke": {
+    "install": "offline isolated prefix; no repository symlink",
+    "init": {
+      "code": 0,
+      "output": {
+        "ok": true,
+        "wrote": [
+          "ship.yaml",
+          "ship.config.yaml",
+          ".gitignore"
+        ],
+        "backups": [
+          "/private/tmp/codex-tool-runs/svton/m1-audit-20260929/package-project-anfF8q/.ship/backup/1790689059973/ship.yaml",
+          "/private/tmp/codex-tool-runs/svton/m1-audit-20260929/package-project-anfF8q/.ship/backup/1790689059973/ship.config.yaml"
+        ],
+        "checks": {
+          "builder": {
+            "kind": "builder",
+            "url": "http://127.0.0.1:62341",
+            "reachable": true,
+            "authenticated": true,
+            "roleOk": true,
+            "dockerOk": true,
+            "passed": true,
+            "detail": "入口可达 v0.3.0 role=both；认证成功，角色 both ✓；Docker 可用 ✓"
+          },
+          "runtime": {
+            "kind": "runtime",
+            "url": "http://127.0.0.1:62341",
+            "reachable": true,
+            "authenticated": true,
+            "roleOk": true,
+            "dockerOk": true,
+            "passed": true,
+            "detail": "入口可达 v0.3.0 role=both；认证成功，角色 both ✓；Docker 可用 ✓"
+          },
+          "registry": {
+            "url": "127.0.0.1:62341",
+            "reachable": true,
+            "scheme": "http",
+            "httpStatus": 200,
+            "detail": "地址可达（http:///v2/ → HTTP 200）；认证与推拉不在控制器侧验证（凭证在 agent 机器上，真实推拉实测属于下一阶段）"
+          }
+        },
+        "next": [
+          "初始化完成（本命令只生成配置，不会构建或部署）。",
+          "检查连通性：ship doctor",
+          "首次发布：ship release --from-dir . --to staging"
+        ]
+      },
+      "stderrHasAnsi": false
+    },
+    "installedAgent": {
+      "reachable": true,
+      "role": "runtime",
+      "version": "0.3.0"
+    },
+    "note": "init 使用本地 HTTP 桩；实际 agent 只探测健康接口，不执行 Docker 变更。"
+  },
+  "logDirectory": "/tmp/codex-tool-runs/svton/m1-audit-20260929",
+  "findingCases": {
+    "M1-01": [
+      "A01-diff-secrets",
+      "A11-new-project-yaml-secret-block"
+    ],
+    "M1-02": [
+      "A13-completed-state-overrides-new-config"
+    ],
+    "M1-03": [
+      "A02-config-not-ignored"
+    ],
+    "M1-04": [
+      "A03-nontty-port-overwrite"
+    ],
+    "M1-05": [
+      "A04-alternate-config-shadow"
+    ],
+    "M1-06": [
+      "A05-final-state-failure-false-rollback"
+    ],
+    "M1-07": [
+      "A06-resume-loses-app-answers"
+    ],
+    "M1-08": [
+      "A07-temp-file-permissions"
+    ],
+    "M1-09": [
+      "A08-review-concurrent-edit"
+    ],
+    "M1-10": [
+      "A09-failed-check-reports-complete"
+    ],
+    "M1-11": [
+      "A12-optional-cannot-clear"
+    ],
+    "LEGACY-01": [
+      "A10-upload-first-release"
+    ]
+  },
+  "reproductions": [
+    {
+      "id": "A01-diff-secrets",
+      "reproduced": true,
+      "oldTokenVisible": true,
+      "newTokenVisible": true
+    },
+    {
+      "id": "A02-config-not-ignored",
+      "reproduced": true,
+      "gitignore": ".ship/\n",
+      "configUntracked": true
+    },
+    {
+      "id": "A03-nontty-port-overwrite",
+      "reproduced": true,
+      "exit": 0,
+      "portsBefore": [
+        "8080:3000"
+      ],
+      "portsAfter": [
+        "3000:3000"
+      ]
+    },
+    {
+      "id": "A04-alternate-config-shadow",
+      "reproduced": true,
+      "cases": [
+        {
+          "ext": "yml",
+          "exit": 0,
+          "contextPreserved": false,
+          "buildArgsPreserved": false,
+          "sourcePreserved": false,
+          "prodPreserved": false
+        },
+        {
+          "ext": "json",
+          "exit": 0,
+          "contextPreserved": false,
+          "buildArgsPreserved": false,
+          "sourcePreserved": false,
+          "prodPreserved": false
+        }
+      ]
+    },
+    {
+      "id": "A05-final-state-failure-false-rollback",
+      "reproduced": true,
+      "result": {
+        "ok": false,
+        "reason": "write-failed",
+        "message": "写入失败，本次写入已回滚（旧文件保持不变；如有备份保留在 .ship/backup/）：EISDIR: illegal operation on a directory, open '/tmp/codex-tool-runs/svton/m1-audit-20260929/latefail-4B75rr/.ship/init-state.json.tmp'"
+      },
+      "configActuallyChanged": true
+    },
+    {
+      "id": "A06-resume-loses-app-answers",
+      "reproduced": true,
+      "savedDockerfile": "Dockerfile.prod",
+      "savedPorts": [
+        "8080:9000"
+      ],
+      "askedAgainWithoutDefault": true
+    },
+    {
+      "id": "A07-temp-file-permissions",
+      "reproduced": true,
+      "expected": "0600",
+      "actual": "644"
+    },
+    {
+      "id": "A08-review-concurrent-edit",
+      "reproduced": true,
+      "userEditPreserved": false
+    },
+    {
+      "id": "A09-failed-check-reports-complete",
+      "reproduced": true,
+      "ok": true,
+      "builderPassed": false,
+      "step": "done"
+    },
+    {
+      "id": "A10-upload-first-release",
+      "reproduced": true,
+      "error": "Error: packing source dir failed: tar: no files or directories specified\n"
+    },
+    {
+      "id": "A11-new-project-yaml-secret-block",
+      "reproduced": true
+    },
+    {
+      "id": "A13-completed-state-overrides-new-config",
+      "reproduced": true,
+      "exit": 0,
+      "newTokenSentToPreviousEndpoint": true,
+      "userSelectedEndpointPreserved": false,
+      "userRenamePreserved": false
+    },
+    {
+      "id": "A12-optional-cannot-clear",
+      "reproduced": true,
+      "pty": true,
+      "exit": 0,
+      "blankInputResult": "/health"
+    }
+  ],
+  "sourceSha256": {
+    "shipkit/src/cli/init/state.ts": "ccd7f0146e0b37a7a88237e56bb51b2429edf7e6b1728794e536d7ecd4a156ca",
+    "shipkit/src/cli/init/write.test.ts": "ed77de84b419280a86e049db8440807182e6e7834b6945f90ab6746dc182324d",
+    "shipkit/src/cli/init/detect.ts": "f49e68ba8ce0fca8fdb7a2dd93977ea101a4b950dc3769c9b51885c44834eda2",
+    "shipkit/src/cli/init/prompt.test.ts": "d4d87b43c682a044a28204e543692c699119d602e5685456f5c9ca16afc66fe2",
+    "shipkit/src/cli/init/prompt.ts": "2d3362a38d35273298110a4ac06ab4a5870c96e280e0ef640f7293cf090dee3b",
+    "shipkit/src/cli/init/diff.ts": "f8906d980d143322122e824f7520d916130b87fe14311301dab87b85ab89521c",
+    "shipkit/src/cli/init/detect.test.ts": "e905d90ff9d57e0dc7bcb1b74c4e28508037cb320694d88dc1565708ddb86629",
+    "shipkit/src/cli/init/diff.test.ts": "a1adeb12417239a8d5e406766f71083ac716c54b3db32c8cc357b89603fc0500",
+    "shipkit/src/cli/init/wizard.ts": "a573f0071bad3a327ea2f4f2633c699a4ef0ba9d1b9c1d0b1b228aa014b52cb6",
+    "shipkit/src/cli/init/checks.test.ts": "c64c535da6ba26a30ccd59c336f38bff3a9d6412fe681582c97fc4fae9b13aca",
+    "shipkit/src/cli/init/questions.ts": "b5369ec4a10a2d9db193da6701e88f0df86395dfe4ddb08e8653d389f9d5fe4e",
+    "shipkit/src/cli/init/plan.test.ts": "2bd1b1e43a74137c636c1e13524703f9b3abcc1e8f518c6328afa307369d4608",
+    "shipkit/src/cli/init/state.test.ts": "0eb547332437293a099257f77be2421a279cbcb80a8a2aabbab9a014d02a7509",
+    "shipkit/src/cli/init/checks.ts": "7fae19039bdea18bf45ef9b0ab6c6bba6a168214ef884ee0062aaa3eb5b07fe9",
+    "shipkit/src/cli/init/render.ts": "b9b594b27a5e65ae44846f7cea337b1e0888d10a896c8edb32180c6f07a63b02",
+    "shipkit/src/cli/init/write.ts": "c2124d41aea3d407e1800a70f0dcca88b641c4b0b230222d4a0873f7a7fc26a3",
+    "shipkit/src/cli/init/plan.ts": "9ea85007e9bd6fdfc55c92f60c6d5aa14b693794fd0c3f419fb94988cc58686a",
+    "shipkit/src/cli/cmd-init.ts": "2a04d80a6db625f38f3223fc79f8a332f0d6973104bc5ff37d4dcd74a55ce6d7",
+    "shipkit/src/cli/main.ts": "68c0665439b3f6952eb06b9749cb8f4db223068e64d9412fe938f3d047325db7",
+    "shipkit/src/cli/pipeline.ts": "17fd2abf12c09394c450ddc2d3f1a8a8b3737d7db7b029cb11e6054fd84ea783",
+    "shipkit/src/agent/server.ts": "3bab13106fdfc5257c23fa6e4de49bfee0e5b6db4cb103f68d686230275f06b4",
+    "shipkit/src/shared/config.ts": "618b5c6a100adb74f9fa3a5724044d305d4b3768f8e15827a80d5c6dc837d754",
+    "shipkit/src/shared/types.ts": "f719d40ac862f53f7209304c6a2281edef1c128bedb62fc9b3523a522e664e0a",
+    "shipkit/scripts/pack.mjs": "363ef9ab15c210e256b190d2976011a84e50c5a5e356ce9c03f537405da68645",
+    "shipkit/package.json": "4e620a393b47d314b88f50b175c7e8ddfaa4ad11a5b22c836871711bd5b48564"
+  },
+  "reproScriptSha256": {
+    "repro.mjs": "c73aa807a4744fed161a3cef0624bdcd12613e1653bacd352ce9f956927796d7",
+    "prompt-clear.mjs": "abe7f707203843ab6a6ed113bbeb82740e8d20ba9c8d89f3b0ae8f3f38452343"
+  },
+  "limitations": [
+    "Local HTTP fixtures used for init reproductions; only synthetic credentials.",
+    "Real installed agent health endpoint tested; no Docker mutation.",
+    "Real remote TLS, Registry push/pull, cloud termination and long Docker GC not tested.",
+    "Original implementation 66-assertion E2E suite not independently rerun."
+  ]
+}

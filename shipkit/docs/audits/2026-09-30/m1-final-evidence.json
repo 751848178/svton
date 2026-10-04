@@ -1,0 +1,316 @@
+{
+  "date": "2026-09-30",
+  "scope": "Independent M1 R1-R5 closure verification; current working tree, not a release approval",
+  "source_sha256": {
+    "src/agent/agent-server.test.ts": "fa7c31e4846ef33e0ac3de79721f14dd9948dbfd5a67229f10008e0b2a4bcedd",
+    "src/agent/app-lock.ts": "bae217c0ae2dd6e6891582774a4042656affd2ea9678f517cc4cd99fbf553215",
+    "src/agent/atomic.ts": "5b4456923efa8d55a32ce9a438216a5f780f755165ade5a3b46a47f63f7cc908",
+    "src/agent/body.ts": "3aeff9842111773aa78f5a793d6218adb3c6c29d44dcbf4cf758244f02acdd6f",
+    "src/agent/compose.test.ts": "61770c34c9a3898df1d249024e4c8404ea5eda832beefa28787fbab4d0402553",
+    "src/agent/compose.ts": "b34b1d0eca6c8f7343d4a1429745a090a2aea3b05a1377379247afc050dde096",
+    "src/agent/deploy-transaction.test.ts": "a7f2b0591a9fe3bdf5306b2e998ff54b74a685f1d4ea2e362d9e484bee5260fa",
+    "src/agent/docker.ts": "6699a2a128fd27d8681f2336742a791e280dce6f59413a03de4aa9ad1409e243",
+    "src/agent/gc-docker.ts": "8feb4b2ad28af95dbe6f3a029ef74a279cfb633c6fe31415391adbcd6079ba28",
+    "src/agent/gc-integration.test.ts": "d3e13b51a8dfa8f877281472caaebc14a6d88ac617c122244815a02203e51517",
+    "src/agent/gc-safety.test.ts": "b1cb897fdf26313fa487334c8e82fac6df6ebc66df168563634a558a2f332d43",
+    "src/agent/gc.test.ts": "113d011fee7f2edf5bfdf3bfd720c0f3e580c3a6f58ef616fb5d3bc52f990006",
+    "src/agent/gc.ts": "6e0c684d061280dd3273dd2ba7c33b1f91c665ffecd09d5fa789c48a84ec0be8",
+    "src/agent/handlers-build.ts": "7409ac6cb3515b3ceff1566e06a9ce74d624a53a7b484772ed1ad97f3724b3ce",
+    "src/agent/handlers-deploy.ts": "c7c9fa0a20af3915cf267dc7d2eff83a8d609d52e980abe3debc9a5f0e41e814",
+    "src/agent/handlers-push.ts": "4252e75dfecd43d20730edac1c634e7a2d78e51240662adb3af9030b63eb47a4",
+    "src/agent/healthcheck.ts": "29420d662aa99bf36223f5be0f68391a058753c642e1ac4e1c85fd5b841c351b",
+    "src/agent/http-fail.ts": "c74382c68dba8a4671d669c04dbe64b38929cb1306ed69cfdc0c32cae6e3b57e",
+    "src/agent/image-ledger.ts": "bdb4426599f16130f6ad87cbd798beaf602212ea54dbff188edc3a5c78693d09",
+    "src/agent/jobs.ts": "9e16676eda12dbcc184d52fa65f9c3c538f880f710be7cd152ecefeb53823108",
+    "src/agent/op-locks.test.ts": "9670a8937c24a53b0591f55891e30e0510216b612026fc4fd182059325975ab7",
+    "src/agent/release-store.test.ts": "f6ed208521a5f842501230e1040d23b035a8603384001f65452ce16433bce467",
+    "src/agent/release.ts": "4df1f8164b73cc09409ed1a8926a85bea9a5e87fa89250ec3930011607754755",
+    "src/agent/routes.ts": "881c72e57f93260c79d3335cd4aafa2c1148f9788ec2533ba6daadc7b96e31c1",
+    "src/agent/server.ts": "3bab13106fdfc5257c23fa6e4de49bfee0e5b6db4cb103f68d686230275f06b4",
+    "src/agent/source.test.ts": "49aad132ac732679f3e62bbd00c6cfdfa1e14d9d0fe2430b2e4ba4deab980c08",
+    "src/agent/source.ts": "d0fc3c6601a183afaffb30ef141f560124d87ff3962efc8101971ae9f2e08a95",
+    "src/cli/cmd-build.ts": "885444feddb0b12f79c0b1a06e4c4337bc0a12159d427392dfd1e94c03b7a178",
+    "src/cli/cmd-builder.ts": "7a0e92fcd5d8fbb8db320480d0941cb2fd02f9336da2c629d2ac5c880d9448f6",
+    "src/cli/cmd-deploy.ts": "236b1b0c2373da8be6c1f76d1ec6844fcc926ab6b3c789aad479f401653ff3f4",
+    "src/cli/cmd-doctor.ts": "81991cd6d0bd9022a63b5e461d4cf48250f7fd7ce369fa4f3b8c323e71651c7f",
+    "src/cli/cmd-gc.ts": "df2632c72de879703857c93e822cc83f728af21829d01623745ce75134719d14",
+    "src/cli/cmd-init.ts": "b3b59bf0e04be1909166d43965014c8c6ff3fdda0665c5f27543c81b93cb44ec",
+    "src/cli/cmd-release.ts": "c70da56abd129b59df014179989de57b3a15487c5e7d72a411da9a5a1bd36349",
+    "src/cli/cmd-rollback.ts": "9da304815aaf9aeae9772a383629dc992db5062ec448d11a2f13746fe808c8ce",
+    "src/cli/cmd-serve-bundle.ts": "4367d2513605904f79b5ae40f2d0eb6ce003969a1894cdbe701fe6658f7ba3d7",
+    "src/cli/cmd-status.ts": "ca5810403f753b39034a9741f323c11fa0b567b227ec1ce001950b2b34fc3e95",
+    "src/cli/errors.ts": "d036fc798c7728e03b340df93e97ea310abf64571152fd8df43e175ff9e907cc",
+    "src/cli/init/apply-partial.test.ts": "dc41747288a3e28585506a7410916922452ef8704c5366f7a7861899b7c49bb3",
+    "src/cli/init/apply.ts": "0d17bd29948929f10b3a644ca3b1218d340de1dd71c2049449d2a20361d523cf",
+    "src/cli/init/checks.test.ts": "c64c535da6ba26a30ccd59c336f38bff3a9d6412fe681582c97fc4fae9b13aca",
+    "src/cli/init/checks.ts": "7fae19039bdea18bf45ef9b0ab6c6bba6a168214ef884ee0062aaa3eb5b07fe9",
+    "src/cli/init/closure.test.ts": "b23d33fbc474d2f162a6f2609dae296aa3063eeef83f2e71bdb02a74cf2dab77",
+    "src/cli/init/compat.test.ts": "f87eb8e5bb66053f44e25feea9295a9875ef786603151a6ee029722b0c1655ad",
+    "src/cli/init/defaults-resume.ts": "94db14c8976115d7b91e38629b1193ed8c50c3843a0d75eaa1aedbb48e68512f",
+    "src/cli/init/defaults.ts": "aa8ba77f62d86fb029d1d2c94b8e3488031679396dbbd4deb1577018f4add6ad",
+    "src/cli/init/detect.test.ts": "e905d90ff9d57e0dc7bcb1b74c4e28508037cb320694d88dc1565708ddb86629",
+    "src/cli/init/detect.ts": "f49e68ba8ce0fca8fdb7a2dd93977ea101a4b950dc3769c9b51885c44834eda2",
+    "src/cli/init/diff.test.ts": "a1adeb12417239a8d5e406766f71083ac716c54b3db32c8cc357b89603fc0500",
+    "src/cli/init/diff.ts": "f8906d980d143322122e824f7520d916130b87fe14311301dab87b85ab89521c",
+    "src/cli/init/gitignore.ts": "515b3e3290b39c9bd1acbc2824c89dec2fe5acc2e68a2461010b43c5c0f7c787",
+    "src/cli/init/lock.ts": "692772b77ef8893214440f91e32d164c3f06d9b063f3bfeef7d44760c5256efc",
+    "src/cli/init/machines.ts": "8f47fb4c53ef576ea861624672ced0a098675804fea5b250b3d002546a0516fa",
+    "src/cli/init/mask.ts": "e208f4983e54845b39f5e73d44e07fe72c252bd2cb758bfb9d127f30286a877b",
+    "src/cli/init/plan.test.ts": "33d219665aa1dbb296e11fe38fc8fda792908343e131762fddc1c156cc759337",
+    "src/cli/init/plan.ts": "f6a6b832ac1e0700806157a1d2ea5917c194c2676d17b55c9ffcff8af63e6a33",
+    "src/cli/init/prompt-clear.test.ts": "ffa41ff95012b75072d5bf9aaa690c7c55a403fc369ce36cf465df867eccad16",
+    "src/cli/init/prompt.test.ts": "d4d87b43c682a044a28204e543692c699119d602e5685456f5c9ca16afc66fe2",
+    "src/cli/init/prompt.ts": "6d8445b674d4bef4bffb0369970236be940f0954291cc4385d8ed871024c3d04",
+    "src/cli/init/pty-driver.ts": "88f4601bf4b11f6a90f6369a476fc07b682c40930916ab52fab09f7e24babdfd",
+    "src/cli/init/pty-resume.test.ts": "ca427a8983accb5519270d59e4fb379439596f0edd25337c32af4813d41d031d",
+    "src/cli/init/questions.ts": "22265b3323be27ed08b9ca3684d065196b6a92527a50c46ef757b819635ef904",
+    "src/cli/init/render.test.ts": "4e1dcf76fae2c2ba5fc3735b2869e1dffe71e0f173f39df1b5bf69cbec727d09",
+    "src/cli/init/render.ts": "6fb88c65edb6a865b6ac872f416a9c6d2a9f245f56732ad1239838d494edaa9f",
+    "src/cli/init/resume.test.ts": "643061768c26470d04bc972653efdfdc99f480df5a7ba4e96727fad531f731c4",
+    "src/cli/init/safe-write.ts": "8bfd06162ee2be45e04f7638f71f88635229b2d597015691e69db01be0f748e9",
+    "src/cli/init/state.test.ts": "0eb547332437293a099257f77be2421a279cbcb80a8a2aabbab9a014d02a7509",
+    "src/cli/init/state.ts": "3fffb0d26eb46dbc7a85acdebc281af11e222be41747fdd33eceda5042feba35",
+    "src/cli/init/wizard-fixtures.ts": "bbfc1bd4a5e2a0ae929e0acbf077c4db2a91baf2c7c221f84db1613e2d4e12f6",
+    "src/cli/init/wizard.ts": "6c8c7588c1956f360c9e978281dc5999e0e26f991220719b59deaba6912e94a9",
+    "src/cli/init/write.test.ts": "1cd9872fb81e10fa022e608c87977a8fc6da5609ba71825172be13ecd1030322",
+    "src/cli/init/write.ts": "a2070a5c2c33527ac9da7a22815a8a6e11e9e6910155fb8eb58dafffa756be11",
+    "src/cli/job-report.ts": "9eb1394d41f575bc03382c98bef188feb4a11a109bc7642bd5e073e6c373d05f",
+    "src/cli/local-state.test.ts": "9c6044e6089f68ac792f45625863312c32aecea0774980ca9bcc7b127f707c97",
+    "src/cli/local-state.ts": "e09688482bb92f39736f7b165f5b02bf82c34560cc840b4a837bc08db1479a8b",
+    "src/cli/main.ts": "68c0665439b3f6952eb06b9749cb8f4db223068e64d9412fe938f3d047325db7",
+    "src/cli/output.ts": "ffc4558160f407736573168880032a704a6fa1c83a4716c74bb683313d617271",
+    "src/cli/pipeline.test.ts": "2d2e4ba132ed1ea5ddb8714191fe8007de26acaf76a51c7be8408a5fbdc38dba",
+    "src/cli/pipeline.ts": "ae91df0f831f1a78c0d2207c310ec1d350db801aaae3d5f985b011b9751d6025",
+    "src/cli/targets.ts": "e5cd4509526f6b7a6cc47bad194e2a569d15938c04f813315a06b118a3812391",
+    "src/providers/builder-state.test.ts": "bf2925cc5d74646de3788cc1221f6f3ccab4adb837cafb23a68e340a405d5d84",
+    "src/providers/builder-state.ts": "f628a6dac9a86ab083217cee81043f32e972df1303f6fe5099743228826c62d5",
+    "src/providers/bundle-server.ts": "1d225f1cba32a7b71dc7887e568cf2da6e0a66f941d25afc738a5553bc973695",
+    "src/providers/provider.ts": "c7a70f5476b9b1202c4554f19a02d53161802c2aee9d51729dda1014884a9b5b",
+    "src/providers/registry.ts": "97da46406a5cf2a3678af6dce379c23366be707411c63d39631d71c240ad01a2",
+    "src/providers/static.ts": "0c8c3078a3fa8b86a6a057fc0dbadfd71d10384f016319c1a74eff66aa19b4c8",
+    "src/providers/tencent-client.ts": "fdde1ecff94d80fa5c4480bf9c3fc459beca5d8f91f7700bdf1d6947ab20d980",
+    "src/providers/tencent-lifecycle.test.ts": "6ccff58bead4cb6db5c088e660113e979b8a110aca2e989e30ac929ea1e103c0",
+    "src/providers/tencent-lifecycle.ts": "9900cc7b57f1a6e958df84a77d6c59bec08d7eb2af93e7ef88f193876d025d44",
+    "src/providers/tencent-provision.test.ts": "05ab01906392f8cf745ee35b540eb3e99df0f3b7f0eb1750133263b30a3ae3bb",
+    "src/providers/tencent-userdata.ts": "8c5fa38f04ccc0680853094aefa8a2a9e017f969323a33fbde3c17057d34cee6",
+    "src/providers/tencent.ts": "cbfece056e2469cca659cdd103ad04e69663ef572e7eb390f991061b03cc9ea2",
+    "src/shared/config.test.ts": "795a0c7813a3319490f36b6a5efd92c15eb10323afdb963105b48f9b8b6ca447",
+    "src/shared/config.ts": "618b5c6a100adb74f9fa3a5724044d305d4b3768f8e15827a80d5c6dc837d754",
+    "src/shared/exec.test.ts": "ede717aafa0895f228f6cd35a631a78ea50927895a644f734633c93598fdd6f9",
+    "src/shared/exec.ts": "ea3fbcb5e06099442255b28774228452fb5d1610ee717ecafd732e6cf835c6fe",
+    "src/shared/git.ts": "9da5d81a80ae462a2402f03caa17fbe63ddcb5995179e243bc460fbaa9d4c350",
+    "src/shared/http.ts": "2edd70ec4b89241be88b0791092297eeaa805f77fc55c142c6d0dccf4181e456",
+    "src/shared/log.ts": "08d7ab1c432ef2a9ff580f118511e17cf43ba72dde1371d971fe858e1cf724ca",
+    "src/shared/obj.ts": "05edac00cac30d38ad013d1b3dd7b7faf5fd56f6ec26897ac30d8377250c9ec9",
+    "src/shared/spec-load.ts": "d93e18611a45442ec4829b4709ed31382fba9c92c4b92b07fb40a85b8a43e710",
+    "src/shared/spec-schema.test.ts": "4318f956864c71b4bfbf58f15980ff9e6ca4232be031a25f44fda5d115a05f5a",
+    "src/shared/spec-schema.ts": "f02bca4a79ae827ffb02112d3c00397857c1db7d40c915a70c9f79e6798c8751",
+    "src/shared/types.ts": "f719d40ac862f53f7209304c6a2281edef1c128bedb62fc9b3523a522e664e0a",
+    "package.json": "4e620a393b47d314b88f50b175c7e8ddfaa4ad11a5b22c836871711bd5b48564",
+    "scripts/pack.mjs": "363ef9ab15c210e256b190d2976011a84e50c5a5e356ce9c03f537405da68645"
+  },
+  "independent_scenarios": [
+    {
+      "id": "original-redaction-fixed",
+      "passed": true
+    },
+    {
+      "id": "original-stale-endpoint-fixed",
+      "passed": true
+    },
+    {
+      "id": "original-port-and-ignore-fixed",
+      "passed": true
+    },
+    {
+      "id": "original-alternative-formats-fixed",
+      "passed": true
+    },
+    {
+      "id": "original-post-commit-status-fixed",
+      "passed": true
+    },
+    {
+      "id": "original-temp-permissions-fixed",
+      "passed": true
+    },
+    {
+      "id": "original-review-conflict-fixed",
+      "passed": true
+    },
+    {
+      "id": "original-failed-check-status-fixed",
+      "passed": true
+    },
+    {
+      "id": "original-tar-operand-fixed",
+      "passed": true
+    },
+    {
+      "id": "R1-switch-existing-target-overwrites-destination",
+      "remaining": false,
+      "ready": true,
+      "targetUrlCorrect": true,
+      "targetTokenCorrect": true,
+      "stagingUnchanged": true,
+      "expected": "original prod endpoint B",
+      "actual": "prod endpoint B"
+    },
+    {
+      "id": "R2-ignore-negation-not-corrected",
+      "remaining": false,
+      "exit": 0,
+      "ignored": true,
+      "warnings": [
+        "检测到 .gitignore 中的否定规则使 ship.config.yaml 的忽略条目失效；已把 ship.config.yaml 追加到文件末尾（末条规则优先生效），提交前请复核 .gitignore。"
+      ]
+    },
+    {
+      "id": "R3-no-op-credential-file-stays-0644",
+      "remaining": false,
+      "exit": 0,
+      "wrote": [
+        "ship.config.yaml"
+      ],
+      "actualMode": "600"
+    },
+    {
+      "id": "R4-resume-existing-config-discards-draft-ports",
+      "remaining": false,
+      "savedUserChoice": "9090:3000",
+      "resumedDefault": "9090:3000"
+    },
+    {
+      "id": "R4b-cancel-again-erases-prior-answers",
+      "remaining": false,
+      "beforeHadApp": true,
+      "afterHasApp": true
+    },
+    {
+      "id": "R5-fresh-file-rollback-falsely-reported-partial",
+      "remaining": false,
+      "rollbackStatus": "verified",
+      "newFileRemoved": true,
+      "detail": ""
+    },
+    {
+      "id": "R4c-cleared-ports-return-on-next-init",
+      "remaining": false,
+      "afterClear": [],
+      "afterRerun": []
+    }
+  ],
+  "package_smoke": {
+    "install": "offline isolated prefix; no repository symlink",
+    "init": {
+      "code": 0,
+      "output": {
+        "ok": true,
+        "ready": true,
+        "wrote": [
+          "ship.yaml",
+          "ship.config.yaml",
+          ".gitignore"
+        ],
+        "backups": [
+          "/private/tmp/codex-tool-runs/svton/m1-final-audit-20260930/package-project-m8s3Io/.ship/backup/1790727988214/ship.yaml",
+          "/private/tmp/codex-tool-runs/svton/m1-final-audit-20260930/package-project-m8s3Io/.ship/backup/1790727988214/ship.config.yaml"
+        ],
+        "checks": {
+          "builder": {
+            "kind": "builder",
+            "url": "http://127.0.0.1:58694",
+            "reachable": true,
+            "authenticated": true,
+            "roleOk": true,
+            "dockerOk": true,
+            "passed": true,
+            "detail": "入口可达 v0.3.0 role=both；认证成功，角色 both ✓；Docker 可用 ✓"
+          },
+          "runtime": {
+            "kind": "runtime",
+            "url": "http://127.0.0.1:58694",
+            "reachable": true,
+            "authenticated": true,
+            "roleOk": true,
+            "dockerOk": true,
+            "passed": true,
+            "detail": "入口可达 v0.3.0 role=both；认证成功，角色 both ✓；Docker 可用 ✓"
+          },
+          "registry": {
+            "url": "127.0.0.1:58694",
+            "reachable": true,
+            "scheme": "http",
+            "httpStatus": 200,
+            "detail": "地址可达（http:///v2/ → HTTP 200）；认证与推拉不在控制器侧验证（凭证在 agent 机器上，真实推拉实测属于下一阶段）"
+          }
+        },
+        "next": [
+          "初始化完成（本命令只生成配置，不会构建或部署）。",
+          "检查连通性：ship doctor",
+          "首次发布：ship release --from-dir . --to staging"
+        ]
+      },
+      "stderrHasAnsi": false
+    },
+    "installedAgent": {
+      "reachable": true,
+      "role": "runtime",
+      "version": "0.3.0"
+    },
+    "note": "init 使用本地 HTTP 桩；实际 agent 只探测健康接口，不执行 Docker 变更。"
+  },
+  "checks": [
+    {
+      "command": "pnpm --filter shipkit build",
+      "exit": 0
+    },
+    {
+      "command": "pnpm --filter shipkit typecheck",
+      "exit": 0
+    },
+    {
+      "command": "pnpm --filter shipkit test",
+      "exit": 0,
+      "tests": 171,
+      "pass": 171,
+      "fail": 0,
+      "independent_full_runs": 1
+    },
+    {
+      "command": "node shipkit/scripts/pack.mjs (temporary npm cache)",
+      "exit": 0
+    },
+    {
+      "command": "npm install --offline --ignore-scripts --no-audit --no-fund --prefix <temporary-prefix> shipkit-0.3.0.tgz",
+      "exit": 0
+    },
+    {
+      "command": "node package-smoke.mjs",
+      "exit": 0
+    }
+  ],
+  "tarball_sha256": "2eb9c47253a682958c30a21d215f6644356800e97a1167172068b3fcaf865914",
+  "logs_root": "/tmp/codex-tool-runs/svton/m1-final-audit-20260930",
+  "evidence_sha256": {
+    "build.log": "f48c4a69fc0280d85d1218681cebbdaceee937a9e4635df45d04f3d88d99e5fd",
+    "closure-results.json": "3d335c7f471cedc443cc3095a542cad8e5ea6cb8c25edd3f66d1679fcc1394ec",
+    "independent-check.log": "dac5c005e2821738a7bd5dad5154b6084a54f79e74fdc7a696163e4425e89ae8",
+    "independent-check.mjs": "b5eac51683c097323d7cac875a074e803d780ce068cd976fbf9507c615e13ff5",
+    "install.log": "2fe6e28aa8b8ed607f496cdbe5709c0344a992f0d4512aefa20a876bee3f0dc3",
+    "pack.log": "2df3f02c7e1d8e7dfc75babfe309ec88629e326ff868652d88df0d8fb10c679d",
+    "package-smoke-results.json": "4171f0aa3fd941cef9b389f13b134801181243f6188650d6aceac774921eac52",
+    "package-smoke.log": "e69cbdb5ccd5bd6dddd9e3362b3fb6c4f1f75b45fe649a2eb05bcb08e635d77e",
+    "package-smoke.mjs": "5c5d81b8268b7e311528f25bf7b1110e61b8dd20146639269e67b78737f53c64",
+    "tests.log": "8a7446fdf27a975466d32bddba3f3ac25f551fffa873c3935824ece28d126641",
+    "typecheck.log": "4a05059bf98fe256aaa2d119de51bd83cb2f29e9c8f0d2f6e243f54db6fe8f31"
+  },
+  "not_executed": [
+    "real remote TLS acceptance",
+    "real Registry authentication and push/pull",
+    "cloud instance creation/expiry/destruction",
+    "real Docker image GC",
+    "production deployment",
+    "public package publication"
+  ]
+}

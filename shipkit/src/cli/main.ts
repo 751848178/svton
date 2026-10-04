@@ -15,17 +15,29 @@ import { cmdDoctor } from './cmd-doctor.js';
 import { cmdBuilder } from './cmd-builder.js';
 import { cmdServeBundle } from './cmd-serve-bundle.js';
 import { cmdGc } from './cmd-gc.js';
+import { cmdInit } from './cmd-init.js';
+import { cmdPair } from './cmd-pair.js';
+import { cmdVerifyRegistry } from './cmd-verify-registry.js';
 
 const USAGE = `ship v${SHIP_VERSION} — lightweight build/push/deploy controller
 
 commands:
+  ship init [--json]
+      guided first-time setup: detect the app, connect installed agents,
+      generate ship.yaml + ship.config.yaml (config only — never deploys)
+  ship pair <agent-url> [--name NAME] [--code CODE] [--ca-file PATH]
+      exchange a one-time pairing code (minted on the machine by the admin) for a
+      role-scoped long-term token stored in ~/.ship/credentials.json (via tokenRef)
+  ship verify-registry [--to TARGET] [--json]
+      distribute registry credentials by role and PROVE push (builder) + pull (runtime)
+      with a named test image; reports reachability / distribution / push / pull levels
   ship build [--from-dir DIR | git repo of cwd] [--tag TAG] [--keep-builder] [--timeout-min N]
       trigger the builder agent: docker build + push to the registry
-  ship deploy [--ref IMAGE] [--app NAME] [--to TARGET] [--env-file FILE | --keep-env] [--timeout-min N]
+  ship deploy [--ref IMAGE] [--app NAME] [--from-dir DIR] [--to TARGET] [--env-file FILE | --keep-env] [--timeout-min N]
       trigger the runtime agent: pull + compose up + healthcheck (+ auto recovery to previous release)
   ship release [flags of build+deploy]
       build + push + deploy in one shot
-  ship rollback <app> [--to TARGET]
+  ship rollback <app> [--from-dir DIR] [--to TARGET]
       roll the target back to its previous release snapshot (image + env + config)
   ship status [--to TARGET|all]
       apps + versions on runtime targets
@@ -49,6 +61,9 @@ exit codes:
 `;
 
 const COMMANDS: Record<string, (argv: string[]) => Promise<number>> = {
+  init: cmdInit,
+  pair: cmdPair,
+  'verify-registry': cmdVerifyRegistry,
   build: cmdBuild,
   release: cmdRelease,
   deploy: cmdDeploy,
@@ -69,7 +84,24 @@ function mapError(e: unknown): { code: string; exit: number } {
   return { code: 'internal_error', exit: 2 };
 }
 
+const MIN_NODE_MAJOR = 20;
+
+/** clear guidance instead of a syntax crash on old runtimes; never touches the user's Node install */
+function nodeVersionGuard(): number | null {
+  const major = Number(process.versions.node.split('.')[0]);
+  if (major >= MIN_NODE_MAJOR) return null;
+  const current = process.versions.node;
+  process.stderr.write(
+    `ship requires Node.js >= ${MIN_NODE_MAJOR} (current: v${current}).\n` +
+    `Upgrade Node yourself (e.g. via nvm, volta or your system package manager) and re-run ship.\n` +
+    `ship will not modify your Node environment.\n`,
+  );
+  return 2;
+}
+
 async function main(): Promise<number> {
+  const guard = nodeVersionGuard();
+  if (guard !== null) return guard;
   const [cmd, ...rest] = process.argv.slice(2);
   if (!cmd) {
     process.stdout.write(USAGE);

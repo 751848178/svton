@@ -34,6 +34,13 @@ test('requires at least one runtime target', () => {
   assert.throws(() => validateConfig({ ...base, runtime: { targets: {} } }), ConfigError);
 });
 
+test('runtime target names must fit the deployment environment protocol before any cloud work', () => {
+  for (const name of ['prod staging', '生产', '.prod', 'a'.repeat(65)]) {
+    assert.throws(() => validateConfig({ ...base, runtime: { targets: { [name]: base.runtime.targets.a } } }), /runtime target name/);
+  }
+  assert.ok(validateConfig({ ...base, runtime: { targets: { 'prod.cn-1_a': base.runtime.targets.a } } }));
+});
+
 test('rejects unknown provider and incomplete tencent config', () => {
   assert.throws(() => validateConfig({ ...base, builder: { mode: 'dynamic', dynamic: { provider: 'aws' } } }), ConfigError);
   assert.throws(

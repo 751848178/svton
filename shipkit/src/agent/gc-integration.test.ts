@@ -7,7 +7,7 @@
 import test from 'node:test';
 import { mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -51,6 +51,7 @@ mock.module('./docker.js', {
       composeCalls.push({ at: Date.now(), app: o.app, args: o.args });
     },
     composePort: async () => null,
+    assertComposeOwnership: async () => {},
   },
 });
 mock.module('./healthcheck.js', {
@@ -77,6 +78,9 @@ async function seed(root: string, protectedRefs: string[], staleRefs: string[]):
   }
   const ledger = new ImageLedger(ledgerFileFor(apps));
   for (const ref of [...protectedRefs, ...staleRefs]) await ledger.record(ref, 'app');
+  // the seeded store state IS a prior deployment of the deploying project —
+  // bind it explicitly (strict claim requires migration evidence, never auto-claims)
+  await writeFile(path.join(apps, 'app', 'project.json'), `${JSON.stringify({ app: 'app', project: 'proj-app-x', env: 'test' })}\n`);
 }
 
 function auth(token: string): Record<string, string> {
@@ -135,7 +139,7 @@ test('B: deploy interleaved with a running GC waits for it and its image is neve
     await new Promise((r) => setTimeout(r, 300)); // GC now inside its writer slot
     const depRes = await fetch(`${agent.url}/api/deploy`, {
       method: 'POST', headers: auth('t'),
-      body: JSON.stringify({ app: 'app', imageRef: 'reg/app:new', spec: { name: 'app', ports: ['3000:3000'], healthcheck: { path: '/', hostPort: 3000 } } }),
+      body: JSON.stringify({ app: 'app', project: 'proj-app-x', env: 'test', imageRef: 'reg/app:new', spec: { name: 'app', ports: ['3000:3000'], healthcheck: { path: '/', hostPort: 3000 } } }),
     });
     assert.equal(depRes.status, 202);
     const { jobId: depJob } = (await depRes.json()) as { jobId: string };

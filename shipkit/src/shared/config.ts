@@ -4,11 +4,25 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import yaml from 'js-yaml';
 import { isRecord, asString, asNumber } from './obj.js';
+import { validEnvironmentIdentity } from './deployment-identity.js';
 import type { ShipConfig, TargetConfig, TencentCvmConfig } from './types.js';
 
 export class ConfigError extends Error {}
 
-const CONFIG_FILENAMES = ['ship.config.yaml', 'ship.config.yml', 'ship.config.json'];
+/** single owner of the registry host rule — shared by validateConfig and `ship init` prompts */
+export function registryUrlError(url: string): string | null {
+  return /^[a-zA-Z0-9][a-zA-Z0-9.-]*(:\d{1,5})?$/.test(url)
+    ? null
+    : `registry.url must be a bare host[:port] (no scheme/path/spaces), got '${url}'`;
+}
+
+export function registryNamespaceError(ns: string): string | null {
+  return /^[a-z0-9][a-z0-9._-]{0,60}$/.test(ns)
+    ? null
+    : `registry.namespace must match [a-z0-9._-], got '${ns}'`;
+}
+
+export const CONFIG_FILENAMES = ['ship.config.yaml', 'ship.config.yml', 'ship.config.json'];
 
 export function resolveConfigPath(explicit?: string): string {
   if (explicit) {
@@ -38,8 +52,15 @@ function validateTarget(t: unknown, at: string): TargetConfig {
   const url = asString(t.url);
   if (!url || !/^https?:\/\//.test(url)) throw new ConfigError(`${at}.url must start with http(s)://`);
   const token = asString(t.token);
-  if (!token) throw new ConfigError(`${at}.token is required`);
-  return { url: url.replace(/\/+$/, ''), token };
+  const tokenRef = asString(t.tokenRef);
+  const picked = [token, tokenRef].filter(Boolean).length;
+  if (picked !== 1) {
+    throw new ConfigError(`${at}: exactly one of token / tokenRef is required (tokenRef → ~/.ship/credentials.json via \`ship pair\`)`);
+  }
+  if (tokenRef && !/^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$/.test(tokenRef)) {
+    throw new ConfigError(`${at}.tokenRef must be a credential name matching [A-Za-z0-9._-]`);
+  }
+  return { url: url.replace(/\/+$/, ''), token, tokenRef };
 }
 
 function requireString(t: Record<string, unknown>, key: string, at: string): string {
@@ -133,13 +154,11 @@ export function validateConfig(raw: unknown): ShipConfig {
   if (raw.registry !== undefined) {
     if (!isRecord(raw.registry)) throw new ConfigError('registry must be a mapping with url + namespace');
     const url = requireString(raw.registry, 'url', 'registry');
-    if (!/^[a-zA-Z0-9][a-zA-Z0-9.-]*(:\d{1,5})?$/.test(url)) {
-      throw new ConfigError(`registry.url must be a bare host[:port] (no scheme/path/spaces), got '${url}'`);
-    }
+    const urlErr = registryUrlError(url);
+    if (urlErr) throw new ConfigError(urlErr);
     const ns = requireString(raw.registry, 'namespace', 'registry');
-    if (!/^[a-z0-9][a-z0-9._-]{0,60}$/.test(ns)) {
-      throw new ConfigError(`registry.namespace must match [a-z0-9._-], got '${ns}'`);
-    }
+    const nsErr = registryNamespaceError(ns);
+    if (nsErr) throw new ConfigError(nsErr);
     cfg.registry = { url, namespace: ns };
   }
 
@@ -148,6 +167,7 @@ export function validateConfig(raw: unknown): ShipConfig {
     throw new ConfigError('runtime.targets must contain at least one entry');
   }
   for (const [name, t] of Object.entries(runtime.targets)) {
+    if (!validEnvironmentIdentity(name)) throw new ConfigError('runtime target name must start with a letter/digit and contain 1-64 characters from [A-Za-z0-9._-]');
     cfg.runtime.targets[name] = validateTarget(t, `runtime.targets.${name}`);
   }
 

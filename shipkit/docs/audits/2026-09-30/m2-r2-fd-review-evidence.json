@@ -1,0 +1,55 @@
+{
+  "date": "2026-09-30",
+  "finding": "M2-R2",
+  "severity": "P2",
+  "status": "open",
+  "hashes": {
+    "shipkit/src/shared/file-lock.ts": "aa7a3691738fcbec8735f351b2312fa28d78bde12b7c358b087b86ead8a4caae",
+    "shipkit/src/shared/file-lock-race.test.ts": "38bf0841a66254196d577bdcd92db47ffabaf4a73c5b3d94fa39c359f0835e38",
+    "shipkit/dist/shared/file-lock.js": "d6d30e9a6f16672e5f63e75ec7c7976bc3efbd3dbfe49eda302bd0758e8622cb"
+  },
+  "verification": {
+    "buildExit": 0,
+    "typecheckExit": 0,
+    "testExit": 0,
+    "nodeTestsPassed": 246,
+    "nodeTestsFailed": 0,
+    "installerChecksPassed": 17,
+    "installerDriftCheck": "passed",
+    "packageSmoke": "not rerun this round"
+  },
+  "reproduction": {
+    "script": "import * as fs from 'node:fs/promises';\nimport {mock} from 'node:test';\nimport {spawnSync} from 'node:child_process';\nimport {AsyncLocalStorage} from 'node:async_hooks';\nconst base='/tmp/codex-tool-runs/svton/m2-r2-fd-review-20260930';\nconst dir=await fs.mkdtemp(base+'/race-'),file=dir+'/state.json',lock=file+'.lock',prev=lock+'.prev';\nconst dead=spawnSync(process.execPath,['-e','process.exit(0)']);\ntry{process.kill(dead.pid,0);throw Error('fixture PID reused')}catch(e){if(e.code!=='ESRCH')throw e;}\nawait fs.writeFile(lock,`${dead.pid}\\tdead-owner-token\\n`);\nconst defer=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve}};\nconst aBefore=defer(),resumeA=defer(),bMoved=defer(),resumeB=defer(),aEntered=defer(),cEntered=defer(),releaseA=defer(),releaseC=defer();\nconst als=new AsyncLocalStorage();let aHooked=false,bHooked=false,active=0,maxActive=0,cActive=false,overwroteLiveC=false;\nconst {default:ignored,...named}=fs;\nmock.module('node:fs/promises',{namedExports:{...named,rename:async(from,to)=>{\n if(als.getStore()==='A'&&to===lock&&!aHooked){aHooked=true;aBefore.resolve();await resumeA.promise;overwroteLiveC=cActive;}\n await fs.rename(from,to);\n if(als.getStore()==='B'&&from===prev&&!bHooked){bHooked=true;bMoved.resolve();await resumeB.promise;}\n}}});\nconst {withFileLock}=await import('/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/file-lock.js');\nconst guard=setTimeout(()=>{console.error('REPRO_TIMEOUT');process.exit(2)},12000);\nconst a=als.run('A',()=>withFileLock(file,async()=>{active++;maxActive=Math.max(maxActive,active);aEntered.resolve();await releaseA.promise;active--;},{timeoutMs:7000}));\nawait aBefore.promise;\nconst aRecord=await fs.readFile(prev,'utf8');\nconst b=als.run('B',()=>withFileLock(file,async()=>{active++;maxActive=Math.max(maxActive,active);active--;},{timeoutMs:7000}));\nawait bMoved.promise;\nconst prevMissingWhileALive=await fs.stat(prev).then(()=>false,e=>e.code==='ENOENT');\nconst c=als.run('C',()=>withFileLock(file,async()=>{cActive=true;active++;maxActive=Math.max(maxActive,active);cEntered.resolve();await releaseC.promise;active--;cActive=false;},{timeoutMs:7000}));\nawait cEntered.promise;const cLock=await fs.readFile(lock,'utf8');\nresumeA.resolve();await aEntered.promise;\nconst result={maxActive,activeAtObservation:active,overwroteLiveC,cLockChanged:await fs.readFile(lock,'utf8')!==cLock,prevMissingWhileALive,aRecordPid:Number(aRecord.split('\\t')[0]),actualLivePid:process.pid,onlySchedulingMocked:true};\nreleaseA.resolve();await a;releaseC.resolve();await c;resumeB.resolve();await b;\nclearTimeout(guard);mock.restoreAll();await fs.writeFile(base+'/fd-race-result.json',JSON.stringify(result,null,2));console.log(JSON.stringify(result));\n",
+    "sha256": "024e838558c6eea7b1dc3b48cece2896c8c2bf8612be060595b3bad0a73e43ea",
+    "result": {
+      "maxActive": 2,
+      "activeAtObservation": 2,
+      "overwroteLiveC": true,
+      "cLockChanged": true,
+      "prevMissingWhileALive": true,
+      "aRecordPid": 1632,
+      "actualLivePid": 1632,
+      "onlySchedulingMocked": true
+    },
+    "exit": 0,
+    "method": "Real filesystem; real exited child PID verified ESRCH; A/B/C concurrent calls in one process with AsyncLocalStorage. Only rename scheduling paused; no results, file operations, or liveness answers forged. Not cross-process E2E."
+  },
+  "logs": {
+    "test.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-fd-review-20260930/test.log",
+      "sha256": "2bddf48f2ae203dbe4f2641303822b25cf3c5f9f8162a79e2f39cca6b7d103f0"
+    },
+    "typecheck.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-fd-review-20260930/typecheck.log",
+      "sha256": "3af2c7f85db1a73e14ef30acb4bd2493cecef51fff8e8c6236b788ea32831e9f"
+    },
+    "fd-race.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-fd-review-20260930/fd-race.log",
+      "sha256": "28d8fc6893733fa17153d7349b223e996455bff253eb311a9b40005a5f72c04e"
+    },
+    "build.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-fd-review-20260930/build.log",
+      "sha256": "dc62f939cee853d720dd930f19d82d085aca6afc8d85df978da6b06cda7ff56d"
+    }
+  }
+}

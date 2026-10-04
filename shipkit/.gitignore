@@ -1,4 +1,6 @@
 node_modules/
 dist/
+.pack-stage/
+pack/
 *.log
 .DS_Store

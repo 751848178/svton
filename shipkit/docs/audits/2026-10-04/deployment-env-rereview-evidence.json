@@ -1,0 +1,80 @@
+{
+  "date": "2026-10-04",
+  "scope": "deployment environment preservation and release-state safety rereview",
+  "initialReproduction": {
+    "tests": 5,
+    "failed": 4,
+    "log": "/tmp/codex-tool-runs/svton/env-rereview/before-fix.log"
+  },
+  "legacyReproduction": {
+    "tests": 8,
+    "failed": 1,
+    "log": "/tmp/codex-tool-runs/svton/env-rereview/legacy-before-fix.log"
+  },
+  "finalRegression": {
+    "tests": 308,
+    "pass": 308,
+    "fail": 0,
+    "log": "/tmp/codex-tool-runs/svton/env-rereview/final-full.log"
+  },
+  "installer": {
+    "pass": 17,
+    "fail": 0
+  },
+  "installedIsolation": {
+    "pass": 39,
+    "fail": 0
+  },
+  "packageSmoke": {
+    "checks": 20,
+    "log": "/tmp/codex-tool-runs/svton/env-rereview/package-smoke.log"
+  },
+  "packages": [
+    {
+      "name": "shipkit-0.5.0.tgz",
+      "sha256": "a3fc0e0a67105719ef24f6a2971a4409304236eb3c9e1c4c53a158fa6ee58d1e",
+      "matchedJavaScriptFiles": 157
+    },
+    {
+      "name": "ship-agent-0.5.0.tgz",
+      "sha256": "0c14d982118ec39a308c0fd9db972b0a3380fd0d11f1ffa8635b109aa2bf5edb",
+      "matchedJavaScriptFiles": 157
+    }
+  ],
+  "sourceLineCounts": {
+    "src/shared/types.ts": 200,
+    "src/shared/deployment-identity.ts": 12,
+    "src/cli/pipeline.ts": 192,
+    "src/cli/cmd-release.ts": 55,
+    "src/cli/deployment-protocol.ts": 21,
+    "src/cli/init/wizard-fixtures.ts": 133,
+    "src/agent/route-guards.ts": 40,
+    "src/agent/routes-images.ts": 145,
+    "src/agent/handlers-deploy.ts": 130,
+    "src/agent/release.ts": 146,
+    "scripts/package-smoke.mjs": 197
+  },
+  "sourceSha256": {
+    "src/shared/types.ts": "b98dedb53770724c38711ac37485a91880049ef858203cb52a4eb5db74d36071",
+    "src/shared/deployment-identity.ts": "b47d20e17e650a735613d3316a3b21aaacd74f110ed64f76f7123dd984e9e81d",
+    "src/cli/pipeline.ts": "2cd7ddb6aafb0660d2d2c828021787db11b9218883f52f8c7f1e7a59ba07e166",
+    "src/cli/cmd-release.ts": "52d031456b78aed1cb08e198d4b0b1eb880256dfa2debae7a86c1acd579c551f",
+    "src/cli/deployment-protocol.ts": "033c92b1b51d9e05676875157bd56d481af911e3a6dc52d6bd5711d067afa1e3",
+    "src/cli/deployment-provenance.test.ts": "29e9fa04edcf29b7bb1974ccf2e09e4d78f1f53a1af7d428cadef6235bdc1be8",
+    "src/cli/init/wizard-fixtures.ts": "e9984a3d6315a2db554a5b63bcb3436978112dfb409699e18a571b98a6108576",
+    "src/cli/deploy-isolation.e2e.test.ts": "264f0608e40774b701b8d59cbbfbce598234511de9d8b36b2a60a12bf4f9a462",
+    "src/agent/route-guards.ts": "dd1e24ba1d690d38623f1f782a9e2c89a6eeda6194e7170a619b4543396d89a3",
+    "src/agent/routes-guards.test.ts": "5dbc005925c4ce7e65d5fadf625a490f073e5b52248449f62d8c963f1abe4ace",
+    "src/agent/routes-images.ts": "77f329dfd684f94bc84c1e18d4431dc766284337a1317c50ec3809febfa9c440",
+    "src/agent/handlers-deploy.ts": "a1e5130c1fb20f7c17aa7af9bcb15a4368cc46350395d98ffeffde09dd0bb940",
+    "src/agent/release.ts": "cbf8d7875a6f925bc11f1ef67a64a5659e5f97699c87fb9023bba3e01f7d8a67",
+    "src/agent/deploy-env-safety.test.ts": "02542d30e742e4a00ccd9c813afd2465ff5e79f84263ded217b0e64efa6beaf1",
+    "scripts/package-smoke.mjs": "908e01c2e9fc846446f3d3daf82e3c3a075fedf8dc02e13723ef905562d6f29b",
+    "README.md": "ce3241e1f300e372bcf0c351f140a899f28b6782f94f6e2e59b0ebbec6ff98b5",
+    "docs/user-guide.md": "c3faab66831c3a75fedbbf3107292ff9d150dd6c9878a10b4760ba165c101ec4",
+    "docs/user-guide.html": "31d02f3b261c0a90265fff305eb5da78a0d45250167074e12ae366cc952e2c8b"
+  },
+  "diffCheckExit": 0,
+  "realDockerUsed": false,
+  "cloudResourcesUsed": false
+}

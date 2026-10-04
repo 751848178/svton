@@ -4,6 +4,8 @@ import { parseArgs } from 'node:util';
 import { loadConfig } from '../shared/config.js';
 import { createEmitter } from './output.js';
 import { minutesArg, runBuildPipeline, runDeployPipeline } from './pipeline.js';
+import { requireDeploymentProtocol } from './deployment-protocol.js';
+import { resolveTarget } from './targets.js';
 
 export async function cmdRelease(argv: string[]): Promise<number> {
   const args = parseArgs({
@@ -24,6 +26,8 @@ export async function cmdRelease(argv: string[]): Promise<number> {
   const em = createEmitter(args.values.json ?? false);
   const config = loadConfig(args.values.config);
   const timeoutMs = minutesArg(args.values['timeout-min'], 60);
+  const target = resolveTarget(config, args.values.to);
+  await requireDeploymentProtocol(target.target, `runtime.targets.${target.name}`, Boolean(args.values['keep-env'] && !args.values['env-file']));
 
   const build = await runBuildPipeline({
     config,
@@ -39,6 +43,7 @@ export async function cmdRelease(argv: string[]): Promise<number> {
     cwd: process.cwd(),
     logger: em.log,
     imageRef: build.imageRef,
+    project: build.project,
     envFile: args.values['env-file'],
     keepEnv: args.values['keep-env'],
     targetName: args.values.to,

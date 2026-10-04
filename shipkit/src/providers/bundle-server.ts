@@ -3,11 +3,14 @@
 
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { exec } from '../shared/exec.js';
+import { SHIP_VERSION } from '../shared/types.js';
+
+export const DEFAULT_AGENT_PORT = 7410;
 
 export interface BundleServer {
   /**
@@ -29,6 +32,8 @@ export interface BundleOptions {
   /** controller IP/hostname reachable from the target machine */
   advertiseHost: string;
   port?: number;
+  /** installed agent's HTTP listener; independent of this server's distribution port */
+  agentPort?: number;
   minutes?: number;
   agentToken?: string;
   /** https base URL of a TLS-terminated proxy in front of this listener (RA06) */
@@ -46,10 +51,13 @@ export async function startBundleServer(o: BundleOptions): Promise<BundleServer>
   if (cp.code !== 0) throw new Error(`staging dist failed: ${cp.stderr}`);
   await writeFile(
     path.join(stage, 'package.json'),
-    `${JSON.stringify({ name: 'shipkit-agent', version: '0.1.0', private: true, type: 'module' }, null, 2)}\n`,
+    `${JSON.stringify({ name: 'shipkit-agent', version: SHIP_VERSION, private: true, type: 'module' }, null, 2)}\n`,
   );
+  // VERSION rides inside the bundle; install.sh health-checks the running agent against it (UX05)
+  await writeFile(path.join(stage, 'VERSION'), `${SHIP_VERSION}\n`);
   const tar = await exec('tar', ['czf', tgz, '-C', stage, '.']);
   if (tar.code !== 0) throw new Error(`packing agent bundle failed: ${tar.stderr}`);
+  const agentSha = createHash('sha256').update(await readFile(tgz)).digest('hex');
   const installTpl = await readFile(path.join(o.bootstrapDir, 'install.sh'), 'utf8');
 
   let address: AddressInfo | null = null;
@@ -69,7 +77,7 @@ export async function startBundleServer(o: BundleOptions): Promise<BundleServer>
       if (file === 'install.sh') {
         const role = u.searchParams.get('role') === 'builder' ? 'builder' : 'runtime';
         const agentTok = u.searchParams.get('token') ?? tokens[role];
-        const port = u.searchParams.get('port') ?? '7410';
+        const port = u.searchParams.get('port') ?? String(o.agentPort ?? DEFAULT_AGENT_PORT);
         const bundleBase = publicBase();
         const script = installTpl
           .replaceAll('__ROLE__', role)
@@ -84,6 +92,11 @@ export async function startBundleServer(o: BundleOptions): Promise<BundleServer>
         const data = await readFile(tgz);
         res.writeHead(200, { 'content-type': 'application/gzip' });
         res.end(data);
+        return;
+      }
+      if (file === 'SHA256SUMS') {
+        res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' });
+        res.end(`${agentSha}  agent.tgz\n`);
         return;
       }
       res.writeHead(404).end();
@@ -116,7 +129,7 @@ export async function startBundleServer(o: BundleOptions): Promise<BundleServer>
     port: address.port,
     tokens,
     installUrl: (role: 'runtime' | 'builder') =>
-      `${publicBase()}/install.sh?role=${role}&token=${tokens[role]}&port=${o.publicBaseUrl ? '7410' : String(address.port)}`,
+      `${publicBase()}/install.sh?role=${role}&token=${tokens[role]}&port=${o.agentPort ?? DEFAULT_AGENT_PORT}`,
     stop,
   };
 }

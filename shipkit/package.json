@@ -1,6 +1,6 @@
 {
   "name": "shipkit",
-  "version": "0.2.0",
+  "version": "0.5.0",
   "private": true,
   "description": "Lightweight build/push/deploy toolchain (controller CLI + machine agents), decoupled from devpilot",
   "type": "module",
@@ -10,8 +10,10 @@
   "scripts": {
     "build": "tsc -p tsconfig.json && chmod +x dist/cli/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "tsc -p tsconfig.json && node --experimental-test-module-mocks --test 'dist/**/*.test.js'",
-    "agent": "node dist/agent/server.js"
+    "test": "tsc -p tsconfig.json && node scripts/build-install.mjs --check && node --experimental-test-module-mocks --test 'dist/**/*.test.js' && node scripts/installer-check.mjs",
+    "agent": "node dist/agent/server.js",
+    "pack:tarball": "npm run build && node scripts/pack.mjs",
+    "smoke:package": "node scripts/package-smoke.mjs"
   },
   "engines": {
     "node": ">=20"

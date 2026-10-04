@@ -3,9 +3,11 @@
 import { parseArgs } from 'node:util';
 import { loadConfig } from '../shared/config.js';
 import { api, waitForJob } from '../shared/http.js';
+import { resolveProjectId } from './project-id.js';
 import { createEmitter } from './output.js';
 import { CliError } from './errors.js';
 import { resolveTarget } from './targets.js';
+import { requireDeploymentProtocol } from './deployment-protocol.js';
 
 export async function cmdRollback(argv: string[]): Promise<number> {
   const args = parseArgs({
@@ -14,6 +16,7 @@ export async function cmdRollback(argv: string[]): Promise<number> {
       config: { type: 'string' },
       json: { type: 'boolean' },
       to: { type: 'string' },
+      'from-dir': { type: 'string' },
     },
     allowPositionals: true,
   });
@@ -23,9 +26,11 @@ export async function cmdRollback(argv: string[]): Promise<number> {
 
   const config = loadConfig(args.values.config);
   const { name, target } = resolveTarget(config, args.values.to);
-  const started = await api<{ jobId: string }>(target.url, target.token, 'POST', '/api/rollback', { app });
+  const rt = await requireDeploymentProtocol(target, `runtime.targets.${name}`);
+  const ca = rt.caFile ? { caFile: rt.caFile } : {};
+  const started = await api<{ jobId: string }>(rt.url, rt.token, 'POST', '/api/rollback', { app, project: await resolveProjectId(process.cwd(), config, args.values['from-dir']), env: name }, 20_000, ca);
   em.log.info('rollback started', { app, target: name, jobId: started.jobId });
-  const job = await waitForJob(target.url, target.token, started.jobId, { timeoutMs: 10 * 60_000 });
+  const job = await waitForJob(rt.url, rt.token, started.jobId, { timeoutMs: 10 * 60_000, ...ca });
   if (job.status === 'failed') {
     const recovery = (job.result as { recovery?: { succeeded: boolean } } | undefined)?.recovery;
     throw new CliError(`rollback failed: ${job.error}`, recovery && !recovery.succeeded ? 6 : 4);

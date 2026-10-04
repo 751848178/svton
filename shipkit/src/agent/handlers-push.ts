@@ -2,6 +2,7 @@
 
 import type { PushRequest, PushResult } from '../shared/types.js';
 import { dockerPushAsImageRef, requireEnv } from './docker.js';
+import { resolvePushCreds } from './registry-creds.js';
 import type { JobContext } from './jobs.js';
 
 export function resolveImageRef(req: PushRequest): { imageRef: string; registry: string } {
@@ -11,14 +12,15 @@ export function resolveImageRef(req: PushRequest): { imageRef: string; registry:
   return { imageRef, registry };
 }
 
-export async function runPush(req: PushRequest, log: JobContext['log']): Promise<PushResult> {
+export async function runPush(req: PushRequest, log: JobContext['log'], workRoot?: string): Promise<PushResult> {
   if (!/^[a-z0-9._/-]+$/.test(req.name) || !/^[\w.-]+$/.test(req.tag)) {
     throw new Error(`invalid image name/tag: ${req.name}:${req.tag}`);
   }
   const { imageRef, registry } = resolveImageRef(req);
   const localImage = `shipbuild/${req.name}:${req.tag}`;
   log(`pushing ${localImage} -> ${imageRef}`);
-  const { digest } = await dockerPushAsImageRef({ localImage, imageRef, registry, log });
+  const creds = await resolvePushCreds(workRoot ?? process.env.SHIP_WORK_ROOT ?? '/opt/shipkit-data');
+  const { digest } = await dockerPushAsImageRef({ localImage, imageRef, registry, creds, log });
   log(`pushed ${imageRef} (${digest ?? 'digest unknown'})`);
   return { imageRef, digest };
 }

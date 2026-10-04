@@ -1,0 +1,199 @@
+{
+  "date": "2026-09-29",
+  "conclusion": "M1 still requires R1-R5 remediation",
+  "baseline": {
+    "tests": 153,
+    "passed": 153,
+    "failed": 0,
+    "buildExit": 0,
+    "typecheckExit": 0,
+    "packExit": 0,
+    "offlineInstallExit": 0
+  },
+  "findings": {
+    "P1": 2,
+    "P2": 3
+  },
+  "independentChecks": [
+    {
+      "id": "original-redaction-fixed",
+      "passed": true
+    },
+    {
+      "id": "original-stale-endpoint-fixed",
+      "passed": true
+    },
+    {
+      "id": "original-port-and-ignore-fixed",
+      "passed": true
+    },
+    {
+      "id": "original-alternative-formats-fixed",
+      "passed": true
+    },
+    {
+      "id": "original-post-commit-status-fixed",
+      "passed": true
+    },
+    {
+      "id": "original-temp-permissions-fixed",
+      "passed": true
+    },
+    {
+      "id": "original-review-conflict-fixed",
+      "passed": true
+    },
+    {
+      "id": "original-failed-check-status-fixed",
+      "passed": true
+    },
+    {
+      "id": "original-tar-operand-fixed",
+      "passed": true
+    },
+    {
+      "id": "R1-switch-existing-target-overwrites-destination",
+      "remaining": true,
+      "ready": true,
+      "expected": "original prod endpoint B",
+      "actual": "staging endpoint A"
+    },
+    {
+      "id": "R2-ignore-negation-not-corrected",
+      "remaining": true,
+      "exit": 0,
+      "ignored": false,
+      "warnings": []
+    },
+    {
+      "id": "R3-no-op-credential-file-stays-0644",
+      "remaining": true,
+      "exit": 0,
+      "wrote": [],
+      "actualMode": "644"
+    },
+    {
+      "id": "R4-resume-existing-config-discards-draft-ports",
+      "remaining": true,
+      "savedUserChoice": "9090:3000",
+      "resumedDefault": "8080:3000"
+    },
+    {
+      "id": "R4b-cancel-again-erases-prior-answers",
+      "remaining": true,
+      "beforeHadApp": true,
+      "afterHasApp": false
+    },
+    {
+      "id": "R5-fresh-file-rollback-falsely-reported-partial",
+      "remaining": true,
+      "rollbackStatus": "partial",
+      "newFileRemoved": true,
+      "detail": "以下文件未能完全恢复：ship.yaml（备份保留在 /tmp/codex-tool-runs/svton/m1-closure-audit-20260929/rollback-W2dXfq/.ship/backup/1790692835357）"
+    },
+    {
+      "id": "R4c-cleared-ports-return-on-next-init",
+      "remaining": true,
+      "afterClear": null,
+      "afterRerun": [
+        "3000:3000"
+      ]
+    }
+  ],
+  "packageSmoke": {
+    "install": "offline isolated prefix; no repository symlink",
+    "init": {
+      "code": 0,
+      "output": {
+        "ok": true,
+        "ready": true,
+        "wrote": [
+          "ship.yaml",
+          "ship.config.yaml",
+          ".gitignore"
+        ],
+        "backups": [
+          "/private/tmp/codex-tool-runs/svton/m1-closure-audit-20260929/package-project-2yxUae/.ship/backup/1790692783680/ship.yaml",
+          "/private/tmp/codex-tool-runs/svton/m1-closure-audit-20260929/package-project-2yxUae/.ship/backup/1790692783680/ship.config.yaml"
+        ],
+        "checks": {
+          "builder": {
+            "kind": "builder",
+            "url": "http://127.0.0.1:54792",
+            "reachable": true,
+            "authenticated": true,
+            "roleOk": true,
+            "dockerOk": true,
+            "passed": true,
+            "detail": "入口可达 v0.3.0 role=both；认证成功，角色 both ✓；Docker 可用 ✓"
+          },
+          "runtime": {
+            "kind": "runtime",
+            "url": "http://127.0.0.1:54792",
+            "reachable": true,
+            "authenticated": true,
+            "roleOk": true,
+            "dockerOk": true,
+            "passed": true,
+            "detail": "入口可达 v0.3.0 role=both；认证成功，角色 both ✓；Docker 可用 ✓"
+          },
+          "registry": {
+            "url": "127.0.0.1:54792",
+            "reachable": true,
+            "scheme": "http",
+            "httpStatus": 200,
+            "detail": "地址可达（http:///v2/ → HTTP 200）；认证与推拉不在控制器侧验证（凭证在 agent 机器上，真实推拉实测属于下一阶段）"
+          }
+        },
+        "next": [
+          "初始化完成（本命令只生成配置，不会构建或部署）。",
+          "检查连通性：ship doctor",
+          "首次发布：ship release --from-dir . --to staging"
+        ]
+      },
+      "stderrHasAnsi": false
+    },
+    "installedAgent": {
+      "reachable": true,
+      "role": "runtime",
+      "version": "0.3.0"
+    },
+    "note": "init 使用本地 HTTP 桩；实际 agent 只探测健康接口，不执行 Docker 变更。"
+  },
+  "logs": "/tmp/codex-tool-runs/svton/m1-closure-audit-20260929",
+  "scriptSha256": "1bf20673f24275f097c39324f5bcec4b3bfed8ccc76884753fd2184dd94af1a8",
+  "sourceSha256": {
+    "shipkit/src/cli/init/state.ts": "3fffb0d26eb46dbc7a85acdebc281af11e222be41747fdd33eceda5042feba35",
+    "shipkit/src/cli/init/write.test.ts": "974e0c2645f5fde77d9daceae73e440ba02b8dbe2070e0480ae7a1fe75614472",
+    "shipkit/src/cli/init/apply.ts": "83839d38cf29ba7602cb2787d13620e95a8283967068a18c639067f4b9bbec76",
+    "shipkit/src/cli/init/detect.ts": "f49e68ba8ce0fca8fdb7a2dd93977ea101a4b950dc3769c9b51885c44834eda2",
+    "shipkit/src/cli/init/prompt.test.ts": "d4d87b43c682a044a28204e543692c699119d602e5685456f5c9ca16afc66fe2",
+    "shipkit/src/cli/init/prompt.ts": "6d8445b674d4bef4bffb0369970236be940f0954291cc4385d8ed871024c3d04",
+    "shipkit/src/cli/init/safe-write.ts": "8bfd06162ee2be45e04f7638f71f88635229b2d597015691e69db01be0f748e9",
+    "shipkit/src/cli/init/diff.ts": "f8906d980d143322122e824f7520d916130b87fe14311301dab87b85ab89521c",
+    "shipkit/src/cli/init/defaults.ts": "1939f88ee1115233bce8fcff33d4eac755c7000cc623c607b6e73a43550de517",
+    "shipkit/src/cli/init/lock.ts": "692772b77ef8893214440f91e32d164c3f06d9b063f3bfeef7d44760c5256efc",
+    "shipkit/src/cli/init/detect.test.ts": "e905d90ff9d57e0dc7bcb1b74c4e28508037cb320694d88dc1565708ddb86629",
+    "shipkit/src/cli/init/prompt-clear.test.ts": "d26724c1b9d67ad75ccff1933e59b28c948828be9eb972310456b09f78dd223e",
+    "shipkit/src/cli/init/resume.test.ts": "643061768c26470d04bc972653efdfdc99f480df5a7ba4e96727fad531f731c4",
+    "shipkit/src/cli/init/diff.test.ts": "a1adeb12417239a8d5e406766f71083ac716c54b3db32c8cc357b89603fc0500",
+    "shipkit/src/cli/init/wizard.ts": "88b3808b662fc68df277aab4f85be8efd6a7f5c3cf9c20b30bf945c6ae5f0984",
+    "shipkit/src/cli/init/gitignore.ts": "861ba6bbbc4bc2812484b11a3350cfb61038e339834d9067ade7b1712002b958",
+    "shipkit/src/cli/init/checks.test.ts": "c64c535da6ba26a30ccd59c336f38bff3a9d6412fe681582c97fc4fae9b13aca",
+    "shipkit/src/cli/init/questions.ts": "973f0c6ba3da4bf2fd349db2a9174fdc8c346d0b2935f7d72d6425c07f4defd5",
+    "shipkit/src/cli/init/plan.test.ts": "d16ba95c2ce9cf77b318f11fc69bc5f4b35747d19efc62bea8ecc7b510723cb0",
+    "shipkit/src/cli/init/state.test.ts": "0eb547332437293a099257f77be2421a279cbcb80a8a2aabbab9a014d02a7509",
+    "shipkit/src/cli/init/checks.ts": "7fae19039bdea18bf45ef9b0ab6c6bba6a168214ef884ee0062aaa3eb5b07fe9",
+    "shipkit/src/cli/init/machines.ts": "cc758afbc93359d4e553cb7a282823b507826f925e8e1d2b5201302aa6a5a3d6",
+    "shipkit/src/cli/init/render.ts": "6fb88c65edb6a865b6ac872f416a9c6d2a9f245f56732ad1239838d494edaa9f",
+    "shipkit/src/cli/init/write.ts": "c29c398ed5678b5acd550e77221f00ed73fa8007d1af7783de95aead110f4b38",
+    "shipkit/src/cli/init/wizard-fixtures.ts": "d40e88a7e604ab36cf9e072497edee11bea66b4abb2fc9f044d4910c407f1e96",
+    "shipkit/src/cli/init/plan.ts": "0b3c1ca7fe8898e57b82d5936d7ab5c855e9e33ffd198409bf09d15a695e2861",
+    "shipkit/src/cli/init/render.test.ts": "4e1dcf76fae2c2ba5fc3735b2869e1dffe71e0f173f39df1b5bf69cbec727d09",
+    "shipkit/src/cli/init/mask.ts": "e208f4983e54845b39f5e73d44e07fe72c252bd2cb758bfb9d127f30286a877b",
+    "shipkit/src/cli/init/compat.test.ts": "8747dc0caf651aa436b321b18e162532606f0be20d529e86dfab541ebec0a0d4",
+    "shipkit/src/cli/cmd-init.ts": "b3b59bf0e04be1909166d43965014c8c6ff3fdda0665c5f27543c81b93cb44ec",
+    "shipkit/src/cli/pipeline.ts": "ae91df0f831f1a78c0d2207c310ec1d350db801aaae3d5f985b011b9751d6025"
+  },
+  "scope": "Temporary projects, synthetic credentials and localhost fixtures; installed agent health only; no production or cloud mutations."
+}

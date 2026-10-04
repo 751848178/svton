@@ -1,0 +1,101 @@
+{
+  "date": "2026-09-30",
+  "finding": "M2-R2",
+  "severity": "P2",
+  "status": "open",
+  "scope": "Independent review of prev-hardlink reclaim protocol; no business source edits",
+  "hashes": {
+    "shipkit/src/shared/file-lock.ts": "8211947716539bcd50d826acd6b82ae1a72d90ba6abf48e1935e553d0da0361a",
+    "shipkit/src/shared/file-lock-race.test.ts": "a6f137371947f742f513ad5e5bc63e26a0e09c295c99c611f93c736ed5b1ba33",
+    "shipkit/dist/shared/file-lock.js": "15e7a3c2fa049e703547927acdb6bb3199bdb9f10b6c6358e4ab544410fdc054",
+    "shipkit/scripts/package-smoke.mjs": "dbd4e9d88d3de39002b134befa509553687f77c6210cafe9880278eeec33985a",
+    "shipkit/bootstrap/install.sh": "6adf19f85199700c827d4d53853ae6eb72a71768ef0911bb12264c15d6017dcc",
+    "shipkit/pack/shipkit-0.5.0.tgz": "da807db175b4d646c6caf93d8ab5ec24638823ada1d7f66b2e626d3780d48739"
+  },
+  "verification": {
+    "build": {
+      "exit": 0
+    },
+    "typecheck": {
+      "exit": 0
+    },
+    "nodeTests": {
+      "passed": 236,
+      "failed": 0
+    },
+    "installerChecks": {
+      "passed": 17
+    },
+    "packageSmoke": {
+      "passed": 17,
+      "offline": true,
+      "docker": "stub",
+      "onlineFallback": "disabled"
+    }
+  },
+  "reproductions": [
+    {
+      "script": "prev-race.mjs",
+      "source": "import * as fs from 'node:fs/promises';\nimport {mock} from 'node:test';\nimport {AsyncLocalStorage} from 'node:async_hooks';\nimport {spawn} from 'node:child_process';\nconst base='/tmp/codex-tool-runs/svton/m2-r2-review-20260930';\nconst dir=await fs.mkdtemp(base+'/prev-race-'),file=dir+'/state.json',lock=file+'.lock';\nconst child=spawn(process.execPath,['-e','process.exit(0)']);await new Promise(r=>child.on('exit',r));\ntry{process.kill(child.pid,0);throw Error('fixture PID reused')}catch(e){if(e.code!=='ESRCH')throw e;}\nawait fs.writeFile(lock,`${child.pid}\\tdead-owner-token\\n`);\nconst defer=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve}};\nconst paused=defer(),resume=defer(),bEntered=defer(),releaseB=defer(),aEntered=defer(),releaseA=defer();\nconst actor=new AsyncLocalStorage();let hooked=false,active=0,maxActive=0,bActive=false;\nlet aOverwroteLiveB=false;\nconst {default:ignored,...named}=fs;\nmock.module('node:fs/promises',{namedExports:{...named,rename:async(from,to)=>{\n if(actor.getStore()==='A'&&to===lock&&!hooked){hooked=true;paused.resolve();await resume.promise;aOverwroteLiveB=bActive;}\n return fs.rename(from,to);\n}}});\nconst {withFileLock}=await import('/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/file-lock.js');\nconst a=actor.run('A',()=>withFileLock(file,async()=>{active++;maxActive=Math.max(active,maxActive);aEntered.resolve();await releaseA.promise;active--;},{timeoutMs:5000}));\nawait paused.promise;\nconst prevStat=await fs.stat(lock+'.prev'),lockStat=await fs.stat(lock);\n// A is alive and holds prev. A scheduling pause exceeds PREV_RESIDUE_MS.\nawait new Promise(r=>setTimeout(r,650));\nconst b=actor.run('B',()=>withFileLock(file,async()=>{bActive=true;active++;maxActive=Math.max(active,maxActive);bEntered.resolve();await releaseB.promise;active--;bActive=false;},{timeoutMs:3000}));\nawait bEntered.promise;\nresume.resolve();await aEntered.promise;\nconst result={maxActive,aOverwroteLiveB,activeAtObservation:active,pausedMs:650,prevAndLockSameInode:prevStat.ino===lockStat.ino,prevMtimeEqualsLockMtime:prevStat.mtimeMs===lockStat.mtimeMs,onlySchedulingMocked:true};\nreleaseA.resolve();await a;releaseB.resolve();await b;\nawait fs.writeFile(base+'/prev-race-results.json',JSON.stringify(result,null,2));console.log(JSON.stringify(result));mock.restoreAll();\n",
+      "sha256": "73210b4da89e3c963aeaaab55fb2127aff1b7d6503774a6b34c0e5039fa75b08",
+      "result": {
+        "maxActive": 2,
+        "aOverwroteLiveB": true,
+        "activeAtObservation": 2,
+        "pausedMs": 650,
+        "prevAndLockSameInode": true,
+        "prevMtimeEqualsLockMtime": true,
+        "onlySchedulingMocked": true
+      },
+      "exit": 0,
+      "method": "Two concurrent calls in one process using AsyncLocalStorage labels; real filesystem and exited child PID; only rename scheduling paused via node:test mock.module; not cross-process E2E."
+    },
+    {
+      "script": "prev-old-lock.mjs",
+      "source": "import * as fs from 'node:fs/promises';\nimport {mock} from 'node:test';\nimport {AsyncLocalStorage} from 'node:async_hooks';\nimport {spawn} from 'node:child_process';\nconst base='/tmp/codex-tool-runs/svton/m2-r2-review-20260930';\nconst dir=await fs.mkdtemp(base+'/prev-race-'),file=dir+'/state.json',lock=file+'.lock';\nconst child=spawn(process.execPath,['-e','process.exit(0)']);await new Promise(r=>child.on('exit',r));\ntry{process.kill(child.pid,0);throw Error('fixture PID reused')}catch(e){if(e.code!=='ESRCH')throw e;}\nawait fs.writeFile(lock,`${child.pid}\\tdead-owner-token\\n`);\nconst defer=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve}};\nconst paused=defer(),resume=defer(),bEntered=defer(),releaseB=defer(),aEntered=defer(),releaseA=defer();\nconst actor=new AsyncLocalStorage();let hooked=false,active=0,maxActive=0,bActive=false;\nlet aOverwroteLiveB=false;\nconst {default:ignored,...named}=fs;\nmock.module('node:fs/promises',{namedExports:{...named,rename:async(from,to)=>{\n if(actor.getStore()==='A'&&to===lock&&!hooked){hooked=true;paused.resolve();await resume.promise;aOverwroteLiveB=bActive;}\n return fs.rename(from,to);\n}}});\nconst {withFileLock}=await import('/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/file-lock.js');\nawait new Promise(r=>setTimeout(r,650)); // old dead lock before any reaper starts\nconst a=actor.run('A',()=>withFileLock(file,async()=>{active++;maxActive=Math.max(active,maxActive);aEntered.resolve();await releaseA.promise;active--;},{timeoutMs:5000}));\nawait paused.promise;\nconst prevStat=await fs.stat(lock+'.prev'),lockStat=await fs.stat(lock);\n// No deliberate age delay while A holds prev; inherited old mtime is enough.\nconst b=actor.run('B',()=>withFileLock(file,async()=>{bActive=true;active++;maxActive=Math.max(active,maxActive);bEntered.resolve();await releaseB.promise;active--;bActive=false;},{timeoutMs:3000}));\nawait bEntered.promise;\nresume.resolve();await aEntered.promise;\nconst result={maxActive,aOverwroteLiveB,activeAtObservation:active,deadLockAgedBeforeReapingMs:650,deliberatePauseAfterPrevMs:0,prevAndLockSameInode:prevStat.ino===lockStat.ino,prevMtimeEqualsLockMtime:prevStat.mtimeMs===lockStat.mtimeMs,onlySchedulingMocked:true};\nreleaseA.resolve();await a;releaseB.resolve();await b;\nawait fs.writeFile(base+'/prev-old-lock-results.json',JSON.stringify(result,null,2));console.log(JSON.stringify(result));mock.restoreAll();\n",
+      "sha256": "cb12f9341eeb1dd012c45b5e0db953a9780635269ef2e3897656f9df4bb253b8",
+      "result": {
+        "maxActive": 2,
+        "aOverwroteLiveB": true,
+        "activeAtObservation": 2,
+        "deadLockAgedBeforeReapingMs": 650,
+        "deliberatePauseAfterPrevMs": 0,
+        "prevAndLockSameInode": true,
+        "prevMtimeEqualsLockMtime": true,
+        "onlySchedulingMocked": true
+      },
+      "exit": 0,
+      "method": "Two concurrent calls in one process using AsyncLocalStorage labels; real filesystem and exited child PID; only rename scheduling paused via node:test mock.module; not cross-process E2E."
+    }
+  ],
+  "logs": {
+    "test.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-review-20260930/test.log",
+      "sha256": "29644e8479c1f32ddaddb3e5e1a209df7a8c4a573cc138649a5a18c78e227331"
+    },
+    "typecheck.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-review-20260930/typecheck.log",
+      "sha256": "3af2c7f85db1a73e14ef30acb4bd2493cecef51fff8e8c6236b788ea32831e9f"
+    },
+    "pack.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-review-20260930/pack.log",
+      "sha256": "97f2e5466a8442a64e339aad9f775b5704a47fec8aa7cf29728ee544abbf2928"
+    },
+    "prev-old-lock.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-review-20260930/prev-old-lock.log",
+      "sha256": "8d1f3c5fd425b394b1fdeb4be254dd32fc862d97d4a4184a44f13d20383bde3a"
+    },
+    "prev-race.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-review-20260930/prev-race.log",
+      "sha256": "6f85001a441a0057241e7dcec0eef54410a5ef45c8cc1111e3474659385de61e"
+    },
+    "package-smoke.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-review-20260930/package-smoke.log",
+      "sha256": "74b6ac2078a8a9120867ca29eecca98e70c05339f6c80c6783d57feaf7973a32"
+    },
+    "build.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-review-20260930/build.log",
+      "sha256": "dc62f939cee853d720dd930f19d82d085aca6afc8d85df978da6b06cda7ff56d"
+    }
+  }
+}

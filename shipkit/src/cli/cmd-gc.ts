@@ -6,6 +6,7 @@ import { api, fetchLogTail, waitForJob } from '../shared/http.js';
 import { createEmitter } from './output.js';
 import { CliError } from './errors.js';
 import { resolveTarget } from './targets.js';
+import { resolveTargetToken } from '../shared/credentials.js';
 
 interface GcPreviewResponse {
   mode: 'preview';
@@ -37,12 +38,14 @@ export async function cmdGc(argv: string[]): Promise<number> {
   const config = loadConfig(args.values.config);
   const { name, target } = resolveTarget(config, args.values.to);
 
+  const rt = await resolveTargetToken(target, `runtime.targets.${name}`);
+  const ca = rt.caFile ? { caFile: rt.caFile } : {};
   if (args.values.execute) {
-    const started = await api<{ jobId: string }>(target.url, target.token, 'POST', '/api/gc', { dryRun: false }, 20_000);
+    const started = await api<{ jobId: string }>(rt.url, rt.token, 'POST', '/api/gc', { dryRun: false }, 20_000, ca);
     em.log.info('gc execute started', { target: name, jobId: started.jobId });
-    const job = await waitForJob(target.url, target.token, started.jobId, { timeoutMs: 15 * 60_000 });
+    const job = await waitForJob(rt.url, rt.token, started.jobId, { timeoutMs: 15 * 60_000, ...ca });
     if (job.status === 'failed') {
-      const tail = await fetchLogTail(target.url, target.token, started.jobId, 30);
+      const tail = await fetchLogTail(rt.url, rt.token, started.jobId, 30, ca);
       if (tail) em.log.error(`gc log tail:\n${tail.trim()}`);
       throw new CliError(`gc failed: ${job.error ?? 'unknown error'}`, 4);
     }
@@ -58,7 +61,7 @@ export async function cmdGc(argv: string[]): Promise<number> {
     return r.failed.length > 0 ? 4 : 0;
   }
 
-  const r = await api<GcPreviewResponse>(target.url, target.token, 'POST', '/api/gc', { dryRun: true });
+  const r = await api<GcPreviewResponse>(rt.url, rt.token, 'POST', '/api/gc', { dryRun: true }, 20_000, ca);
   em.payload({ target: name, ...r });
   if (!em.json) {
     em.log.info('gc preview (no changes made — pass --execute to apply)', { target: name });

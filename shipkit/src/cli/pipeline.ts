@@ -16,8 +16,10 @@ import { sweepExpiredBuilders } from '../providers/tencent-client.js';
 import type { BuilderHandle } from '../providers/provider.js';
 import { CliError } from './errors.js';
 import { readLastBuild, saveLastBuild } from './local-state.js';
+import { resolveProjectId } from './project-id.js';
 import { resolveTarget } from './targets.js';
 import { waitAndReport } from './job-report.js';
+import { requireDeploymentProtocol } from './deployment-protocol.js';
 
 export function minutesArg(v: string | undefined, def: number): number {
   const n = Number(v);
@@ -35,18 +37,27 @@ async function resolveGitSource(cwd: string, config: ShipConfig, log: Logger): P
 /** secrets and controller config must never enter the builder via --from-dir (F06) */
 const DEFAULT_SOURCE_EXCLUDES = ['.git', 'node_modules', '.env', 'deploy.env', '*.pem', 'ship.config.yaml', 'ship.config.yml', 'ship.config.json'];
 
-async function uploadTarballSource(handle: BuilderHandle, fromDir: string, spec: ShipSpec, log: Logger): Promise<BuildSource> {
-  const tgz = path.join(tmpdir(), `ship-src-${Date.now()}.tgz`);
-  const args = ['czf', tgz, '-C', fromDir];
-  const excludes = [...new Set([...DEFAULT_SOURCE_EXCLUDES, spec.envFile ?? ''])].filter(Boolean);
+/** tar the source dir into `outFile`; excludes stay in force and the `.` operand
+ *  is always passed — without it bsdtar fails with "no files or directories
+ *  specified" (LEGACY-01) */
+export async function packSourceDir(fromDir: string, outFile: string, envFile?: string): Promise<string[]> {
+  const args = ['czf', outFile, '-C', fromDir];
+  const excludes = [...new Set([...DEFAULT_SOURCE_EXCLUDES, envFile ?? ''])].filter(Boolean);
   for (const x of excludes) args.push(`--exclude=${x}`);
+  args.push('.');
   const r = await exec('tar', args, { timeoutMs: 10 * 60_000 });
   if (r.code !== 0) throw new CliError(`packing source dir failed: ${r.stderr.slice(0, 300)}`);
+  return excludes;
+}
+
+export async function uploadTarballSource(handle: BuilderHandle, fromDir: string, spec: ShipSpec, log: Logger): Promise<BuildSource> {
+  const tgz = path.join(tmpdir(), `ship-src-${Date.now()}.tgz`);
+  const excludes = await packSourceDir(fromDir, tgz, spec.envFile);
   try {
     const bytes = await readFile(tgz);
     if (bytes.length > 500 * 1024 * 1024) throw new CliError(`source tarball is ${Math.round(bytes.length / 1048576)}MB (limit 500MB)`);
     log.info('uploading source tarball', { bytes: bytes.length, from: fromDir, excludes });
-    const { id } = await apiUpload(handle.url, handle.token, bytes);
+    const { id } = await apiUpload(handle.url, handle.token, bytes, 10 * 60_000, handle.caFile ? { caFile: handle.caFile } : {});
     return { type: 'tarball', id };
   } finally {
     await rm(tgz, { force: true });
@@ -61,6 +72,7 @@ function digestRef(imageRef: string, digest?: string): string {
 }
 
 export interface BuildOutcome {
+  project: string;
   spec: ShipSpec;
   build: BuildResult;
   push: PushResult;
@@ -80,6 +92,8 @@ export async function runBuildPipeline(o: {
 }): Promise<BuildOutcome> {
   const log = o.logger;
   const spec = loadSpecAt(o.cwd);
+  const fromDir = o.fromDir ? path.resolve(o.cwd, o.fromDir) : undefined;
+  const project = await resolveProjectId(o.cwd, o.config, fromDir);
   if (!o.config.registry) throw new CliError('config.registry (url + namespace) is required to push images');
   const registry = o.config.registry;
   await sweepExpiredBuilders((m, meta) => log.info(m, meta));
@@ -89,10 +103,11 @@ export async function runBuildPipeline(o: {
   // the FULL task budget: build wait + push wait + upload/overhead (RA03)
   const taskBudgetMs = o.timeoutMs * 2 + 15 * 60_000;
   const runTask = async (handle: BuilderHandle): Promise<BuildOutcome> => {
-    const source = o.fromDir
-      ? await uploadTarballSource(handle, o.fromDir, spec, log)
+    const source = fromDir
+      ? await uploadTarballSource(handle, fromDir, spec, log)
       : await resolveGitSource(o.cwd, o.config, log);
-    const started = await api<{ jobId: string }>(handle.url, handle.token, 'POST', '/api/build', { source, spec, tag: o.tag });
+    const httpOpts = handle.caFile ? { caFile: handle.caFile } : {};
+    const started = await api<{ jobId: string }>(handle.url, handle.token, 'POST', '/api/build', { source, spec, tag: o.tag }, 20_000, httpOpts);
     const buildJob = await waitAndReport(handle, started.jobId, 'build', log, o.timeoutMs);
     const build = buildJob.result as BuildResult;
 
@@ -101,13 +116,13 @@ export async function runBuildPipeline(o: {
       tag: build.tag,
       registry: registry.url,
       namespace: registry.namespace,
-    });
+    }, 20_000, httpOpts);
     const pushJob = await waitAndReport(handle, pushed.jobId, 'push', log, o.timeoutMs);
     const push = pushJob.result as PushResult;
 
     const imageRef = digestRef(push.imageRef, push.digest);
-    await saveLastBuild({ app: spec.name, imageRef, tag: build.tag, digest: push.digest, at: new Date().toISOString(), builderUrl: handle.url });
-    return { spec, build, push, imageRef, builderUrl: handle.url };
+    await saveLastBuild({ app: spec.name, project, imageRef, tag: build.tag, digest: push.digest, at: new Date().toISOString(), builderUrl: handle.url });
+    return { project, spec, build, push, imageRef, builderUrl: handle.url };
   };
   try {
     // leased execution: another CLI cannot destroy this machine mid-task (RA04)
@@ -132,6 +147,9 @@ export async function runDeployPipeline(o: {
   logger: Logger;
   app?: string;
   imageRef?: string;
+  /** Provenance supplied by an immediately preceding build, including local uploads. */
+  project?: string;
+  fromDir?: string;
   envFile?: string;
   keepEnv?: boolean;
   targetName?: string;
@@ -140,12 +158,14 @@ export async function runDeployPipeline(o: {
   const log = o.logger;
   const spec = loadSpecAt(o.cwd);
   const app = o.app ?? spec.name;
-  const imageRef = o.imageRef ?? (await readLastBuild(app))?.imageRef;
+  const project = o.project ?? await resolveProjectId(o.cwd, o.config, o.fromDir);
+  const imageRef = o.imageRef ?? (await readLastBuild(app, project))?.imageRef;
   if (!imageRef) {
     throw new CliError(`no imageRef for app '${app}' — pass --ref or run \`ship build\` from this project first`);
   }
 
   const { name, target } = resolveTarget(o.config, o.targetName);
+  const env = name; // the runtime target IS the environment identity
 
   // env contract (F32): an explicit or declared env file must exist; --keep-env opts out explicitly
   let envFileContent: string | undefined;
@@ -163,8 +183,10 @@ export async function runDeployPipeline(o: {
   if (envFileContent !== undefined) log.info('attaching runtime env file', { redacted: true });
 
   log.info('deploying', { app, imageRef, target: name });
-  const started = await api<{ jobId: string }>(target.url, target.token, 'POST', '/api/deploy', { app, imageRef, spec, envFileContent });
-  const job = await waitAndReport({ url: target.url, token: target.token }, started.jobId, 'deploy', log, o.timeoutMs);
+  const keepEnv = Boolean(o.keepEnv && envFileContent === undefined);
+  const rt = await requireDeploymentProtocol(target, `runtime.targets.${name}`, keepEnv);
+  const started = await api<{ jobId: string }>(rt.url, rt.token, 'POST', '/api/deploy', { app, project, env, imageRef, spec, envFileContent, keepEnv }, 20_000, rt.caFile ? { caFile: rt.caFile } : {});
+  const job = await waitAndReport({ url: rt.url, token: rt.token, ...(rt.caFile ? { caFile: rt.caFile } : {}) }, started.jobId, 'deploy', log, o.timeoutMs);
   const result = job.result as DeployResult;
   return { ...result, target: name };
 }

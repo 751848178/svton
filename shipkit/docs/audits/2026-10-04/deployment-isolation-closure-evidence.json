@@ -1,0 +1,62 @@
+{
+  "date": "2026-10-04",
+  "scope": "Shipkit script deployment ownership and image provenance",
+  "result": "closed within tested script scope",
+  "tests": {
+    "full": {
+      "pass": 298,
+      "fail": 0,
+      "log": "/tmp/codex-tool-runs/svton/ownership-closure/final-full.log"
+    },
+    "installer": {
+      "pass": 17,
+      "fail": 0
+    },
+    "installedIsolation": {
+      "pass": 29,
+      "fail": 0,
+      "log": "/tmp/codex-tool-runs/svton/ownership-closure/final-package-smoke.log"
+    },
+    "packageSmokeChecks": 19
+  },
+  "packages": [
+    {
+      "path": "/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/pack/shipkit-0.5.0.tgz",
+      "sha256": "a2aef2139f897774c9ae5e332011005aeae7f5158b4e980cf9c74c3c614733c0",
+      "matchedJavaScriptFiles": 156,
+      "appleDoubleMetadataEntries": 0,
+      "mismatches": []
+    },
+    {
+      "path": "/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/pack/ship-agent-0.5.0.tgz",
+      "sha256": "8ea63a08f63f93d5a7209d8f2b77b88dbcb6b9d71d40dbc3663f7410e823a0c2",
+      "matchedJavaScriptFiles": 156,
+      "appleDoubleMetadataEntries": 156,
+      "mismatches": []
+    }
+  ],
+  "sourceLineCounts": {
+    "/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/src/agent/docker.ts": 187,
+    "/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/src/agent/handlers-deploy.ts": 124,
+    "/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/src/agent/deployment-activation.ts": 91,
+    "/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/src/agent/project-binding.ts": 104,
+    "/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/src/agent/route-guards.ts": 40,
+    "/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/src/agent/routes-images.ts": 143,
+    "/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/src/cli/project-id.ts": 55,
+    "/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/src/cli/pipeline.ts": 191,
+    "/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/src/cli/cmd-deploy.ts": 40,
+    "/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/src/cli/cmd-release.ts": 55,
+    "/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/src/cli/cmd-rollback.ts": 42,
+    "/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/src/cli/deployment-protocol.ts": 18,
+    "/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/src/cli/cmd-doctor.ts": 127,
+    "/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/src/cli/init/wizard-fixtures.ts": 133,
+    "/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/src/cli/main.ts": 140,
+    "/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/src/shared/deployment-identity.ts": 11,
+    "/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/src/shared/config.ts": 178,
+    "/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/scripts/package-smoke.mjs": 195
+  },
+  "diffCheckExit": 0,
+  "realDockerUsed": false,
+  "realCloudUsed": false,
+  "testBoundary": "Real localhost HTTP/TCP and temporary filesystem; Docker execution simulated; npm installation uses isolated prefix and temporary cache."
+}

@@ -1,0 +1,275 @@
+{
+  "date": "2026-10-04",
+  "timezone": "Asia/Shanghai",
+  "scope": "Local script state-file lock, prior four fixes closure only",
+  "conclusion": "Prior reported schedules pass. One P2 recovery defect remains: failed choosing marker cleanup is not recorded for same-process retry recovery.",
+  "validation": {
+    "full": "267/267",
+    "installer": "17/17",
+    "build": "pass",
+    "typecheck": "pass",
+    "pack": "pass",
+    "packageSmoke": "pass"
+  },
+  "sourceHashes": {
+    "file-lock.ts": "6341b018034743074e2d40e67e8f4a64051f27520c983f0c367158b3e21f0180",
+    "lock-registry.ts": "ed0abbe1ac383d5f1d43f990bb14588b8379c31fce2c02bfb07fe72f3f9f59da",
+    "lock-pubmutex.ts": "04e5e112cadfe847b9be10204065dcff2337a49e302e06f8556fb5c529741811",
+    "lock-bindtest.ts": "ce836d9a50e00c6e028a6dcf6faa6effba6410f84173f547cb6ebc4db71272ca",
+    "file-lock-budget.test.ts": "5134db7b8627f3a4d71ab6ea00f8a35756e2e2a59a695da4e290c9b401d8c7fd",
+    "file-lock-faults.test.ts": "db93209986f1985f5c7349725fe68526b23485bd28fb5cf4fb7bdccf2caa8aa7"
+  },
+  "runtimeSourceUnchangedDuringReview": true,
+  "results": {
+    "choosing-cleanup-result.json": {
+      "root": "/private/tmp/ship-choosing-cleanup-aup6Pa",
+      "pid": 70350,
+      "firstError": {
+        "message": "EACCES: permission denied, rmdir '/private/tmp/ship-choosing-cleanup-aup6Pa/state.json.pubc-70350-0bfe5ae4'",
+        "code": "EACCES"
+      },
+      "firstRan": false,
+      "afterRestore": [
+        "state.json.pubc-70350-0bfe5ae4",
+        "state.json.pubq-000000000001-70350-0bfe5ae4"
+      ],
+      "secondError": "无法获得文件锁（获取预算耗尽）：发布互斥等待超时",
+      "secondElapsed": 256,
+      "secondRan": false,
+      "afterSecond": [
+        "state.json.pubc-70350-0bfe5ae4"
+      ],
+      "afterManualOrphanRemoval": "entered"
+    },
+    "full-readdir-permissions-evidence.json": {
+      "root": "/private/tmp/ship-reg03-full-permission-RHXm6J",
+      "file": "/private/tmp/ship-reg03-full-permission-RHXm6J/state.json",
+      "registry": "/private/tmp/ship-reg03-full-permission-RHXm6J/registry",
+      "readError": "EACCES",
+      "firstPort": 54449,
+      "paused": {
+        "event": "before-publish",
+        "port": 64621,
+        "at": 1791076999664
+      },
+      "aDuringFault": null,
+      "overlapping": false,
+      "mapped": 64621,
+      "a": [
+        {
+          "event": "entered",
+          "old": 1,
+          "port": 64621,
+          "pid": 68653,
+          "at": 1791077000159
+        },
+        {
+          "event": "finished",
+          "at": 1791077000160
+        }
+      ],
+      "b": [
+        {
+          "event": "before-publish",
+          "port": 64621,
+          "at": 1791076999664
+        },
+        {
+          "event": "entered",
+          "old": 0,
+          "port": 64621,
+          "pid": 68652,
+          "at": 1791076999977
+        },
+        {
+          "event": "finished",
+          "at": 1791077000137
+        }
+      ],
+      "final": 2,
+      "expectedFinal": 2
+    },
+    "cleanup-recovery-evidence.json": {
+      "initial": {
+        "value": "first"
+      },
+      "recovered": {
+        "value": "recovered"
+      },
+      "callbackRan": true,
+      "expired": true
+    },
+    "retry-bind-result.json": {
+      "timeoutMs": 150,
+      "pauseMs": 300,
+      "callbackRan": false,
+      "error": "无法获得文件锁（等待 150ms 超时）：/private/tmp/ship-retry-deadline-8TAJ5L/state.json — holder pid 70394 is alive；不会抢占仍被持有的锁",
+      "returnedAtMs": 151.587584,
+      "pausedAtMs": 51.184,
+      "calls": 2,
+      "token": null,
+      "method": "First listen really fails against own live holder; only second listen is delayed 300ms before invoking the original. Real probe, live banner and bind failure; no syscall result is faked."
+    },
+    "publication-write-result.json": {
+      "mode": "write",
+      "timeoutMs": 100,
+      "pauseMs": 300,
+      "callbackRan": false,
+      "error": "无法获得文件锁（等待 100ms 超时）：/private/tmp/ship-publication-deadline-a3U5ct/state.json — holder cannot be identified (port busy, no banner)；不会抢占仍被持有的锁",
+      "returnedAtMs": 102.09062499999999,
+      "pausedAtMs": 63.917666000000004,
+      "resumeAtMs": 364.966791,
+      "filesAtReturn": [
+        ".7edf8d94194b4adf82e8.json.d2f47b144bb9.tmp",
+        "7edf8d94194b4adf82e8.json.pubq-000000000001-70890-5836d142"
+      ],
+      "filesAfterDrain": [],
+      "claimAfterDrain": null,
+      "tokenAfterDrain": null,
+      "recovered": true,
+      "method": "Only a scheduling pause around a real temp write or before the original rename. All filesystem and network calls execute unchanged. Synthetic unique state file, own-key cleanup only."
+    },
+    "publication-rename-result.json": {
+      "mode": "rename",
+      "timeoutMs": 100,
+      "pauseMs": 300,
+      "callbackRan": false,
+      "error": "无法获得文件锁（等待 100ms 超时）：/private/tmp/ship-publication-deadline-0nlMWk/state.json — holder cannot be identified (port busy, no banner)；不会抢占仍被持有的锁",
+      "returnedAtMs": 101.19000000000001,
+      "pausedAtMs": 65.91475,
+      "resumeAtMs": 366.965375,
+      "filesAtReturn": [
+        ".96dc76632c57be334855.json.197bb1ee605e.tmp",
+        "96dc76632c57be334855.json.pubq-000000000001-70780-29a26752"
+      ],
+      "filesAfterDrain": [
+        "96dc76632c57be334855.json"
+      ],
+      "claimAfterDrain": {
+        "port": 54588
+      },
+      "tokenAfterDrain": null,
+      "recovered": true,
+      "method": "Only a scheduling pause around a real temp write or before the original rename. All filesystem and network calls execute unchanged. Synthetic unique state file, own-key cleanup only."
+    }
+  },
+  "logs": [
+    {
+      "path": "/tmp/codex-tool-runs/svton/script-lock-closure-build-20261004-092150.log",
+      "command": "pnpm run build",
+      "exitCode": "0",
+      "sha256": "408757dd0be4c56da9b7929e43a7ba0894b0b68ad172cdb18d3e0e32a8ee07ff",
+      "countsAsScenarioEvidence": true
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/script-lock-closure-choosing-cleanup-20261004-092353.log",
+      "command": "node --experimental-test-module-mocks /tmp/codex-tool-runs/svton/script-lock-closure-20261004/choosing-cleanup.mjs",
+      "exitCode": "0",
+      "sha256": "788a88d9e4a1537c44631c49a82223e7254194a6e8a8b894d98986730b384007",
+      "countsAsScenarioEvidence": true
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/script-lock-closure-directory-20261004-092319.log",
+      "command": "node --experimental-test-module-mocks /tmp/codex-tool-runs/svton/script-lock-closure-20261004/full-readdir-permissions.mjs",
+      "exitCode": "0",
+      "sha256": "0cd9caac1efb25638bd1cd5b90bd184cf4b1437aacd7a2dc2145c27b7e1681ed",
+      "countsAsScenarioEvidence": true
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/script-lock-closure-full-20261004-092235.log",
+      "command": "pnpm run test",
+      "exitCode": "0",
+      "sha256": "1f5fd269e1a63fa7e027dddc0b07bb92feda123dde42dfdb52df43117329198f",
+      "countsAsScenarioEvidence": true
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/script-lock-closure-late-rename-20261004-092420.log",
+      "command": "node --experimental-test-module-mocks /tmp/codex-tool-runs/svton/script-lock-closure-20261004/publication-deadline.mjs rename",
+      "exitCode": "0",
+      "sha256": "cb4b1d1948997466a1ba23aa4b4e6d35c7d765dccac8120e3249afafe991218e",
+      "countsAsScenarioEvidence": true
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/script-lock-closure-pack-20261004-092413.log",
+      "command": "env npm_config_cache=/tmp/codex-tool-runs/svton/npm-cache pnpm run pack:tarball",
+      "exitCode": "0",
+      "sha256": "d697989fcaeba320078d851c6d430c94c99e9f4c4b8d8197f9c3c1d1b38327ec",
+      "countsAsScenarioEvidence": true
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/script-lock-closure-queue-cleanup-20261004-092316.log",
+      "command": "node /tmp/codex-tool-runs/svton/script-lock-closure-20261004/cleanup-recovery.mjs",
+      "exitCode": "0",
+      "sha256": "0d9693ace703311a1e95bd276cbec40a18c69ba4ad01b6ddf1dffcd59e3bf10a",
+      "countsAsScenarioEvidence": true
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/script-lock-closure-retry-bind-20261004-092357.log",
+      "command": "node --experimental-test-module-mocks /tmp/codex-tool-runs/svton/script-lock-closure-20261004/retry-bind-deadline.mjs",
+      "exitCode": "0",
+      "sha256": "ab27a365a27c56f61a29e5c9277907378190f440eded27f14e962fa6f09ee089",
+      "countsAsScenarioEvidence": true
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/script-lock-closure-smoke-20261004-092453.log",
+      "command": "env npm_config_cache=/tmp/codex-tool-runs/svton/npm-cache pnpm run smoke:package",
+      "exitCode": "0",
+      "sha256": "9990e0349f527b506e425e2b20d8fcb94bed639dbb598a2288efbc5ac929e2d8",
+      "countsAsScenarioEvidence": true
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/script-lock-closure-temp-20261004-092416.log",
+      "command": "node --experimental-test-module-mocks /tmp/codex-tool-runs/svton/script-lock-closure-20261004/publication-deadline.mjs write",
+      "exitCode": "0",
+      "sha256": "207ba5a60a41c3b2a3edc4120bcdeb29dddb8ef7425932b516045b1083382224",
+      "countsAsScenarioEvidence": false
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/script-lock-closure-temp-isolated-20261004-092441.log",
+      "command": "node --experimental-test-module-mocks /tmp/codex-tool-runs/svton/script-lock-closure-20261004/publication-deadline.mjs write",
+      "exitCode": "0",
+      "sha256": "97904fd83a81803454f1bb8f514ecda4d464e96bbf82a85249db720b75855f1b",
+      "countsAsScenarioEvidence": true
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/script-lock-closure-typecheck-20261004-092413.log",
+      "command": "pnpm run typecheck",
+      "exitCode": "0",
+      "sha256": "1871027926292cb78eb41228d00a95ef12dee6b2bed31ff63c83f77587845aca",
+      "countsAsScenarioEvidence": true
+    }
+  ],
+  "scripts": [
+    {
+      "path": "/tmp/codex-tool-runs/svton/script-lock-closure-20261004/choosing-cleanup.mjs",
+      "sha256": "bdc879e5da83b85748cc700348d7f94c58fa8079f45262fd0af1064be92fe75a",
+      "source": "import { mock } from 'node:test';\nimport path from 'node:path';\nconst fs = await import('node:fs/promises');\nconst root = await fs.realpath(await fs.mkdtemp('/tmp/ship-choosing-cleanup-'));\nconst claim = path.join(root, 'state.json');\nlet fault = true;\nlet ran1 = false;\nlet ran2 = false;\nconst results = { root, pid: process.pid };\nmock.module('node:fs/promises', { namedExports: { ...fs,\n  mkdir: async (p, ...args) => {\n    const value = await fs.mkdir(p, ...args);\n    if (fault && String(p).startsWith(root) && String(p).includes('.pubq-')) {\n      fault = false;\n      await fs.chmod(root, 0o555);\n    }\n    return value;\n  },\n} });\nconst { withPublishMutex } = await import('/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/lock-pubmutex.js');\ntry {\n  await withPublishMutex(claim, claim, () => false, async () => { ran1 = true; }).catch(e => { results.firstError = { message:e.message, code:e.code }; });\n  results.firstRan = ran1;\n  await fs.chmod(root, 0o755);\n  results.afterRestore = await fs.readdir(root);\n  const start = Date.now();\n  await withPublishMutex(claim, claim, () => Date.now() - start >= 250, async () => { ran2 = true; }).catch(e => { results.secondError = e.message; });\n  results.secondElapsed = Date.now() - start;\n  results.secondRan = ran2;\n  results.afterSecond = await fs.readdir(root);\n  // The process and restored directory remain healthy: only deletion of our\n  // exact orphaned choosing marker allows this same key to progress again.\n  for (const name of results.afterSecond.filter(x => x.includes('.pubc-'))) await fs.rm(path.join(root, name), { recursive:true, force:true });\n  const deadline = Date.now() + 250;\n  results.afterManualOrphanRemoval = await withPublishMutex(claim, claim, () => Date.now() >= deadline, async () => 'entered');\n  await fs.writeFile('/tmp/codex-tool-runs/svton/script-lock-closure-20261004/choosing-cleanup-result.json', JSON.stringify(results, null, 2));\n  console.log(JSON.stringify(results, null, 2));\n} finally {\n  await fs.chmod(root, 0o755).catch(()=>{});\n  await fs.rm(root, { recursive: true, force: true });\n}\n"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/script-lock-closure-20261004/full-readdir-permissions.mjs",
+      "sha256": "d8d169e28c75b9124c486b70d283e87fce8f314218bb53c4db5ee88e7d8b76de",
+      "source": "import { spawn } from 'node:child_process';\nimport { createServer } from 'node:net';\nimport { createHash } from 'node:crypto';\nimport { mkdtemp, mkdir, chmod, rm, readFile, writeFile, readdir, realpath } from 'node:fs/promises';\nimport path from 'node:path';\nconst root=await realpath(await mkdtemp('/tmp/ship-reg03-full-permission-'));\nconst registry=path.join(root,'registry');\nawait mkdir(registry);\nconst file=path.join(root,'state.json');\nawait writeFile(file,'0');\nconst key=file;\nconst claim=path.join(registry,`${createHash('sha256').update(key).digest('hex').slice(0,20)}.json`);\nconst firstPort=49152+(createHash('sha256').update([key,'0'].join('\\u0000')).digest().readUInt32BE(0)%16383);\nconst mod='file:///Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/file-lock.js';\nconst children=[];\nfunction child(name,pausePublish) {\n const c=spawn(process.execPath,['--experimental-test-module-mocks','--input-type=module','-e',`\nimport { mock } from 'node:test';\nconst real=await import('node:fs/promises');\nconst prefix='/var/tmp/shipkit-lock-ports';\nconst dest=${JSON.stringify(registry)};\nconst map=p=>typeof p==='string'&&p.startsWith(prefix)?dest+p.slice(prefix.length):p;\nlet resume,release,paused=false;\nprocess.on('message',m=>{if(m==='resume')resume?.();if(m==='release')release?.();if(m==='exit')process.exit(0);});\nconst wrap={...real};\nfor(const k of ['access','mkdir','readFile','readdir','rm','writeFile'])wrap[k]=(...a)=>real[k](map(a[0]),...a.slice(1));\nwrap.rename=async(a,b)=>{\n if(${JSON.stringify(pausePublish)}&&!paused&&String(b).startsWith(prefix)&&String(b).endsWith('.json')){\n  paused=true;const gate=new Promise(r=>resume=r);\n  process.send({event:'before-publish',port:JSON.parse(await real.readFile(map(a),'utf8')).port});\n  await gate;\n }\n return real.rename(map(a),map(b));\n};\nmock.module('node:fs/promises',{namedExports:wrap});\nconst {withFileLock}=await import(${JSON.stringify(mod)});\ntry{\n await withFileLock(${JSON.stringify(file)},async()=>{\n  const gate=new Promise(r=>release=r);\n  const old=Number(await real.readFile(${JSON.stringify(file)},'utf8'));\n  const port=JSON.parse(await real.readFile(${JSON.stringify(claim)},'utf8')).port;\n  process.send({event:'entered',old,port,pid:process.pid});\n  await gate;\n  await real.writeFile(${JSON.stringify(file)},String(old+1));\n },{timeoutMs:15000});\n process.send({event:'finished'});\n}catch(e){process.send({event:'error',message:e.message,code:e.code});}\n`],{stdio:['ignore','ignore','inherit','ipc']});\n const events=[];\n const exited=new Promise(r=>c.on('exit',r));\n c.on('message',e=>events.push({...e,at:Date.now()}));\n children.push({c,exited});\n return {c,events,wait:async event=>{const end=Date.now()+5000;while(Date.now()<end){const found=events.find(e=>e.event===event);if(found)return found;await new Promise(r=>setTimeout(r,10));}return null;}};\n}\nconst blocker=createServer(s=>s.destroy());\ntry{\n await new Promise((r,j)=>{blocker.once('error',j);blocker.listen(firstPort,'127.0.0.1',r);});\n const b=child('B',true);\n const paused=await b.wait('before-publish');\n if(!paused)throw new Error('B not parked '+JSON.stringify(b.events));\n await new Promise(r=>blocker.close(r));\n await chmod(registry,0o333);\n const readError=await readdir(registry).then(()=>null,e=>e.code);\n const a=child('A',false);\n await new Promise(r=>setTimeout(r,300));\n const aDuringFault=a.events.find(e=>e.event==='entered')??null;\n await chmod(registry,0o755);\n b.c.send('resume');\n const bEntered=await b.wait('entered');\n if(!bEntered)throw new Error('B did not resume '+JSON.stringify(b.events));\n await new Promise(r=>setTimeout(r,150));\n const aBeforeBRelease=a.events.find(e=>e.event==='entered')??null;\n const overlapping=Boolean(aBeforeBRelease);\n const mapped=JSON.parse(await readFile(claim,'utf8')).port;\n b.c.send('release'); await b.wait('finished');\n const aEntered=await a.wait('entered');\n if(!aEntered)throw new Error('A did not recover '+JSON.stringify(a.events));\n a.c.send('release'); await a.wait('finished');\n const evidence={root,file,registry,readError,firstPort,paused,aDuringFault,overlapping,mapped,a:a.events,b:b.events,final:Number(await readFile(file,'utf8')),expectedFinal:2};\n await writeFile('/tmp/codex-tool-runs/svton/script-lock-closure-20261004/full-readdir-permissions-evidence.json',JSON.stringify(evidence,null,2));\n console.log(JSON.stringify(evidence,null,2));\n}finally{\n await chmod(registry,0o755).catch(()=>{});\n blocker.close();\n for(const{c}of children)c.send('exit');\n await Promise.all(children.map(x=>x.exited));\n await rm(root,{recursive:true,force:true});\n}\n"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/script-lock-closure-20261004/cleanup-recovery.mjs",
+      "sha256": "2ba5c0a4321f4b1640561555dcacd4f5d91325903ca1eba1740162eaf9d1adc6",
+      "source": "import { mkdtemp, chmod, rm, writeFile } from 'node:fs/promises';\nimport path from 'node:path';\nimport { withPublishMutex } from '/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/lock-pubmutex.js';\nconst root=await mkdtemp('/tmp/ship-reg03-pubmutex-cleanup-');\nconst claim=path.join(root,'claim.json');\ntry {\n const initial=await withPublishMutex(claim,claim,()=>false,async()=>{await chmod(root,0o555);return 'first';}).then(value=>({value}),e=>({message:e.message,code:e.code}));\n await chmod(root,0o755);\n let callbackRan=false;\n const deadline=Date.now()+100;\n const later=withPublishMutex(claim,claim,()=>Date.now()>=deadline,async()=>{callbackRan=true;return 'recovered';});\n const recovered=await Promise.race([later.then(value=>({value}),e=>({message:e.message,code:e.code})),new Promise(r=>setTimeout(()=>r({stillPending:true}),350))]);\n const evidence={initial,recovered,callbackRan,expired:true};\n await writeFile('/tmp/codex-tool-runs/svton/script-lock-closure-20261004/cleanup-recovery-evidence.json',JSON.stringify(evidence,null,2));\n console.log(JSON.stringify(evidence,null,2));\n} finally {\n await chmod(root,0o755).catch(()=>{});\n await rm(root,{recursive:true,force:true});\n}\n"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/script-lock-closure-20261004/retry-bind-deadline.mjs",
+      "sha256": "81c361282a649c2c67d6def1bf6e00e4f4e398fae18c5be576c39c9193152f65",
+      "source": "import { mock } from 'node:test';\nimport { createHash } from 'node:crypto';\nimport path from 'node:path';\nconst fs = await import('node:fs/promises');\nconst net = await import('node:net');\nconst root = await fs.realpath(await fs.mkdtemp('/tmp/ship-retry-deadline-'));\nconst file = path.join(root, 'state.json');\nconst hash = createHash('sha256').update(file).digest('hex');\nconst claim = path.join('/var/tmp/shipkit-lock-ports', hash.slice(0, 20) + '.json');\nconst { claimPort } = await import('file:///Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/lock-registry.js');\nconst port = await claimPort(file);\nconst holder = net.createServer(s => s.end(`shiplock:${process.pid}:${hash.slice(0,8)}\\n`));\nawait new Promise((r, reject) => { holder.once('error', reject); holder.listen(port, '127.0.0.1', r); });\nlet calls = 0;\nlet start;\nlet pausedAtMs = null;\nmock.module('node:net', { namedExports: { ...net, createServer: (...args) => {\n  const s = net.createServer(...args);\n  const listen = s.listen.bind(s);\n  s.listen = (...params) => {\n    calls++;\n    if (calls === 2) {\n      pausedAtMs = performance.now() - start;\n      // Async scheduling delay before the REAL second listen. Holder stays live.\n      setTimeout(() => listen(...params), 300);\n      return s;\n    }\n    return listen(...params);\n  };\n  return s;\n} } });\nconst { withFileLock, heldToken } = await import('file:///Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/file-lock.js');\nlet callbackRan = false;\nlet error = null;\ntry {\n  start = performance.now();\n  try { await withFileLock(file, () => { callbackRan = true; }, { timeoutMs: 150 }); }\n  catch (e) { error = e.message; }\n  const returnedAtMs = performance.now() - start;\n  const result = { timeoutMs: 150, pauseMs: 300, callbackRan, error, returnedAtMs, pausedAtMs, calls, token: heldToken(file),\n    method: 'First listen really fails against own live holder; only second listen is delayed 300ms before invoking the original. Real probe, live banner and bind failure; no syscall result is faked.' };\n  await fs.writeFile('/tmp/codex-tool-runs/svton/script-lock-closure-20261004/retry-bind-result.json', JSON.stringify(result, null, 2));\n  console.log(JSON.stringify(result));\n} finally {\n  await new Promise(r => holder.close(r));\n  await fs.rm(claim, { force: true });\n  await fs.rm(root, { recursive: true, force: true });\n}\n"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/script-lock-closure-20261004/publication-deadline.mjs",
+      "sha256": "63f163f1ad9a19c2f1b5224976dde5c6958f90ed99290f6b85b89f55a5611656",
+      "source": "import { mock } from 'node:test';\nimport { createHash } from 'node:crypto';\nimport path from 'node:path';\nconst mode = process.argv[2] ?? 'write';\nconst fs = await import('node:fs/promises');\nconst sleep = ms => new Promise(r => setTimeout(r, ms));\nconst base = '/tmp/codex-tool-runs/svton/script-lock-closure-20261004';\nconst root = await fs.realpath(await fs.mkdtemp('/tmp/ship-publication-deadline-'));\nconst file = path.join(root, 'state.json');\nawait fs.writeFile(file, '0');\nconst stem = createHash('sha256').update(file).digest('hex').slice(0, 20) + '.json';\nconst registry = '/var/tmp/shipkit-lock-ports';\nconst claim = path.join(registry, stem);\nconst own = n => n === stem || n.startsWith(`${stem}.pub`) || n.startsWith(`.${stem}.`);\nlet pausedAtMs = null;\nlet resumeAtMs = null;\nlet start = 0;\nlet once = true;\nmock.module('node:fs/promises', { namedExports: { ...fs,\n  writeFile: async (...args) => {\n    const r = await fs.writeFile(...args);\n    if (mode === 'write' && once && String(args[0]).includes(`.${stem}.`) && String(args[0]).endsWith('.tmp')) {\n      once = false;\n      pausedAtMs = performance.now() - start;\n      await sleep(300);\n      resumeAtMs = performance.now() - start;\n    }\n    return r;\n  },\n  rename: async (...args) => {\n    if (mode === 'rename' && once && String(args[1]) === claim) {\n      once = false;\n      pausedAtMs = performance.now() - start;\n      await sleep(300);\n      resumeAtMs = performance.now() - start;\n    }\n    return fs.rename(...args);\n  }\n} });\nconst { withFileLock, heldToken } = await import('file:///Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/file-lock.js');\nlet callbackRan = false;\nlet error = null;\nlet result;\ntry {\n  start = performance.now();\n  try { await withFileLock(file, () => { callbackRan = true; }, { timeoutMs: 100 }); }\n  catch (e) { error = e.message; }\n  const returnedAtMs = performance.now() - start;\n  const filesAtReturn = (await fs.readdir(registry)).filter(own);\n  await sleep(650);\n  const filesAfterDrain = (await fs.readdir(registry)).filter(own);\n  const claimAfterDrain = await fs.readFile(claim, 'utf8').then(JSON.parse, () => null);\n  const tokenAfterDrain = heldToken(file);\n  if (pausedAtMs === null || pausedAtMs >= returnedAtMs) throw Error('Test precondition: publication pause was not reached during the timed acquisition');\n  let recovered = false;\n  await withFileLock(file, () => { recovered = true; }, { timeoutMs: 5000 });\n  result = { mode, timeoutMs: 100, pauseMs: 300, callbackRan, error, returnedAtMs, pausedAtMs, resumeAtMs,\n    filesAtReturn, filesAfterDrain, claimAfterDrain, tokenAfterDrain, recovered,\n    method: 'Only a scheduling pause around a real temp write or before the original rename. All filesystem and network calls execute unchanged. Synthetic unique state file, own-key cleanup only.' };\n  await fs.writeFile(`${base}/publication-${mode}-result.json`, JSON.stringify(result, null, 2));\n  console.log(JSON.stringify(result));\n} finally {\n  for (const n of (await fs.readdir(registry)).filter(own)) await fs.rm(path.join(registry, n), { recursive: true, force: true });\n  await fs.rm(root, { recursive: true, force: true });\n}\n"
+    }
+  ],
+  "methodology": [
+    "Choosing test uses only an exclusive temporary directory and actual mkdir/chmod/rm; no public registry change.",
+    "Permission replay only adapts observation to waiting and legal recovery; real fs results remain unchanged.",
+    "Initial parallel temp run did not reach the target pause before timeout and is excluded; isolated replay verifies the pause occurred within the timed acquisition.",
+    "exit 0 means successful observation/cleanup; read the recorded invariant and recovery results."
+  ]
+}

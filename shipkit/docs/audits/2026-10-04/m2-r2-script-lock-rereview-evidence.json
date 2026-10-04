@@ -1,0 +1,348 @@
+{
+  "date": "2026-10-04",
+  "timezone": "Asia/Shanghai",
+  "scope": "Local script state-file safety locking only",
+  "conclusion": "REG-03 and WAIT-01 remain open. Original schedules pass; directory-read fail-open, cleanup recovery, retry-bind deadline and temp-cleanup defects remain.",
+  "runtimeCodeModifiedByReview": false,
+  "sourceHashes": {
+    "file-lock.ts": "8fd244d823f67a5f58acea4941e0f6b39cbade610bf961d66aa432698d1d82fe",
+    "lock-registry.ts": "09b5e9f6620398071e91df3ae2852af703270abac5058d62ec12b3caaeae2117",
+    "lock-pubmutex.ts": "05e01000687a2af68d033df05b0ebc9a78b5c6b87abcecf8a73be1a7a28f09d8",
+    "lock-bindtest.ts": "ce836d9a50e00c6e028a6dcf6faa6effba6410f84173f547cb6ebc4db71272ca",
+    "file-lock-budget.test.ts": "ac26657f4ef9a5f42253c1ec3385245e9ab7bcdf30b137cbe873bf0f5e0ae87f",
+    "file-lock-pubmutex.test.ts": "c12a35a44cbf25d8152bdc7031f61872d685f7203c588ef273938ad78a2ba9a2"
+  },
+  "results": {
+    "publication-write-result.json": {
+      "mode": "write",
+      "timeoutMs": 100,
+      "pauseMs": 300,
+      "callbackRan": false,
+      "error": "无法获得文件锁（等待 100ms 超时）：/private/tmp/ship-publication-deadline-JnptCF/state.json — holder cannot be identified (port busy, no banner)；不会抢占仍被持有的锁",
+      "returnedAtMs": 101.75116599999998,
+      "pausedAtMs": 40.553416000000006,
+      "resumeAtMs": 341.492083,
+      "filesAtReturn": [
+        ".2c856ca62fd563a6f080.json.75b4ecdc6812.tmp",
+        "2c856ca62fd563a6f080.json.pubq-000000000001-44616-d45393e1"
+      ],
+      "filesAfterDrain": [
+        ".2c856ca62fd563a6f080.json.75b4ecdc6812.tmp"
+      ],
+      "claimAfterDrain": null,
+      "tokenAfterDrain": null,
+      "recovered": true,
+      "method": "Only a scheduling pause around a real temp write or before the original rename. All filesystem and network calls execute unchanged. Synthetic unique state file, own-key cleanup only."
+    },
+    "publication-rename-result.json": {
+      "mode": "rename",
+      "timeoutMs": 100,
+      "pauseMs": 300,
+      "callbackRan": false,
+      "error": "无法获得文件锁（等待 100ms 超时）：/private/tmp/ship-publication-deadline-mCpnAM/state.json — holder cannot be identified (port busy, no banner)；不会抢占仍被持有的锁",
+      "returnedAtMs": 100.095375,
+      "pausedAtMs": 43.851292,
+      "resumeAtMs": 344.806125,
+      "filesAtReturn": [
+        ".0e921d55ba417d5c966e.json.748689446ec4.tmp",
+        "0e921d55ba417d5c966e.json.pubq-000000000001-44633-28d58a56"
+      ],
+      "filesAfterDrain": [
+        "0e921d55ba417d5c966e.json"
+      ],
+      "claimAfterDrain": {
+        "port": 50963
+      },
+      "tokenAfterDrain": null,
+      "recovered": true,
+      "method": "Only a scheduling pause around a real temp write or before the original rename. All filesystem and network calls execute unchanged. Synthetic unique state file, own-key cleanup only."
+    },
+    "retry-bind-result.json": {
+      "timeoutMs": 150,
+      "pauseMs": 300,
+      "callbackRan": false,
+      "error": "无法获得文件锁（等待 150ms 超时）：/private/tmp/ship-retry-deadline-BS49AF/state.json — holder pid 44653 is alive；不会抢占仍被持有的锁",
+      "returnedAtMs": 324.28579199999996,
+      "pausedAtMs": 22.599582999999996,
+      "calls": 2,
+      "token": null,
+      "method": "First listen really fails against own live holder; only second listen is delayed 300ms before invoking the original. Real probe, live banner and bind failure; no syscall result is faked."
+    },
+    "publish-race-result.json": {
+      "schedule": "B read no existing claim and paused BEFORE its first REAL bindTest; A published, bound and kept its section; B resumed the real bind, skipped occupied A port, published a different claim and entered before A released.",
+      "simultaneousSections": 1,
+      "first": {
+        "event": "entered",
+        "old": 0,
+        "port": 56503
+      },
+      "second": null,
+      "pause": {
+        "event": "paused",
+        "port": 56503
+      },
+      "claimBefore": {
+        "port": 56503
+      },
+      "claimAfter": {
+        "port": 56503
+      },
+      "liveBannersWhileBothHeld": [
+        "shiplock:45238:bbc66481",
+        null
+      ],
+      "finalValue": 2,
+      "expected": 2,
+      "holderMessages": [
+        {
+          "event": "started"
+        },
+        {
+          "event": "entered",
+          "old": 0,
+          "port": 56503
+        },
+        {
+          "event": "finished"
+        }
+      ],
+      "delayedMessages": [
+        {
+          "event": "stderr",
+          "text": "(node:45237) ExperimentalWarning: Module mocking is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n"
+        },
+        {
+          "event": "started"
+        },
+        {
+          "event": "paused",
+          "port": 56503
+        },
+        {
+          "event": "entered",
+          "old": 1,
+          "port": 56503
+        },
+        {
+          "event": "finished"
+        }
+      ],
+      "method": "Only a scheduling barrier is injected using node:test mock.module for bindTest. The imported original bindTest is called unchanged after resume. All fs operations, listen/connect outcomes, child processes and counter values are real."
+    },
+    "scheduled-deadline-result.json": {
+      "timeoutMs": 50,
+      "allocationPauseMs": 250,
+      "pausedAtMs": 34.98175,
+      "callbackAtMs": null,
+      "totalMs": 50.16154100000001,
+      "error": "无法获得文件锁（等待 50ms 超时）：/private/tmp/ship-scheduled-deadline-u9i9XD/state.json — holder cannot be identified (port busy, no banner)；不会抢占仍被持有的锁",
+      "method": "Only an async scheduling delay before the ORIGINAL allocation bindTest is injected via node:test mock.module; the event loop remains runnable. All fs/listen/connect operations and outcomes are real."
+    },
+    "full-readdir-permissions-evidence.json": {
+      "root": "/private/tmp/ship-reg03-full-permission-gzSuNF",
+      "file": "/private/tmp/ship-reg03-full-permission-gzSuNF/state.json",
+      "registry": "/private/tmp/ship-reg03-full-permission-gzSuNF/registry",
+      "readError": "EACCES",
+      "firstPort": 61134,
+      "paused": {
+        "event": "before-publish",
+        "port": 61046,
+        "at": 1791045911081
+      },
+      "overlapping": true,
+      "mapped": 61046,
+      "a": [
+        {
+          "event": "entered",
+          "old": 0,
+          "port": 61134,
+          "pid": 45980,
+          "at": 1791045911136
+        },
+        {
+          "event": "finished",
+          "at": 1791045911158
+        }
+      ],
+      "b": [
+        {
+          "event": "before-publish",
+          "port": 61046,
+          "at": 1791045911081
+        },
+        {
+          "event": "entered",
+          "old": 0,
+          "port": 61046,
+          "pid": 45979,
+          "at": 1791045911148
+        },
+        {
+          "event": "finished",
+          "at": 1791045911157
+        }
+      ],
+      "final": 1,
+      "expectedFinal": 2
+    },
+    "readdir-permissions-evidence.json": {
+      "root": "/tmp/ship-reg03-pubmutex-permission-8H4eik",
+      "readError": "EACCES",
+      "overlapping": true,
+      "final": 1,
+      "expectedFinal": 2,
+      "a": [
+        {
+          "event": "entered",
+          "pid": 44709,
+          "old": 0,
+          "at": 1791045796652
+        },
+        {
+          "event": "finished",
+          "at": 1791045796685
+        }
+      ],
+      "b": [
+        {
+          "event": "entered",
+          "pid": 44710,
+          "old": 0,
+          "at": 1791045796674
+        },
+        {
+          "event": "finished",
+          "at": 1791045796685
+        }
+      ]
+    },
+    "cleanup-recovery-evidence.json": {
+      "initial": {
+        "message": "EACCES: permission denied, rmdir '/tmp/ship-reg03-pubmutex-cleanup-JkcpC6/claim.json.pubq-000000000001-45961-c4962254'",
+        "code": "EACCES"
+      },
+      "recovered": {
+        "stillPending": true
+      },
+      "callbackRan": false,
+      "expired": true
+    }
+  },
+  "logs": [
+    {
+      "path": "/tmp/codex-tool-runs/svton/reg03-wait01-rereview-build-20261004-20261004-004121.log",
+      "sha256": "e9873a59f28e23b480f93d0268f819b924e153cf5c82b3e6aaddb14cd60ae713",
+      "exitCode": "0",
+      "command": "pnpm run build"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/reg03-wait01-full-20261004-20261004-004148.log",
+      "sha256": "b36e49a776b8782b39fe0b19923cbcf16f4418552c1e69fd7fed2993b62b78c3",
+      "exitCode": "0",
+      "command": "pnpm run test"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/reg03-wait01-typecheck-20261004-20261004-004327.log",
+      "sha256": "76eddd776254ec47d2f1ee73e672f2fefe943912b56b677c6b7cf0983ecd0152",
+      "exitCode": "0",
+      "command": "pnpm run typecheck"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/reg03-wait01-pack-20261004-20261004-004327.log",
+      "sha256": "6612a2cc1da9c5acb09296f1346f82218eb71df0369e4cfb00dfb8888ec99049",
+      "exitCode": "0",
+      "command": "env npm_config_cache=/tmp/codex-tool-runs/svton/npm-cache pnpm run pack:tarball"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/reg03-wait01-package-smoke-20261004-20261004-004412.log",
+      "sha256": "bea39edc2a65ab3dc7f53295bc5aa16c4d55f98f4f4d1b7de18aafcb9da6abd4",
+      "exitCode": "0",
+      "command": "env npm_config_cache=/tmp/codex-tool-runs/svton/npm-cache pnpm run smoke:package"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/reg03-original-schedule-20261004-20261004-004356.log",
+      "sha256": "9c975395414e6c66f4517c10def9ecf25e35804e386a1a9bed5d68e807051522",
+      "exitCode": "0",
+      "command": "node --experimental-test-module-mocks /tmp/codex-tool-runs/svton/reg03-wait01-independent-20261004/publish-race.mjs"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/wait01-original-allocation-20261004-20261004-004357.log",
+      "sha256": "5e804b878d9a2251403e727c9c301b87734be1eff4ddc59f4c433f867be67f40",
+      "exitCode": "0",
+      "command": "node --experimental-test-module-mocks /tmp/codex-tool-runs/svton/reg03-wait01-independent-20261004/scheduled-deadline.mjs"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/wait01-publication-write-20261004-20261004-004301.log",
+      "sha256": "be73a50ee09cc5af772a9708f980b2bf252d40ab8731d0d6e22b88b2aa2146ec",
+      "exitCode": "0",
+      "command": "node --experimental-test-module-mocks /tmp/codex-tool-runs/svton/reg03-wait01-independent-20261004/publication-deadline.mjs write"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/wait01-publication-rename-20261004-20261004-004303.log",
+      "sha256": "a86203363245f61234705096e556f840c615b7fce5d46fd9670a834480eb5e6e",
+      "exitCode": "0",
+      "command": "node --experimental-test-module-mocks /tmp/codex-tool-runs/svton/reg03-wait01-independent-20261004/publication-deadline.mjs rename"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/wait01-retry-bind-20261004-20261004-004306.log",
+      "sha256": "b5ad54f0421f1e712baaaebb1685eaf1e1204607b36ce5e5689cd8a99a8d9b11",
+      "exitCode": "0",
+      "command": "node --experimental-test-module-mocks /tmp/codex-tool-runs/svton/reg03-wait01-independent-20261004/retry-bind-deadline.mjs"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/reg03-directory-read-failure-20261004-20261004-004511.log",
+      "sha256": "7db920f3d6c0523e0aa12ea6942ee1c90a5eade64cb787f82b4d3c314ecfc056",
+      "exitCode": "0",
+      "command": "node --experimental-test-module-mocks /tmp/codex-tool-runs/svton/reg03-review-20261004-agent/full-readdir-permissions.mjs"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/reg03-cleanup-recovery-20261004-20261004-004508.log",
+      "sha256": "b6cfd0d953d72a928d33e66b23fdf5ea67c073508a7be4fe3d5a8099011e9b54",
+      "exitCode": "0",
+      "command": "node /tmp/codex-tool-runs/svton/reg03-review-20261004-agent/cleanup-recovery.mjs"
+    }
+  ],
+  "scripts": [
+    {
+      "path": "/tmp/codex-tool-runs/svton/reg03-wait01-independent-20261004/publication-deadline.mjs",
+      "source": "import { mock } from 'node:test';\nimport { createHash } from 'node:crypto';\nimport path from 'node:path';\nconst mode = process.argv[2] ?? 'write';\nconst fs = await import('node:fs/promises');\nconst sleep = ms => new Promise(r => setTimeout(r, ms));\nconst base = '/tmp/codex-tool-runs/svton/reg03-wait01-independent-20261004';\nconst root = await fs.realpath(await fs.mkdtemp('/tmp/ship-publication-deadline-'));\nconst file = path.join(root, 'state.json');\nawait fs.writeFile(file, '0');\nconst stem = createHash('sha256').update(file).digest('hex').slice(0, 20) + '.json';\nconst registry = '/var/tmp/shipkit-lock-ports';\nconst claim = path.join(registry, stem);\nconst own = n => n === stem || n.startsWith(`${stem}.pub`) || n.startsWith(`.${stem}.`);\nlet pausedAtMs = null;\nlet resumeAtMs = null;\nlet start = 0;\nlet once = true;\nmock.module('node:fs/promises', { namedExports: { ...fs,\n  writeFile: async (...args) => {\n    const r = await fs.writeFile(...args);\n    if (mode === 'write' && once && String(args[0]).includes(`.${stem}.`) && String(args[0]).endsWith('.tmp')) {\n      once = false;\n      pausedAtMs = performance.now() - start;\n      await sleep(300);\n      resumeAtMs = performance.now() - start;\n    }\n    return r;\n  },\n  rename: async (...args) => {\n    if (mode === 'rename' && once && String(args[1]) === claim) {\n      once = false;\n      pausedAtMs = performance.now() - start;\n      await sleep(300);\n      resumeAtMs = performance.now() - start;\n    }\n    return fs.rename(...args);\n  }\n} });\nconst { withFileLock, heldToken } = await import('file:///Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/file-lock.js');\nlet callbackRan = false;\nlet error = null;\nlet result;\ntry {\n  start = performance.now();\n  try { await withFileLock(file, () => { callbackRan = true; }, { timeoutMs: 100 }); }\n  catch (e) { error = e.message; }\n  const returnedAtMs = performance.now() - start;\n  const filesAtReturn = (await fs.readdir(registry)).filter(own);\n  await sleep(650);\n  const filesAfterDrain = (await fs.readdir(registry)).filter(own);\n  const claimAfterDrain = await fs.readFile(claim, 'utf8').then(JSON.parse, () => null);\n  const tokenAfterDrain = heldToken(file);\n  let recovered = false;\n  await withFileLock(file, () => { recovered = true; }, { timeoutMs: 5000 });\n  result = { mode, timeoutMs: 100, pauseMs: 300, callbackRan, error, returnedAtMs, pausedAtMs, resumeAtMs,\n    filesAtReturn, filesAfterDrain, claimAfterDrain, tokenAfterDrain, recovered,\n    method: 'Only a scheduling pause around a real temp write or before the original rename. All filesystem and network calls execute unchanged. Synthetic unique state file, own-key cleanup only.' };\n  await fs.writeFile(`${base}/publication-${mode}-result.json`, JSON.stringify(result, null, 2));\n  console.log(JSON.stringify(result));\n} finally {\n  for (const n of (await fs.readdir(registry)).filter(own)) await fs.rm(path.join(registry, n), { recursive: true, force: true });\n  await fs.rm(root, { recursive: true, force: true });\n}\n",
+      "sha256": "fb6230831efef1a7da847e19f33df5edcbf16849c1541d83dae362d6cec1634c"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/reg03-wait01-independent-20261004/retry-bind-deadline.mjs",
+      "source": "import { mock } from 'node:test';\nimport { createHash } from 'node:crypto';\nimport path from 'node:path';\nconst fs = await import('node:fs/promises');\nconst net = await import('node:net');\nconst root = await fs.realpath(await fs.mkdtemp('/tmp/ship-retry-deadline-'));\nconst file = path.join(root, 'state.json');\nconst hash = createHash('sha256').update(file).digest('hex');\nconst claim = path.join('/var/tmp/shipkit-lock-ports', hash.slice(0, 20) + '.json');\nconst { claimPort } = await import('file:///Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/lock-registry.js');\nconst port = await claimPort(file);\nconst holder = net.createServer(s => s.end(`shiplock:${process.pid}:${hash.slice(0,8)}\\n`));\nawait new Promise((r, reject) => { holder.once('error', reject); holder.listen(port, '127.0.0.1', r); });\nlet calls = 0;\nlet start;\nlet pausedAtMs = null;\nmock.module('node:net', { namedExports: { ...net, createServer: (...args) => {\n  const s = net.createServer(...args);\n  const listen = s.listen.bind(s);\n  s.listen = (...params) => {\n    calls++;\n    if (calls === 2) {\n      pausedAtMs = performance.now() - start;\n      // Async scheduling delay before the REAL second listen. Holder stays live.\n      setTimeout(() => listen(...params), 300);\n      return s;\n    }\n    return listen(...params);\n  };\n  return s;\n} } });\nconst { withFileLock, heldToken } = await import('file:///Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/file-lock.js');\nlet callbackRan = false;\nlet error = null;\ntry {\n  start = performance.now();\n  try { await withFileLock(file, () => { callbackRan = true; }, { timeoutMs: 150 }); }\n  catch (e) { error = e.message; }\n  const returnedAtMs = performance.now() - start;\n  const result = { timeoutMs: 150, pauseMs: 300, callbackRan, error, returnedAtMs, pausedAtMs, calls, token: heldToken(file),\n    method: 'First listen really fails against own live holder; only second listen is delayed 300ms before invoking the original. Real probe, live banner and bind failure; no syscall result is faked.' };\n  await fs.writeFile('/tmp/codex-tool-runs/svton/reg03-wait01-independent-20261004/retry-bind-result.json', JSON.stringify(result, null, 2));\n  console.log(JSON.stringify(result));\n} finally {\n  await new Promise(r => holder.close(r));\n  await fs.rm(claim, { force: true });\n  await fs.rm(root, { recursive: true, force: true });\n}\n",
+      "sha256": "6aeabdcaea2885b54526199672442ee22fa64783c8802aca4b13bf06031feb14"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/reg03-wait01-independent-20261004/publish-race.mjs",
+      "source": "import { spawn } from 'node:child_process';\nimport { mkdtemp, realpath, readFile, writeFile, rm } from 'node:fs/promises';\nimport { createHash } from 'node:crypto';\nimport { connect } from 'node:net';\nimport path from 'node:path';\nconst BASE='/tmp/codex-tool-runs/svton/reg03-wait01-independent-20261004';\nconst MODULE='file:///Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/file-lock.js';\nconst BIND='file:///Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/lock-bindtest.js';\nconst ROOT=await realpath(await mkdtemp('/tmp/ship-publish-review-'));\nconst file=path.join(ROOT,'state.json');\nconst claim=path.join('/var/tmp/shipkit-lock-ports',createHash('sha256').update(file).digest('hex').slice(0,20)+'.json');\nconst children=[];\nconst sleep=ms=>new Promise(r=>setTimeout(r,ms));\nfunction worker(name,pauseFirstBind) {\n  const code=`\nimport { mock } from 'node:test';\nimport { readFile, writeFile } from 'node:fs/promises';\nconst file=${JSON.stringify(file)},claim=${JSON.stringify(claim)};\nlet resume,release;\nprocess.on('message',m=>{if(m==='resume')resume?.();if(m==='release')release?.();if(m==='exit')process.exit(0);});\nif(${pauseFirstBind}) {\n  const real=await import(${JSON.stringify(BIND)});\n  let first=true;\n  mock.module(${JSON.stringify(BIND)},{namedExports:{...real,bindTest:async(port)=>{\n    if(first){first=false;const gate=new Promise(r=>resume=r);process.send({event:'paused',port});await gate;}\n    return real.bindTest(port); // ALL syscall results are real; only scheduling is paused\n  }}});\n}\nconst {withFileLock}=await import(${JSON.stringify(MODULE)});\nprocess.send({event:'started'});\ntry {\n  await withFileLock(file,async()=>{\n    const gate=new Promise(r=>release=r);\n    const old=Number(await readFile(file,'utf8'));\n    const published=JSON.parse(await readFile(claim,'utf8'));\n    process.send({event:'entered',old,port:published.port});\n    await gate;await writeFile(file,String(old+1));\n  },{timeoutMs:1800});\n  process.send({event:'finished'});\n}catch(e){process.send({event:'error',message:e.message});}\n`;\n  const child=spawn(process.execPath,['--experimental-test-module-mocks','--input-type=module','-e',code],{stdio:['ignore','ignore','pipe','ipc']});\n  children.push(child);\n  const messages=[];\n  child.on('message',m=>messages.push(m));\n  child.stderr.on('data',d=>messages.push({event:'stderr',text:String(d)}));\n  return {name,child,messages,async wait(event,ms=3000){\n    const until=Date.now()+ms;\n    while(Date.now()<until){const m=messages.find(m=>m.event===event);if(m)return m;if(messages.some(m=>m.event==='error'))return null;await sleep(5);}\n    return null;\n  }};\n}\nasync function banner(port){\n  return new Promise(resolve=>{\n    const socket=connect({host:'127.0.0.1',port});\n    const finish=value=>{socket.destroy();resolve(value);};\n    socket.setTimeout(300,()=>finish('timeout'));\n    socket.once('data',d=>finish(String(d).trim()));socket.once('error',e=>finish(e.code));\n  });\n}\ntry {\n  await writeFile(file,'0');\n  const delayed=worker('B-delayed',true);\n  const pause=await delayed.wait('paused');\n  if(!pause)throw Error('B did not reach real first bind scheduling point');\n  const holder=worker('A-holder',false);\n  const first=await holder.wait('entered');\n  if(!first)throw Error('A did not acquire: '+JSON.stringify(holder.messages));\n  const claimBefore=JSON.parse(await readFile(claim,'utf8'));\n  delayed.child.send('resume');\n  const second=await delayed.wait('entered',500);\n  const claimAfter=JSON.parse(await readFile(claim,'utf8'));\n  const firstBanner=await banner(first.port);\n  const secondBanner=second ? await banner(second.port) : null;\n  holder.child.send('release');\n  if(second)delayed.child.send('release');\n  await holder.wait('finished');\n  if(!second){await delayed.wait('entered');delayed.child.send('release');}\n  await delayed.wait('finished');\n  const result={schedule:'B read no existing claim and paused BEFORE its first REAL bindTest; A published, bound and kept its section; B resumed the real bind, skipped occupied A port, published a different claim and entered before A released.',\n    simultaneousSections:second?2:1,first,second,pause,claimBefore,claimAfter,\n    liveBannersWhileBothHeld:[firstBanner,secondBanner],finalValue:Number(await readFile(file,'utf8')),expected:2,\n    holderMessages:holder.messages,delayedMessages:delayed.messages,\n    method:'Only a scheduling barrier is injected using node:test mock.module for bindTest. The imported original bindTest is called unchanged after resume. All fs operations, listen/connect outcomes, child processes and counter values are real.'};\n  await writeFile(`${BASE}/publish-race-result.json`,JSON.stringify(result,null,2));\n  console.log(JSON.stringify({simultaneousSections:result.simultaneousSections,first,second,claimBefore,claimAfter,liveBanners:result.liveBannersWhileBothHeld,finalValue:result.finalValue}));\n  holder.child.send('exit');delayed.child.send('exit');\n} finally {\n  for(const c of children)if(c.exitCode===null)c.kill('SIGTERM');\n  await sleep(50);\n  await rm(ROOT,{recursive:true,force:true});\n  await rm(claim,{force:true}); // ONLY this reproduction's fresh UUID-derived claim\n}\n",
+      "sha256": "dba18b5c6ffb25ec4577346bbd83161efcd385bb7999eed5852f1ae105e0a2cc"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/reg03-wait01-independent-20261004/scheduled-deadline.mjs",
+      "source": "import { mock } from 'node:test';\nimport { mkdtemp, realpath, writeFile, rm } from 'node:fs/promises';\nimport { createHash } from 'node:crypto';\nimport path from 'node:path';\nconst base='/tmp/codex-tool-runs/svton/reg03-wait01-independent-20261004';\nconst bindModule='file:///Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/lock-bindtest.js';\nconst original=await import(bindModule);\nlet pausedAtMs;\nmock.module(bindModule,{namedExports:{...original,bindTest:async(port)=>{\n  pausedAtMs=performance.now();\n  await new Promise(r=>setTimeout(r,250)); // yields normally; all syscall results stay real\n  return original.bindTest(port);\n}}});\nconst {withFileLock}=await import('/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/file-lock.js');\nconst dir=await realpath(await mkdtemp('/tmp/ship-scheduled-deadline-'));\nconst file=path.join(dir,'state.json');\nconst claim=path.join('/var/tmp/shipkit-lock-ports',createHash('sha256').update(file).digest('hex').slice(0,20)+'.json');\nconst timeoutMs=50,start=performance.now();\nlet callbackAtMs=null,error=null;\ntry {\n  try{await withFileLock(file,()=>{callbackAtMs=performance.now()-start;},{timeoutMs});}\n  catch(e){error=e.message;}\n  const result={timeoutMs,allocationPauseMs:250,pausedAtMs:pausedAtMs-start,callbackAtMs,totalMs:performance.now()-start,error,\n    method:'Only an async scheduling delay before the ORIGINAL allocation bindTest is injected via node:test mock.module; the event loop remains runnable. All fs/listen/connect operations and outcomes are real.'};\n  await writeFile(`${base}/scheduled-deadline-result.json`,JSON.stringify(result,null,2));\n  console.log(JSON.stringify(result));\n}finally{await rm(dir,{recursive:true,force:true});await rm(claim,{force:true});}\n",
+      "sha256": "c74ea8f9734a5bf683defd6bdb08c05775bcc6724f4497a5d014d85c62d136ef"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/reg03-review-20261004-agent/full-readdir-permissions.mjs",
+      "source": "import { spawn } from 'node:child_process';\nimport { createServer } from 'node:net';\nimport { createHash } from 'node:crypto';\nimport { mkdtemp, mkdir, chmod, rm, readFile, writeFile, readdir, realpath } from 'node:fs/promises';\nimport path from 'node:path';\nconst root=await realpath(await mkdtemp('/tmp/ship-reg03-full-permission-'));\nconst registry=path.join(root,'registry');\nawait mkdir(registry);\nconst file=path.join(root,'state.json');\nawait writeFile(file,'0');\nconst key=file;\nconst claim=path.join(registry,`${createHash('sha256').update(key).digest('hex').slice(0,20)}.json`);\nconst firstPort=49152+(createHash('sha256').update([key,'0'].join('\\u0000')).digest().readUInt32BE(0)%16383);\nconst mod='file:///Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/file-lock.js';\nconst children=[];\nfunction child(name,pausePublish) {\n const c=spawn(process.execPath,['--experimental-test-module-mocks','--input-type=module','-e',`\nimport { mock } from 'node:test';\nconst real=await import('node:fs/promises');\nconst prefix='/var/tmp/shipkit-lock-ports';\nconst dest=${JSON.stringify(registry)};\nconst map=p=>typeof p==='string'&&p.startsWith(prefix)?dest+p.slice(prefix.length):p;\nlet resume,release,paused=false;\nprocess.on('message',m=>{if(m==='resume')resume?.();if(m==='release')release?.();if(m==='exit')process.exit(0);});\nconst wrap={...real};\nfor(const k of ['access','mkdir','readFile','readdir','rm','writeFile'])wrap[k]=(...a)=>real[k](map(a[0]),...a.slice(1));\nwrap.rename=async(a,b)=>{\n if(${JSON.stringify(pausePublish)}&&!paused&&String(b).startsWith(prefix)&&String(b).endsWith('.json')){\n  paused=true;const gate=new Promise(r=>resume=r);\n  process.send({event:'before-publish',port:JSON.parse(await real.readFile(map(a),'utf8')).port});\n  await gate;\n }\n return real.rename(map(a),map(b));\n};\nmock.module('node:fs/promises',{namedExports:wrap});\nconst {withFileLock}=await import(${JSON.stringify(mod)});\ntry{\n await withFileLock(${JSON.stringify(file)},async()=>{\n  const gate=new Promise(r=>release=r);\n  const old=Number(await real.readFile(${JSON.stringify(file)},'utf8'));\n  const port=JSON.parse(await real.readFile(${JSON.stringify(claim)},'utf8')).port;\n  process.send({event:'entered',old,port,pid:process.pid});\n  await gate;\n  await real.writeFile(${JSON.stringify(file)},String(old+1));\n },{timeoutMs:15000});\n process.send({event:'finished'});\n}catch(e){process.send({event:'error',message:e.message,code:e.code});}\n`],{stdio:['ignore','ignore','inherit','ipc']});\n const events=[];\n const exited=new Promise(r=>c.on('exit',r));\n c.on('message',e=>events.push({...e,at:Date.now()}));\n children.push({c,exited});\n return {c,events,wait:async event=>{const end=Date.now()+5000;while(Date.now()<end){const found=events.find(e=>e.event===event);if(found)return found;await new Promise(r=>setTimeout(r,10));}return null;}};\n}\nconst blocker=createServer(s=>s.destroy());\ntry{\n await new Promise((r,j)=>{blocker.once('error',j);blocker.listen(firstPort,'127.0.0.1',r);});\n const b=child('B',true);\n const paused=await b.wait('before-publish');\n if(!paused)throw new Error('B not parked '+JSON.stringify(b.events));\n await new Promise(r=>blocker.close(r));\n await chmod(registry,0o333);\n const readError=await readdir(registry).then(()=>null,e=>e.code);\n const a=child('A',false);\n const aEntered=await a.wait('entered');\n await chmod(registry,0o755);\n if(!aEntered)throw new Error('A not entered '+JSON.stringify(a.events));\n b.c.send('resume');\n const bEntered=await b.wait('entered');\n const overlapping=Boolean(aEntered&&bEntered&&!a.events.some(e=>e.event==='finished'));\n const mapped=JSON.parse(await readFile(claim,'utf8')).port;\n a.c.send('release'); b.c.send('release');\n await Promise.all([a.wait('finished'),b.wait('finished')]);\n const evidence={root,file,registry,readError,firstPort,paused,overlapping,mapped,a:a.events,b:b.events,final:Number(await readFile(file,'utf8')),expectedFinal:2};\n await writeFile('/tmp/codex-tool-runs/svton/reg03-review-20261004-agent/full-readdir-permissions-evidence.json',JSON.stringify(evidence,null,2));\n console.log(JSON.stringify(evidence,null,2));\n}finally{\n await chmod(registry,0o755).catch(()=>{});\n blocker.close();\n for(const{c}of children)c.send('exit');\n await Promise.all(children.map(x=>x.exited));\n await rm(root,{recursive:true,force:true});\n}\n",
+      "sha256": "2041f08d2afdbec5c8d4e2b44ad8f6965bda7982cb031990aacd1886841728ee"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/reg03-review-20261004-agent/readdir-permissions.mjs",
+      "source": "import { spawn } from 'node:child_process';\nimport { mkdtemp, chmod, rm, readdir, writeFile, readFile } from 'node:fs/promises';\nimport path from 'node:path';\nconst root = await mkdtemp('/tmp/ship-reg03-pubmutex-permission-');\nconst claim = path.join(root, 'claim.json');\nconst counter = path.join(root, 'counter');\nawait writeFile(counter,'0');\nconst mod = 'file:///Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/lock-pubmutex.js';\nconst children = [];\nfunction child(name) {\n  const c = spawn(process.execPath, ['--input-type=module', '-e', `\nimport { withPublishMutex } from ${JSON.stringify(mod)};\nimport { readFile, writeFile } from 'node:fs/promises';\nlet release;\nprocess.on('message', m => { if (m === 'release') release?.(); if (m === 'exit') process.exit(0); });\ntry {\n await withPublishMutex(${JSON.stringify(claim)}, ${JSON.stringify(claim)}, () => false, async () => {\n  const gate = new Promise(r => release = r);\n  const old=Number(await readFile(${JSON.stringify(counter)},'utf8'));\n  process.send({event:'entered',pid:process.pid,old});\n  await gate;\n  await writeFile(${JSON.stringify(counter)},String(old+1));\n });\n process.send({event:'finished'});\n} catch(e) {process.send({event:'error', message:e.message, code:e.code});}\n`], {stdio: ['ignore','ignore','inherit','ipc']});\n  const events = [];\n  const exited = new Promise(r=>c.on('exit',r));\n  c.on('message', e => events.push({...e, at:Date.now()}));\n  children.push({c,exited});\n  return {events, c, wait: async event => {\n    const until=Date.now()+3000;\n    while(Date.now()<until) {\n      const found=events.find(e=>e.event===event);\n      if(found) return found;\n      await new Promise(r=>setTimeout(r,10));\n    }\n    return null;\n  }};\n}\ntry {\n const a=child('A');\n const aEntered=await a.wait('entered');\n if(!aEntered) throw new Error('A did not enter');\n await chmod(root,0o333);\n const readError=await readdir(root).then(()=>null,e=>e.code);\n const b=child('B');\n const bEntered=await b.wait('entered');\n const overlapping=Boolean(aEntered && bEntered && !a.events.some(e=>e.event==='finished'));\n await chmod(root,0o755);\n a.c.send('release');b.c.send('release');\n await Promise.all([a.wait('finished'),b.wait('finished')]);\n const evidence={root,readError,overlapping,final:Number(await readFile(counter,'utf8')),expectedFinal:2,a:a.events,b:b.events};\n await writeFile('/tmp/codex-tool-runs/svton/reg03-review-20261004-agent/readdir-permissions-evidence.json',JSON.stringify(evidence,null,2));\n console.log(JSON.stringify(evidence,null,2));\n} finally {\n await chmod(root,0o755).catch(()=>{});\n for(const {c} of children) c.send('exit');\n await Promise.all(children.map(x=>x.exited));\n await rm(root,{recursive:true,force:true});\n}\n",
+      "sha256": "f579d5a50a7f6499af8c0e03ebdb1971e342bed0c595c3c789b4a16dce278582"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/reg03-review-20261004-agent/cleanup-recovery.mjs",
+      "source": "import { mkdtemp, chmod, rm, writeFile } from 'node:fs/promises';\nimport path from 'node:path';\nimport { withPublishMutex } from '/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/lock-pubmutex.js';\nconst root=await mkdtemp('/tmp/ship-reg03-pubmutex-cleanup-');\nconst claim=path.join(root,'claim.json');\ntry {\n const initial=await withPublishMutex(claim,claim,()=>false,async()=>{await chmod(root,0o555);return 'first';}).then(value=>({value}),e=>({message:e.message,code:e.code}));\n await chmod(root,0o755);\n let callbackRan=false;\n const deadline=Date.now()+100;\n const later=withPublishMutex(claim,claim,()=>Date.now()>=deadline,async()=>{callbackRan=true;return 'recovered';});\n const recovered=await Promise.race([later.then(value=>({value}),e=>({message:e.message,code:e.code})),new Promise(r=>setTimeout(()=>r({stillPending:true}),350))]);\n const evidence={initial,recovered,callbackRan,expired:true};\n await writeFile('/tmp/codex-tool-runs/svton/reg03-review-20261004-agent/cleanup-recovery-evidence.json',JSON.stringify(evidence,null,2));\n console.log(JSON.stringify(evidence,null,2));\n} finally {\n await chmod(root,0o755).catch(()=>{});\n await rm(root,{recursive:true,force:true});\n}\n",
+      "sha256": "e439ea122756407a6951528d6705a3b4824518ec5e6fdda11d531a1b73d5f5f4"
+    }
+  ],
+  "methodology": [
+    "Scripts exit 0 on completed observation and cleanup; this is not a protocol acceptance result.",
+    "Filesystem permission tests use newly created temporary directories only. The full withFileLock permission test remaps the fixed registry root to the temporary registry while preserving actual filesystem operations and results.",
+    "Deadline tests wrap only real syscall timing; actual filesystem, probe and listen results are not replaced.",
+    "Review does not modify or terminate unrelated listeners or registry claims."
+  ]
+}

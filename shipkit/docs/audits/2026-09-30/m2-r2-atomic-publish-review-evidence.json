@@ -1,0 +1,430 @@
+{
+  "date": "2026-10-02",
+  "timezone": "Asia/Shanghai",
+  "finding": "M2-R2",
+  "status": "open",
+  "severity": "P2",
+  "scope": "Independent local review. Business sources unchanged; only audit/evidence/TODO updated. No commit, publication, Docker or cloud operations.",
+  "findings": [
+    "REG-03 delayed allocator atomically renames over a live same-key mapping and enters on a different port",
+    "WAIT-01 registry allocation and first successful bind do not honor acquisition deadline"
+  ],
+  "hashes": {
+    "src/shared/file-lock.ts": "117119d42b4dd7cc20448b8e4907f4e0d77dad1e73878e36d5761b5da7fe1aec",
+    "src/shared/lock-registry.ts": "8a158c7870e58599861b14a8b4e035e545dc82b1f9dc0d5a0d6e8055eb9c854b",
+    "src/shared/lock-bindtest.ts": "be6ffc46525b1604fe2ee7d77a8544324ee83581b98f011e3a69857234a9b83c",
+    "src/shared/file-lock-registry.test.ts": "02bfbd4d2999353efcf077d538d933c841a9a27e99012c20a80380ec7678d887",
+    "src/shared/file-lock-tcp.test.ts": "7d4bfdf82a80e9a514f5fb99de66c3d3790cb18f5bd004b781d55d7b4b029c99"
+  },
+  "verification": {
+    "build": {
+      "command": "pnpm run build",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "command": "pnpm run typecheck",
+      "exitCode": 0
+    },
+    "full": {
+      "command": "pnpm run test",
+      "exitCode": 0,
+      "nodeTests": 256,
+      "nodePassed": 256,
+      "installerPassed": 17,
+      "installerTotal": 17
+    },
+    "pack": {
+      "command": "pnpm run pack:tarball",
+      "exitCode": 0,
+      "version": "0.5.0"
+    },
+    "packageSmoke": {
+      "command": "pnpm run smoke:package",
+      "exitCode": 0,
+      "passed": 17,
+      "install": "offline, outside repository"
+    }
+  },
+  "publishRace": {
+    "schedule": "B read no existing claim and paused BEFORE its first REAL bindTest; A published, bound and kept its section; B resumed the real bind, skipped occupied A port, published a different claim and entered before A released.",
+    "simultaneousSections": 2,
+    "first": {
+      "event": "entered",
+      "old": 0,
+      "port": 63023
+    },
+    "second": {
+      "event": "entered",
+      "old": 0,
+      "port": 62536
+    },
+    "pause": {
+      "event": "paused",
+      "port": 63023
+    },
+    "claimBefore": {
+      "port": 63023
+    },
+    "claimAfter": {
+      "port": 62536
+    },
+    "liveBannersWhileBothHeld": [
+      "shiplock:72222:e24517f4",
+      "shiplock:72221:e24517f4"
+    ],
+    "finalValue": 1,
+    "expected": 2,
+    "holderMessages": [
+      {
+        "event": "started"
+      },
+      {
+        "event": "entered",
+        "old": 0,
+        "port": 63023
+      },
+      {
+        "event": "finished"
+      }
+    ],
+    "delayedMessages": [
+      {
+        "event": "stderr",
+        "text": "(node:72221) ExperimentalWarning: Module mocking is an experimental feature and might change at any time\n(Use `node --trace-warnings ...` to show where the warning was created)\n"
+      },
+      {
+        "event": "started"
+      },
+      {
+        "event": "paused",
+        "port": 63023
+      },
+      {
+        "event": "entered",
+        "old": 0,
+        "port": 62536
+      },
+      {
+        "event": "finished"
+      }
+    ],
+    "method": "Only a scheduling barrier is injected using node:test mock.module for bindTest. The imported original bindTest is called unchanged after resume. All fs operations, listen/connect outcomes, child processes and counter values are real."
+  },
+  "unmodifiedDeadline": {
+    "claimCount": 159,
+    "attempts": [
+      {
+        "timeoutMs": 20,
+        "callbackAtMs": 33.512458,
+        "totalMs": 33.552958,
+        "error": null
+      },
+      {
+        "timeoutMs": 20,
+        "callbackAtMs": 7.152833000000001,
+        "totalMs": 7.171875,
+        "error": null
+      },
+      {
+        "timeoutMs": 20,
+        "callbackAtMs": 7.023874999999997,
+        "totalMs": 7.0447090000000046,
+        "error": null
+      }
+    ],
+    "method": "Unmodified implementation; real existing host registry and local TCP; no mocks, pauses or injected delay. Does not mutate other keys or hold any foreign port."
+  },
+  "scheduledDeadline": {
+    "timeoutMs": 50,
+    "allocationPauseMs": 250,
+    "pausedAtMs": 25.749625,
+    "callbackAtMs": 288.98025,
+    "totalMs": 289.04808399999996,
+    "error": null,
+    "method": "Only an async scheduling delay before the ORIGINAL allocation bindTest is injected via node:test mock.module; the event loop remains runnable. All fs/listen/connect operations and outcomes are real."
+  },
+  "priorRegistryResults": [
+    {
+      "name": "isolated-TMPDIR",
+      "simultaneousSections": 1,
+      "first": {
+        "event": "entered",
+        "key": "/private/tmp/ship-tcp-independent-jgnXcQ/tmpdir/state.json",
+        "currentKey": "/private/tmp/ship-tcp-independent-jgnXcQ/tmpdir/state.json",
+        "old": 0,
+        "port": 63153
+      },
+      "second": null,
+      "finalValue": 2,
+      "expected": 2,
+      "aMessages": [
+        {
+          "event": "ready"
+        },
+        {
+          "event": "entered",
+          "key": "/private/tmp/ship-tcp-independent-jgnXcQ/tmpdir/state.json",
+          "currentKey": "/private/tmp/ship-tcp-independent-jgnXcQ/tmpdir/state.json",
+          "old": 0,
+          "port": 63153
+        },
+        {
+          "event": "finished"
+        }
+      ],
+      "bMessages": [
+        {
+          "event": "ready"
+        },
+        {
+          "event": "entered",
+          "key": "/private/tmp/ship-tcp-independent-jgnXcQ/tmpdir/state.json",
+          "currentKey": "/private/tmp/ship-tcp-independent-jgnXcQ/tmpdir/state.json",
+          "old": 1,
+          "port": 63153
+        },
+        {
+          "event": "finished"
+        }
+      ]
+    },
+    {
+      "name": "fallback-cache-versus-published-claim",
+      "simultaneousSections": 1,
+      "first": {
+        "event": "entered",
+        "key": "/private/tmp/ship-tcp-independent-jgnXcQ/fallback/state.json",
+        "currentKey": "/private/tmp/ship-tcp-independent-jgnXcQ/fallback/state.json",
+        "old": 0,
+        "port": 55052
+      },
+      "second": null,
+      "finalValue": 2,
+      "expected": 2,
+      "fallback": null,
+      "exhaustionError": {
+        "event": "error",
+        "message": "锁注册表分配失败：/private/tmp/ship-tcp-independent-jgnXcQ/fallback/state.json 的 64 个候选端口当前均不可用 — 保守失败，不产生未登记锁；稍后重试"
+      },
+      "occupiedCandidates": 64,
+      "aMessages": [
+        {
+          "event": "entered",
+          "key": "/private/tmp/ship-tcp-independent-jgnXcQ/fallback/state.json",
+          "currentKey": "/private/tmp/ship-tcp-independent-jgnXcQ/fallback/state.json",
+          "old": 0,
+          "port": 55052
+        },
+        {
+          "event": "finished"
+        }
+      ],
+      "bMessages": [
+        {
+          "event": "ready"
+        },
+        {
+          "event": "entered",
+          "key": "/private/tmp/ship-tcp-independent-jgnXcQ/fallback/state.json",
+          "currentKey": "/private/tmp/ship-tcp-independent-jgnXcQ/fallback/state.json",
+          "old": 1,
+          "port": 55052
+        },
+        {
+          "event": "finished"
+        }
+      ]
+    },
+    {
+      "name": "parent-created-inside-critical-section",
+      "simultaneousSections": 1,
+      "first": {
+        "event": "entered",
+        "key": "/private/tmp/ship-tcp-independent-jgnXcQ/missing-parent/new/nested/state.json",
+        "currentKey": "/private/tmp/ship-tcp-independent-jgnXcQ/missing-parent/new/nested/state.json",
+        "old": 0,
+        "port": 52630
+      },
+      "second": null,
+      "finalValue": 2,
+      "expected": 2,
+      "aMessages": [
+        {
+          "event": "ready"
+        },
+        {
+          "event": "entered",
+          "key": "/private/tmp/ship-tcp-independent-jgnXcQ/missing-parent/new/nested/state.json",
+          "currentKey": "/private/tmp/ship-tcp-independent-jgnXcQ/missing-parent/new/nested/state.json",
+          "old": 0,
+          "port": 52630
+        },
+        {
+          "event": "finished"
+        }
+      ],
+      "bMessages": [
+        {
+          "event": "ready"
+        },
+        {
+          "event": "entered",
+          "key": "/private/tmp/ship-tcp-independent-jgnXcQ/missing-parent/new/nested/state.json",
+          "currentKey": "/private/tmp/ship-tcp-independent-jgnXcQ/missing-parent/new/nested/state.json",
+          "old": 1,
+          "port": 52630
+        },
+        {
+          "event": "finished"
+        }
+      ]
+    }
+  ],
+  "priorIdentityRelease": {
+    "originalKey": "/private/tmp/ship-identity-independent-P1oLrH/new/nested/state.json",
+    "currentKey": "/private/tmp/ship-identity-independent-P1oLrH/new/nested/state.json",
+    "leakedHoldingAfterSuccessfulReturn": false,
+    "retainedOriginalToken": false,
+    "cleanedByOriginalIdentity": false
+  },
+  "priorTCPResults": {
+    "alias": {
+      "maxActive": 1,
+      "activeAtObservation": 1,
+      "sameRealPath": true,
+      "ports": [
+        51616,
+        51616
+      ],
+      "finalCounter": 2,
+      "expectedCounter": 2
+    },
+    "shutdown": {
+      "resolvedWhilePeerOpen": true,
+      "observationMs": 350,
+      "netServerHasCloseAllConnections": false,
+      "resolvedAfterPeerDestroyed": true
+    },
+    "silent": {
+      "timeoutMs": 100,
+      "elapsedMs": 102,
+      "error": "无法获得文件锁（等待 100ms 超时）：/private/tmp/codex-tool-runs/svton/m2-r2-atomic-review-20261002/boundaries-rNtL4i/silent.json — holder cannot be identified (port busy, no banner)；不会抢占仍被持有的锁"
+    }
+  },
+  "priorEOFResult": {
+    "timeoutMs": 100,
+    "observedMs": 1600,
+    "settled": true,
+    "outcome": "无法获得文件锁（等待 100ms 超时）：/private/tmp/codex-tool-runs/svton/m2-r2-atomic-review-20261002/eof-naOj1E/state.json — holder cannot be identified (port busy, no banner)；不会抢占仍被持有的锁",
+    "peerBehavior": "accept and immediately end without data",
+    "noMocks": true
+  },
+  "methodology": "Real child processes, filesystem records, loopback binds and probes. REG-03 uses node:test mock.module solely to pause B before calling the ORIGINAL bindTest; no syscall result is replaced. Scheduled WAIT-01 adds an async 250ms scheduling delay before ORIGINAL bindTest, with a runnable event loop. The unmodified deadline and prior boundary scripts use no mocks or injected delay.",
+  "claimCleanup": "REG-03 and deadline scripts remove only their own fresh UUID-derived claim records after their holders have finished; no unknown service or other key is touched.",
+  "reproInstructions": "Build /Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit, then extract scripts[].source to its scriptName. Run publish-race.mjs with normal node (it starts flagged children internally), acquisition-deadline.mjs with normal node, scheduled-deadline.mjs with node --experimental-test-module-mocks. Local loopback and /var/tmp registry access required. Output paths currently use /tmp/codex-tool-runs/svton/m2-r2-atomic-review-20261002. Read saved invariants, not only exit status.",
+  "scripts": [
+    {
+      "scriptName": "publish-race.mjs",
+      "source": "import { spawn } from 'node:child_process';\nimport { mkdtemp, realpath, readFile, writeFile, rm } from 'node:fs/promises';\nimport { createHash } from 'node:crypto';\nimport { connect } from 'node:net';\nimport path from 'node:path';\nconst BASE='/tmp/codex-tool-runs/svton/m2-r2-atomic-review-20261002';\nconst MODULE='file:///Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/file-lock.js';\nconst BIND='file:///Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/lock-bindtest.js';\nconst ROOT=await realpath(await mkdtemp('/tmp/ship-publish-review-'));\nconst file=path.join(ROOT,'state.json');\nconst claim=path.join('/var/tmp/shipkit-lock-ports',createHash('sha256').update(file).digest('hex').slice(0,20)+'.json');\nconst children=[];\nconst sleep=ms=>new Promise(r=>setTimeout(r,ms));\nfunction worker(name,pauseFirstBind) {\n  const code=`\nimport { mock } from 'node:test';\nimport { readFile, writeFile } from 'node:fs/promises';\nconst file=${JSON.stringify(file)},claim=${JSON.stringify(claim)};\nlet resume,release;\nprocess.on('message',m=>{if(m==='resume')resume?.();if(m==='release')release?.();if(m==='exit')process.exit(0);});\nif(${pauseFirstBind}) {\n  const real=await import(${JSON.stringify(BIND)});\n  let first=true;\n  mock.module(${JSON.stringify(BIND)},{namedExports:{bindTest:async(port)=>{\n    if(first){first=false;const gate=new Promise(r=>resume=r);process.send({event:'paused',port});await gate;}\n    return real.bindTest(port); // ALL syscall results are real; only scheduling is paused\n  }}});\n}\nconst {withFileLock}=await import(${JSON.stringify(MODULE)});\nprocess.send({event:'started'});\ntry {\n  await withFileLock(file,async()=>{\n    const gate=new Promise(r=>release=r);\n    const old=Number(await readFile(file,'utf8'));\n    const published=JSON.parse(await readFile(claim,'utf8'));\n    process.send({event:'entered',old,port:published.port});\n    await gate;await writeFile(file,String(old+1));\n  },{timeoutMs:1800});\n  process.send({event:'finished'});\n}catch(e){process.send({event:'error',message:e.message});}\n`;\n  const child=spawn(process.execPath,['--experimental-test-module-mocks','--input-type=module','-e',code],{stdio:['ignore','ignore','pipe','ipc']});\n  children.push(child);\n  const messages=[];\n  child.on('message',m=>messages.push(m));\n  child.stderr.on('data',d=>messages.push({event:'stderr',text:String(d)}));\n  return {name,child,messages,async wait(event,ms=3000){\n    const until=Date.now()+ms;\n    while(Date.now()<until){const m=messages.find(m=>m.event===event);if(m)return m;if(messages.some(m=>m.event==='error'))return null;await sleep(5);}\n    return null;\n  }};\n}\nasync function banner(port){\n  return new Promise(resolve=>{\n    const socket=connect({host:'127.0.0.1',port});\n    const finish=value=>{socket.destroy();resolve(value);};\n    socket.setTimeout(300,()=>finish('timeout'));\n    socket.once('data',d=>finish(String(d).trim()));socket.once('error',e=>finish(e.code));\n  });\n}\ntry {\n  await writeFile(file,'0');\n  const delayed=worker('B-delayed',true);\n  const pause=await delayed.wait('paused');\n  if(!pause)throw Error('B did not reach real first bind scheduling point');\n  const holder=worker('A-holder',false);\n  const first=await holder.wait('entered');\n  if(!first)throw Error('A did not acquire: '+JSON.stringify(holder.messages));\n  const claimBefore=JSON.parse(await readFile(claim,'utf8'));\n  delayed.child.send('resume');\n  const second=await delayed.wait('entered',500);\n  const claimAfter=JSON.parse(await readFile(claim,'utf8'));\n  const firstBanner=await banner(first.port);\n  const secondBanner=second ? await banner(second.port) : null;\n  holder.child.send('release');\n  if(second)delayed.child.send('release');\n  await holder.wait('finished');\n  if(!second){await delayed.wait('entered');delayed.child.send('release');}\n  await delayed.wait('finished');\n  const result={schedule:'B read no existing claim and paused BEFORE its first REAL bindTest; A published, bound and kept its section; B resumed the real bind, skipped occupied A port, published a different claim and entered before A released.',\n    simultaneousSections:second?2:1,first,second,pause,claimBefore,claimAfter,\n    liveBannersWhileBothHeld:[firstBanner,secondBanner],finalValue:Number(await readFile(file,'utf8')),expected:2,\n    holderMessages:holder.messages,delayedMessages:delayed.messages,\n    method:'Only a scheduling barrier is injected using node:test mock.module for bindTest. The imported original bindTest is called unchanged after resume. All fs operations, listen/connect outcomes, child processes and counter values are real.'};\n  await writeFile(`${BASE}/publish-race-result.json`,JSON.stringify(result,null,2));\n  console.log(JSON.stringify({simultaneousSections:result.simultaneousSections,first,second,claimBefore,claimAfter,liveBanners:result.liveBannersWhileBothHeld,finalValue:result.finalValue}));\n  holder.child.send('exit');delayed.child.send('exit');\n} finally {\n  for(const c of children)if(c.exitCode===null)c.kill('SIGTERM');\n  await sleep(50);\n  await rm(ROOT,{recursive:true,force:true});\n  await rm(claim,{force:true}); // ONLY this reproduction's fresh UUID-derived claim\n}\n",
+      "sha256": "b7b0e0b61884580499f8ecbb8159ad91ea9354445794fa5a6e6e1a21ace91d6c"
+    },
+    {
+      "scriptName": "acquisition-deadline.mjs",
+      "source": "import { mkdtemp, realpath, readdir, writeFile, rm } from 'node:fs/promises';\nimport path from 'node:path';\nimport { withFileLock } from '/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/file-lock.js';\nimport { createHash } from 'node:crypto';\nconst dir=await realpath(await mkdtemp('/tmp/ship-deadline-review-'));\nconst attempts=[];\ntry {\n  const claimCount=(await readdir('/var/tmp/shipkit-lock-ports')).filter(n=>n.endsWith('.json')).length;\n  for(let i=0;i<3;i++) {\n    const file=path.join(dir,`state-${i}.json`);\n    const timeoutMs=20,start=performance.now();\n    let callbackAtMs=null,error=null;\n    try {await withFileLock(file,()=>{callbackAtMs=performance.now()-start;},{timeoutMs});}\n    catch(e){error=e.message;}\n    attempts.push({timeoutMs,callbackAtMs,totalMs:performance.now()-start,error});\n    const claim=path.join('/var/tmp/shipkit-lock-ports',createHash('sha256').update(file).digest('hex').slice(0,20)+'.json');\n    await rm(claim,{force:true}); // only our fresh test claims\n  }\n  const result={claimCount,attempts,method:'Unmodified implementation; real existing host registry and local TCP; no mocks, pauses or injected delay. Does not mutate other keys or hold any foreign port.'};\n  await writeFile('/tmp/codex-tool-runs/svton/m2-r2-atomic-review-20261002/acquisition-deadline-result.json',JSON.stringify(result,null,2));\n  console.log(JSON.stringify(result));\n} finally {await rm(dir,{recursive:true,force:true});}\n",
+      "sha256": "58e9ce33a9cd20feede0da39a59dd4ea09a7aaaa73398e5a08f43d383623f69d"
+    },
+    {
+      "scriptName": "scheduled-deadline.mjs",
+      "source": "import { mock } from 'node:test';\nimport { mkdtemp, realpath, writeFile, rm } from 'node:fs/promises';\nimport { createHash } from 'node:crypto';\nimport path from 'node:path';\nconst base='/tmp/codex-tool-runs/svton/m2-r2-atomic-review-20261002';\nconst bindModule='file:///Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/lock-bindtest.js';\nconst original=await import(bindModule);\nlet pausedAtMs;\nmock.module(bindModule,{namedExports:{bindTest:async(port)=>{\n  pausedAtMs=performance.now();\n  await new Promise(r=>setTimeout(r,250)); // yields normally; all syscall results stay real\n  return original.bindTest(port);\n}}});\nconst {withFileLock}=await import('/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/file-lock.js');\nconst dir=await realpath(await mkdtemp('/tmp/ship-scheduled-deadline-'));\nconst file=path.join(dir,'state.json');\nconst claim=path.join('/var/tmp/shipkit-lock-ports',createHash('sha256').update(file).digest('hex').slice(0,20)+'.json');\nconst timeoutMs=50,start=performance.now();\nlet callbackAtMs=null,error=null;\ntry {\n  try{await withFileLock(file,()=>{callbackAtMs=performance.now()-start;},{timeoutMs});}\n  catch(e){error=e.message;}\n  const result={timeoutMs,allocationPauseMs:250,pausedAtMs:pausedAtMs-start,callbackAtMs,totalMs:performance.now()-start,error,\n    method:'Only an async scheduling delay before the ORIGINAL allocation bindTest is injected via node:test mock.module; the event loop remains runnable. All fs/listen/connect operations and outcomes are real.'};\n  await writeFile(`${base}/scheduled-deadline-result.json`,JSON.stringify(result,null,2));\n  console.log(JSON.stringify(result));\n}finally{await rm(dir,{recursive:true,force:true});await rm(claim,{force:true});}\n",
+      "sha256": "20eabf6acea14cda608d923cc0073660e749fe5577ab752538a3ea8e948ebdd1"
+    },
+    {
+      "scriptName": "adapt-prior.mjs",
+      "source": "import { readFile, writeFile } from 'node:fs/promises';\nconst old='/tmp/codex-tool-runs/svton/m2-r2-tcp-rereview-20261001';\nconst base='/tmp/codex-tool-runs/svton/m2-r2-atomic-review-20261002';\nlet source=(await readFile(`${old}/registry-boundaries.mjs`,'utf8')).replaceAll(old,base);\nsource=source.replace(\"const fallback=await f.wait('claimed');\",`const fallback=await f.wait('claimed');\n  const exhaustionError=f.messages.find(m=>m.event==='error');\n  f.messages.splice(0); // consume the expected conservative failure before the recovery phase`);\nsource=source.replace('{fallback,occupiedCandidates:occupied.length}', '{fallback,exhaustionError,occupiedCandidates:occupied.length}');\nawait writeFile(`${base}/registry-boundaries.mjs`,source);\nfor(const name of ['identity-release.mjs','tcp-boundaries.mjs','probe-eof.mjs']){\n  await writeFile(`${base}/${name}`,(await readFile(`${old}/${name}`,'utf8')).replaceAll(old,base));\n}\n",
+      "sha256": "8f0368971fc766c2e5aa874c95885ff0e8e5ae7145f4c560e5f6b26f77463e44"
+    },
+    {
+      "scriptName": "registry-boundaries.mjs",
+      "source": "import { spawn } from 'node:child_process';\nimport { mkdtemp, mkdir, readFile, writeFile, rm, realpath } from 'node:fs/promises';\nimport { createServer } from 'node:net';\nimport { createHash } from 'node:crypto';\nimport path from 'node:path';\nconst MODULE = 'file:///Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/file-lock.js';\nconst ROOT = await realpath(await mkdtemp('/tmp/ship-tcp-independent-'));\nconst children = [], listeners = [];\nconst results = [];\nconst sleep = (ms) => new Promise(r => setTimeout(r, ms));\nfunction worker(file, temp, createParent = false) {\n  const code = `\nimport { withFileLock, lockPortFor, lockKeyOf } from ${JSON.stringify(MODULE)};\nimport { readFile, writeFile, mkdir } from 'node:fs/promises';\nimport path from 'node:path';\nconst file = ${JSON.stringify(file)};\nlet release;\nprocess.on('message', async (m) => {\n  try {\n    if (m === 'claim') process.send({event:'claimed', port:await lockPortFor(file)});\n    if (m === 'acquire') {\n      const key = lockKeyOf(file);\n      await withFileLock(file, async () => {\n        const gate = new Promise(r => release = r);\n        if (${createParent}) await mkdir(path.dirname(file), {recursive:true});\n        const old = Number(await readFile(file, 'utf8').catch(() => '0'));\n        process.send({event:'entered', key, currentKey:lockKeyOf(file), old, port:await lockPortFor(key)});\n        await gate;\n        await writeFile(file, String(old+1));\n      }, {timeoutMs:800});\n      process.send({event:'finished'});\n    }\n    if (m === 'release') release?.();\n    if (m === 'exit') process.exit(0);\n  } catch(e) { process.send({event:'error', message:e.message}); }\n});\nprocess.send({event:'ready'});\n`;\n  const child = spawn(process.execPath, ['--input-type=module', '-e', code], {\n    env:{...process.env, TMPDIR:temp, TMP:temp, TEMP:temp}, stdio:['ignore','ignore','pipe','ipc']\n  });\n  children.push(child);\n  const messages=[];\n  child.on('message', m => messages.push(m));\n  child.stderr.on('data', d => messages.push({event:'stderr', text:String(d)}));\n  return { child, messages, async wait(event, ms=2500) {\n    const end=Date.now()+ms;\n    while(Date.now()<end) {\n      const found=messages.find(m=>m.event===event);\n      if(found) return found;\n      if(messages.some(m=>m.event==='error'||m.event==='stderr')) return null;\n      await sleep(5);\n    }\n    return null;\n  }};\n}\nasync function finishPair(a,b,file,name,extra={}) {\n  const second=await b.wait('entered',400);\n  const first=a.messages.find(m=>m.event==='entered');\n  a.child.send('release');\n  if(second) b.child.send('release');\n  await a.wait('finished');\n  if(!second) {\n    await b.wait('entered');\n    b.child.send('release');\n  }\n  await b.wait('finished');\n  const value=await readFile(file,'utf8').catch(() => 'NaN');\n  results.push({name, simultaneousSections:second ? 2:1, first, second,\n    finalValue:Number(value), expected:2, ...extra, aMessages:a.messages,bMessages:b.messages});\n  a.child.send('exit');b.child.send('exit');\n}\ntry {\n  // Same absolute resource, but process-local temp directories differ.\n  const c1=path.join(ROOT,'tmpdir');\n  await mkdir(c1);await mkdir(path.join(c1,'tmpA'));await mkdir(path.join(c1,'tmpB'));\n  const file1=path.join(c1,'state.json');await writeFile(file1,'0');\n  const a=worker(file1,path.join(c1,'tmpA'));await a.wait('ready');a.child.send('acquire');await a.wait('entered');\n  const b=worker(file1,path.join(c1,'tmpB'));await b.wait('ready');b.child.send('acquire');\n  await finishPair(a,b,file1,'isolated-TMPDIR');\n  // Force the documented allocation exhaustion using only our own listeners.\n  const c2=path.join(ROOT,'fallback');await mkdir(c2);await mkdir(path.join(c2,'tmp'));\n  const file2=path.join(c2,'state.json');await writeFile(file2,'0');\n  const occupied=[];\n  for(let i=0;i<64;i++) {\n    const port=49152+createHash('sha256').update([file2,String(i)].join('\\u0000')).digest().readUInt32BE(0)%16383;\n    if(occupied.includes(port))continue;\n    const server=createServer(socket=>socket.destroy());\n    const ok=await new Promise(r=>{server.once('error',()=>r(false));server.listen(port,'127.0.0.1',()=>r(true));});\n    if(ok){listeners.push(server);occupied.push(port);}\n  }\n  const f=worker(file2,path.join(c2,'tmp'));await f.wait('ready');f.child.send('claim');\n  const fallback=await f.wait('claimed');\n  const exhaustionError=f.messages.find(m=>m.event==='error');\n  f.messages.splice(0); // consume the expected conservative failure before the recovery phase\n  for(const server of listeners.splice(0)) await new Promise(r=>server.close(r));\n  f.child.send('acquire');await f.wait('entered');\n  const g=worker(file2,path.join(c2,'tmp'));await g.wait('ready');g.child.send('acquire');\n  await finishPair(f,g,file2,'fallback-cache-versus-published-claim',{fallback,exhaustionError,occupiedCandidates:occupied.length});\n  // Parent absent on initial acquisition, then created by the transaction.\n  const c3=path.join(ROOT,'missing-parent');await mkdir(c3);await mkdir(path.join(c3,'tmp'));\n  const file3=path.join(c3,'new','nested','state.json');\n  const m=worker(file3,path.join(c3,'tmp'),true);await m.wait('ready');m.child.send('acquire');await m.wait('entered');\n  const n=worker(file3,path.join(c3,'tmp'));await n.wait('ready');n.child.send('acquire');\n  await finishPair(m,n,file3,'parent-created-inside-critical-section');\n  await writeFile(path.join('/tmp/codex-tool-runs/svton/m2-r2-atomic-review-20261002','registry-results.json'),JSON.stringify(results,null,2));\n  console.log(JSON.stringify(results.map(({name,simultaneousSections,finalValue,first,second,fallback})=>({name,simultaneousSections,finalValue,first,second,fallback})),null,2));\n} finally {\n  for(const child of children) if(child.exitCode===null) child.kill('SIGTERM');\n  for(const server of listeners) await new Promise(r=>server.close(r));\n  await sleep(50);await rm(ROOT,{recursive:true,force:true});\n}\n",
+      "sha256": "2c6e028a3e3c1f18d286b79f29b6cc73514ff188ca89ba98b3c6c6cc8ddc8bb2"
+    },
+    {
+      "scriptName": "identity-release.mjs",
+      "source": "import { mkdtemp, mkdir, realpath, writeFile, rm } from 'node:fs/promises';\nimport path from 'node:path';\nimport { withFileLock, lockKeyOf, heldToken, releaseLockIfOwner } from '/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/file-lock.js';\nconst dir=await realpath(await mkdtemp('/tmp/ship-identity-independent-'));\nconst file=path.join(dir,'new','nested','state.json');\nconst original=lockKeyOf(file);\nlet token;\ntry {\n  await withFileLock(file,async()=> {\n    token=heldToken(original);\n    await mkdir(path.dirname(file),{recursive:true});\n  });\n  const result={originalKey:original,currentKey:lockKeyOf(file),\n    leakedHoldingAfterSuccessfulReturn:heldToken(original)===token,\n    retainedOriginalToken:!!heldToken(original)};\n  // Release our OWN leaked holding through its original identity.\n  result.cleanedByOriginalIdentity=await releaseLockIfOwner(original,token);\n  await writeFile('/tmp/codex-tool-runs/svton/m2-r2-atomic-review-20261002/identity-release-result.json',JSON.stringify(result,null,2));\n  console.log(JSON.stringify(result));\n} finally {\n  if(token) await releaseLockIfOwner(original,token);\n  await rm(dir,{recursive:true,force:true});\n}\n",
+      "sha256": "de321aec5d17c80d125f1a75eaa04ed0d6bde60be562b96368e7b9c24fded16b"
+    },
+    {
+      "scriptName": "tcp-boundaries.mjs",
+      "source": "import * as fs from 'node:fs/promises';\nimport * as net from 'node:net';\nimport {createHash} from 'node:crypto';\nimport path from 'node:path';\nimport {once} from 'node:events';\nimport {withFileLock,lockPortFor} from '/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/file-lock.js';\nconst base='/tmp/codex-tool-runs/svton/m2-r2-atomic-review-20261002';\nconst dir=await fs.mkdtemp(base+'/boundaries-');\nconst portFor=lockPortFor;\nconst defer=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve}};\nconst pause=ms=>new Promise(r=>setTimeout(r,ms));\nconst guard=setTimeout(()=>{console.error('REPRO_TIMEOUT');process.exit(2)},12000);\nconst results={};\n// Same physical state file, two names through a symlinked parent directory.\nconst real=dir+'/real';await fs.mkdir(real);await fs.symlink(real,dir+'/alias','dir');\nconst file=real+'/state.json',alias=dir+'/alias/state.json';await fs.writeFile(file,'0');\n\nconst ae=defer(),be=defer(),ra=defer(),rb=defer();let active=0,maxActive=0;\nconst a=withFileLock(file,async()=>{active++;maxActive=Math.max(maxActive,active);const old=Number(await fs.readFile(file,'utf8'));ae.resolve();await ra.promise;await fs.writeFile(file,String(old+1));active--;});\nawait ae.promise;\nconst b=withFileLock(alias,async()=>{active++;maxActive=Math.max(maxActive,active);const old=Number(await fs.readFile(alias,'utf8'));be.resolve();await rb.promise;await fs.writeFile(alias,String(old+1));active--;});\nawait pause(250);\nresults.alias={maxActive,activeAtObservation:active,sameRealPath:await fs.realpath(file)===await fs.realpath(alias),ports:[await portFor(file),await portFor(alias)]};\nra.resolve();await a;rb.resolve();await b;results.alias.finalCounter=Number(await fs.readFile(file,'utf8'));results.alias.expectedCounter=2;\n// A banner visitor holds its write half open after reading server's FIN.\nconst held=dir+'/release.json',entered=defer(),release=defer();let settled=false;\nconst work=withFileLock(held,async()=>{entered.resolve();await release.promise;}).finally(()=>{settled=true});\nawait entered.promise;\nconst socket=net.connect({host:'127.0.0.1',port:await portFor(held),allowHalfOpen:true});\nawait once(socket,'data');release.resolve();await pause(350);\nresults.shutdown={resolvedWhilePeerOpen:settled,observationMs:350,netServerHasCloseAllConnections:typeof net.createServer().closeAllConnections==='function'};\nsocket.destroy();await work;results.shutdown.resolvedAfterPeerDestroyed=settled;\n// Foreign occupant accepts a connection but never sends a banner.\nconst silentFile=dir+'/silent.json',visitors=new Set();\nconst silent=net.createServer(s=>{visitors.add(s);s.on('close',()=>visitors.delete(s));});\nsilent.listen(await portFor(silentFile),'127.0.0.1');await once(silent,'listening');\nlet error='';const start=Date.now();\ntry{await withFileLock(silentFile,()=>{}, {timeoutMs:100});}catch(e){error=e.message;}\nresults.silent={timeoutMs:100,elapsedMs:Date.now()-start,error};\nfor(const s of visitors)s.destroy();await new Promise(r=>silent.close(r));\nclearTimeout(guard);await fs.writeFile(base+'/tcp-boundaries-result.json',JSON.stringify(results,null,2));console.log(JSON.stringify(results));\n",
+      "sha256": "5eb9ac19104056953700e0fc3047c33854d2a19520c5153cbb7116ad3332d7a1"
+    },
+    {
+      "scriptName": "probe-eof.mjs",
+      "source": "import net from 'node:net';\nimport {createHash} from 'node:crypto';\nimport * as fs from 'node:fs/promises';\nimport {once} from 'node:events';\nimport {withFileLock,lockPortFor} from '/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/file-lock.js';\nconst base='/tmp/codex-tool-runs/svton/m2-r2-atomic-review-20261002';\nconst dir=await fs.mkdtemp(base+'/eof-'),file=dir+'/state.json';\nconst port=await lockPortFor(file);\nconst server=net.createServer(s=>s.end());server.listen(port,'127.0.0.1');await once(server,'listening');\nlet settled=false,outcome='pending';\nwithFileLock(file,()=>{}, {timeoutMs:100}).then(()=>{settled=true;outcome='acquired'},e=>{settled=true;outcome=e.message});\nawait new Promise(r=>setTimeout(r,1600));\nconst result={timeoutMs:100,observedMs:1600,settled,outcome,peerBehavior:'accept and immediately end without data',noMocks:true};\nawait new Promise(r=>server.close(r));\nawait fs.writeFile(base+'/probe-eof-result.json',JSON.stringify(result,null,2));console.log(JSON.stringify(result));\n",
+      "sha256": "2aacafda9d16fc7ab7f4c3dce2ce2bc1ee456ca65f510f818bd2f6866d8486fc"
+    }
+  ],
+  "logs": [
+    {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-atomic-review-20261002/build.log",
+      "exitCode": 0,
+      "sha256": "dc62f939cee853d720dd930f19d82d085aca6afc8d85df978da6b06cda7ff56d"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-atomic-review-20261002/typecheck.log",
+      "exitCode": 0,
+      "sha256": "3af2c7f85db1a73e14ef30acb4bd2493cecef51fff8e8c6236b788ea32831e9f"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-atomic-review-20261002/full-test.log",
+      "exitCode": 0,
+      "sha256": "08fdcc8f62dc4e96391dc556ddd4a15e7ab06ce8ce3cb089242328dab849def2"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-atomic-review-20261002/package.log",
+      "exitCode": 0,
+      "sha256": "20d1b1b74a35c639911023f39048ea3f3d903b74702541fdacafbbb52062b8c5"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-atomic-review-20261002/package-smoke.log",
+      "exitCode": 0,
+      "sha256": "5c11bfad8d0b5f0a69b80da98ba090832935e541f103d54c25221b463341104f"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-atomic-review-20261002/publish-race.log",
+      "exitCode": 0,
+      "sha256": "97ecc3f73ea5a00e5dd871a3e042e63380c36d116ab6cf3aa2f7cec0840f95b8"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-atomic-review-20261002/acquisition-deadline.log",
+      "exitCode": 0,
+      "sha256": "042acbb76e5a171ece5f3daa519d7d02e7038ead1c076b1b4d76fdb3493722d6"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-atomic-review-20261002/scheduled-deadline.log",
+      "exitCode": 0,
+      "sha256": "2befbafeed83f157510f265593c51b33b9e468439f4a904492f2fc200fe9089a"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-atomic-review-20261002/registry-boundaries.log",
+      "exitCode": 0,
+      "sha256": "0a15aff6eb4b3f119920e589c0a2a4a77a3a8ab42d5b8f190dc86f3a5f5da4c4"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-atomic-review-20261002/identity-release.log",
+      "exitCode": 0,
+      "sha256": "6b8ae8f5c5f6a72f6979d52e226f64dca41029c724d2aed4d7d35f1ebb8c4e74"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-atomic-review-20261002/tcp-boundaries.log",
+      "exitCode": 0,
+      "sha256": "e76fe7ae16ef2ab1fe92e7eeabf399d53bbb1e3fc60a7e9acd2789715db3aa12"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-atomic-review-20261002/probe-eof.log",
+      "exitCode": 0,
+      "sha256": "109859bb7225e95a9d554a97104ad6b799c3aaa7857f35ee7ea7b53d4395407d"
+    }
+  ],
+  "acceptanceBoundary": "Clean Debian/systemd, public trusted TLS, remote registry and first application release remain separate."
+}

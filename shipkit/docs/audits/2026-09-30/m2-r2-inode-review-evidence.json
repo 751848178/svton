@@ -1,0 +1,59 @@
+{
+  "date": "2026-09-30",
+  "finding": "M2-R2",
+  "severity": "P2",
+  "status": "open",
+  "hashes": {
+    "shipkit/src/shared/file-lock.ts": "e5c9cfb3d1c66ef8c4bc6cb1102bea54b0f2a35251933e57ce2e81568cc1bc29",
+    "shipkit/src/shared/file-lock-race.test.ts": "59d987d4ae71d7ae24917f5a9432b5e620e69e234e4e556c5e1036c81520d8cc",
+    "shipkit/dist/shared/file-lock.js": "dba634b8fc8557ac43332c2246e9d838e0b09b13a6ca3205829e6be30e8cc9ee"
+  },
+  "verification": {
+    "buildExit": 0,
+    "typecheckExit": 0,
+    "fullTests": "passed",
+    "packageSmoke": "not rerun this round",
+    "testsPassed": 246,
+    "testsFailed": 0,
+    "installerChecksPassed": 17,
+    "installerDriftCheck": "passed",
+    "testExit": 0
+  },
+  "reproduction": {
+    "script": "import * as fs from 'node:fs/promises';\nimport {mock} from 'node:test';\nimport {spawnSync} from 'node:child_process';\nimport {AsyncLocalStorage} from 'node:async_hooks';\nconst base='/tmp/codex-tool-runs/svton/m2-r2-inode-review-20260930';\nconst dir=await fs.mkdtemp(base+'/race-'),file=dir+'/state.json',lock=file+'.lock',prev=lock+'.prev';\nconst child=spawnSync(process.execPath,['-e','process.exit(0)']);\ntry{process.kill(child.pid,0);throw Error('fixture PID reused')}catch(e){if(e.code!=='ESRCH')throw e;}\nawait fs.writeFile(lock,`${child.pid}\\tdead-owner-token\\n`);\nconst defer=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve}};\nconst before=defer(),resume=defer(),aRename=defer(),resumeARename=defer(),bRename=defer(),resumeBRename=defer(),aEntered=defer(),bEntered=defer(),releaseA=defer(),releaseB=defer();\nconst als=new AsyncLocalStorage();let paused=false,active=0,maxActive=0,bActive=false,overwroteLiveB=false,oldDirInode;\nconst {default:ignored,...named}=fs;\nmock.module('node:fs/promises',{namedExports:{...named,\n stat:async(p,...args)=>{\n  if(als.getStore()==='A'&&p===prev&&!paused){paused=true;oldDirInode=(await fs.stat(prev)).ino;before.resolve();await resume.promise;}\n  return fs.stat(p,...args);\n },\n rename:async(from,to)=>{\n  if(to===lock&&als.getStore()==='A'){aRename.resolve();await resumeARename.promise;overwroteLiveB=bActive;}\n  if(to===lock&&als.getStore()==='B'){bRename.resolve();await resumeBRename.promise;}\n  return fs.rename(from,to);\n }\n}});\nconst {withFileLock}=await import('/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/file-lock.js');\nconst guard=setTimeout(()=>{console.error('REPRO_TIMEOUT');process.exit(2)},10000);\nconst a=als.run('A',()=>withFileLock(file,async()=>{active++;maxActive=Math.max(maxActive,active);aEntered.resolve();await releaseA.promise;active--;},{timeoutMs:5000}));\nawait before.promise;await new Promise(r=>setTimeout(r,650));\nconst b=als.run('B',()=>withFileLock(file,async()=>{bActive=true;active++;maxActive=Math.max(maxActive,active);bEntered.resolve();await releaseB.promise;active--;bActive=false;},{timeoutMs:5000}));\nawait bRename.promise;resume.resolve();await aRename.promise;\nconst recordsBeforeReplace=await fs.readdir(prev);const currentDirInode=(await fs.stat(prev)).ino;\nresumeBRename.resolve();await bEntered.promise;const bLock=await fs.readFile(lock,'utf8');\nresumeARename.resolve();await aEntered.promise;\nconst result={maxActive,activeAtObservation:active,overwroteLiveB,bLockChanged:await fs.readFile(lock,'utf8')!==bLock,recordsBeforeReplace,oldDirInode,currentDirInode,onlySchedulingMocked:true};\nreleaseA.resolve();await a;releaseB.resolve();await b;clearTimeout(guard);mock.restoreAll();\nawait fs.writeFile(base+'/inode-race-result.json',JSON.stringify(result,null,2));console.log(JSON.stringify(result));\n",
+    "sha256": "d890b737040437d9bf1240191a2df515b7f7ff94bd9318fab40ed0f4ec6be5d4",
+    "result": {
+      "maxActive": 2,
+      "activeAtObservation": 2,
+      "overwroteLiveB": true,
+      "bLockChanged": true,
+      "recordsBeforeReplace": [
+        "owner.0772846701e05f7326dc0f6f4bd026f5",
+        "owner.20aa187ae40f706bd5faa540264085b2"
+      ],
+      "oldDirInode": 160692661,
+      "currentDirInode": 160692664,
+      "onlySchedulingMocked": true
+    },
+    "exit": 0,
+    "method": "Real filesystem, real exited child PID checked ESRCH. Two concurrent calls in one process, AsyncLocalStorage labels; only scheduling paused before initial stat and before real renames. No stat results or inode values forged."
+  },
+  "logs": {
+    "test.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-inode-review-20260930/test.log",
+      "sha256": "c94516a07ad18d837fb29f246dd5ff3cf546952b0a507561a21c712700109f74"
+    },
+    "typecheck.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-inode-review-20260930/typecheck.log",
+      "sha256": "3af2c7f85db1a73e14ef30acb4bd2493cecef51fff8e8c6236b788ea32831e9f"
+    },
+    "inode-race.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-inode-review-20260930/inode-race.log",
+      "sha256": "ecb392a6dcc8aaaf95142d769f3925d44e41dc34a324be8645c76af1b8fe58e8"
+    },
+    "build.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-inode-review-20260930/build.log",
+      "sha256": "dc62f939cee853d720dd930f19d82d085aca6afc8d85df978da6b06cda7ff56d"
+    }
+  }
+}

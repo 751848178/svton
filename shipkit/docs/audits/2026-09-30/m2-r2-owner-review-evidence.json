@@ -1,0 +1,87 @@
+{
+  "date": "2026-09-30",
+  "finding": "M2-R2",
+  "status": "open",
+  "severity": "P2",
+  "hashes": {
+    "shipkit/src/shared/file-lock.ts": "98337103e95fc05ab2ddfb58476b778105d1baaa098d1e9355acd0bd9a4ed68c",
+    "shipkit/src/shared/file-lock-race.test.ts": "093bc66e9848c816dcce11413bbaf933ff87b140df7cf2daf7670c34b756e2c8",
+    "shipkit/dist/shared/file-lock.js": "6ac91c7d9d0b5631f9cd729cfb82f096d1688e40303a155ab02b3cb18dbcf385",
+    "shipkit/scripts/package-smoke.mjs": "dbd4e9d88d3de39002b134befa509553687f77c6210cafe9880278eeec33985a",
+    "shipkit/bootstrap/install.sh": "6adf19f85199700c827d4d53853ae6eb72a71768ef0911bb12264c15d6017dcc",
+    "shipkit/pack/shipkit-0.5.0.tgz": "2b8e6c990873470b1dcd7e9dc91f660c655a5ae04558c042317f7e17528168ab",
+    "shipkit/pack/ship-agent-0.5.0.tgz": "e82246abad564fb1a0f72374cb2bf1245000fcdda81967557e26be0bdb633657"
+  },
+  "verification": {
+    "buildExit": 0,
+    "typecheckExit": 0,
+    "nodeTestsPassed": 239,
+    "nodeTestsFailed": 0,
+    "installerChecksPassed": 17,
+    "installerDriftCheck": "passed",
+    "packExit": 0,
+    "packageChecksPassed": 17,
+    "packageInstall": "offline",
+    "docker": "stub"
+  },
+  "reproduction": {
+    "scriptName": "owner-race.mjs",
+    "scriptSource": "import * as fs from 'node:fs/promises';\nimport {mock} from 'node:test';\nimport {spawnSync} from 'node:child_process';\nimport {AsyncLocalStorage} from 'node:async_hooks';\nconst scenario=process.argv[2];\nconst base='/tmp/codex-tool-runs/svton/m2-r2-owner-review-20260930';\nconst dir=await fs.mkdtemp(base+'/race-'),file=dir+'/state.json',lock=file+'.lock',prev=lock+'.prev';\nconst child=spawnSync(process.execPath,['-e','process.exit(0)']);\ntry{process.kill(child.pid,0);throw Error('fixture PID reused')}catch(e){if(e.code!=='ESRCH')throw e;}\nawait fs.writeFile(lock,`${child.pid}\\tdead-owner-token\\n`);\nif(scenario==='stale-cleanup'){\n await fs.mkdir(prev);await fs.writeFile(prev+'/owner',`${child.pid}\\tdead-reaper-token\\tdead-owner-token\\n`);\n}\nconst defer=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve}};\nconst before=defer(),resume=defer(),aRename=defer(),resumeARename=defer(),bRename=defer(),resumeBRename=defer(),aEntered=defer(),bEntered=defer(),releaseA=defer(),releaseB=defer();\nconst als=new AsyncLocalStorage();let paused=false,active=0,maxActive=0,bActive=false,overwroteLiveB=false,removedLiveBOwner=false,bOwnerLine='';\nconst {default:ignored,...named}=fs;\nmock.module('node:fs/promises',{namedExports:{...named,\n rm:async(p,opts)=>{\n  if(als.getStore()==='A'&&p===prev){\n   if(scenario==='stale-cleanup'&&!paused){paused=true;before.resolve();await resume.promise;}\n   const raw=await fs.readFile(prev+'/owner','utf8').catch(()=>null);\n   if(bOwnerLine&&raw===bOwnerLine)removedLiveBOwner=true;\n  }\n  return fs.rm(p,opts);\n },\n writeFile:async(p,data,opts)=>{\n  if(scenario==='publish-failure'&&als.getStore()==='A'&&p===prev+'/owner'&&!paused){paused=true;before.resolve();await resume.promise;}\n  return fs.writeFile(p,data,opts);\n },\n rename:async(from,to)=>{\n  if(to===lock&&als.getStore()==='A'){aRename.resolve();await resumeARename.promise;overwroteLiveB=bActive;}\n  if(to===lock&&als.getStore()==='B'){bOwnerLine=await fs.readFile(prev+'/owner','utf8');bRename.resolve();await resumeBRename.promise;}\n  return fs.rename(from,to);\n }\n}});\nconst {withFileLock}=await import('/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/file-lock.js');\nconst guard=setTimeout(()=>{console.error('REPRO_TIMEOUT');process.exit(2)},10000);\nconst a=als.run('A',()=>withFileLock(file,async()=>{active++;maxActive=Math.max(maxActive,active);aEntered.resolve();await releaseA.promise;active--;},{timeoutMs:5000}));\nawait before.promise;\nif(scenario==='publish-failure')await new Promise(r=>setTimeout(r,650));\nconst b=als.run('B',()=>withFileLock(file,async()=>{bActive=true;active++;maxActive=Math.max(maxActive,active);bEntered.resolve();await releaseB.promise;active--;bActive=false;},{timeoutMs:5000}));\nawait bRename.promise;resume.resolve();await aRename.promise;\nresumeBRename.resolve();await bEntered.promise;\nconst bLock=await fs.readFile(lock,'utf8');\nresumeARename.resolve();await aEntered.promise;\nconst result={scenario,maxActive,activeAtObservation:active,removedLiveBOwner,overwroteLiveB,bLockChanged:await fs.readFile(lock,'utf8')!==bLock,onlySchedulingMocked:true};\nreleaseA.resolve();await a;releaseB.resolve();await b;clearTimeout(guard);mock.restoreAll();\nawait fs.writeFile(`${base}/${scenario}-result.json`,JSON.stringify(result,null,2));console.log(JSON.stringify(result));\n",
+    "scriptSha256": "c25153165ea4a306122430a3ed36d833df7dda7d1d93f0ace5e0a3912c584008",
+    "results": {
+      "stale-cleanup": {
+        "scenario": "stale-cleanup",
+        "maxActive": 2,
+        "activeAtObservation": 2,
+        "removedLiveBOwner": true,
+        "overwroteLiveB": true,
+        "bLockChanged": true,
+        "onlySchedulingMocked": true
+      },
+      "publish-failure": {
+        "scenario": "publish-failure",
+        "maxActive": 2,
+        "activeAtObservation": 2,
+        "removedLiveBOwner": true,
+        "overwroteLiveB": true,
+        "bLockChanged": true,
+        "onlySchedulingMocked": true
+      }
+    },
+    "exitCodes": {
+      "stale-cleanup": 0,
+      "publish-failure": 0
+    },
+    "method": "Real filesystem, real exited child PID confirmed ESRCH, two concurrent calls within one process, AsyncLocalStorage actor labels. Mocking pauses rm/writeFile/rename before real operations only. Not a cross-process E2E reproduction."
+  },
+  "logs": {
+    "test.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-owner-review-20260930/test.log",
+      "sha256": "38494516b489bd8d3f3041ba6ecc1fb824dca9ddd26438fd991aaaadbd5b3293"
+    },
+    "typecheck.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-owner-review-20260930/typecheck.log",
+      "sha256": "3af2c7f85db1a73e14ef30acb4bd2493cecef51fff8e8c6236b788ea32831e9f"
+    },
+    "pack.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-owner-review-20260930/pack.log",
+      "sha256": "628ae08ac6c6a8b491f7bcdbeb8f96cb41bf483a8a4d8513e5213f62228edb15"
+    },
+    "publish-failure.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-owner-review-20260930/publish-failure.log",
+      "sha256": "3b7802f19b973c2bce3d6b20e02f0256961a5d930ebd6b7f3a76eaf58bb2e8e8"
+    },
+    "package-smoke.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-owner-review-20260930/package-smoke.log",
+      "sha256": "74b6ac2078a8a9120867ca29eecca98e70c05339f6c80c6783d57feaf7973a32"
+    },
+    "stale-cleanup.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-owner-review-20260930/stale-cleanup.log",
+      "sha256": "9265b0bc7384496b295cd33377498979d9da15dce89f0b725b9ec9c709cb5e3c"
+    },
+    "build.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-owner-review-20260930/build.log",
+      "sha256": "dc62f939cee853d720dd930f19d82d085aca6afc8d85df978da6b06cda7ff56d"
+    }
+  }
+}

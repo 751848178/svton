@@ -1,6 +1,8 @@
 // Builder provider contract: static bound machines today, cloud adapters (tencent first) for dynamic builders.
 
 export interface BuilderHandle {
+  /** CA file pinned by the credential (M2-10) — plain http/entries without a pinned CA leave it unset */
+  caFile?: string;
   url: string;
   token: string;
 }

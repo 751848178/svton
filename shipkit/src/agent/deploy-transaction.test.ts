@@ -20,6 +20,7 @@ mock.module('./docker.js', {
       if (y.includes('bad-image')) throw new Error('simulated compose up failure');
     },
     composePort: async () => null,
+    assertComposeOwnership: async () => {},
   },
 });
 
@@ -47,10 +48,10 @@ async function root(): Promise<string> {
 test('deploy failure recovers the FULL previous snapshot — image and env (F02)', async () => {
   MODE = 'health-fail';
   const appsRoot = await root();
-  const ok = await runDeploy(appsRoot, { app: 'a', imageRef: 'reg/a:good:1', spec: SPEC_OK(), envFileContent: 'KEY=v1\n' }, log);
+  const ok = await runDeploy(appsRoot, { app: 'a', project: 'proj-a-x', env: 'test', imageRef: 'reg/a:good:1', spec: SPEC_OK(), envFileContent: 'KEY=v1\n' }, log);
   assert.equal(ok.verification, 'passed');
   await assert.rejects(
-    () => runDeploy(appsRoot, { app: 'a', imageRef: 'reg/a:bad-image:2', spec: SPEC_BAD(), envFileContent: 'KEY=v2\n' }, log),
+    () => runDeploy(appsRoot, { app: 'a', project: 'proj-a-x', env: 'test', imageRef: 'reg/a:bad-image:2', spec: SPEC_BAD(), envFileContent: 'KEY=v2\n' }, log),
     (e: unknown) => {
       const r = (e as { recovery: { succeeded: boolean; target: string } }).recovery;
       assert.ok(e instanceof DeployFailure);
@@ -69,9 +70,9 @@ test('deploy failure recovers the FULL previous snapshot — image and env (F02)
 test('compose-up failure (before healthcheck) also recovers the previous release (F03)', async () => {
   MODE = 'up-fail';
   const appsRoot = await root();
-  await runDeploy(appsRoot, { app: 'a', imageRef: 'reg/a:good:1', spec: SPEC_OK(), envFileContent: 'K=1\n' }, log);
+  await runDeploy(appsRoot, { app: 'a', project: 'proj-a-x', env: 'test', imageRef: 'reg/a:good:1', spec: SPEC_OK(), envFileContent: 'K=1\n' }, log);
   await assert.rejects(
-    () => runDeploy(appsRoot, { app: 'a', imageRef: 'reg/a:bad-image:2', spec: SPEC_BAD() }, log),
+    () => runDeploy(appsRoot, { app: 'a', project: 'proj-a-x', env: 'test', imageRef: 'reg/a:bad-image:2', spec: SPEC_BAD() }, log),
     (e: unknown) => (e as { recovery: { succeeded: boolean } }).recovery.succeeded === true,
   );
   const compose = await readFile(path.join(appsRoot, 'a', 'compose.yaml'), 'utf8');
@@ -82,7 +83,7 @@ test('first-deploy failure reports recovery attempted without a target (F04)', a
   MODE = 'health-fail';
   const appsRoot = await root();
   await assert.rejects(
-    () => runDeploy(appsRoot, { app: 'a', imageRef: 'reg/a:bad-image:1', spec: SPEC_BAD() }, log),
+    () => runDeploy(appsRoot, { app: 'a', project: 'proj-a-x', env: 'test', imageRef: 'reg/a:bad-image:1', spec: SPEC_BAD() }, log),
     (e: unknown) => {
       const r = (e as { recovery: { attempted: boolean; succeeded: boolean; target: string | null } }).recovery;
       assert.equal(r.attempted, true);
@@ -98,7 +99,7 @@ test('concurrent deploys of one app serialize without state corruption (F05)', a
   const appsRoot = await root();
   const results = await Promise.allSettled(
     Array.from({ length: 5 }, (_, i) =>
-      runDeploy(appsRoot, { app: 'a', imageRef: `reg/a:ok:${i}`, spec: SPEC_OK() }, log),
+      runDeploy(appsRoot, { app: 'a', project: 'proj-a-x', env: 'test', imageRef: `reg/a:ok:${i}`, spec: SPEC_OK() }, log),
     ),
   );
   assert.equal(results.filter((r) => r.status === 'fulfilled').length, 5);
@@ -109,8 +110,8 @@ test('concurrent deploys of one app serialize without state corruption (F05)', a
 test('successful deploy records releaseId and previousReleaseId', async () => {
   MODE = 'ok';
   const appsRoot = await root();
-  const first = await runDeploy(appsRoot, { app: 'a', imageRef: 'reg/a:1', spec: SPEC_OK() }, log);
-  const second = await runDeploy(appsRoot, { app: 'a', imageRef: 'reg/a:2', spec: SPEC_OK() }, log);
+  const first = await runDeploy(appsRoot, { app: 'a', project: 'proj-a-x', env: 'test', imageRef: 'reg/a:1', spec: SPEC_OK() }, log);
+  const second = await runDeploy(appsRoot, { app: 'a', project: 'proj-a-x', env: 'test', imageRef: 'reg/a:2', spec: SPEC_OK() }, log);
   assert.equal(first.previousReleaseId, null);
   assert.equal(second.previousReleaseId, first.releaseId);
 });

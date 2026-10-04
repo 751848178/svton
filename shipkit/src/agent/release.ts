@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import type { AppStatus, ShipSpec } from '../shared/types.js';
 import { validateSpec } from '../shared/spec-schema.js';
+import { isRecord } from '../shared/obj.js';
 import { writeFileAtomic } from './atomic.js';
 
 export interface AppRelease {
@@ -26,6 +27,14 @@ export interface AppState {
 const EMPTY = (): AppState => ({ current: null, previous: null, history: [] });
 const KEEP_RELEASES = 10;
 const RELEASE_ID_RE = /^[a-z0-9-]{6,40}$/;
+
+function validState(value: unknown): value is AppState {
+  const validId = (v: unknown) => v === null || (typeof v === 'string' && RELEASE_ID_RE.test(v));
+  if (!isRecord(value) || !validId(value.current) || !validId(value.previous) || !Array.isArray(value.history)) return false;
+  if (value.updatedAt !== undefined && typeof value.updatedAt !== 'string') return false;
+  return value.history.every((h: unknown) => isRecord(h) && typeof h.releaseId === 'string' && RELEASE_ID_RE.test(h.releaseId) &&
+    typeof h.imageRef === 'string' && h.imageRef.length > 0 && typeof h.at === 'string' && (h.event === 'deploy' || h.event === 'rollback'));
+}
 
 export class ReleaseStore {
   constructor(private readonly appsRoot: string) {}
@@ -52,9 +61,11 @@ export class ReleaseStore {
       throw new Error(`cannot read state of '${app}': ${(e as Error).message}`);
     }
     try {
-      return { ...EMPTY(), ...(JSON.parse(text) as AppState) };
+      const state: unknown = JSON.parse(text);
+      if (!validState(state)) throw new Error('invalid state structure');
+      return state;
     } catch (e) {
-      throw new Error(`state.json of '${app}' is corrupt (${(e as Error).message}); restore from releases/ or delete it to reset`);
+      throw new Error(`state.json of '${app}' is corrupt (${(e as Error).message}); preserve it and restore from verified release records`);
     }
   }
 
@@ -62,7 +73,7 @@ export class ReleaseStore {
     const id = `${Date.now().toString(36)}-${randomUUID().slice(0, 8)}`;
     const dir = path.join(this.releasesDir(app), id);
     const createdAt = new Date().toISOString();
-    await writeFileAtomic(path.join(dir, 'meta.json'), JSON.stringify({ id, imageRef, createdAt, spec }, null, 2));
+    await writeFileAtomic(path.join(dir, 'meta.json'), JSON.stringify({ id, imageRef, createdAt, spec, hasEnv: env !== undefined }, null, 2));
     if (env !== undefined) await writeFile(path.join(dir, 'env'), env, { mode: 0o600 });
     return { id, imageRef, spec, env, createdAt };
   }
@@ -70,17 +81,28 @@ export class ReleaseStore {
   async loadRelease(app: string, id: string): Promise<AppRelease> {
     if (!RELEASE_ID_RE.test(id)) throw new Error(`invalid release id '${id}'`);
     const dir = path.join(this.releasesDir(app), id);
-    const meta = JSON.parse(await readFile(path.join(dir, 'meta.json'), 'utf8')) as { id: string; imageRef: string; createdAt: string; spec: unknown };
+    const meta: unknown = JSON.parse(await readFile(path.join(dir, 'meta.json'), 'utf8'));
+    if (!isRecord(meta) || meta.id !== id || typeof meta.imageRef !== 'string' || !meta.imageRef || /\s/.test(meta.imageRef) ||
+      typeof meta.createdAt !== 'string' || (meta.hasEnv !== undefined && typeof meta.hasEnv !== 'boolean')) {
+      throw new Error(`release metadata for '${app}' release '${id}' is corrupt; preserve and restore the snapshot`);
+    }
     let env: string | undefined;
     try {
       env = await readFile(path.join(dir, 'env'), 'utf8');
-    } catch {
-      // release without env snapshot
+    } catch (e) {
+      // Only an explicit no-env marker proves absence was intentional.
+      // Old metadata cannot distinguish "never saved" from "lost later".
+      if ((e as NodeJS.ErrnoException).code === 'ENOENT' && meta.hasEnv === undefined) {
+        throw new Error(`environment snapshot for '${app}' release '${id}' is missing and legacy metadata has no hasEnv marker; verify original records, restore env or explicitly mark hasEnv=false`);
+      }
+      if ((e as NodeJS.ErrnoException).code !== 'ENOENT' || meta.hasEnv !== false) {
+        throw new Error(`cannot read environment snapshot for '${app}' release '${id}': ${(e as Error).message}`);
+      }
     }
     return { id, imageRef: meta.imageRef, spec: validateSpec(meta.spec), env, createdAt: meta.createdAt };
   }
 
-  async shift(app: string, releaseId: string, event: 'deploy' | 'rollback'): Promise<void> {
+  async shift(app: string, releaseId: string, event: 'deploy' | 'rollback'): Promise<{ cleanupError?: string }> {
     const s = await this.loadState(app);
     const rel = await this.loadRelease(app, releaseId);
     if (s.current && s.current !== releaseId) s.previous = s.current;
@@ -89,7 +111,11 @@ export class ReleaseStore {
     s.history.unshift({ releaseId, imageRef: rel.imageRef, at: s.updatedAt, event });
     s.history = s.history.slice(0, 20);
     await writeFileAtomic(this.stateFile(app), JSON.stringify(s, null, 2));
-    await this.gc(app, s);
+    // A rejected shift MUST mean the state was not committed. Retention is
+    // best-effort after that boundary, never grounds for reversing activation.
+    try { await this.gc(app, s); }
+    catch (e) { return { cleanupError: (e as Error).message }; }
+    return {};
   }
 
   private async gc(app: string, state: AppState): Promise<void> {

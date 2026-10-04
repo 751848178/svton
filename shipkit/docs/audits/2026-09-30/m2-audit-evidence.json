@@ -1,0 +1,444 @@
+{
+  "date": "2026-09-30",
+  "conclusion": "M2 not accepted: 10 M2 findings (7 P1, 3 P2) and 1 pre-existing P1 blocker",
+  "source_sha256": {
+    "src/agent/agent-server.test.ts": "fa7c31e4846ef33e0ac3de79721f14dd9948dbfd5a67229f10008e0b2a4bcedd",
+    "src/agent/app-lock.ts": "bae217c0ae2dd6e6891582774a4042656affd2ea9678f517cc4cd99fbf553215",
+    "src/agent/atomic.ts": "5b4456923efa8d55a32ce9a438216a5f780f755165ade5a3b46a47f63f7cc908",
+    "src/agent/body.ts": "3aeff9842111773aa78f5a793d6218adb3c6c29d44dcbf4cf758244f02acdd6f",
+    "src/agent/compose.test.ts": "61770c34c9a3898df1d249024e4c8404ea5eda832beefa28787fbab4d0402553",
+    "src/agent/compose.ts": "b34b1d0eca6c8f7343d4a1429745a090a2aea3b05a1377379247afc050dde096",
+    "src/agent/deploy-transaction.test.ts": "a7f2b0591a9fe3bdf5306b2e998ff54b74a685f1d4ea2e362d9e484bee5260fa",
+    "src/agent/docker.ts": "e7284492e7f0a22575bf55bfc1361c5cc028facfe5825cea1091bcd95e2f31dc",
+    "src/agent/gc-docker.ts": "8feb4b2ad28af95dbe6f3a029ef74a279cfb633c6fe31415391adbcd6079ba28",
+    "src/agent/gc-integration.test.ts": "d3e13b51a8dfa8f877281472caaebc14a6d88ac617c122244815a02203e51517",
+    "src/agent/gc-safety.test.ts": "b1cb897fdf26313fa487334c8e82fac6df6ebc66df168563634a558a2f332d43",
+    "src/agent/gc.test.ts": "113d011fee7f2edf5bfdf3bfd720c0f3e580c3a6f58ef616fb5d3bc52f990006",
+    "src/agent/gc.ts": "6e0c684d061280dd3273dd2ba7c33b1f91c665ffecd09d5fa789c48a84ec0be8",
+    "src/agent/handlers-build.ts": "7409ac6cb3515b3ceff1566e06a9ce74d624a53a7b484772ed1ad97f3724b3ce",
+    "src/agent/handlers-deploy.ts": "56219a9b43c4c49182884d1f04b73f54b3bdd240a0206d9b9fd509390849c545",
+    "src/agent/handlers-push.ts": "33479ca1a48a7c23df003dd0a91ec0414cd45a0f33dde69b4389099f02d8e15b",
+    "src/agent/handlers-verify.ts": "1658bc56f3d5eb070c5f942121665d37e15854f4acdeb0e4973fb8f49e9f51c6",
+    "src/agent/healthcheck.ts": "29420d662aa99bf36223f5be0f68391a058753c642e1ac4e1c85fd5b841c351b",
+    "src/agent/http-fail.ts": "c74382c68dba8a4671d669c04dbe64b38929cb1306ed69cfdc0c32cae6e3b57e",
+    "src/agent/image-ledger.ts": "bdb4426599f16130f6ad87cbd798beaf602212ea54dbff188edc3a5c78693d09",
+    "src/agent/jobs.ts": "9e16676eda12dbcc184d52fa65f9c3c538f880f710be7cd152ecefeb53823108",
+    "src/agent/op-locks.test.ts": "9670a8937c24a53b0591f55891e30e0510216b612026fc4fd182059325975ab7",
+    "src/agent/pair-cli.ts": "df01fdc27a5cfd442c8856999214b107e362fc0b43449eba79219475a4e12e9e",
+    "src/agent/registry-creds.test.ts": "24286d9ceef63058ce6f189abe4f5d5a2305f16b822b111097717170516474a0",
+    "src/agent/registry-creds.ts": "643685ed96e5d55d916c2bc3a33bf96bcbaa830f02a5ffcab64358dd67d711ab",
+    "src/agent/release-store.test.ts": "f6ed208521a5f842501230e1040d23b035a8603384001f65452ce16433bce467",
+    "src/agent/release.ts": "4df1f8164b73cc09409ed1a8926a85bea9a5e87fa89250ec3930011607754755",
+    "src/agent/routes.ts": "db56e89d4b2ab0bcfc06e114c0f1130e1b39b57245d245d0a70c2d32a5cdb722",
+    "src/agent/security.test.ts": "67b6de8465cccff26f32f27543679244aebae24de893e87178d3580c15f901ec",
+    "src/agent/security.ts": "07bb02f8fc04252db9572518bb98eef633e91bdbe511611465daac40845c5179",
+    "src/agent/server.ts": "70f1615b7d631ea0d5c1ac0a4588a82dece6b8dd1234329ee204e5d9f4d7e27a",
+    "src/agent/source.test.ts": "49aad132ac732679f3e62bbd00c6cfdfa1e14d9d0fe2430b2e4ba4deab980c08",
+    "src/agent/source.ts": "d0fc3c6601a183afaffb30ef141f560124d87ff3962efc8101971ae9f2e08a95",
+    "src/cli/cmd-build.ts": "885444feddb0b12f79c0b1a06e4c4337bc0a12159d427392dfd1e94c03b7a178",
+    "src/cli/cmd-builder.ts": "7a0e92fcd5d8fbb8db320480d0941cb2fd02f9336da2c629d2ac5c880d9448f6",
+    "src/cli/cmd-deploy.ts": "236b1b0c2373da8be6c1f76d1ec6844fcc926ab6b3c789aad479f401653ff3f4",
+    "src/cli/cmd-doctor.ts": "4acc5f6c8fe8e69506a3674c02ae96a0c9b94024aba6e5786295d13dc2349caf",
+    "src/cli/cmd-gc.ts": "9beced1902663707a0bad2c03aa3a076243fefd0ea6b95f01f8a194ba94a0f8e",
+    "src/cli/cmd-init.ts": "b3b59bf0e04be1909166d43965014c8c6ff3fdda0665c5f27543c81b93cb44ec",
+    "src/cli/cmd-pair.ts": "7fca3a48094b00756d571d2c6a0440b1e42f9840c5d92d5be736ca6de153c2ac",
+    "src/cli/cmd-release.ts": "c70da56abd129b59df014179989de57b3a15487c5e7d72a411da9a5a1bd36349",
+    "src/cli/cmd-rollback.ts": "39f901cc7b1d1791cefb46670be285f25c52c5cb8366b66c370ec582a47220c4",
+    "src/cli/cmd-serve-bundle.ts": "4367d2513605904f79b5ae40f2d0eb6ce003969a1894cdbe701fe6658f7ba3d7",
+    "src/cli/cmd-status.ts": "fa1126cec96b2fd4df84f6bb6608e512742674ec7c6ca4f34d52880ab2faae16",
+    "src/cli/cmd-verify-registry.ts": "46d53ccc5b9ed9fd78fd7da4f595f3dd4f08dd6e08372abeab07019d3ba11e6c",
+    "src/cli/errors.ts": "d036fc798c7728e03b340df93e97ea310abf64571152fd8df43e175ff9e907cc",
+    "src/cli/init/apply-partial.test.ts": "dc41747288a3e28585506a7410916922452ef8704c5366f7a7861899b7c49bb3",
+    "src/cli/init/apply.ts": "0d17bd29948929f10b3a644ca3b1218d340de1dd71c2049449d2a20361d523cf",
+    "src/cli/init/checks.test.ts": "c64c535da6ba26a30ccd59c336f38bff3a9d6412fe681582c97fc4fae9b13aca",
+    "src/cli/init/checks.ts": "7fae19039bdea18bf45ef9b0ab6c6bba6a168214ef884ee0062aaa3eb5b07fe9",
+    "src/cli/init/closure.test.ts": "b23d33fbc474d2f162a6f2609dae296aa3063eeef83f2e71bdb02a74cf2dab77",
+    "src/cli/init/compat.test.ts": "f87eb8e5bb66053f44e25feea9295a9875ef786603151a6ee029722b0c1655ad",
+    "src/cli/init/defaults-resume.ts": "94db14c8976115d7b91e38629b1193ed8c50c3843a0d75eaa1aedbb48e68512f",
+    "src/cli/init/defaults.ts": "ac36f9eb7cbff331cfdb9c9fcccdb3cffb6499625171ec10d2da8ccd0638fc20",
+    "src/cli/init/detect.test.ts": "e905d90ff9d57e0dc7bcb1b74c4e28508037cb320694d88dc1565708ddb86629",
+    "src/cli/init/detect.ts": "f49e68ba8ce0fca8fdb7a2dd93977ea101a4b950dc3769c9b51885c44834eda2",
+    "src/cli/init/diff.test.ts": "a1adeb12417239a8d5e406766f71083ac716c54b3db32c8cc357b89603fc0500",
+    "src/cli/init/diff.ts": "f8906d980d143322122e824f7520d916130b87fe14311301dab87b85ab89521c",
+    "src/cli/init/gitignore.ts": "515b3e3290b39c9bd1acbc2824c89dec2fe5acc2e68a2461010b43c5c0f7c787",
+    "src/cli/init/lock.ts": "692772b77ef8893214440f91e32d164c3f06d9b063f3bfeef7d44760c5256efc",
+    "src/cli/init/machines.ts": "43b9eb7f82f6200cf258682e86b31fda0276904a6013bdef69f4fd7652180698",
+    "src/cli/init/mask.ts": "25a48fa3f2151ceb1dc49426d441e153e887509f0998359f8ac027d922209a3e",
+    "src/cli/init/pair-flow.ts": "5b9e7b503b5536f4f3be89279b47f309254b40735824fd22d049c207dc579abc",
+    "src/cli/init/plan.test.ts": "33d219665aa1dbb296e11fe38fc8fda792908343e131762fddc1c156cc759337",
+    "src/cli/init/plan.ts": "a17851caf3fe04f78dfe41b179feae65e80f926eb271efc46c0220c100e4be6f",
+    "src/cli/init/prompt-clear.test.ts": "ffa41ff95012b75072d5bf9aaa690c7c55a403fc369ce36cf465df867eccad16",
+    "src/cli/init/prompt.test.ts": "d4d87b43c682a044a28204e543692c699119d602e5685456f5c9ca16afc66fe2",
+    "src/cli/init/prompt.ts": "6d8445b674d4bef4bffb0369970236be940f0954291cc4385d8ed871024c3d04",
+    "src/cli/init/pty-driver.ts": "88f4601bf4b11f6a90f6369a476fc07b682c40930916ab52fab09f7e24babdfd",
+    "src/cli/init/pty-resume.test.ts": "d7883ae825f79930ad07cbe47940ee13fb1aa06a5ebceed4d98cf05b77b4250c",
+    "src/cli/init/questions.ts": "22265b3323be27ed08b9ca3684d065196b6a92527a50c46ef757b819635ef904",
+    "src/cli/init/render.test.ts": "4e1dcf76fae2c2ba5fc3735b2869e1dffe71e0f173f39df1b5bf69cbec727d09",
+    "src/cli/init/render.ts": "6fb88c65edb6a865b6ac872f416a9c6d2a9f245f56732ad1239838d494edaa9f",
+    "src/cli/init/resume.test.ts": "643061768c26470d04bc972653efdfdc99f480df5a7ba4e96727fad531f731c4",
+    "src/cli/init/safe-write.ts": "8bfd06162ee2be45e04f7638f71f88635229b2d597015691e69db01be0f748e9",
+    "src/cli/init/state.test.ts": "0eb547332437293a099257f77be2421a279cbcb80a8a2aabbab9a014d02a7509",
+    "src/cli/init/state.ts": "67850e83cc2d2f98c1e11543dc0922dd85936ca16648f5f110f0a46c4786a7bb",
+    "src/cli/init/wizard-fixtures.ts": "bbfc1bd4a5e2a0ae929e0acbf077c4db2a91baf2c7c221f84db1613e2d4e12f6",
+    "src/cli/init/wizard.ts": "1a72bc58d76d1f6f3f2e7b4b6b299b736d717674e2901071c64279a8d69c721e",
+    "src/cli/init/write.test.ts": "1cd9872fb81e10fa022e608c87977a8fc6da5609ba71825172be13ecd1030322",
+    "src/cli/init/write.ts": "a2070a5c2c33527ac9da7a22815a8a6e11e9e6910155fb8eb58dafffa756be11",
+    "src/cli/job-report.ts": "9eb1394d41f575bc03382c98bef188feb4a11a109bc7642bd5e073e6c373d05f",
+    "src/cli/local-state.test.ts": "9c6044e6089f68ac792f45625863312c32aecea0774980ca9bcc7b127f707c97",
+    "src/cli/local-state.ts": "e09688482bb92f39736f7b165f5b02bf82c34560cc840b4a837bc08db1479a8b",
+    "src/cli/main.ts": "bc79cf39f09a5d5f88831b0ebfeab5809a103834623772dc91a40b576c1dfbb3",
+    "src/cli/output.ts": "ffc4558160f407736573168880032a704a6fa1c83a4716c74bb683313d617271",
+    "src/cli/pair-http.ts": "52fcff5a397cdde26410baee839578081d23efafc4159b5f11f8c06c5c54a719",
+    "src/cli/pipeline.test.ts": "2d2e4ba132ed1ea5ddb8714191fe8007de26acaf76a51c7be8408a5fbdc38dba",
+    "src/cli/pipeline.ts": "36a5d8ea6bd9b8e35a8f974f5397e9ec41fd36d83bb912a0f08ac323e2bdceb6",
+    "src/cli/targets.ts": "e5cd4509526f6b7a6cc47bad194e2a569d15938c04f813315a06b118a3812391",
+    "src/providers/builder-state.test.ts": "bf2925cc5d74646de3788cc1221f6f3ccab4adb837cafb23a68e340a405d5d84",
+    "src/providers/builder-state.ts": "f628a6dac9a86ab083217cee81043f32e972df1303f6fe5099743228826c62d5",
+    "src/providers/bundle-server.ts": "d013083c1858dfcdcf8e77c2c140977af80b2a367a2b9dab33a4060fb9499953",
+    "src/providers/provider.ts": "c7a70f5476b9b1202c4554f19a02d53161802c2aee9d51729dda1014884a9b5b",
+    "src/providers/registry.ts": "97da46406a5cf2a3678af6dce379c23366be707411c63d39631d71c240ad01a2",
+    "src/providers/static.ts": "242da83948a3b17414eab9f5359a5c2559cf82a27f93e38913ba57f638008b4a",
+    "src/providers/tencent-client.ts": "fdde1ecff94d80fa5c4480bf9c3fc459beca5d8f91f7700bdf1d6947ab20d980",
+    "src/providers/tencent-lifecycle.test.ts": "6ccff58bead4cb6db5c088e660113e979b8a110aca2e989e30ac929ea1e103c0",
+    "src/providers/tencent-lifecycle.ts": "9900cc7b57f1a6e958df84a77d6c59bec08d7eb2af93e7ef88f193876d025d44",
+    "src/providers/tencent-provision.test.ts": "05ab01906392f8cf745ee35b540eb3e99df0f3b7f0eb1750133263b30a3ae3bb",
+    "src/providers/tencent-userdata.ts": "8c5fa38f04ccc0680853094aefa8a2a9e017f969323a33fbde3c17057d34cee6",
+    "src/providers/tencent.ts": "cbfece056e2469cca659cdd103ad04e69663ef572e7eb390f991061b03cc9ea2",
+    "src/shared/config.test.ts": "795a0c7813a3319490f36b6a5efd92c15eb10323afdb963105b48f9b8b6ca447",
+    "src/shared/config.ts": "b45d09947052c4cad6905e55c1641672cea9005aa4df13b190fdc7029823d2bb",
+    "src/shared/credentials.test.ts": "f13b852535481be8377d5876b6cffd837a5c4ad7577f8d81c7bde440a42431f2",
+    "src/shared/credentials.ts": "e770b2ef3a8971b35977383567d5e1105fe056258772ad42dd00e6987836b312",
+    "src/shared/exec.test.ts": "ede717aafa0895f228f6cd35a631a78ea50927895a644f734633c93598fdd6f9",
+    "src/shared/exec.ts": "ea3fbcb5e06099442255b28774228452fb5d1610ee717ecafd732e6cf835c6fe",
+    "src/shared/git.ts": "9da5d81a80ae462a2402f03caa17fbe63ddcb5995179e243bc460fbaa9d4c350",
+    "src/shared/http.ts": "2edd70ec4b89241be88b0791092297eeaa805f77fc55c142c6d0dccf4181e456",
+    "src/shared/log.ts": "08d7ab1c432ef2a9ff580f118511e17cf43ba72dde1371d971fe858e1cf724ca",
+    "src/shared/obj.ts": "05edac00cac30d38ad013d1b3dd7b7faf5fd56f6ec26897ac30d8377250c9ec9",
+    "src/shared/spec-load.ts": "d93e18611a45442ec4829b4709ed31382fba9c92c4b92b07fb40a85b8a43e710",
+    "src/shared/spec-schema.test.ts": "4318f956864c71b4bfbf58f15980ff9e6ca4232be031a25f44fda5d115a05f5a",
+    "src/shared/spec-schema.ts": "f02bca4a79ae827ffb02112d3c00397857c1db7d40c915a70c9f79e6798c8751",
+    "src/shared/types.ts": "6a5560fca5e39017400394bcb97880a780ee8ad0401074c5ed328c0dfd0aa9c3",
+    "bootstrap/install.sh": "8dd27737f54b431b8026f807d7930c5cbb9ba674346bd28e2b221573f44e9171",
+    "scripts/pack.mjs": "3a2e6e6662fb3f4a12adb42117d7415726a6c15888b523c5faa531ddbdf0f0f9",
+    "package.json": "a6dd6d653f69c722dcb8372efece20eab634cbe219e74052cea146a69833b44b"
+  },
+  "git_head": "d9f1e899ad1dfa3a9f0f54e854d769a02957590b",
+  "working_tree_note": "includes uncommitted user work; findings tied to file hashes, not HEAD alone",
+  "checks": {
+    "build_exit": 0,
+    "typecheck_exit": 0,
+    "test_exit": 0,
+    "test_count": 186,
+    "pass": 186,
+    "fail": 0,
+    "pack_exit": 0,
+    "offline_install_exit": 0,
+    "package_smoke_exit": 0
+  },
+  "results": {
+    "core": [
+      {
+        "id": "M2-role-kind-bypass",
+        "crossWriteStatus": 200,
+        "crossVerifyStatus": 202,
+        "controlBuilderDeploy": 403,
+        "failed": true
+      },
+      {
+        "id": "M2-reuse-wrong-role",
+        "check": {
+          "kind": "runtime",
+          "url": "http://127.0.0.1:56928",
+          "reachable": true,
+          "authenticated": true,
+          "roleOk": true,
+          "dockerOk": true,
+          "passed": true,
+          "detail": "入口可达 v0.4.0 role=both；认证成功，角色 both ✓；Docker 可用 ✓"
+        },
+        "actualReuse": {
+          "reused": true,
+          "ref": "builder",
+          "passed": true
+        },
+        "failed": true
+      },
+      {
+        "id": "M2-init-tokenref-to-plaintext",
+        "exit": 0,
+        "builderHasPlaintext": true,
+        "builderRef": null,
+        "runtimeHasPlaintext": true,
+        "failed": true
+      },
+      {
+        "id": "M2-pair-name-conflict-consumes-code",
+        "firstExit": 2,
+        "collisionReported": true,
+        "retryStatus": 401,
+        "retryCode": "pairing_replayed",
+        "failed": true
+      },
+      {
+        "id": "M2-registry-temp-mode",
+        "actualMode": "644",
+        "failed": true
+      },
+      {
+        "id": "M2-controller-temp-mode",
+        "exit": 0,
+        "actualMode": "644",
+        "failed": true
+      },
+      {
+        "id": "M2-cross-store-state-race",
+        "trials": [
+          {
+            "exchange": "fulfilled",
+            "mint": "rejected",
+            "tokenWorks": false,
+            "consumed": false,
+            "codes": 2,
+            "errors": [
+              "Error: ENOENT: no such file or directory, rename '<fixture>/security.json.tmp' -> '<fixture>/security.json'"
+            ]
+          },
+          {
+            "exchange": "fulfilled",
+            "mint": "rejected",
+            "tokenWorks": false,
+            "consumed": false,
+            "codes": 2,
+            "errors": [
+              "Error: ENOENT: no such file or directory, rename '<fixture>/security.json.tmp' -> '<fixture>/security.json'"
+            ]
+          },
+          {
+            "exchange": "fulfilled",
+            "mint": "rejected",
+            "tokenWorks": false,
+            "consumed": false,
+            "codes": 2,
+            "errors": [
+              "Error: ENOENT: no such file or directory, rename '<fixture>/security.json.tmp' -> '<fixture>/security.json'"
+            ]
+          },
+          {
+            "exchange": "fulfilled",
+            "mint": "rejected",
+            "tokenWorks": false,
+            "consumed": false,
+            "codes": 2,
+            "errors": [
+              "Error: ENOENT: no such file or directory, rename '<fixture>/security.json.tmp' -> '<fixture>/security.json'"
+            ]
+          },
+          {
+            "exchange": "fulfilled",
+            "mint": "rejected",
+            "tokenWorks": false,
+            "consumed": false,
+            "codes": 2,
+            "errors": [
+              "Error: ENOENT: no such file or directory, rename '<fixture>/security.json.tmp' -> '<fixture>/security.json'"
+            ]
+          }
+        ],
+        "failed": true
+      },
+      {
+        "id": "LEGACY-binary-source-upload",
+        "status": 400,
+        "error": "bad_json",
+        "failed": true
+      },
+      {
+        "id": "M2-rendered-install-parameters",
+        "fresh": {
+          "code": 1,
+          "output": "[ship-install] AGENT_TOKEN not set (fresh install: provide it; upgrade: it is read from /tmp/codex-tool-runs/svton/m2-audit-20260930/absent.env)\n"
+        },
+        "withManualToken": {
+          "code": 0,
+          "output": "RESOLVED_ROLE=both RESOLVED_PORT=7410\n"
+        },
+        "expectedRole": "builder",
+        "expectedPort": 56943,
+        "failed": true
+      }
+    ],
+    "installer": [
+      {
+        "id": "health-mismatch",
+        "exit": 1,
+        "agent": "OLD_AGENT",
+        "secretsRestored": false,
+        "unitRestored": false,
+        "currentRole": "builder",
+        "oldTreeRemains": false
+      },
+      {
+        "id": "restart-failure",
+        "exit": 7,
+        "agent": "NEW_AGENT",
+        "secretsRestored": false,
+        "unitRestored": false,
+        "currentRole": "builder",
+        "oldTreeRemains": true
+      },
+      {
+        "id": "preserve-role",
+        "exit": 0,
+        "agent": "NEW_AGENT",
+        "secretsRestored": false,
+        "unitRestored": false,
+        "currentRole": "both",
+        "oldTreeRemains": false
+      }
+    ],
+    "integrity": {
+      "explicitHash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "actualHash": "9736144a17baff9e105475402275d6679011ca9b1f4fa456a7cc4e987ddeb9b2",
+      "sidecarHash": "9736144a17baff9e105475402275d6679011ca9b1f4fa456a7cc4e987ddeb9b2",
+      "exit": 0,
+      "output": "using local agent tarball: /tmp/codex-tool-runs/svton/m2-audit-20260930/checksum-23af8qyn/input.tgz\nbundle sha256 verified\n",
+      "failed": true
+    },
+    "tls": {
+      "pairExit": 0,
+      "pairOutput": {
+        "ok": true,
+        "credential": "builder",
+        "url": "https://127.0.0.1:57542",
+        "role": "builder",
+        "file": "/tmp/codex-tool-runs/svton/m2-audit-20260930/tls-home-A55oLZ/.ship/credentials.json"
+      },
+      "doctorExit": 1,
+      "doctorOutput": {
+        "checks": [
+          {
+            "name": "node",
+            "ok": true,
+            "detail": "v22.17.0 (need >=20)"
+          },
+          {
+            "name": "spec",
+            "ok": true,
+            "detail": "no ship.yaml in cwd (only needed for build/deploy)"
+          },
+          {
+            "name": "registry",
+            "ok": true,
+            "detail": "127.0.0.1:5001/audit"
+          },
+          {
+            "name": "builder",
+            "ok": false,
+            "detail": "https://127.0.0.1:57542 authenticated check failed: GET /api/status: fetch failed"
+          },
+          {
+            "name": "runtime:staging",
+            "ok": false,
+            "detail": "https://127.0.0.1:57542 authenticated check failed: GET /api/status: fetch failed"
+          }
+        ],
+        "allOk": false
+      },
+      "failed": true
+    },
+    "package_smoke": {
+      "install": "offline isolated prefix; no repository symlink",
+      "init": {
+        "code": 0,
+        "output": {
+          "ok": true,
+          "ready": true,
+          "wrote": [
+            "ship.yaml",
+            "ship.config.yaml",
+            ".gitignore"
+          ],
+          "backups": [
+            "/private/tmp/codex-tool-runs/svton/m2-audit-20260930/package-project-iWPLkm/.ship/backup/1790739880739/ship.yaml",
+            "/private/tmp/codex-tool-runs/svton/m2-audit-20260930/package-project-iWPLkm/.ship/backup/1790739880739/ship.config.yaml"
+          ],
+          "checks": {
+            "builder": {
+              "kind": "builder",
+              "url": "http://127.0.0.1:58132",
+              "reachable": true,
+              "authenticated": true,
+              "roleOk": true,
+              "dockerOk": true,
+              "passed": true,
+              "detail": "入口可达 v0.3.0 role=both；认证成功，角色 both ✓；Docker 可用 ✓"
+            },
+            "runtime": {
+              "kind": "runtime",
+              "url": "http://127.0.0.1:58132",
+              "reachable": true,
+              "authenticated": true,
+              "roleOk": true,
+              "dockerOk": true,
+              "passed": true,
+              "detail": "入口可达 v0.3.0 role=both；认证成功，角色 both ✓；Docker 可用 ✓"
+            },
+            "registry": {
+              "url": "127.0.0.1:58132",
+              "reachable": true,
+              "scheme": "http",
+              "httpStatus": 200,
+              "detail": "地址可达（http:///v2/ → HTTP 200）；认证与推拉不在控制器侧验证（凭证在 agent 机器上，真实推拉实测属于下一阶段）"
+            }
+          },
+          "next": [
+            "初始化完成（本命令只生成配置，不会构建或部署）。",
+            "检查连通性：ship doctor",
+            "首次发布：ship release --from-dir . --to staging"
+          ]
+        },
+        "stderrHasAnsi": false
+      },
+      "installedAgent": {
+        "reachable": true,
+        "role": "runtime",
+        "version": "0.4.0"
+      },
+      "note": "init 使用本地 HTTP 桩；实际 agent 只探测健康接口，不执行 Docker 变更。"
+    }
+  },
+  "artifact_sha256": {
+    "shipkit-0.4.0.tgz": "f49ba0d3e0baa44744664cf0d48d4d8e49623122f866b39992b2535ba46916cf",
+    "ship-agent-0.4.0.tgz": "37fd21ca3288ba1a02550f92308a209b88af492cf188ae3ae064d1eea50ad305"
+  },
+  "log_root": "/tmp/codex-tool-runs/svton/m2-audit-20260930",
+  "logs_sha256": {
+    "build.log": "aaf8cd2eb0f43eabf876531cef5a5138df01480803e5cb778556dfa7616d48ce",
+    "install-health-mismatch.log": "3e98efa7eb2470ce5188354ec759e4637f3f7d2da14df5319510db3c9046b286",
+    "install-preserve-role.log": "61e4342dadcacd2c69dc0386555e6560504ed7fb0fbbd6acbfd76a36ac210bb8",
+    "install-restart-failure.log": "f40086b9939290dd5c928a3a5d15b3eb45f5c3199ccc13e99d4dada1aba43315",
+    "install.log": "6519761dd5a71bf7c47205d80b23cf4690af59df7961c3da351f99907c09c399",
+    "pack.log": "072180455ec10b666b54cbc3ec2f3e93768cb7d201096627d053da1eefc0f2ad",
+    "package-smoke.log": "18bb8b05d963716352d104fa9501c2aa845454bce9358961f878e71bb066cb53",
+    "repro.log": "a05614399f3a294cd3af95a1f3aab08857f35949e0451a89d347fd9a34e43349",
+    "test.log": "c8dc9dfdb4402de20f25f2685e1714291e711a4056812172718be2e2a990b869",
+    "tls-check.log": "939f603cac3b354fd6e43951b01b4b1e4420fd532c3aadd3ccfb890ab8e0e44a",
+    "tls-setup.log": "d195c56afa815466d663dd07e4ccc8fdd1c7886ce8a3b8cbce76d0a062cd1ac8",
+    "typecheck.log": "fa4364158a3ed1daaf0529d90e94e62789631ad86c7ef3b787a05462be6e0b65"
+  },
+  "reproduction_sources": {
+    "repro.mjs": "import * as fs from 'node:fs/promises';\nimport path from 'node:path';\nimport {spawn} from 'node:child_process';\nimport {createServer} from 'node:http';\nimport {Writable} from 'node:stream';\nconst root='/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit';\nconst base='/tmp/codex-tool-runs/svton/m2-audit-20260930';\n// Only Docker is replaced: all agent HTTP, auth, job and CLI paths are actual code.\nprocess.env.PATH=`${base}/bin:${process.env.PATH}`;\nconst {startAgent}=await import(`${root}/dist/agent/server.js`);\nconst {SecurityStore}=await import(`${root}/dist/agent/security.js`);\nconst {checkAgent}=await import(`${root}/dist/cli/init/checks.js`);\nconst {pairMachine}=await import(`${root}/dist/cli/init/pair-flow.js`);\nconst {writeRegistryCreds}=await import(`${root}/dist/agent/registry-creds.js`);\nconst {startBundleServer}=await import(`${root}/dist/providers/bundle-server.js`);\nconst out=[];\nconst log={info(){},warn(){},error(){},debug(){}};\nconst tmp=async name=>fs.mkdtemp(`${base}/${name}-`);\nfunction cli(args,cwd,home){return new Promise((resolve,reject)=>{const c=spawn(process.execPath,[`${root}/dist/cli/main.js`,...args],{cwd,env:{...process.env,HOME:home},stdio:['ignore','pipe','pipe']});let stdout='',stderr='';c.stdout.on('data',d=>stdout+=d);c.stderr.on('data',d=>stderr+=d);c.on('error',reject);c.on('exit',code=>resolve({code,stdout,stderr}));});}\nasync function record(id,fn){try{out.push({id,...await fn()});}catch(e){out.push({id,harnessError:String(e)});}}\nconst work=await tmp('agent');\nconst agent=await startAgent({role:'both',token:'FAKE_MASTER',host:'127.0.0.1',port:0,workRoot:work});\nasync function req(route,token,body,method='POST'){\n const r=await fetch(agent.url+route,{method,headers:{'content-type':'application/json',...(token?{authorization:`Bearer ${token}`}:{})},...(body!==undefined?{body:JSON.stringify(body)}:{})});return {status:r.status,body:await r.json()};\n}\nasync function mint(role){const s=new SecurityStore(path.join(work,'security.json'));await s.load();const c=await s.createCode(role,15);const x=await req('/api/pairing/exchange',null,{code:c.code});if(x.status!==200)throw Error('fixture exchange');return x.body.token;}\nconst bt=await mint('builder'),rt=await mint('runtime');\nawait record('M2-role-kind-bypass',async()=>{\n const crossWrite=await req('/api/registry-creds',rt,{kind:'push',user:'FAKE_RUNTIME',password:'FAKE_PASS'},'PUT');\n const crossVerify=await req('/api/verify/registry',rt,{mode:'push',registry:'127.0.0.1:59999',namespace:'audit'});\n const control=await req('/api/deploy',bt,{app:'audit',imageRef:'test',spec:{name:'audit'}});\n return {crossWriteStatus:crossWrite.status,crossVerifyStatus:crossVerify.status,controlBuilderDeploy:control.status,failed:crossWrite.status===200&&crossVerify.status===202};\n});\nawait record('M2-reuse-wrong-role',async()=>{\n const check=await checkAgent('runtime',agent.url,bt);\n const home=await tmp('reuse-home');await fs.mkdir(path.join(home,'.ship'));\n await fs.writeFile(path.join(home,'.ship/credentials.json'),JSON.stringify({builder:{url:agent.url,token:bt,role:'builder'}}));\n // Run the real pairMachine in a subprocess with an isolated credentials home.\n const runner=path.join(base,'reuse-child.mjs');\n await fs.writeFile(runner,`import {pairMachine} from '${root}/dist/cli/init/pair-flow.js';import {Writable} from 'node:stream';const p={interactive:true,out:new Writable({write(c,e,cb){cb()}}),missing:()=>[],ask:async q=>q.field==='runtimePairUrl'?process.argv[2]:q.field==='runtimeReuse'?'y':(()=>{throw Error('unexpected question '+q.field)})()};const r=await pairMachine('runtime',p,{info(){},warn(){},error(){}},process.argv[2]);console.log(JSON.stringify({reused:r.reused,ref:r.tokenRef,passed:r.check.passed}));`);\n const run=await new Promise((resolve,reject)=>{const c=spawn(process.execPath,[runner,agent.url],{env:{...process.env,HOME:home}});let s='';c.stdout.on('data',d=>s+=d);c.on('error',reject);c.on('close',code=>resolve({code,text:s}));});\n return {check,actualReuse:JSON.parse(run.text),failed:check.passed&&JSON.parse(run.text).ref==='builder'};\n});\nawait record('M2-init-tokenref-to-plaintext',async()=>{\n const cwd=await tmp('ref-project'),home=await tmp('ref-home');await fs.mkdir(path.join(home,'.ship'));\n await fs.writeFile(path.join(home,'.ship/credentials.json'),JSON.stringify({builder:{url:agent.url,token:bt,role:'builder'},staging:{url:agent.url,token:rt,role:'runtime'}}));\n await fs.writeFile(path.join(cwd,'Dockerfile'),'FROM scratch\\nEXPOSE 3000\\n');\n await fs.writeFile(path.join(cwd,'ship.yaml'),\"name: audit\\nports: ['8080:3000']\\n\");\n await fs.writeFile(path.join(cwd,'ship.config.json'),JSON.stringify({builder:{mode:'static',static:{url:agent.url,tokenRef:'builder'}},runtime:{targets:{staging:{url:agent.url,tokenRef:'staging'}}},registry:{url:new URL(agent.url).host,namespace:'audit'}}));\n const r=await cli(['init','--json'],cwd,home);const after=JSON.parse(await fs.readFile(path.join(cwd,'ship.config.json'),'utf8'));\n return {exit:r.code,builderHasPlaintext:after.builder.static.token===bt,builderRef:after.builder.static.tokenRef??null,runtimeHasPlaintext:after.runtime.targets.staging.token===rt,failed:r.code===0&&after.builder.static.token===bt};\n});\nawait record('M2-pair-name-conflict-consumes-code',async()=>{\n const home=await tmp('conflict-home');await fs.mkdir(path.join(home,'.ship'));await fs.writeFile(path.join(home,'.ship/credentials.json'),JSON.stringify({occupied:{url:'https://old.example.invalid',token:'FAKE_OLD'}}));\n const s=new SecurityStore(path.join(work,'security.json'));await s.load();const c=await s.createCode('runtime',15);\n const first=await cli(['pair',agent.url,'--name','occupied','--code',c.code,'--json'],base,home);\n const retry=await req('/api/pairing/exchange',null,{code:c.code});\n return {firstExit:first.code,collisionReported:first.stderr.includes('force')||first.stdout.includes('force'),retryStatus:retry.status,retryCode:retry.body.error?.code,failed:retry.body.error?.code==='pairing_replayed'};\n});\nawait record('M2-registry-temp-mode',async()=>{\n const dir=await tmp('creds-mode');await fs.writeFile(path.join(dir,'registry-creds.json.tmp'),'stale',{mode:0o644});\n await writeRegistryCreds(dir,'push',{user:'FAKE_U',password:'FAKE_P'});\n const mode=(await fs.stat(path.join(dir,'registry-creds.json'))).mode&0o777;\n return {actualMode:mode.toString(8),failed:mode!==0o600};\n});\nawait record('M2-controller-temp-mode',async()=>{\n const home=await tmp('controller-mode');await fs.mkdir(path.join(home,'.ship'));await fs.writeFile(path.join(home,'.ship/credentials.json.tmp'),'stale',{mode:0o644});\n const s=new SecurityStore(path.join(work,'security.json'));await s.load();const c=await s.createCode('builder',15);\n const r=await cli(['pair',agent.url,'--name','mode','--code',c.code,'--json'],base,home);\n const mode=(await fs.stat(path.join(home,'.ship/credentials.json'))).mode&0o777;\n return {exit:r.code,actualMode:mode.toString(8),failed:r.code===0&&mode!==0o600};\n});\nawait record('M2-cross-store-state-race',async()=>{\n const trials=[];\n for(let i=0;i<5;i++){\n  const dir=await tmp('state-race'),f=path.join(dir,'security.json');const s1=new SecurityStore(f);const c=await s1.createCode('builder',15);\n  const s2=new SecurityStore(f);await s2.load();\n  const r=await Promise.allSettled([s1.exchange(c.code,'audit'),s2.createCode('runtime',15)]);\n  const verify=new SecurityStore(f);await verify.load();const tokenWorks=r[0].status==='fulfilled'?!!await verify.authenticate(r[0].value.token):null;\n  let data;try{data=JSON.parse(await fs.readFile(f,'utf8'));}catch(e){trials.push({exchange:r[0].status,mint:r[1].status,tokenWorks,invalidJson:true});continue;}\n  trials.push({exchange:r[0].status,mint:r[1].status,tokenWorks,consumed:!!data.codes.find(x=>x.id===c.id)?.consumedAt,codes:data.codes.length,errors:r.filter(x=>x.status==='rejected').map(x=>String(x.reason).replaceAll(dir,'<fixture>'))});\n }\n return {trials,failed:trials.some(x=>x.exchange==='rejected'||x.mint==='rejected'||x.tokenWorks===false||x.invalidJson)};\n});\nawait record('LEGACY-binary-source-upload',async()=>{\n const data=await fs.readFile('/tmp/codex-tool-runs/svton/m1-final-audit-20260930/independent-source.tgz');\n const r=await fetch(`${agent.url}/api/sources`,{method:'POST',headers:{authorization:`Bearer ${bt}`,'content-type':'application/gzip'},body:data});\n const body=await r.json();return {status:r.status,error:body.error?.code,failed:r.status===400&&body.error?.code==='bad_json'};\n});\nawait record('M2-rendered-install-parameters',async()=>{\n const bundle=await startBundleServer({distDir:path.join(root,'dist'),bootstrapDir:path.join(root,'bootstrap'),advertiseHost:'127.0.0.1',port:0});\n try{\n  const text=await(await fetch(bundle.installUrl('builder'))).text();await fs.writeFile(path.join(base,'rendered-install.sh'),text);\n  const prefix=text.split('# ---- package manager ----')[0].replace('INSTALL_DIR=/opt/shipkit',`INSTALL_DIR=${base}/unused-install`).replace('SECRETS_FILE=/etc/shipkit/agent.env',`SECRETS_FILE=${base}/absent.env`).replace('UNIT_FILE=/etc/systemd/system/ship-agent.service',`UNIT_FILE=${base}/absent.service`).replace('[ \"$(id -u)\" = 0 ]','[ 0 = 0 ]');\n  const file=path.join(base,'install-prefix.sh');await fs.writeFile(file,prefix+'\\nprintf \"RESOLVED_ROLE=%s RESOLVED_PORT=%s\\\\n\" \"$ROLE\" \"$AGENT_PORT\"\\n');\n  async function run(extra={}){return new Promise(resolve=>{const c=spawn('bash',[file],{env:{PATH:process.env.PATH,...extra}});let output='';c.stdout.on('data',d=>output+=d);c.stderr.on('data',d=>output+=d);c.on('close',code=>resolve({code,output}));});}\n  return {fresh:await run(),withManualToken:await run({AGENT_TOKEN:'FAKE_MANUAL'}),expectedRole:'builder',expectedPort:bundle.port,failed:true};\n }finally{await bundle.stop()}\n});\nawait agent.close();\nawait fs.writeFile(path.join(base,'repro-results.json'),JSON.stringify(out,null,2));\nfor(const x of out)console.log(JSON.stringify(x));\n",
+    "install-check.py": "import os, pathlib, subprocess, tempfile, json, tarfile, hashlib\nbase=pathlib.Path('/tmp/codex-tool-runs/svton/m2-audit-20260930')\nsource=pathlib.Path('/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/bootstrap/install.sh').read_text()\nresults=[]\nfor mode in ['health-mismatch','restart-failure','preserve-role']:\n    d=pathlib.Path(tempfile.mkdtemp(prefix='install-'+mode+'-',dir=base))\n    for n in ['opt/shipkit/agent','etc/shipkit','etc/systemd/system','tmp','bin','payload/agent']:\n        (d/n).mkdir(parents=True,exist_ok=True)\n    (d/'opt/shipkit/agent/server.js').write_text('OLD_AGENT')\n    envfile=d/'etc/shipkit/agent.env';unit=d/'etc/systemd/system/ship-agent.service'\n    oldenv='SHIP_AGENT_TOKEN=FAKE_OLD_TOKEN\\nSHIP_PUSH_USER=olduser\\nSHIP_PUSH_PASSWORD=FAKE_OLD_PASS\\n'\n    oldunit='Environment=SHIP_AGENT_ROLE=runtime\\nEnvironment=SHIP_AGENT_PORT=17410\\nEnvironment=SHIP_AGENT_HOST=127.0.0.1\\nEnvironment=SHIP_WORK_ROOT='+str(d/'old-work')+'\\n'\n    envfile.write_text(oldenv);unit.write_text(oldunit)\n    (d/'payload/agent/server.js').write_text('NEW_AGENT');(d/'payload/VERSION').write_text('0.4.0')\n    bundle=d/'input.tgz'\n    with tarfile.open(bundle,'w:gz') as t:\n        t.add(d/'payload/agent',arcname='agent');t.add(d/'payload/VERSION',arcname='VERSION')\n    def shim(name,text):\n        p=d/'bin'/name;p.write_text(text);p.chmod(0o755)\n    shim('id','#!/bin/sh\\necho 0\\n')\n    shim('apt-get','#!/bin/sh\\nexit 93\\n')\n    shim('sleep','#!/bin/sh\\nexit 0\\n')\n    shim('curl','#!/bin/sh\\necho \\'{\"version\":\"'+('0.4.0' if mode=='preserve-role' else '0.3.0')+'\"}\\'\\n')\n    shim('systemctl','#!/bin/sh\\n'+('if [ \"$1\" = restart ]; then exit 7; fi\\n' if mode=='restart-failure' else '')+'exit 0\\n')\n    # Checksum command is a fixture here: this test concerns upgrade transaction semantics.\n    shim('sha256sum','#!/bin/sh\\nexit 0\\n')\n    adapted=source.replace('/tmp/',str(d/'tmp')+'/').replace('/opt/shipkit',str(d/'opt/shipkit')).replace('/etc/shipkit',str(d/'etc/shipkit')).replace('/etc/systemd/system',str(d/'etc/systemd/system'))\n    script=d/'install.sh';script.write_text(adapted)\n    env={**os.environ,'PATH':str(d/'bin')+':'+os.environ['PATH'],'SKIP_DOCKER':'1','SKIP_SYSTEMD':'0','TARBALL':str(bundle),'TARBALL_SHA256':hashlib.sha256(bundle.read_bytes()).hexdigest()}\n    for k in ['ROLE','AGENT_TOKEN','AGENT_PORT','AGENT_BIND','WORK_ROOT','SHIP_PUSH_USER','SHIP_PUSH_PASSWORD','SHIP_PULL_USER','SHIP_PULL_PASSWORD']:\n        env.pop(k,None)\n    if mode!='preserve-role':\n        env.update(ROLE='builder',AGENT_TOKEN='FAKE_NEW_TOKEN',AGENT_PORT='17411',WORK_ROOT=str(d/'new-work'))\n    r=subprocess.run(['bash',str(script)],env=env,capture_output=True,text=True,timeout=15)\n    (base/('install-'+mode+'.log')).write_text(r.stdout+r.stderr)\n    live=(d/'opt/shipkit/agent/server.js')\n    results.append({'id':mode,'exit':r.returncode,'agent':live.read_text() if live.exists() else None,'secretsRestored':envfile.read_text()==oldenv,'unitRestored':unit.read_text()==oldunit,'currentRole':next((x.split('=',2)[2] for x in unit.read_text().splitlines() if x.startswith('Environment=SHIP_AGENT_ROLE=')),None),'oldTreeRemains':(d/'opt/shipkit.old').exists()})\n(base/'install-results.json').write_text(json.dumps(results,indent=2))\nprint(json.dumps(results))\n",
+    "tls-check.mjs": "import * as fs from 'node:fs/promises';\nimport {createServer} from 'node:https';\nimport {request} from 'node:http';\nimport {spawn} from 'node:child_process';\nconst root='/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit';\nconst base='/tmp/codex-tool-runs/svton/m2-audit-20260930';\nprocess.env.PATH=base+'/bin:'+process.env.PATH;\nconst {startAgent}=await import(root+'/dist/agent/server.js');\nconst {SecurityStore}=await import(root+'/dist/agent/security.js');\nconst work=await fs.mkdtemp(base+'/tls-work-');\nconst agent=await startAgent({role:'both',token:'FAKE_TLS_MASTER',host:'127.0.0.1',port:0,workRoot:work});\nconst proxy=createServer({key:await fs.readFile(base+'/tls/key.pem'),cert:await fs.readFile(base+'/tls/cert.pem')},(req,res)=>{\n const upstream=request(agent.url+req.url,{method:req.method,headers:req.headers},r=>{res.writeHead(r.statusCode,r.headers);r.pipe(res)});\n upstream.on('error',()=>{res.writeHead(502);res.end()});req.pipe(upstream);\n});\nawait new Promise(r=>proxy.listen(0,'127.0.0.1',r));\nconst url='https://127.0.0.1:'+proxy.address().port;\nconst home=await fs.mkdtemp(base+'/tls-home-');\nasync function cli(args){return new Promise(resolve=>{const env={...process.env,HOME:home};delete env.NODE_EXTRA_CA_CERTS;delete env.NODE_TLS_REJECT_UNAUTHORIZED;const c=spawn(process.execPath,[root+'/dist/cli/main.js',...args],{cwd:home,env});let stdout='',stderr='';c.stdout.on('data',d=>stdout+=d);c.stderr.on('data',d=>stderr+=d);c.on('close',code=>resolve({code,stdout,stderr}));});}\nconst s=new SecurityStore(work+'/security.json');await s.load();\nconst c=await s.createCode('builder',15);\nconst pair=await cli(['pair',url,'--code',c.code,'--name','builder','--ca-file',base+'/tls/cert.pem','--json']);\nawait fs.writeFile(home+'/ship.config.json',JSON.stringify({builder:{mode:'static',static:{url,tokenRef:'builder'}},runtime:{targets:{staging:{url,tokenRef:'builder'}}},registry:{url:'127.0.0.1:5001',namespace:'audit'}}));\nconst doctor=await cli(['doctor','--json']);\nconst result={pairExit:pair.code,pairOutput:JSON.parse(pair.stdout),doctorExit:doctor.code,doctorOutput:JSON.parse(doctor.stdout),failed:pair.code===0&&doctor.code!==0};\nawait fs.writeFile(base+'/tls-results.json',JSON.stringify(result,null,2));\nconsole.log(JSON.stringify({pairExit:pair.code,doctorExit:doctor.code,failed:result.failed}));\nproxy.closeAllConnections();await new Promise(r=>proxy.close(r));await agent.close();\n",
+    "package-smoke.mjs": "import {createServer} from 'node:http';\nimport {mkdtemp,writeFile,readFile} from 'node:fs/promises';\nimport {spawn} from 'node:child_process';\nconst base='/tmp/codex-tool-runs/svton/m2-audit-20260930';\nconst pkg=`${base}/install-prefix/node_modules/shipkit`;\nconst server=createServer((req,res)=>{res.setHeader('content-type','application/json');res.end(JSON.stringify({role:'both',docker:true,version:'0.3.0'}));});\nawait new Promise(r=>server.listen(0,'127.0.0.1',r));const host=`127.0.0.1:${server.address().port}`;\nconst dir=await mkdtemp(`${base}/package-project-`);\nawait writeFile(`${dir}/Dockerfile`,'FROM scratch\\nEXPOSE 3000\\n');\nawait writeFile(`${dir}/ship.yaml`,\"name: package-demo\\nports: ['3000:3000']\\n\");\nawait writeFile(`${dir}/ship.config.yaml`,JSON.stringify({builder:{mode:'static',static:{url:`http://${host}`,token:'FAKE_PACKAGE_TOKEN'}},registry:{url:host,namespace:'audit'},runtime:{targets:{staging:{url:`http://${host}`,token:'FAKE_PACKAGE_TOKEN'}}}}));\nconst result=await new Promise(resolve=>{const child=spawn(`${base}/install-prefix/node_modules/.bin/ship`,['init','--json'],{cwd:dir,stdio:['ignore','pipe','pipe']});let out='',err='';child.stdout.on('data',d=>out+=d);child.stderr.on('data',d=>err+=d);child.on('exit',code=>resolve({code,output:JSON.parse(out),stderrHasAnsi:/\\x1b\\[/.test(err)}));});\nserver.closeAllConnections();await new Promise(r=>server.close(r));\nconst {startAgent}=await import(`${pkg}/dist/agent/server.js`);\nconst agent=await startAgent({host:'127.0.0.1',port:0,role:'runtime',token:'FAKE_PACKAGE_AGENT',workRoot:await mkdtemp(`${base}/package-agent-`)});\nconst health=await (await fetch(`${agent.url}/health`)).json();await agent.close();\nawait writeFile(`${base}/package-smoke-results.json`,JSON.stringify({install:'offline isolated prefix; no repository symlink',init:result,installedAgent:{reachable:true,role:health.role,version:health.version},note:'init 使用本地 HTTP 桩；实际 agent 只探测健康接口，不执行 Docker 变更。'},null,2));\nconsole.log(JSON.stringify({initExit:result.code,initOk:result.output.ok,installedAgentRole:health.role,installedAgentVersion:health.version}));\n",
+    "bin/docker": "#!/bin/sh\ncase \"$1\" in version) echo 27.0.0;; image) echo sha256:fake;; push) echo \"digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\";; pull) echo \"Digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\";; esac\nexit 0\n"
+  },
+  "boundaries": [
+    "Docker is a local command substitute in core repros; no actual build/push/pull/delete",
+    "Installer paths relocated and systemctl/curl/identity/sleep stubbed; no real systemd or Debian acceptance",
+    "Actual sha256sum used for integrity-source conflict",
+    "Actual local HTTPS proxy and certificate validation used; no global TLS bypass",
+    "No re-run of implementer Debian 19/19 or registry E2E 11/11 claims",
+    "No cloud resources, production changes, real GC or public publication"
+  ]
+}

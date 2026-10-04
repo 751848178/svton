@@ -1,8 +1,10 @@
 # Shipkit 图文使用手册
 
-> 从准备机器到发布、回滚与清理。适用于当前仓库版本，核对日期：2026-09-29。
+> 从准备机器到发布、回滚与清理。适用于当前仓库版本（v0.5.0，M1+M2 已实施并完成 2026-09-30 审计修复轮），核对日期：2026-09-30。
 >
-> 本文的域名、令牌和资源 ID 都是示例。流程图是操作示意，不是真机验收截图。当前本地回归记录为 92/92 通过；TLS 实机、云端到期销毁、真实 Docker 长 GC 仍待环境验收。
+> 本文的域名、令牌和资源 ID 都是示例。流程图是操作示意，不是真机验收截图。当前本地回归记录为 171/171 通过（含 2026-09-29 独立审计 13 个复现场景与收口复核 R1–R5 共 7 个场景的持久化回归，处置见 [审计处置记录](audits/2026-09-29/m1-remediation.md)），M1 安装与 `ship init` 向导已按“仓库外安装 + 本地测试 agent”实测；TLS 实机、云端到期销毁、真实 Docker 长 GC 仍待环境验收。
+>
+> **M1 边界：** `ship init` 向导面向“已有 Dockerfile 的单应用 + 已安装 agent 的固定机器”；机器仍需管理员先装好 agent（第 4 节）。全新服务器的一键安装与短期配对属于下一阶段（M2）。
 
 **阅读路线：** 第一次使用按 1–6 节操作；日常发布查第 7 节；出错查第 8 节；需要临时云构建机再看第 9 节。
 
@@ -48,7 +50,22 @@ CLI 的日常编排使用 HTTP API；公网链路需配 HTTPS，受控内网可�
 
 ## 3. 准备控制器命令
 
-在 **svton 仓库根目录** 执行。新检出的仓库若尚未安装依赖，先按仓库约定运行 `pnpm install`。
+两种方式任选其一。**方式 A（推荐，v0.3.0 起）** 安装版本化本地包，不依赖仓库路径或 shell 函数；**方式 B** 沿用仓库内编译 + 终端函数。
+
+### 3.1 方式 A：安装版本化包（安装即用）
+
+在 **svton 仓库根目录**制作并安装本地包（仅本地分发，未发布到 npm；npm 上的 `shipkit` 包名不属于本项目）：
+
+```bash
+pnpm --filter shipkit build
+node shipkit/scripts/pack.mjs       # → shipkit/pack/shipkit-<版本>.tgz
+npm install --prefix "$HOME/ship-prefix" "$PWD/shipkit/pack/shipkit-0.3.0.tgz"
+"$HOME/ship-prefix/node_modules/.bin/ship" help
+```
+
+要求 Node ≥ 20；版本不满足时 `ship` 直接给出升级指引（自行通过 nvm/volta/系统包管理器升级），不会改动你的 Node 环境。包内含 CLI、agent 编译产物与 bootstrap 资源，与仓库布局一致，`serve-bundle` 等命令在安装目录同样可用。
+
+### 3.2 方式 B：仓库内编译（既有方式）
 
 ```bash
 pnpm --filter shipkit build
@@ -57,9 +74,9 @@ ship() { node "$SHIPKIT_ROOT/dist/cli/main.js" "$@"; }
 ship help
 ```
 
-这里的 `ship` 是当前终端中的 shell 函数，避免依赖全局安装。新开终端后需重新设置绝对路径与函数。后面的 `ship` 命令均沿用它。
+这里的 `ship` 是当前终端中的 shell 函数，避免依赖全局安装。新开终端后需重新设置绝对路径与函数。后面的 `ship` 命令均沿用它（方式 A 用户直接调用安装前缀里的 `ship` 即可）。
 
-**完成标志：** 帮助中能看到 `build`、`deploy`、`release`、`rollback`、`status`、`doctor`、`builder`、`gc`。
+**完成标志：** 帮助中能看到 `init`、`build`、`deploy`、`release`、`rollback`、`status`、`doctor`、`builder`、`gc`。
 
 ## 4. 安装 agent 并接通 HTTPS
 
@@ -100,7 +117,7 @@ ROLE=runtime AGENT_PORT=7410 AGENT_BIND=127.0.0.1 \
 unset AGENT_TOKEN
 ```
 
-安装脚本会检查或安装 Docker、Compose 和 Node，写入 `/opt/shipkit`、`/etc/shipkit/agent.env` 与 systemd 服务，然后启动 agent。默认数据目录是 `/opt/shipkit-data`。**重复执行安装会替换 agent 程序、重写凭证文件并重启服务**，已有安装应安排维护窗口并保留所需配置。
+安装脚本会检查或安装 Docker、Compose 和 Node，写入 `/opt/shipkit`、`/etc/shipkit/agent.env` 与 systemd 服务，然后启动 agent。默认数据目录是 `/opt/shipkit-data`。**升级（v0.5.0 起）**：重复执行安装会替换 agent 程序并重启服务，但**保留**既有 agent token、仓库凭证、角色、端口与数据目录（未提供 env 时读取现值）；显式指定的 `TARBALL_SHA256` 优先，与随包 sidecar 不一致时拒绝安装；升级按完整事务提交（程序+凭据+服务配置），失败统一回滚并实测验证旧版本后才报告成功（退出码 4=升级失败已回滚，5=回滚未完全、需人工检查）。仍建议在维护窗口执行。
 
 ### 4.3 配置仓库凭证
 
@@ -121,6 +138,20 @@ curl -fsS http://127.0.0.1:7410/health
 ```
 
 `/health` 只证明进程与基础状态可访问；后面还要通过 `doctor` 验证带鉴权的接口和角色。只在控制器运行 `docker login`，不会为远端 agent 配好仓库凭证。
+
+### 4.3a 配对接入与仓库推拉实测（v0.5.0 起，推荐）
+
+手工把 token 抄进 `ship.config.yaml` 的旧方式仍然可用，但现在有更安全的路径：
+
+**短期配对码（UX06）**：管理员在目标机上铸一次性配对码（默认 15 分钟有效、只显示一次、agent 端仅存哈希、重放/过期/超次即作废）：
+
+```bash
+node /opt/shipkit/agent/server.js --pair --role builder   # 机器上执行；--list 查看状态
+```
+
+使用者通过**受信 HTTPS 入口**交换长期 token（`ship pair https://builder.example.com`）：token 存入 `~/.ship/credentials.json`（0600）并在配置中以 `tokenRef` 引用，与明文 `token` 互斥。配对后的 token 角色受限——builder 配对码换来的 token 无法调用部署接口。公网入口必须 HTTPS（本机回环例外用于测试；自签证书入口加 `--ca-file`；受控内网明文需显式 `--allow-insecure-http`）。**注意：公网域名/证书/反代的真机配对链路尚未实测，属于 M2 门槛待办。**
+
+**仓库凭证分发与推拉实测（UX07）**：不再手工编辑两台机器的 `agent.env`——运行 `ship verify-registry`，按提示输入推送/拉取凭证（盲输、不回显），CLI 会按角色分发到构建机/运行机（agent 端 0600 文件、不重启、不入日志），随后构建机用 `FROM scratch` 的最小测试镜像**真实推送**、运行机按 digest **真实拉取**，输出"地址可达 / 凭证分发 / 推拉实测"三级结果。测试对象（`<仓库>/<命名空间>/shipkit-verify/<随机>`）会保留在仓库中，按仓库能力自行清理；认证失败会明确分类（凭证错误 / 权限不足 / 网络 / TLS）。
 
 ### 4.4 给两个 agent 配置 TLS 反向代理
 
@@ -153,9 +184,28 @@ ship serve-bundle --host CONTROLLER_PRIVATE_IP --minutes 30
 
 ## 5. 准备示例应用和配置
 
+### 5.0 推荐路径：`ship init` 向导生成配置（v0.3.0 起）
+
+机器装好 agent（第 4 节）后，在**包含 Dockerfile 的应用目录**执行：
+
+```bash
+cd "$HOME/shipkit-demo"      # 内含 app.js 与 Dockerfile
+ship init
+```
+
+向导分四步：**应用**（检测 Dockerfile/EXPOSE 端口/名称并注明来源，多候选必须选择；已有端口映射等明确配置优先，EXPOSE 检测值只用于补空缺；健康检查路径不猜默认值）→ **机器**（填已装 agent 的入口 URL 与 token，输入不回显；入口与 token 成组绑定——改了入口 URL 就必须重新输入该机的 token，不会拿旧机器的 token 去连新入口；**运行目标同样成组**：输入已有目标名（如 prod）会自动沿用该目标自己的入口与 token，切换目标不会把上一个目标的连接信息带过去，输入新名称则为新建目标、需完整填写入口；实时只读校验“入口可达 / 认证成功 / 角色匹配 / Docker 可用”四级，失败可重试）→ **镜像仓库**（地址只读探测 `/v2/`；明确区分“配置存在/地址可达”与“认证、真实推拉”——后两者在 agent 侧，本阶段不做控制器侧实测）→ **审阅**（对象级脱敏的 diff——新旧 token 都不会出现在终端或日志里；确认后原子写入，原文件备份到 `.ship/backup/`）。
+
+写入内容：实际使用的配置文件（`ship.yaml`/`ship.yml`/`ship.json` 与 `ship.config.yaml`/`.yml`/`.json`，原格式原路径写回，不会新建高优先级文件遮蔽旧配置）、`ship.config.*`（0600，含 token——**即使内容没变，权限不是 0600 也会自动修正**）、`.gitignore` 追加 `.ship/` 与该秘密配置文件名。忽略保护以 `git check-ignore` 的实际结果为准：若现有条目被后面的否定规则（`!文件名`）压制，向导会把文件名追加到 `.gitignore` 末尾（末条规则生效）并在结果中说明；写入后还会复检一次，仍失败会明确警告而非宣称已保护。若秘密配置已被 Git 跟踪，向导会明确提示 `git rm --cached` 与 token 轮换——忽略规则无法消除已提交的历史。`init` 只生成配置，不构建不部署。取消（Ctrl+C）或中途中断都会把已答项存入 `.ship/init-state.json`（不含任何 token），重跑 `ship init` 自动恢复（含已选 Dockerfile、端口等已答项——文件未变化时以草稿里的最新答案为默认值，再次中途取消也不会丢失尚未重答的字段；若恢复前你手工改过配置文件，相关默认值改用当前文件值）；无变化时提示“与现状一致”并跳过写入；审阅确认到写入之间文件若被其他程序或手工修改，写入会停止并要求重跑。用 `-` 清空的端口映射会以 `ports: []` 显式落盘，之后的重跑不会按 EXPOSE 自动恢复（“主动不映射”与“从未配置”是两回事）。
+
+可选字段（端口映射、健康检查路径/宿主机端口、envFile）在 TTY 下有明确三态：**回车保留现有值、输入新值修改、输入 `-` 清空**。机器检查未通过但选择“仍要使用”时，命令会保存配置，但结果明确标记“环境未就绪”（`--json` 输出 `ready:false`、`blocked:"check-failed"`、`pending` 复检项），不会报告“初始化完成”；非交互模式检查未通过则拒绝写入（退出码 2）。
+
+自动化/CI 场景：非 TTY 下运行 `ship init --json`，缺输入**立即**返回结构化缺项列表（退出码 2，不等待 stdin）；所有输入可从既有配置/进度解析时自动完成检查与幂等写入（已有明确配置不会被检测值覆盖），stdout 始终只有 JSON。可选字段的清空需在 TTY 交互一次（输入 `-`）或直接编辑文件——非交互模式一律保留现有值。
+
+以下手工 YAML 供理解文件结构或手工微调时参考；向导产物与它们等价。
+
 ### 5.1 在独立目录里准备 demo
 
-在 **控制器** 执行，避免修改仓库自带的演示文件：
+在 **控制器** 执行，避免修改仓库自带的演示文件（方式 A 安装包内同样带 `examples/demo-web`，位于安装前缀的 `node_modules/shipkit/examples/`）：
 
 ```bash
 mkdir -p "$HOME/shipkit-demo"
@@ -268,7 +318,7 @@ ship release --from-dir . --to staging
 | 只构建并推送 | `ship build --from-dir .` | 不改变运行机上的应用 |
 | 部署指定镜像 | `ship deploy --ref registry.example.com/myteam/demo-web:TAG --to staging` | 仍需本地 `ship.yaml` 与运行环境配置 |
 | 使用另一份环境变量 | `ship deploy --env-file staging.env --to staging` | 指定文件必须存在 |
-| 沿用运行机现有环境变量 | `ship deploy --keep-env --to staging` | 适用于已部署过的应用；显式 `--env-file` 优先 |
+| 沿用当前发布的环境变量 | `ship deploy --keep-env --to staging` | 复制当前成功发布的环境快照；显式 `--env-file` 优先 |
 | 查看全部目标 | `ship status --to all` | 不触发构建或部署 |
 | 查看机器可读结果 | `ship status --to staging --json` | stdout 为结果，进度日志在 stderr |
 | 回到上一版 | `ship rollback demo-web --to staging` | 恢复上一发布的镜像、配置与环境变量 |
@@ -277,13 +327,25 @@ ship release --from-dir . --to staging
 
 ### 源码怎么选
 
+`--keep-env` 保留的是运行端当前成功发布的环境快照，并写入新发布的快照供后续回滚使用；不会采纳手工修改的 `runtime.env`。首次部署或当前成功发布的状态丢失时拒绝保留请求；当前成功发布本来未配置环境文件时，保留“无环境文件”状态。显式 `--env-file`（包括空文件）优先；不指定 `--keep-env` 且没有提供环境文件时会移除旧环境文件。快照不可读、已标记存在却丢失，或发布状态损坏时，会在启动容器前拒绝。旧运行端没有保留能力时，CLI 会要求升级，而不会静默降级。
+
+旧格式发布快照若仍有可读的 `env` 文件，可继续使用；若文件缺失且 `meta.json` 没有 `hasEnv` 标记，则无法判定原来就没有环境变量还是后来丢失，会拒绝部署、回滚和清理。先根据原配置与备份恢复环境文件；只有确认该历史发布原本不含环境文件，才可备份后在该快照的 `meta.json` 中显式添加 `"hasEnv": false`，不可批量猜测补齐。
+
 - **Git 模式：** 适合正式发布已推送提交。私有仓库访问可配置 `source.repo/ref/token`；本地未提交的修改不会被远端 clone 到。
 - **本地目录模式：** 适合 demo 和本地验证。自动排除 `.git`、`node_modules`、`.env`、`deploy.env`、`*.pem`、标准控制器配置名和 `spec.envFile`。其他自定义秘密文件仍需自行移出上传目录；不要把上传行为当作完整密钥扫描。
 - 本地上传有应用侧 500MB 上限；示例 Caddy 的请求体限制为 320MB，实际受链路中更小的限制约束。
+- Git 构建的项目身份优先使用 `source.repo`，否则使用当前仓库的 origin。`--from-dir DIR` 会覆盖 Git 源码选择，身份取实际上传目录的 origin；无 Git 时使用该目录真实路径的摘要，支持空格和长路径。`ship.yaml` 与环境文件仍从控制端当前项目目录读取。
+- 本地上传后，后续单独部署和回滚要继续传同一目录：`ship deploy --from-dir DIR --to prod`、`ship rollback demo-web --from-dir DIR --to prod`。这两个命令仅用目录识别原项目，不会再次上传或构建；`ship release --from-dir DIR --to prod` 自动传递本次构建的项目身份。
 
 ### 多个部署目标
 
 在 `runtime.targets` 下增加 `prod` 等命名目标，每个目标各填 URL 和 token。`deploy`、`release`、`rollback`、`gc` 一次指定一个目标；`--to all` 用于 `status`。未给部署目标时会选配置中的第一个目标，日常建议显式写 `--to`。
+
+target 名也是部署环境身份，长度为 1–64 个字符，以英文字母或数字开头，其余允许字母、数字、点、下划线和连字符。**同一 Agent 的一个应用名只属于一个项目和一个环境**：把 `prod`、`staging` 指向同一 Agent 再部署同名应用，第二个环境会被明确拒绝。要在同一 Docker daemon 运行两个环境，使用不同应用名；或把环境部署到不同 Docker daemon 的运行目标。仅增加 target 别名或另一 Agent 目录不能实现同名容器隔离。
+
+升级时同步更新控制端与运行端。`ship doctor` 及部署、回滚命令会检查运行端的部署身份隔离能力；`ship release` 会在创建构建机之前检查。仅看到相同版本号不代表运行端已具备本次修复。
+
+已有应用缺少 `WORK_ROOT/apps/<app>/project.json`、绑定损坏或读取失败时，部署会拒绝，并保留现有文件和容器。迁移前应暂停该应用的发布，备份部署目录，从**原控制端配置、原仓库和发布记录**确认原来的项目、环境及应用名；再由操作者以 0600 权限写入 `{ "app": "demo-web", "project": "git.example.com/team/web", "env": "prod" }`（示例值必须替换为核实后的原身份）。不要根据一个新请求猜测所有者，也不要删除 `state.json`、`releases/` 或容器来绕过校验。无 Git 项目的目录身份可从原控制端对应的最近构建记录中核对。
 
 ## 8. 发布失败、回滚与清理
 
@@ -400,7 +462,14 @@ builder:
 
 | 现象 | 优先检查 |
 | --- | --- |
-| 找不到 `ship` | 第 3 节函数只在当前终端生效，或直接用绝对路径运行 CLI |
+| 找不到 `ship` | 方式 A 检查安装前缀路径；方式 B 的函数只在当前终端生效，或直接用绝对路径运行 CLI |
+| `ship` 提示 Node 版本不满足 | 按提示自行升级 Node（≥20）；ship 不会代改你的 Node 环境 |
+| `ship init` 提示未找到 Dockerfile | M1 支持“已有 Dockerfile 的单应用”，先准备可构建的 Dockerfile；进度已保存，补齐后重跑 |
+| `ship init` 非交互模式报缺项 | 在 TTY 下交互补齐一次（答案会存进度），或先手工放好 ship.yaml/ship.config.yaml 再重跑 |
+| `ship init` 报“文件在审阅后发生了变化”（init_file_conflict） | 审阅到写入之间配置被手工或其他程序修改；重跑 `ship init` 以最新内容生成计划 |
+| `ship init` 提示秘密配置已被 Git 跟踪 | `git rm --cached <配置文件>` 并轮换 token；.gitignore 无法消除已提交历史 |
+| `ship init` 成功但提示“环境检查未通过” | 配置已保存（退出码 0，`ready:false`）；按 pending 提示修复入口/token 后 `ship doctor` 复检，或重跑 `ship init` |
+| 向导中 agent 检查“认证失败” | token 是否为该机器 `/etc/shipkit/agent.env` 的 `SHIP_AGENT_TOKEN`；被轮换过的旧 token 需换新 |
 | 找不到 `ship.yaml` | build/deploy/release 从当前工作目录读规范；`--from-dir` 不会替你切换目录 |
 | Git 模式没构建最新修改 | 修改是否 commit 并 push；需要当前目录内容时改用 `--from-dir .` |
 | push/pull unauthorized | 凭证是否在对应 agent 的 `/etc/shipkit/agent.env`，权限与仓库是否匹配，修改后是否重启 |
@@ -411,7 +480,7 @@ builder:
 | GC 超时或客户端断开 | 查原 job 状态与日志，确认是否还在执行 |
 | 动态机器无法复用 | idle 窗口、lease、剩余寿命、任务预算与持久化入口是否符合本轮条件 |
 
-**截至 2026-09-29：** 本轮代码修正与 92 项本地回归已记录，以下实机项仍待完成：
+**截至 2026-09-29：** 本轮完成 M1（安装即用 + `ship init` 配置向导，UX01–UX04）及同日独立审计修复轮：版本化本地安装包在仓库外干净目录实测可用；向导针对本地测试 agent 完成完整流程与多候选、无 Dockerfile、已有配置、取消恢复、写入失败回滚、认证失败、非交互缺项共 66 项断言（原实施，回归 127/127）；独立审计确认的 11 项 M1 问题 + 1 项既有阻塞（`--from-dir` tar 操作数）全部修复，13 个复现场景转为持久化回归（153/153）；随后独立收口复核确认的 5 项遗漏（R1–R5：目标切换、忽略否定规则、凭据权限、恢复/清空、回滚报告）在同日追加修复轮全部关闭（合计 171/171），并在隔离安装包上复测 R1/R2/R3/R4c 行为（见 [审计处置记录](audits/2026-09-29/m1-remediation.md)）。以下实机项仍待完成：
 
 | 验收项 | 需要的环境 | 应留下的证据 |
 | --- | --- | --- |

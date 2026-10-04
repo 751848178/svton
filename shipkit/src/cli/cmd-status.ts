@@ -7,6 +7,7 @@ import type { AgentStatus } from '../shared/types.js';
 import { createEmitter } from './output.js';
 import { CliError } from './errors.js';
 import { listTargets } from './targets.js';
+import { resolveTargetToken } from '../shared/credentials.js';
 
 export async function cmdStatus(argv: string[]): Promise<number> {
   const args = parseArgs({
@@ -26,7 +27,8 @@ export async function cmdStatus(argv: string[]): Promise<number> {
   const results: Array<{ name: string; url: string; ok: boolean; status?: AgentStatus; error?: string }> = [];
   for (const [name, t] of wanted) {
     try {
-      const status = await api<AgentStatus>(t.url, t.token, 'GET', '/api/status');
+      const rt = await resolveTargetToken(t, `runtime.targets.${name}`);
+      const status = await api<AgentStatus>(rt.url, rt.token, 'GET', '/api/status', undefined, 20_000, rt.caFile ? { caFile: rt.caFile } : {});
       results.push({ name, url: t.url, ok: true, status });
     } catch (e) {
       results.push({ name, url: t.url, ok: false, error: (e as Error).message });

@@ -1,6 +1,6 @@
 // Cross-cutting contracts shared by the controller CLI and the machine agents.
 
-export const SHIP_VERSION = '0.2.0';
+export const SHIP_VERSION = '0.5.0';
 
 export type AgentRole = 'builder' | 'runtime' | 'both';
 
@@ -53,9 +53,15 @@ export interface PushResult {
 
 export interface DeployRequest {
   app: string;
+  /** project identity (source.repo / origin / local digest); binds (project, env) — a
+   *  different project OR environment is REFUSED, never silently shared */
+  project: string;
+  /** environment identity: the runtime target name (e.g. prod/staging) */
+  env: string;
   imageRef: string;
   spec: ShipSpec;
   envFileContent?: string;
+  keepEnv?: boolean;
 }
 
 /** outcome of a deploy/rollback job; recovery is reported only when it was actually attempted (F04) */
@@ -70,9 +76,12 @@ export interface DeployResult {
 
 export interface RollbackRequest {
   app: string;
+  /** must match the (project, env) bound to the app (see DeployRequest) */
+  project: string;
+  env: string;
 }
 
-export type JobType = 'build' | 'push' | 'deploy' | 'rollback' | 'gc';
+export type JobType = 'build' | 'push' | 'deploy' | 'rollback' | 'gc' | 'verify';
 export type JobStatus = 'queued' | 'running' | 'succeeded' | 'failed';
 
 export interface Job {
@@ -108,13 +117,20 @@ export interface AgentStatus {
   docker: boolean;
   apps?: AppStatus[];
   activeJobs?: number;
+  /** what the CALLING credential may actually do (M2-04): the authenticated
+   *  identity's effective role — machine `role` above must not be read as a
+   *  credential permission */
+  auth?: { role: AgentRole; capabilities: string[] };
 }
 
 // ---- controller-side config (ship.config.yaml) ----
 
 export interface TargetConfig {
   url: string;
-  token: string;
+  /** plaintext long-term agent token (legacy default; do not commit real configs) */
+  token?: string;
+  /** name in ~/.ship/credentials.json written by `ship pair`; mutually exclusive with token */
+  tokenRef?: string;
 }
 
 export interface TencentCvmConfig {
@@ -173,6 +189,9 @@ export interface ShipConfig {
 
 export interface LastBuildRecord {
   app: string;
+  /** owning project identity — records are scoped per (app, project); a
+   *  different repo with the same app name can never reuse this image */
+  project: string;
   imageRef: string;
   tag: string;
   digest?: string;

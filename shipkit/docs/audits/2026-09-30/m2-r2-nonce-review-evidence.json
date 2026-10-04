@@ -1,0 +1,56 @@
+{
+  "date": "2026-09-30",
+  "finding": "M2-R2",
+  "severity": "P2",
+  "status": "open",
+  "hashes": {
+    "shipkit/src/shared/file-lock.ts": "c5fb567d020c07a46343fbfdc2d1e47e7296f3a4f67189412c95fdc244cbd863",
+    "shipkit/src/shared/file-lock-race.test.ts": "97c8b6477e62550970b3a78f5b65753d8e15b1f660e9914e72bc37bc4d1414f6",
+    "shipkit/dist/shared/file-lock.js": "a340ff05ea7c36c7afa5416c00040dc8cafb4f94b3d3199b2c05295938177da8"
+  },
+  "verification": {
+    "buildExit": 0,
+    "typecheckExit": 0,
+    "testsPassed": 246,
+    "installerChecksPassed": 17,
+    "installerDriftCheck": "passed",
+    "packageSmoke": "not rerun this round"
+  },
+  "reproduction": {
+    "script": "import * as fs from 'node:fs/promises';\nimport {mock} from 'node:test';\nimport {spawnSync} from 'node:child_process';\nimport {AsyncLocalStorage} from 'node:async_hooks';\nconst base='/tmp/codex-tool-runs/svton/m2-r2-nonce-review-20260930';\nconst dir=await fs.mkdtemp(base+'/race-'),file=dir+'/state.json',lock=file+'.lock',prev=lock+'.prev';\nconst child=spawnSync(process.execPath,['-e','process.exit(0)']);\ntry{process.kill(child.pid,0);throw Error('fixture PID reused')}catch(e){if(e.code!=='ESRCH')throw e;}\nawait fs.writeFile(lock,`${child.pid}\\tdead-owner-token\\n`);\nconst defer=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve}};\nconst before=defer(),resume=defer(),aRename=defer(),resumeARename=defer(),bRename=defer(),resumeBRename=defer(),aEntered=defer(),bEntered=defer(),releaseA=defer(),releaseB=defer();\nconst als=new AsyncLocalStorage();let paused=false,active=0,maxActive=0,bActive=false,overwroteLiveB=false,oldDirInode;\nconst {default:ignored,...named}=fs;\nmock.module('node:fs/promises',{namedExports:{...named,\n open:async(p,flags,...args)=>{\n  if(als.getStore()==='A'&&p.startsWith(prev+'/owner.')&&!paused){paused=true;oldDirInode=(await fs.stat(prev)).ino;before.resolve();await resume.promise;}\n  return fs.open(p,flags,...args);\n },\n rename:async(from,to)=>{\n  if(to===lock&&als.getStore()==='A'){aRename.resolve();await resumeARename.promise;overwroteLiveB=bActive;}\n  if(to===lock&&als.getStore()==='B'){bRename.resolve();await resumeBRename.promise;}\n  return fs.rename(from,to);\n }\n}});\nconst {withFileLock}=await import('/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/file-lock.js');\nconst guard=setTimeout(()=>{console.error('REPRO_TIMEOUT');process.exit(2)},10000);\nconst a=als.run('A',()=>withFileLock(file,async()=>{active++;maxActive=Math.max(maxActive,active);aEntered.resolve();await releaseA.promise;active--;},{timeoutMs:5000}));\nawait before.promise;await new Promise(r=>setTimeout(r,650));\nconst b=als.run('B',()=>withFileLock(file,async()=>{bActive=true;active++;maxActive=Math.max(maxActive,active);bEntered.resolve();await releaseB.promise;active--;bActive=false;},{timeoutMs:5000}));\nawait bRename.promise;resume.resolve();await aRename.promise;\nconst recordsBeforeReplace=await fs.readdir(prev);const currentDirInode=(await fs.stat(prev)).ino;\nresumeBRename.resolve();await bEntered.promise;const bLock=await fs.readFile(lock,'utf8');\nresumeARename.resolve();await aEntered.promise;\nconst result={maxActive,activeAtObservation:active,overwroteLiveB,bLockChanged:await fs.readFile(lock,'utf8')!==bLock,recordsBeforeReplace,oldDirInode,currentDirInode,onlySchedulingMocked:true};\nreleaseA.resolve();await a;releaseB.resolve();await b;clearTimeout(guard);mock.restoreAll();\nawait fs.writeFile(base+'/nonce-race-result.json',JSON.stringify(result,null,2));console.log(JSON.stringify(result));\n",
+    "scriptSha256": "40a8eb4d68784ad2a7b5293f31a4341e4d4e04f0498e0afe3fa35a3fb675b5a7",
+    "result": {
+      "maxActive": 2,
+      "activeAtObservation": 2,
+      "overwroteLiveB": true,
+      "bLockChanged": true,
+      "recordsBeforeReplace": [
+        "owner.896f31bae79a35edcec1cf82f4eb8a3a",
+        "owner.8da9c511198950ca0ba771691fca36e4"
+      ],
+      "oldDirInode": 160650634,
+      "currentDirInode": 160650635,
+      "onlySchedulingMocked": true
+    },
+    "exit": 0,
+    "method": "Real filesystem and verified exited child PID. Two concurrent calls in one process, AsyncLocalStorage actor labels, only pauses before real open and rename operations. Not cross-process E2E."
+  },
+  "logs": {
+    "test.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-nonce-review-20260930/test.log",
+      "sha256": "786d31c584a1ebb49061f792c2d430311431fc0a71b4beb05baf7ee65ae0403e"
+    },
+    "typecheck.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-nonce-review-20260930/typecheck.log",
+      "sha256": "3af2c7f85db1a73e14ef30acb4bd2493cecef51fff8e8c6236b788ea32831e9f"
+    },
+    "nonce-race.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-nonce-review-20260930/nonce-race.log",
+      "sha256": "be127bcbeadcd9244c22e5785cb6bfc5c7183522a30767cffeb517ed8921d78d"
+    },
+    "build.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-nonce-review-20260930/build.log",
+      "sha256": "dc62f939cee853d720dd930f19d82d085aca6afc8d85df978da6b06cda7ff56d"
+    }
+  }
+}

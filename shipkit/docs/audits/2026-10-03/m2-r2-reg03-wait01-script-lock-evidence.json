@@ -1,0 +1,103 @@
+{
+  "date": "2026-10-03",
+  "scope": "script state-file safety lock only",
+  "conclusion": "REG-03 open; WAIT-01 callback guard effective but observed deadline latency exceeds timeoutMs",
+  "reg03_new": {
+    "schedule": "A mkdir(publock) succeeds, pauses before actual owner write; test temporarily binds first candidate; B selects another candidate, removes live ownerless publock, enters publication and pauses AFTER real successful bindTest; temporary listener closes; A resumes actual owner write, publishes and holds; B resumes real result and publishes another mapping, enters while A holds.",
+    "method": "Only scheduling barriers wrap actual writeFile and bindTest. No syscall results, claim data, banners or business counters are faked.",
+    "simultaneousSections": 2,
+    "first": {
+      "event": "entered",
+      "old": 0,
+      "port": 53925
+    },
+    "second": {
+      "event": "entered",
+      "old": 0,
+      "port": 54128
+    },
+    "claimBefore": {
+      "port": 53925
+    },
+    "claimAfter": {
+      "port": 54128
+    },
+    "liveBanners": [
+      "shiplock:78584:28afab80",
+      "shiplock:78585:28afab80"
+    ],
+    "finalValue": 1,
+    "expected": 2
+  },
+  "reg03_prior_schedule": {
+    "simultaneousSections": 1,
+    "claimBefore": {
+      "port": 61170
+    },
+    "claimAfter": {
+      "port": 61170
+    },
+    "finalValue": 2,
+    "expected": 2
+  },
+  "wait01": {
+    "timeoutMs": 50,
+    "allocationPauseMs": 250,
+    "callbackAtMs": null,
+    "totalMs": 273.67070800000005,
+    "error": "无法获得文件锁（获取预算耗尽）：/private/tmp/ship-scheduled-deadline-3ryZIE/state.json — 发布前超时",
+    "method": "Only an async scheduling delay before the ORIGINAL allocation bindTest is injected via node:test mock.module; the event loop remains runnable. All fs/listen/connect operations and outcomes are real."
+  },
+  "validation": {
+    "build": {
+      "status": "pass",
+      "log": "/tmp/codex-tool-runs/svton/reg03-wait01-build-20261003-135108.log"
+    },
+    "typecheck": {
+      "status": "pass",
+      "log": "/tmp/codex-tool-runs/svton/reg03-wait01-typecheck-20261003-135523.log"
+    },
+    "focused": {
+      "status": "pass 4/4",
+      "log": "/tmp/codex-tool-runs/svton/reg03-wait01-focused-unrestricted-20261003-135236.log"
+    },
+    "full": {
+      "status": "fail 259/260; publock/owner ENOENT at test 248",
+      "log": "/tmp/codex-tool-runs/svton/reg03-wait01-full-unrestricted-20261003-135450.log"
+    },
+    "baseline_test_alone": {
+      "status": "pass",
+      "log": "/tmp/codex-tool-runs/svton/reg03-current-baseline-lock-20261003-233533.log"
+    },
+    "pack": {
+      "status": "pass with temporary npm cache",
+      "log": "/tmp/codex-tool-runs/svton/reg03-wait01-pack-tempcache-20261003-143858.log"
+    },
+    "package_smoke": {
+      "status": "pass",
+      "log": "/tmp/codex-tool-runs/svton/reg03-wait01-package-smoke-20261003-143929.log"
+    }
+  },
+  "sources": {
+    "pubmutex-race.mjs": {
+      "path": "/tmp/codex-tool-runs/svton/reg03-wait01-independent-20261003/pubmutex-race.mjs",
+      "sha256": "efccabe4e34068c24cf634534eb090dd3175cf8b31007023b427b4a0d68a72d5"
+    },
+    "pubmutex-worker.mjs": {
+      "path": "/tmp/codex-tool-runs/svton/reg03-wait01-independent-20261003/pubmutex-worker.mjs",
+      "sha256": "5bf6761a64edc96f739715cf838dd946d10cf4411548254beb42675c909343c9"
+    },
+    "publish-race.mjs": {
+      "path": "/tmp/codex-tool-runs/svton/reg03-wait01-independent-20261003/publish-race.mjs",
+      "sha256": "f4e9867664e23c6e175852bdf08a73fb78aeb58191b6a89b6c0e974b76f9a990"
+    },
+    "scheduled-deadline.mjs": {
+      "path": "/tmp/codex-tool-runs/svton/reg03-wait01-independent-20261003/scheduled-deadline.mjs",
+      "sha256": "1fe97a308b99f5af7fcbe47837d376e984047358a32603ae111747ac5cb2589c"
+    }
+  },
+  "repro_commands": [
+    "cd /Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit && node --experimental-test-module-mocks /tmp/codex-tool-runs/svton/reg03-wait01-independent-20261003/pubmutex-race.mjs",
+    "cd /Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit && node --experimental-test-module-mocks /tmp/codex-tool-runs/svton/reg03-wait01-independent-20261003/scheduled-deadline.mjs"
+  ]
+}

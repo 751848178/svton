@@ -1,0 +1,339 @@
+{
+  "date": "2026-10-01",
+  "timezone": "Asia/Shanghai",
+  "finding": "M2-R2",
+  "status": "open",
+  "severity": "P2",
+  "scope": "Independent local TCP-registry review; business source unchanged; no commit, publication, Docker or cloud operations.",
+  "hashes": {
+    "src/shared/file-lock.ts": "943c49e69e7251ef87db6e596942f4e4e429169581c5f4160b6e06e2bc106922",
+    "src/shared/lock-registry.ts": "d2d3e863f9ee758c82fc7693befa58071af0e5861518e53f9ce15a4fb6c65861",
+    "src/shared/lock-bindtest.ts": "be6ffc46525b1604fe2ee7d77a8544324ee83581b98f011e3a69857234a9b83c",
+    "src/shared/file-lock-tcp.test.ts": "7d4bfdf82a80e9a514f5fb99de66c3d3790cb18f5bd004b781d55d7b4b029c99",
+    "src/agent/registry-creds.ts": "eb5801da8ff66ae94203a6731c25cc5dcb669dd47975ba9219f2d79362c21d7c"
+  },
+  "verification": {
+    "build": {
+      "command": "pnpm run build",
+      "exitCode": 0
+    },
+    "typecheck": {
+      "command": "pnpm run typecheck",
+      "exitCode": 0
+    },
+    "full": {
+      "command": "pnpm run test",
+      "exitCode": 0,
+      "nodeTests": 251,
+      "nodePassed": 251,
+      "installerPassed": 17,
+      "installerTotal": 17
+    },
+    "pack": {
+      "command": "pnpm run pack:tarball",
+      "exitCode": 0,
+      "version": "0.5.0"
+    },
+    "packageSmoke": {
+      "command": "pnpm run smoke:package",
+      "exitCode": 0,
+      "passed": 17,
+      "install": "offline, outside repository"
+    },
+    "sandboxAttempts": "Initial test/pack blocked by sandbox EPERM (loopback listen / npm cache). Authorized unsandboxed reruns passed; initial failures are environment failures, not product regressions."
+  },
+  "priorTCPResults": {
+    "alias": {
+      "maxActive": 1,
+      "activeAtObservation": 1,
+      "sameRealPath": true,
+      "ports": [
+        62905,
+        62905
+      ],
+      "finalCounter": 2,
+      "expectedCounter": 2
+    },
+    "shutdown": {
+      "resolvedWhilePeerOpen": true,
+      "observationMs": 350,
+      "netServerHasCloseAllConnections": false,
+      "resolvedAfterPeerDestroyed": true
+    },
+    "silent": {
+      "timeoutMs": 100,
+      "elapsedMs": 100,
+      "error": "无法获得文件锁（等待 100ms 超时）：/private/tmp/codex-tool-runs/svton/m2-r2-tcp-rereview-20261001/boundaries-pSTw2s/silent.json — holder cannot be identified (port busy, no banner)；不会抢占仍被持有的锁"
+    }
+  },
+  "priorEOFResult": {
+    "timeoutMs": 100,
+    "observedMs": 1600,
+    "settled": true,
+    "outcome": "无法获得文件锁（等待 100ms 超时）：/private/tmp/codex-tool-runs/svton/m2-r2-tcp-rereview-20261001/eof-g508aE/state.json — holder cannot be identified (port busy, no banner)；不会抢占仍被持有的锁",
+    "peerBehavior": "accept and immediately end without data",
+    "noMocks": true
+  },
+  "registryResults": [
+    {
+      "name": "isolated-TMPDIR",
+      "simultaneousSections": 2,
+      "first": {
+        "event": "entered",
+        "key": "/private/tmp/ship-tcp-independent-2GRtCQ/tmpdir/state.json",
+        "currentKey": "/private/tmp/ship-tcp-independent-2GRtCQ/tmpdir/state.json",
+        "old": 0,
+        "port": 51256
+      },
+      "second": {
+        "event": "entered",
+        "key": "/private/tmp/ship-tcp-independent-2GRtCQ/tmpdir/state.json",
+        "currentKey": "/private/tmp/ship-tcp-independent-2GRtCQ/tmpdir/state.json",
+        "old": 0,
+        "port": 61562
+      },
+      "finalValue": 1,
+      "expected": 2,
+      "aMessages": [
+        {
+          "event": "ready"
+        },
+        {
+          "event": "entered",
+          "key": "/private/tmp/ship-tcp-independent-2GRtCQ/tmpdir/state.json",
+          "currentKey": "/private/tmp/ship-tcp-independent-2GRtCQ/tmpdir/state.json",
+          "old": 0,
+          "port": 51256
+        },
+        {
+          "event": "finished"
+        }
+      ],
+      "bMessages": [
+        {
+          "event": "ready"
+        },
+        {
+          "event": "entered",
+          "key": "/private/tmp/ship-tcp-independent-2GRtCQ/tmpdir/state.json",
+          "currentKey": "/private/tmp/ship-tcp-independent-2GRtCQ/tmpdir/state.json",
+          "old": 0,
+          "port": 61562
+        },
+        {
+          "event": "finished"
+        }
+      ]
+    },
+    {
+      "name": "fallback-cache-versus-published-claim",
+      "simultaneousSections": 2,
+      "first": {
+        "event": "entered",
+        "key": "/private/tmp/ship-tcp-independent-2GRtCQ/fallback/state.json",
+        "currentKey": "/private/tmp/ship-tcp-independent-2GRtCQ/fallback/state.json",
+        "old": 0,
+        "port": 65337
+      },
+      "second": {
+        "event": "entered",
+        "key": "/private/tmp/ship-tcp-independent-2GRtCQ/fallback/state.json",
+        "currentKey": "/private/tmp/ship-tcp-independent-2GRtCQ/fallback/state.json",
+        "old": 0,
+        "port": 56497
+      },
+      "finalValue": 1,
+      "expected": 2,
+      "fallback": {
+        "event": "claimed",
+        "port": 65337
+      },
+      "occupiedCandidates": 63,
+      "aMessages": [
+        {
+          "event": "ready"
+        },
+        {
+          "event": "claimed",
+          "port": 65337
+        },
+        {
+          "event": "entered",
+          "key": "/private/tmp/ship-tcp-independent-2GRtCQ/fallback/state.json",
+          "currentKey": "/private/tmp/ship-tcp-independent-2GRtCQ/fallback/state.json",
+          "old": 0,
+          "port": 65337
+        },
+        {
+          "event": "finished"
+        }
+      ],
+      "bMessages": [
+        {
+          "event": "ready"
+        },
+        {
+          "event": "entered",
+          "key": "/private/tmp/ship-tcp-independent-2GRtCQ/fallback/state.json",
+          "currentKey": "/private/tmp/ship-tcp-independent-2GRtCQ/fallback/state.json",
+          "old": 0,
+          "port": 56497
+        },
+        {
+          "event": "finished"
+        }
+      ]
+    },
+    {
+      "name": "parent-created-inside-critical-section",
+      "simultaneousSections": 2,
+      "first": {
+        "event": "entered",
+        "key": "/private/tmp/ship-tcp-independent-2GRtCQ/missing-parent/state.json",
+        "currentKey": "/private/tmp/ship-tcp-independent-2GRtCQ/missing-parent/new/nested/state.json",
+        "old": 0,
+        "port": 65442
+      },
+      "second": {
+        "event": "entered",
+        "key": "/private/tmp/ship-tcp-independent-2GRtCQ/missing-parent/new/nested/state.json",
+        "currentKey": "/private/tmp/ship-tcp-independent-2GRtCQ/missing-parent/new/nested/state.json",
+        "old": 0,
+        "port": 55135
+      },
+      "finalValue": 1,
+      "expected": 2,
+      "aMessages": [
+        {
+          "event": "ready"
+        },
+        {
+          "event": "entered",
+          "key": "/private/tmp/ship-tcp-independent-2GRtCQ/missing-parent/state.json",
+          "currentKey": "/private/tmp/ship-tcp-independent-2GRtCQ/missing-parent/new/nested/state.json",
+          "old": 0,
+          "port": 65442
+        },
+        {
+          "event": "finished"
+        }
+      ],
+      "bMessages": [
+        {
+          "event": "ready"
+        },
+        {
+          "event": "entered",
+          "key": "/private/tmp/ship-tcp-independent-2GRtCQ/missing-parent/new/nested/state.json",
+          "currentKey": "/private/tmp/ship-tcp-independent-2GRtCQ/missing-parent/new/nested/state.json",
+          "old": 0,
+          "port": 55135
+        },
+        {
+          "event": "finished"
+        }
+      ]
+    }
+  ],
+  "identityReleaseResult": {
+    "originalKey": "/private/tmp/ship-identity-independent-4AOvFj/state.json",
+    "currentKey": "/private/tmp/ship-identity-independent-4AOvFj/new/nested/state.json",
+    "leakedHoldingAfterSuccessfulReturn": true,
+    "retainedOriginalToken": true,
+    "cleanedByOriginalIdentity": true
+  },
+  "method": "Real separate Node processes, real loopback TCP listeners and temporary filesystem. No module mocks. All 64 candidate listeners and child processes are created by this reproduction and cleaned up; no unknown service terminated.",
+  "scriptNotes": "Exit zero indicates observation completion. Failed mutex invariants: simultaneousSections=2, finalValue=1 instead of expected=2. ROOT resolved through realpath so candidate calculation matches production canonical key. Prior scripts adapted via saved adapter, only to actual lockPortFor lookup and serial-safe observation.",
+  "reproducedFindings": [
+    "REG-01 process TMPDIR namespaces split the same resource",
+    "REG-02 fallback cache and later persistent claim split the same resource",
+    "KEY-01 missing ancestor suffix dropped; creation changes identity and normal finally leaks holding"
+  ],
+  "notClaimedReproduced": "Empty/partially published registry claims were inspected as an additional regression need, not an observed fourth defect.",
+  "reproInstructions": "Run pnpm run build in /Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit. Extract reproductions[].source using scriptName to a local directory; scripts currently use /tmp/codex-tool-runs/svton/m2-r2-tcp-rereview-20261001 and the audited workspace module path. Run registry-boundaries.mjs and identity-release.mjs with local loopback access. For former TCP gaps, run adapt-prior.mjs, tcp-boundaries.mjs and probe-eof.mjs. Read saved JSON invariants, not just process exit status.",
+  "reproductions": [
+    {
+      "scriptName": "registry-boundaries.mjs",
+      "source": "import { spawn } from 'node:child_process';\nimport { mkdtemp, mkdir, readFile, writeFile, rm, realpath } from 'node:fs/promises';\nimport { createServer } from 'node:net';\nimport { createHash } from 'node:crypto';\nimport path from 'node:path';\nconst MODULE = 'file:///Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/file-lock.js';\nconst ROOT = await realpath(await mkdtemp('/tmp/ship-tcp-independent-'));\nconst children = [], listeners = [];\nconst results = [];\nconst sleep = (ms) => new Promise(r => setTimeout(r, ms));\nfunction worker(file, temp, createParent = false) {\n  const code = `\nimport { withFileLock, lockPortFor, lockKeyOf } from ${JSON.stringify(MODULE)};\nimport { readFile, writeFile, mkdir } from 'node:fs/promises';\nimport path from 'node:path';\nconst file = ${JSON.stringify(file)};\nlet release;\nprocess.on('message', async (m) => {\n  try {\n    if (m === 'claim') process.send({event:'claimed', port:await lockPortFor(file)});\n    if (m === 'acquire') {\n      const key = lockKeyOf(file);\n      await withFileLock(file, async () => {\n        const gate = new Promise(r => release = r);\n        if (${createParent}) await mkdir(path.dirname(file), {recursive:true});\n        const old = Number(await readFile(file, 'utf8').catch(() => '0'));\n        process.send({event:'entered', key, currentKey:lockKeyOf(file), old, port:await lockPortFor(key)});\n        await gate;\n        await writeFile(file, String(old+1));\n      }, {timeoutMs:800});\n      process.send({event:'finished'});\n    }\n    if (m === 'release') release?.();\n    if (m === 'exit') process.exit(0);\n  } catch(e) { process.send({event:'error', message:e.message}); }\n});\nprocess.send({event:'ready'});\n`;\n  const child = spawn(process.execPath, ['--input-type=module', '-e', code], {\n    env:{...process.env, TMPDIR:temp, TMP:temp, TEMP:temp}, stdio:['ignore','ignore','pipe','ipc']\n  });\n  children.push(child);\n  const messages=[];\n  child.on('message', m => messages.push(m));\n  child.stderr.on('data', d => messages.push({event:'stderr', text:String(d)}));\n  return { child, messages, async wait(event, ms=2500) {\n    const end=Date.now()+ms;\n    while(Date.now()<end) {\n      const found=messages.find(m=>m.event===event);\n      if(found) return found;\n      if(messages.some(m=>m.event==='error'||m.event==='stderr')) return null;\n      await sleep(5);\n    }\n    return null;\n  }};\n}\nasync function finishPair(a,b,file,name,extra={}) {\n  const second=await b.wait('entered',400);\n  const first=a.messages.find(m=>m.event==='entered');\n  a.child.send('release');\n  if(second) b.child.send('release');\n  await a.wait('finished');\n  if(!second) {\n    await b.wait('entered');\n    b.child.send('release');\n  }\n  await b.wait('finished');\n  const value=await readFile(file,'utf8').catch(() => 'NaN');\n  results.push({name, simultaneousSections:second ? 2:1, first, second,\n    finalValue:Number(value), expected:2, ...extra, aMessages:a.messages,bMessages:b.messages});\n  a.child.send('exit');b.child.send('exit');\n}\ntry {\n  // Same absolute resource, but process-local temp directories differ.\n  const c1=path.join(ROOT,'tmpdir');\n  await mkdir(c1);await mkdir(path.join(c1,'tmpA'));await mkdir(path.join(c1,'tmpB'));\n  const file1=path.join(c1,'state.json');await writeFile(file1,'0');\n  const a=worker(file1,path.join(c1,'tmpA'));await a.wait('ready');a.child.send('acquire');await a.wait('entered');\n  const b=worker(file1,path.join(c1,'tmpB'));await b.wait('ready');b.child.send('acquire');\n  await finishPair(a,b,file1,'isolated-TMPDIR');\n  // Force the documented allocation exhaustion using only our own listeners.\n  const c2=path.join(ROOT,'fallback');await mkdir(c2);await mkdir(path.join(c2,'tmp'));\n  const file2=path.join(c2,'state.json');await writeFile(file2,'0');\n  const occupied=[];\n  for(let i=0;i<64;i++) {\n    const port=49152+createHash('sha256').update([file2,String(i)].join('\\u0000')).digest().readUInt32BE(0)%16383;\n    if(occupied.includes(port))continue;\n    const server=createServer(socket=>socket.destroy());\n    const ok=await new Promise(r=>{server.once('error',()=>r(false));server.listen(port,'127.0.0.1',()=>r(true));});\n    if(ok){listeners.push(server);occupied.push(port);}\n  }\n  const f=worker(file2,path.join(c2,'tmp'));await f.wait('ready');f.child.send('claim');\n  const fallback=await f.wait('claimed');\n  for(const server of listeners.splice(0)) await new Promise(r=>server.close(r));\n  f.child.send('acquire');await f.wait('entered');\n  const g=worker(file2,path.join(c2,'tmp'));await g.wait('ready');g.child.send('acquire');\n  await finishPair(f,g,file2,'fallback-cache-versus-published-claim',{fallback,occupiedCandidates:occupied.length});\n  // Parent absent on initial acquisition, then created by the transaction.\n  const c3=path.join(ROOT,'missing-parent');await mkdir(c3);await mkdir(path.join(c3,'tmp'));\n  const file3=path.join(c3,'new','nested','state.json');\n  const m=worker(file3,path.join(c3,'tmp'),true);await m.wait('ready');m.child.send('acquire');await m.wait('entered');\n  const n=worker(file3,path.join(c3,'tmp'));await n.wait('ready');n.child.send('acquire');\n  await finishPair(m,n,file3,'parent-created-inside-critical-section');\n  await writeFile(path.join('/tmp/codex-tool-runs/svton/m2-r2-tcp-rereview-20261001','registry-results.json'),JSON.stringify(results,null,2));\n  console.log(JSON.stringify(results.map(({name,simultaneousSections,finalValue,first,second,fallback})=>({name,simultaneousSections,finalValue,first,second,fallback})),null,2));\n} finally {\n  for(const child of children) if(child.exitCode===null) child.kill('SIGTERM');\n  for(const server of listeners) await new Promise(r=>server.close(r));\n  await sleep(50);await rm(ROOT,{recursive:true,force:true});\n}\n",
+      "sha256": "2ed347986cddcce290757ea6ae20ac6ff3145a8f3d649b30d8f8bf515e440c62"
+    },
+    {
+      "scriptName": "identity-release.mjs",
+      "source": "import { mkdtemp, mkdir, realpath, writeFile, rm } from 'node:fs/promises';\nimport path from 'node:path';\nimport { withFileLock, lockKeyOf, heldToken, releaseLockIfOwner } from '/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/file-lock.js';\nconst dir=await realpath(await mkdtemp('/tmp/ship-identity-independent-'));\nconst file=path.join(dir,'new','nested','state.json');\nconst original=lockKeyOf(file);\nlet token;\ntry {\n  await withFileLock(file,async()=> {\n    token=heldToken(original);\n    await mkdir(path.dirname(file),{recursive:true});\n  });\n  const result={originalKey:original,currentKey:lockKeyOf(file),\n    leakedHoldingAfterSuccessfulReturn:heldToken(original)===token,\n    retainedOriginalToken:!!heldToken(original)};\n  // Release our OWN leaked holding through its original identity.\n  result.cleanedByOriginalIdentity=await releaseLockIfOwner(original,token);\n  await writeFile('/tmp/codex-tool-runs/svton/m2-r2-tcp-rereview-20261001/identity-release-result.json',JSON.stringify(result,null,2));\n  console.log(JSON.stringify(result));\n} finally {\n  if(token) await releaseLockIfOwner(original,token);\n  await rm(dir,{recursive:true,force:true});\n}\n",
+      "sha256": "c79b58ea12fc12a33b06be35d0f3bbc4109b9004ce628c7630d87cbc46863ff5"
+    },
+    {
+      "scriptName": "adapt-prior.mjs",
+      "source": "import { readFile, writeFile } from 'node:fs/promises';\nconst evidence=JSON.parse(await readFile('/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/docs/audits/2026-09-30/m2-r2-tcp-review-evidence.json','utf8'));\nconst base='/tmp/codex-tool-runs/svton/m2-r2-tcp-rereview-20261001';\nfor(const r of evidence.reproductions) {\n  let s=r.source.replace(\"import {withFileLock}\",\"import {withFileLock,lockPortFor}\")\n    .replace(\"const base='/tmp/codex-tool-runs/svton/m2-r2-tcp-review-20261001';\",`const base='${base}';`);\n  if(r.scriptName==='tcp-boundaries.mjs') {\n    s=s.replace(/^const portFor=.*;$/m,'const portFor=lockPortFor;')\n      .replace(/^if\\(portFor\\(file\\).*$/m,'')\n      .replace('await be.promise;', 'await pause(250);')\n      .replace('ports:[portFor(file),portFor(alias)]','ports:[await portFor(file),await portFor(alias)]')\n      .replace('port:portFor(held)','port:await portFor(held)')\n      .replace(\"silent.listen(portFor(silentFile),'127.0.0.1');\",\"silent.listen(await portFor(silentFile),'127.0.0.1');\");\n  } else {\n    s=s.replace(/^const port=.*;$/m,'const port=await lockPortFor(file);');\n  }\n  await writeFile(`${base}/${r.scriptName}`,s);\n}\n",
+      "sha256": "01dfc428a7b8564f951e5380018de0f7a29d28e0c04b605b301e54c0b4699900"
+    },
+    {
+      "scriptName": "tcp-boundaries.mjs",
+      "source": "import * as fs from 'node:fs/promises';\nimport * as net from 'node:net';\nimport {createHash} from 'node:crypto';\nimport path from 'node:path';\nimport {once} from 'node:events';\nimport {withFileLock,lockPortFor} from '/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/file-lock.js';\nconst base='/tmp/codex-tool-runs/svton/m2-r2-tcp-rereview-20261001';\nconst dir=await fs.mkdtemp(base+'/boundaries-');\nconst portFor=lockPortFor;\nconst defer=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve}};\nconst pause=ms=>new Promise(r=>setTimeout(r,ms));\nconst guard=setTimeout(()=>{console.error('REPRO_TIMEOUT');process.exit(2)},12000);\nconst results={};\n// Same physical state file, two names through a symlinked parent directory.\nconst real=dir+'/real';await fs.mkdir(real);await fs.symlink(real,dir+'/alias','dir');\nconst file=real+'/state.json',alias=dir+'/alias/state.json';await fs.writeFile(file,'0');\n\nconst ae=defer(),be=defer(),ra=defer(),rb=defer();let active=0,maxActive=0;\nconst a=withFileLock(file,async()=>{active++;maxActive=Math.max(maxActive,active);const old=Number(await fs.readFile(file,'utf8'));ae.resolve();await ra.promise;await fs.writeFile(file,String(old+1));active--;});\nawait ae.promise;\nconst b=withFileLock(alias,async()=>{active++;maxActive=Math.max(maxActive,active);const old=Number(await fs.readFile(alias,'utf8'));be.resolve();await rb.promise;await fs.writeFile(alias,String(old+1));active--;});\nawait pause(250);\nresults.alias={maxActive,activeAtObservation:active,sameRealPath:await fs.realpath(file)===await fs.realpath(alias),ports:[await portFor(file),await portFor(alias)]};\nra.resolve();await a;rb.resolve();await b;results.alias.finalCounter=Number(await fs.readFile(file,'utf8'));results.alias.expectedCounter=2;\n// A banner visitor holds its write half open after reading server's FIN.\nconst held=dir+'/release.json',entered=defer(),release=defer();let settled=false;\nconst work=withFileLock(held,async()=>{entered.resolve();await release.promise;}).finally(()=>{settled=true});\nawait entered.promise;\nconst socket=net.connect({host:'127.0.0.1',port:await portFor(held),allowHalfOpen:true});\nawait once(socket,'data');release.resolve();await pause(350);\nresults.shutdown={resolvedWhilePeerOpen:settled,observationMs:350,netServerHasCloseAllConnections:typeof net.createServer().closeAllConnections==='function'};\nsocket.destroy();await work;results.shutdown.resolvedAfterPeerDestroyed=settled;\n// Foreign occupant accepts a connection but never sends a banner.\nconst silentFile=dir+'/silent.json',visitors=new Set();\nconst silent=net.createServer(s=>{visitors.add(s);s.on('close',()=>visitors.delete(s));});\nsilent.listen(await portFor(silentFile),'127.0.0.1');await once(silent,'listening');\nlet error='';const start=Date.now();\ntry{await withFileLock(silentFile,()=>{}, {timeoutMs:100});}catch(e){error=e.message;}\nresults.silent={timeoutMs:100,elapsedMs:Date.now()-start,error};\nfor(const s of visitors)s.destroy();await new Promise(r=>silent.close(r));\nclearTimeout(guard);await fs.writeFile(base+'/tcp-boundaries-result.json',JSON.stringify(results,null,2));console.log(JSON.stringify(results));\n",
+      "sha256": "252a3a0ecae18f26d0f6b01e38e74d0038bc3fd0c9007b2d41955445bcd57749"
+    },
+    {
+      "scriptName": "probe-eof.mjs",
+      "source": "import net from 'node:net';\nimport {createHash} from 'node:crypto';\nimport * as fs from 'node:fs/promises';\nimport {once} from 'node:events';\nimport {withFileLock,lockPortFor} from '/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/file-lock.js';\nconst base='/tmp/codex-tool-runs/svton/m2-r2-tcp-rereview-20261001';\nconst dir=await fs.mkdtemp(base+'/eof-'),file=dir+'/state.json';\nconst port=await lockPortFor(file);\nconst server=net.createServer(s=>s.end());server.listen(port,'127.0.0.1');await once(server,'listening');\nlet settled=false,outcome='pending';\nwithFileLock(file,()=>{}, {timeoutMs:100}).then(()=>{settled=true;outcome='acquired'},e=>{settled=true;outcome=e.message});\nawait new Promise(r=>setTimeout(r,1600));\nconst result={timeoutMs:100,observedMs:1600,settled,outcome,peerBehavior:'accept and immediately end without data',noMocks:true};\nawait new Promise(r=>server.close(r));\nawait fs.writeFile(base+'/probe-eof-result.json',JSON.stringify(result,null,2));console.log(JSON.stringify(result));\n",
+      "sha256": "a13f2a4f694bd40d5c013cdf0155675e05fcbb4aacf21fb4f4c24733497adaf9"
+    }
+  ],
+  "logs": [
+    {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-tcp-rereview-20261001/build.log",
+      "exitCode": 0,
+      "sha256": "dc62f939cee853d720dd930f19d82d085aca6afc8d85df978da6b06cda7ff56d"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-tcp-rereview-20261001/typecheck.log",
+      "exitCode": 0,
+      "sha256": "3af2c7f85db1a73e14ef30acb4bd2493cecef51fff8e8c6236b788ea32831e9f"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-tcp-rereview-20261001/full-test.log",
+      "exitCode": 1,
+      "sha256": "4446770902f7b8ac0b78f56d35f79755c1a97615d68d3cfcda3d394f58b2fbaf"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-tcp-rereview-20261001/full-test-unsandboxed.log",
+      "exitCode": 0,
+      "sha256": "2bf2d8b765b369f646c3e05f6998b0d674b2c49e0c646310dc9ae4111c0c5d97"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-tcp-rereview-20261001/package.log",
+      "exitCode": 1,
+      "sha256": "9c05e42c99a98cb3b7000d41091d6bdb971e3c722d43359a5b388a04d999529e"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-tcp-rereview-20261001/package-unsandboxed.log",
+      "exitCode": 0,
+      "sha256": "abd082d8b15824e1d3b370616ccf926ae530acee5b6325c9a386117d2d99eeeb"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-tcp-rereview-20261001/package-smoke.log",
+      "exitCode": 0,
+      "sha256": "5c11bfad8d0b5f0a69b80da98ba090832935e541f103d54c25221b463341104f"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-tcp-rereview-20261001/registry-boundaries-unsandboxed.log",
+      "exitCode": 0,
+      "sha256": "dffeea656012ca5a12ce65f98a90073410f88973cd72b97a1eb45ae7099c487f"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-tcp-rereview-20261001/identity-release.log",
+      "exitCode": 0,
+      "sha256": "d1d26e2ce65148da968d2619fa4114e1f95491dbf9733b58784153317fe17895"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-tcp-rereview-20261001/prior-boundaries.log",
+      "exitCode": 0,
+      "sha256": "db26ba7276bc06cdddf18ed99d817e71ea29da66eea6d8e706317a456abf4781"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-tcp-rereview-20261001/prior-eof.log",
+      "exitCode": 0,
+      "sha256": "c005c047ed41ff85c2e82378c8ccaece0bb13f91eca838450c5bbfc4c08a438d"
+    }
+  ],
+  "realEnvironmentGates": "Clean Debian/systemd, public trusted TLS, real remote registry, first application release remain separate."
+}

@@ -1,0 +1,131 @@
+{
+  "date": "2026-10-01",
+  "finding": "M2-R2",
+  "status": "open",
+  "severity": "P2",
+  "hashes": {
+    "shipkit/src/shared/file-lock.ts": "967a9550671ead2a95873f9f3654738fbc6f06d5be73f311ae83d4d4f330fb26",
+    "shipkit/src/shared/file-lock.test.ts": "4d41293a5f06f3b1f4ece3069b614f8a178affbf910338bdfc464d5243e27783",
+    "shipkit/src/shared/file-lock-race.test.ts": "357425173137a4e654ca1cc315e3c2a8c609a1bc03110bcc7fd904a59a66cda5",
+    "shipkit/src/shared/file-lock-crash.test.ts": "b92256e268206f9099ebf08b8a013f84973205e317d7a5ad22091890c14103b5",
+    "shipkit/dist/shared/file-lock.js": "30409cea1fa79902485afef2edbf02f965d21dce6309871bbca1bcbe0e015a0c",
+    "shipkit/src/shared/credentials.ts": "0ddcd8c67fbfc1466bb4fa8788aba7cf65bbd2514d66d061d5674369bfa4411c"
+  },
+  "verification": {
+    "buildExit": 0,
+    "typecheckExit": 0,
+    "fullRuns": [
+      {
+        "log": "test.log",
+        "exit": 1,
+        "passed": 245,
+        "failed": 1,
+        "failure": "security.test: state file 0600; timeout 15000ms; port 51635 another keyhash collision"
+      },
+      {
+        "log": "test-repeat.log",
+        "exit": 1,
+        "passed": 245,
+        "failed": 1,
+        "failure": "pair-reuse.test: runtime onboarding; timeout 15000ms; port busy no banner"
+      }
+    ],
+    "securityFocused": {
+      "exit": 0,
+      "passed": 1
+    },
+    "installerStandalone": {
+      "exit": 0,
+      "passed": 17
+    },
+    "installerDriftCheck": "passed in test prelude",
+    "packageSmoke": "not rerun; full regression gate failing"
+  },
+  "collisionObservation": {
+    "port": 51635,
+    "banner": "shiplock:22208:f061881e",
+    "action": "read only; no service terminated; owner origin not established"
+  },
+  "reproductions": [
+    {
+      "scriptName": "tcp-boundaries.mjs",
+      "source": "import * as fs from 'node:fs/promises';\nimport * as net from 'node:net';\nimport {createHash} from 'node:crypto';\nimport path from 'node:path';\nimport {once} from 'node:events';\nimport {withFileLock} from '/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/file-lock.js';\nconst base='/tmp/codex-tool-runs/svton/m2-r2-tcp-review-20261001';\nconst dir=await fs.mkdtemp(base+'/boundaries-');\nconst portFor=f=>49152+createHash('sha256').update(path.resolve(f)).digest().readUInt32BE(0)%16383;\nconst defer=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve}};\nconst pause=ms=>new Promise(r=>setTimeout(r,ms));\nconst guard=setTimeout(()=>{console.error('REPRO_TIMEOUT');process.exit(2)},12000);\nconst results={};\n// Same physical state file, two names through a symlinked parent directory.\nconst real=dir+'/real';await fs.mkdir(real);await fs.symlink(real,dir+'/alias','dir');\nconst file=real+'/state.json',alias=dir+'/alias/state.json';await fs.writeFile(file,'0');\nif(portFor(file)===portFor(alias))throw Error('fixture port collision; rerun with a fresh directory');\nconst ae=defer(),be=defer(),ra=defer(),rb=defer();let active=0,maxActive=0;\nconst a=withFileLock(file,async()=>{active++;maxActive=Math.max(maxActive,active);const old=Number(await fs.readFile(file,'utf8'));ae.resolve();await ra.promise;await fs.writeFile(file,String(old+1));active--;});\nawait ae.promise;\nconst b=withFileLock(alias,async()=>{active++;maxActive=Math.max(maxActive,active);const old=Number(await fs.readFile(alias,'utf8'));be.resolve();await rb.promise;await fs.writeFile(alias,String(old+1));active--;});\nawait be.promise;\nresults.alias={maxActive,activeAtObservation:active,sameRealPath:await fs.realpath(file)===await fs.realpath(alias),ports:[portFor(file),portFor(alias)]};\nra.resolve();await a;rb.resolve();await b;results.alias.finalCounter=Number(await fs.readFile(file,'utf8'));results.alias.expectedCounter=2;\n// A banner visitor holds its write half open after reading server's FIN.\nconst held=dir+'/release.json',entered=defer(),release=defer();let settled=false;\nconst work=withFileLock(held,async()=>{entered.resolve();await release.promise;}).finally(()=>{settled=true});\nawait entered.promise;\nconst socket=net.connect({host:'127.0.0.1',port:portFor(held),allowHalfOpen:true});\nawait once(socket,'data');release.resolve();await pause(350);\nresults.shutdown={resolvedWhilePeerOpen:settled,observationMs:350,netServerHasCloseAllConnections:typeof net.createServer().closeAllConnections==='function'};\nsocket.destroy();await work;results.shutdown.resolvedAfterPeerDestroyed=settled;\n// Foreign occupant accepts a connection but never sends a banner.\nconst silentFile=dir+'/silent.json',visitors=new Set();\nconst silent=net.createServer(s=>{visitors.add(s);s.on('close',()=>visitors.delete(s));});\nsilent.listen(portFor(silentFile),'127.0.0.1');await once(silent,'listening');\nlet error='';const start=Date.now();\ntry{await withFileLock(silentFile,()=>{}, {timeoutMs:100});}catch(e){error=e.message;}\nresults.silent={timeoutMs:100,elapsedMs:Date.now()-start,error};\nfor(const s of visitors)s.destroy();await new Promise(r=>silent.close(r));\nclearTimeout(guard);await fs.writeFile(base+'/tcp-boundaries-result.json',JSON.stringify(results,null,2));console.log(JSON.stringify(results));\n",
+      "sha256": "06a38f80f1cb9e283a76ffaa13af14790155892bd7d5085494736b67955081d2",
+      "result": {
+        "alias": {
+          "maxActive": 2,
+          "activeAtObservation": 2,
+          "sameRealPath": true,
+          "ports": [
+            56448,
+            60724
+          ],
+          "finalCounter": 1,
+          "expectedCounter": 2
+        },
+        "shutdown": {
+          "resolvedWhilePeerOpen": false,
+          "observationMs": 350,
+          "netServerHasCloseAllConnections": false,
+          "resolvedAfterPeerDestroyed": true
+        },
+        "silent": {
+          "timeoutMs": 100,
+          "elapsedMs": 1202,
+          "error": "无法获得文件锁（等待 100ms 超时）：/tmp/codex-tool-runs/svton/m2-r2-tcp-review-20261001/boundaries-ofAde8/silent.json — holder cannot be identified (port busy, no banner)；不会抢占仍被持有的锁"
+        }
+      },
+      "exit": 0,
+      "method": "Real loopback TCP and real temporary filesystem; no mocks. All created connections/listeners closed at end. Alias concurrency is in-process and uses a symlinked parent directory, not a symlink target file."
+    },
+    {
+      "scriptName": "probe-eof.mjs",
+      "source": "import net from 'node:net';\nimport {createHash} from 'node:crypto';\nimport * as fs from 'node:fs/promises';\nimport {once} from 'node:events';\nimport {withFileLock} from '/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/file-lock.js';\nconst base='/tmp/codex-tool-runs/svton/m2-r2-tcp-review-20261001';\nconst dir=await fs.mkdtemp(base+'/eof-'),file=dir+'/state.json';\nconst port=49152+createHash('sha256').update(file).digest().readUInt32BE(0)%16383;\nconst server=net.createServer(s=>s.end());server.listen(port,'127.0.0.1');await once(server,'listening');\nlet settled=false,outcome='pending';\nwithFileLock(file,()=>{}, {timeoutMs:100}).then(()=>{settled=true;outcome='acquired'},e=>{settled=true;outcome=e.message});\nawait new Promise(r=>setTimeout(r,1600));\nconst result={timeoutMs:100,observedMs:1600,settled,outcome,peerBehavior:'accept and immediately end without data',noMocks:true};\nawait new Promise(r=>server.close(r));\nawait fs.writeFile(base+'/probe-eof-result.json',JSON.stringify(result,null,2));console.log(JSON.stringify(result));\n",
+      "sha256": "bcee11083463295c636ecbdba6d6fb8c370547df91e07be0f082db81e96980ee",
+      "result": {
+        "timeoutMs": 100,
+        "observedMs": 1600,
+        "settled": false,
+        "outcome": "pending",
+        "peerBehavior": "accept and immediately end without data",
+        "noMocks": true
+      },
+      "exit": 0,
+      "method": "Real loopback TCP and real temporary filesystem; no mocks. All created connections/listeners closed at end. Alias concurrency is in-process and uses a symlinked parent directory, not a symlink target file."
+    }
+  ],
+  "logs": {
+    "installer.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-tcp-review-20261001/installer.log",
+      "sha256": "6e2e6a78a8970af05783e4d26ba8faeaab5532c5f81d0ca43e700ea1799e50ee"
+    },
+    "tcp-boundaries.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-tcp-review-20261001/tcp-boundaries.log",
+      "sha256": "ff08a9f29a057d741f701171ad78fe314fd2a9546d9235d30aedb08152409a5a"
+    },
+    "test.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-tcp-review-20261001/test.log",
+      "sha256": "28a758c2895ec0de35f56bdb6310be8655c20bb5e9749bcfe4e083ae595347e8"
+    },
+    "typecheck.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-tcp-review-20261001/typecheck.log",
+      "sha256": "3af2c7f85db1a73e14ef30acb4bd2493cecef51fff8e8c6236b788ea32831e9f"
+    },
+    "test-repeat.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-tcp-review-20261001/test-repeat.log",
+      "sha256": "7ca21c07be3b42d95d86249e3426bdb5372ce8ce0fa5ae743db116f4e81412bd"
+    },
+    "security-focused.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-tcp-review-20261001/security-focused.log",
+      "sha256": "0b4f03e5657b57b8d3fbcd3282f16f8c77eea85f278277558bc4083c82615e9c"
+    },
+    "probe-eof.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-tcp-review-20261001/probe-eof.log",
+      "sha256": "121bbb184bb029958e25fc2de676dc45f9f0e122d3bd7aae6b0969c2cd7683e4"
+    },
+    "build.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-tcp-review-20261001/build.log",
+      "sha256": "dc62f939cee853d720dd930f19d82d085aca6afc8d85df978da6b06cda7ff56d"
+    }
+  }
+}

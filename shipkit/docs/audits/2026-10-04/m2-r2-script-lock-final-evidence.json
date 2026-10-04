@@ -1,0 +1,118 @@
+{
+  "date": "2026-10-04",
+  "scope": "Local script state-file lock; close sole remaining choosing-cleanup recovery finding",
+  "result": {
+    "root": "/private/tmp/ship-choosing-cleanup-W8nYPN",
+    "pid": 52744,
+    "firstError": {
+      "message": "EACCES: permission denied, rmdir '/private/tmp/ship-choosing-cleanup-W8nYPN/state.json.pubc-52744-4071fe60'",
+      "code": "EACCES"
+    },
+    "firstRan": false,
+    "afterRestore": [
+      "state.json.pubc-52744-4071fe60",
+      "state.json.pubq-000000000001-52744-4071fe60"
+    ],
+    "secondElapsed": 1,
+    "secondRan": true,
+    "afterSecond": []
+  },
+  "validation": {
+    "build": "pass",
+    "typecheck": "pass",
+    "full": "268/268",
+    "installer": "17/17",
+    "pack": "pass",
+    "packageSmoke": "pass"
+  },
+  "sourceHashes": {
+    "lock-pubmutex.ts": "7243333f6e11fddc2af86bcdb8c8ba199d7ac07d2e629afe42be4dc5d9c93609",
+    "lock-registry.ts": "9c71ffa175172f877e6dbda91d620116df0049a644ac95a5111ff1704d80ef85",
+    "file-lock.ts": "6341b018034743074e2d40e67e8f4a64051f27520c983f0c367158b3e21f0180",
+    "file-lock-faults.test.ts": "541310c46625a4e9a1601cc33371c20484aa8b547c43f45fe578d4caff6451b3"
+  },
+  "sourceUnchangedDuringReview": true,
+  "logs": [
+    {
+      "path": "/tmp/codex-tool-runs/svton/choosing-final-build-20261004-135947.log",
+      "command": "pnpm run build",
+      "exitCode": "0",
+      "sha256": "71cbb3d624b64376adfd8f02ebe5bc055f20e9c5e88a4bf6afa765af1e4359e3"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/choosing-final-full-20261004-140021.log",
+      "command": "pnpm run test",
+      "exitCode": "0",
+      "sha256": "026a612877f942cc440d35a2bdc75c281663af5cd9366d64cb52d3a6ea1b0d0c"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/choosing-final-pack-20261004-140035.log",
+      "command": "env npm_config_cache=/tmp/codex-tool-runs/svton/npm-cache pnpm run pack:tarball",
+      "exitCode": "0",
+      "sha256": "825d330903cdb141689b6fad8c9e1f9aa74625f3fa507c906c7f7d0c23bf0942"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/choosing-final-replay-20261004-140016.log",
+      "command": "node --experimental-test-module-mocks /tmp/codex-tool-runs/svton/choosing-final-20261004/choosing-cleanup.mjs",
+      "exitCode": "0",
+      "sha256": "099ee330cd93914ec0c94abfd56ea162b51970cd8e68f46f6e4d212b502b6f50"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/choosing-final-smoke-20261004-140120.log",
+      "command": "env npm_config_cache=/tmp/codex-tool-runs/svton/npm-cache pnpm run smoke:package",
+      "exitCode": "0",
+      "sha256": "3b6efa2060ce170b6f0a29cdf9afcb2f2c42c53aa2c172bc5b20d48e0b5f92a5"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/choosing-final-typecheck-20261004-140035.log",
+      "command": "pnpm run typecheck",
+      "exitCode": "0",
+      "sha256": "dcb2bd30baa35b2a6e2da6734385ba2631803ce40e796c57684ba8a25a39eab6"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/shipkit-discover-live-review/run.log",
+      "command": "node --experimental-test-module-mocks /tmp/codex-tool-runs/svton/shipkit-discover-live-review/verify.mjs",
+      "exitCode": "0",
+      "sha256": "a7128aa478692f3e439eee0f5a1a0daf9ef67d2a25e1efc0994a3e5c5f876e0a",
+      "executedBy": "independent subagent; result and source hashes checked by main reviewer"
+    }
+  ],
+  "scripts": [
+    {
+      "path": "/tmp/codex-tool-runs/svton/choosing-final-20261004/choosing-cleanup.mjs",
+      "source": "import { mock } from 'node:test';\nimport path from 'node:path';\nconst fs = await import('node:fs/promises');\nconst root = await fs.realpath(await fs.mkdtemp('/tmp/ship-choosing-cleanup-'));\nconst claim = path.join(root, 'state.json');\nlet fault = true;\nlet ran1 = false;\nlet ran2 = false;\nconst results = { root, pid: process.pid };\nmock.module('node:fs/promises', { namedExports: { ...fs,\n  mkdir: async (p, ...args) => {\n    const value = await fs.mkdir(p, ...args);\n    if (fault && String(p).startsWith(root) && String(p).includes('.pubq-')) {\n      fault = false;\n      await fs.chmod(root, 0o555);\n    }\n    return value;\n  },\n} });\nconst { withPublishMutex } = await import('/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/lock-pubmutex.js');\ntry {\n  await withPublishMutex(claim, claim, () => false, async () => { ran1 = true; }).catch(e => { results.firstError = { message:e.message, code:e.code }; });\n  results.firstRan = ran1;\n  await fs.chmod(root, 0o755);\n  results.afterRestore = await fs.readdir(root);\n  const start = Date.now();\n  await withPublishMutex(claim, claim, () => Date.now() - start >= 250, async () => { ran2 = true; }).catch(e => { results.secondError = e.message; });\n  results.secondElapsed = Date.now() - start;\n  results.secondRan = ran2;\n  results.afterSecond = await fs.readdir(root);\n  await fs.writeFile('/tmp/codex-tool-runs/svton/choosing-final-20261004/choosing-cleanup-result.json', JSON.stringify(results, null, 2));\n  console.log(JSON.stringify(results, null, 2));\n  if (!results.secondRan || results.afterSecond.length) throw Error('Recovery or marker cleanup invariant failed');\n} finally {\n  await fs.chmod(root, 0o755).catch(()=>{});\n  await fs.rm(root, { recursive: true, force: true });\n}\n",
+      "sha256": "51bb4ef0ca1e3e20df73d796a31bd77f4e400867269584edb671d31364ad98af"
+    },
+    {
+      "path": "/tmp/codex-tool-runs/svton/shipkit-discover-live-review/verify.mjs",
+      "source": "import assert from 'node:assert/strict';\nimport { mock } from 'node:test';\nimport { createServer } from 'node:net';\nimport { createHash } from 'node:crypto';\nimport * as realfs from 'node:fs/promises';\nimport path from 'node:path';\n\nconst sourceRoot = '/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit';\nconst output = '/tmp/codex-tool-runs/svton/shipkit-discover-live-review/result.json';\nconst root = await realfs.realpath(await realfs.mkdtemp('/tmp/ship-discovery-review-'));\nconst registry = path.join(root, 'registry');\nawait realfs.mkdir(registry);\nconst file = path.join(root, 'state.json');\nawait realfs.writeFile(file, '0');\nconst fixed = '/var/tmp/shipkit-lock-ports';\nconst map = (p) => String(p).startsWith(fixed) ? registry + String(p).slice(fixed.length) : p;\nmock.module('node:fs/promises', { namedExports: { ...realfs,\n  mkdir: (p, ...args) => realfs.mkdir(map(p), ...args),\n  readdir: (p, ...args) => realfs.readdir(map(p), ...args),\n  readFile: (p, ...args) => realfs.readFile(map(p), ...args),\n  writeFile: (p, ...args) => realfs.writeFile(map(p), ...args),\n  rename: (a, b, ...args) => realfs.rename(map(a), map(b), ...args),\n  rm: (p, ...args) => realfs.rm(map(p), ...args),\n  access: (p, ...args) => realfs.access(map(p), ...args),\n} });\nconst { withFileLock, lockKeyOf } = await import(`${sourceRoot}/dist/shared/file-lock.js`);\nconst key = lockKeyOf(file);\nconst hash = createHash('sha256').update(key).digest('hex');\nconst claim = path.join(registry, `${hash.slice(0, 20)}.json`);\nconst firstPort = 49152 + createHash('sha256').update(`${key}\\u00000`).digest().readUInt32BE(0) % 16383;\nconst sockets = new Set();\nconst silent = createServer((socket) => { sockets.add(socket); socket.once('close', () => sockets.delete(socket)); });\nlet release;\nlet holder;\nlet active = 0;\nlet maxActive = 0;\nlet enteredResolve;\nconst entered = new Promise((r) => { enteredResolve = r; });\nconst result = { case: 'unidentifiable early candidate then live same-key later candidate', root, key, firstPort };\nconst killTimer = setTimeout(() => { process.stderr.write('review watchdog expired\\n'); process.exit(2); }, 10000);\ntry {\n  await new Promise((resolve, reject) => { silent.once('error', reject); silent.listen(firstPort, '127.0.0.1', resolve); });\n  holder = withFileLock(file, async () => {\n    active++; maxActive = Math.max(maxActive, active);\n    enteredResolve();\n    try { await new Promise((r) => { release = r; }); await realfs.writeFile(file, '1'); }\n    finally { active--; }\n  }, { timeoutMs: 2500 });\n  await Promise.race([entered, holder]);\n  assert.equal(active, 1);\n  const initial = JSON.parse(await realfs.readFile(claim, 'utf8'));\n  result.livePort = initial.port;\n  assert.notEqual(initial.port, firstPort, 'holder uses a later candidate');\n  await realfs.writeFile(claim, '{torn');\n  let contenderRan = false;\n  const t0 = Date.now();\n  try {\n    await withFileLock(file, async () => {\n      contenderRan = true; active++; maxActive = Math.max(maxActive, active); active--;\n    }, { timeoutMs: 1500 });\n    result.contenderOutcome = 'success';\n  } catch (e) { result.contenderOutcome = 'timeout'; result.contenderError = String(e.message); }\n  result.contenderElapsedMs = Date.now() - t0;\n  result.contenderRan = contenderRan;\n  result.repairedPort = JSON.parse(await realfs.readFile(claim, 'utf8')).port;\n  assert.equal(result.repairedPort, initial.port, 'repair converges to the later live holder');\n  assert.equal(contenderRan, false, 'contender never enters during live holder');\n  assert.equal(result.contenderOutcome, 'timeout');\n  assert.match(result.contenderError, /超时/);\n  assert.equal(active, 1);\n  release(); await holder;\n  let laterRan = false;\n  await withFileLock(file, async () => {\n    laterRan = true; active++; maxActive = Math.max(maxActive, active);\n    try { const old = Number(await realfs.readFile(file, 'utf8')); await realfs.writeFile(file, String(old + 1)); }\n    finally { active--; }\n  }, { timeoutMs: 1000 });\n  result.laterRan = laterRan;\n  result.maxActive = maxActive;\n  result.finalValue = Number(await realfs.readFile(file, 'utf8'));\n  result.finalPort = JSON.parse(await realfs.readFile(claim, 'utf8')).port;\n  result.markerResidue = (await realfs.readdir(registry)).filter((n) => n.includes('.pub') || n.endsWith('.tmp'));\n  assert.equal(laterRan, true); assert.equal(maxActive, 1); assert.equal(result.finalValue, 2);\n  assert.equal(result.finalPort, initial.port); assert.deepEqual(result.markerResidue, []);\n  result.passed = true;\n} catch (e) { result.passed = false; result.error = e.stack; process.exitCode = 1; }\nfinally {\n  release?.(); await holder?.catch(() => {});\n  for (const socket of sockets) socket.destroy();\n  if (silent.listening) await new Promise((r) => silent.close(r));\n  await realfs.rm(root, { recursive: true, force: true });\n  result.cleaned = true;\n  result.sourceHashes = {};\n  for (const filename of ['lock-registry.ts', 'lock-pubmutex.ts', 'file-lock.ts']) {\n    result.sourceHashes[filename] = createHash('sha256').update(await realfs.readFile(`${sourceRoot}/src/shared/${filename}`)).digest('hex');\n  }\n  await realfs.writeFile(output, JSON.stringify(result, null, 2) + '\\n');\n  process.stdout.write(JSON.stringify(result) + '\\n');\n  clearTimeout(killTimer);\n}\n",
+      "sha256": "0170a1f9d8d9d67c6c41bd743c602052289ded568156181e4cd27e088f974bbf"
+    }
+  ],
+  "methodology": "Real mkdir/chmod/rm in a private mkdtemp directory; first actual EACCES and callback false, restore permissions, same-process same-key automatic recovery; manual orphan removal removed from prior reproduction.",
+  "conclusion": "REG-03 / WAIT-01 closed within agreed local script state-file lock scope",
+  "discoveryVerification": {
+    "case": "unidentifiable early candidate then live same-key later candidate",
+    "root": "/private/tmp/ship-discovery-review-dfBZI6",
+    "key": "/private/tmp/ship-discovery-review-dfBZI6/state.json",
+    "firstPort": 63450,
+    "livePort": 49395,
+    "contenderOutcome": "timeout",
+    "contenderError": "无法获得文件锁（等待 1500ms 超时）：/private/tmp/ship-discovery-review-dfBZI6/state.json — holder pid 62540 is alive；不会抢占仍被持有的锁",
+    "contenderElapsedMs": 1500,
+    "contenderRan": false,
+    "repairedPort": 49395,
+    "laterRan": true,
+    "maxActive": 1,
+    "finalValue": 2,
+    "finalPort": 49395,
+    "markerResidue": [],
+    "passed": true,
+    "cleaned": true,
+    "sourceHashes": {
+      "lock-registry.ts": "9c71ffa175172f877e6dbda91d620116df0049a644ac95a5111ff1704d80ef85",
+      "lock-pubmutex.ts": "7243333f6e11fddc2af86bcdb8c8ba199d7ac07d2e629afe42be4dc5d9c93609",
+      "file-lock.ts": "6341b018034743074e2d40e67e8f4a64051f27520c983f0c367158b3e21f0180"
+    }
+  }
+}

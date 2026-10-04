@@ -6,7 +6,7 @@
 
 import { randomUUID } from 'node:crypto';
 import type { TencentCvmConfig } from '../shared/types.js';
-import { startBundleServer, type BundleServer } from './bundle-server.js';
+import { DEFAULT_AGENT_PORT, startBundleServer, type BundleServer } from './bundle-server.js';
 import type { BuilderHandle, BuilderProvider, BuilderProviderStatus, ProviderLog } from './provider.js';
 import {
   acquireLease,
@@ -39,7 +39,7 @@ export class TencentBuilderProvider implements BuilderProvider {
   /** named entry when configured (TLS identity comes from the entry, not the raw IP) */
   private agentUrl(ip: string): string {
     const host = this.cfg.agentHost ?? ip;
-    return `${this.cfg.agentScheme ?? 'http'}://${host}:${this.cfg.agentPort ?? 7410}`;
+    return `${this.cfg.agentScheme ?? 'http'}://${host}:${this.cfg.agentPort ?? DEFAULT_AGENT_PORT}`;
   }
 
   async ensure(log: ProviderLog, taskBudgetMs = DEFAULT_TASK_BUDGET_MS): Promise<BuilderHandle> {
@@ -112,6 +112,8 @@ export class TencentBuilderProvider implements BuilderProvider {
           bootstrapDir: this.bootstrapDir,
           advertiseHost: this.cfg.advertiseHost ?? '127.0.0.1',
           port: this.cfg.bundlePort,
+          // HTTPS terminates at a proxy; its external port is not the agent's listener.
+          agentPort: this.cfg.agentScheme === 'https' ? DEFAULT_AGENT_PORT : this.cfg.agentPort ?? DEFAULT_AGENT_PORT,
           minutes: 50,
           agentToken,
           publicBaseUrl: this.cfg.bundleBaseUrl,

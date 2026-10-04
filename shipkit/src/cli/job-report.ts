@@ -20,15 +20,15 @@ export function recoveryExitCode(label: string, recovery: Recovery | undefined):
 export async function waitAndReport(handle: BuilderHandle, jobId: string, label: string, log: Logger, timeoutMs: number): Promise<Job> {
   let job: Job;
   try {
-    job = await waitForJob(handle.url, handle.token, jobId, { timeoutMs, onStatus: (j) => log.info(`${label} ${j.status}`, { jobId }) });
+    job = await waitForJob(handle.url, handle.token, jobId, { timeoutMs, onStatus: (j) => log.info(`${label} ${j.status}`, { jobId }), ...(handle.caFile ? { caFile: handle.caFile } : {}) });
   } catch (e) {
     log.error(`${label} wait failed`, { error: (e as Error).message });
-    const tail = await fetchLogTail(handle.url, handle.token, jobId, 40);
+    const tail = await fetchLogTail(handle.url, handle.token, jobId, 40, handle.caFile ? { caFile: handle.caFile } : {});
     if (tail) log.error(`${label} log tail:\n${tail.trim()}`);
     throw new CliError(`${label} failed: ${(e as Error).message}`, 4);
   }
   if (job.status === 'failed') {
-    const tail = await fetchLogTail(handle.url, handle.token, jobId, 40);
+    const tail = await fetchLogTail(handle.url, handle.token, jobId, 40, handle.caFile ? { caFile: handle.caFile } : {});
     if (tail) log.error(`${label} log tail:\n${tail.trim()}`);
     const recovery = (job.result as { recovery?: Recovery } | undefined)?.recovery;
     let extra = '';

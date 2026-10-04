@@ -1,0 +1,62 @@
+{
+  "date": "2026-09-30",
+  "finding": "M2-R2",
+  "severity": "P2",
+  "status": "open",
+  "sourceHashes": {
+    "shipkit/src/shared/file-lock.ts": "1999ca19e9ee71af95bb4bdbf5ff6eb85493fd3152a4e79dd6ed87835eaae225",
+    "shipkit/dist/shared/file-lock.js": "c38875698bf3c2f1146b066be5998e24185d7eda4953315a385db019eaa518fb",
+    "shipkit/src/shared/file-lock-race.test.ts": "71701b4e11cbaf857060a864968c8fa9e93fca2fb9687d87c35ad8847de1f095"
+  },
+  "verification": {
+    "buildExit": 0,
+    "typecheckExit": 0,
+    "testsPassed": 241,
+    "installerPassed": 17,
+    "installerDrift": "passed",
+    "packageSmoke": "not rerun this round"
+  },
+  "reproduction": {
+    "script": "import * as fs from 'node:fs/promises';\nimport {spawn,spawnSync} from 'node:child_process';\nimport {once} from 'node:events';\nimport {mock} from 'node:test';\nimport {fileURLToPath} from 'node:url';\nconst base='/tmp/codex-tool-runs/svton/m2-r2-generation-review-20260930';\nconst modulePath='/Users/zhaoxingbo/Workspace/ai-driven/svton/shipkit/dist/shared/file-lock.js';\nconst [mode,file]=process.argv.slice(2);\nif(mode==='cleaner'){\n const {default:ignored,...named}=fs;\n mock.module('node:fs/promises',{namedExports:{...named,rename:async(from,to)=>{\n  await fs.rename(from,to);\n  if(from===file+'.lock.prev/owner'){\n   process.send({event:'owner-moved',path:to});\n   await new Promise(()=>{});\n  }\n }}});\n const {withFileLock}=await import(modulePath);\n await withFileLock(file,()=>{}, {timeoutMs:2000});\n process.exit(3);\n}else if(mode==='waiter'){\n const {withFileLock}=await import(modulePath);\n const start=Date.now();process.send({event:'waiter-started'});\n try{await withFileLock(file,()=>{process.send({event:'entered'})},{timeoutMs:150});process.send({event:'finished',elapsedMs:Date.now()-start});}\n catch(e){process.send({event:'rejected',message:e.message,elapsedMs:Date.now()-start});}\n process.exit(0);\n}else{\n const dir=await fs.mkdtemp(base+'/crash-'),state=dir+'/state.json',prev=state+'.lock.prev';\n const dead=spawnSync(process.execPath,['-e','process.exit(0)']);\n try{process.kill(dead.pid,0);throw Error('fixture PID reused')}catch(e){if(e.code!=='ESRCH')throw e;}\n await fs.writeFile(state+'.lock',`${dead.pid}\\tdead-holder-token\\n`);\n await fs.mkdir(prev);await fs.writeFile(prev+'/owner',`${dead.pid}\\tdead-reaper-token\\tdead-holder-token\\n`);\n const launch=(role)=>spawn(process.execPath,['--experimental-test-module-mocks',fileURLToPath(import.meta.url),role,state],{stdio:['ignore','ignore','inherit','ipc']});\n const cleaner=launch('cleaner');const [moved]=await once(cleaner,'message');\n if(moved.event!=='owner-moved')throw Error('unexpected event');\n const cleanerExit=once(cleaner,'exit');cleaner.kill('SIGKILL');await cleanerExit;\n const residue=await fs.readdir(prev);\n await new Promise(r=>setTimeout(r,650)); // let directory exceed residue threshold before waiter starts\n const waiter=launch('waiter');const events=[];let exited=false;\n waiter.on('message',m=>events.push(m));const waiterExit=once(waiter,'exit').then(x=>{exited=true;return x});\n await once(waiter,'message');const observedStart=Date.now();\n await new Promise(r=>setTimeout(r,1200));\n const exitedBeforeWatchdog=exited;\n if(!exited)waiter.kill('SIGKILL');await waiterExit;\n const result={cleanerKilledAfterRealRename:true,requestedTimeoutMs:150,observedMs:Date.now()-observedStart,exitedBeforeWatchdog,events,residueAfterCrash:residue,residueAfterWait:await fs.readdir(prev),onlyCleanerSchedulingMocked:true,waiterUsesUnmockedImplementation:true};\n await fs.writeFile(base+'/crash-result.json',JSON.stringify(result,null,2));console.log(JSON.stringify(result));\n}\n",
+    "sha256": "bc6caf6d8d12d6a62e7583f54ae6b1726e54976441f6557762bfa446c4e4ef33",
+    "result": {
+      "cleanerKilledAfterRealRename": true,
+      "requestedTimeoutMs": 150,
+      "observedMs": 1202,
+      "exitedBeforeWatchdog": false,
+      "events": [
+        {
+          "event": "waiter-started"
+        }
+      ],
+      "residueAfterCrash": [
+        "owner.gone.21f402ce056448b5f5c21c214134f85b"
+      ],
+      "residueAfterWait": [
+        "owner.gone.21f402ce056448b5f5c21c214134f85b"
+      ],
+      "onlyCleanerSchedulingMocked": true,
+      "waiterUsesUnmockedImplementation": true
+    },
+    "exit": 0,
+    "method": "Real filesystem; fixture dead PID checked ESRCH; cleaner subprocess killed with SIGKILL after actual rename; 650ms natural age; independent waiter with unmocked implementation killed by watchdog after 1200ms. Only cleaner scheduling is mocked."
+  },
+  "logs": {
+    "test.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-generation-review-20260930/test.log",
+      "sha256": "ebdc2067797fdf5b2e64cec02d5585cdd52d81f4006d9c93a932ed22300b7513"
+    },
+    "crash-recovery.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-generation-review-20260930/crash-recovery.log",
+      "sha256": "6217ee4559e68bb50998116d9b2c691eef6ff550e587e3ef275bc740dea1eccf"
+    },
+    "typecheck.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-generation-review-20260930/typecheck.log",
+      "sha256": "3af2c7f85db1a73e14ef30acb4bd2493cecef51fff8e8c6236b788ea32831e9f"
+    },
+    "build.log": {
+      "path": "/tmp/codex-tool-runs/svton/m2-r2-generation-review-20260930/build.log",
+      "sha256": "dc62f939cee853d720dd930f19d82d085aca6afc8d85df978da6b06cda7ff56d"
+    }
+  }
+}
