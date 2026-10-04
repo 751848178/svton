@@ -10,12 +10,14 @@
 - dist、pack、node_modules、.pack-stage、临时测试输出、私有凭据、部署备份和未合并的tmp r2草稿不进入提交。
 - `e2e/fixtures/tls` 的三个私钥是本机测试证书，subject为测试CA/127.0.0.1，受 `http-ca.test.ts` 使用；不是已部署服务器证书。
 
+代码与规划基线已分别提交：svton `3930b4b23580cca4188890d00f35179d98be772c`（196文件）；TWGG `97f6bd072d1503edbad9542d9599e62e029c97ea`（12文件）。这是本地Git提交，没有推送远端。提交后Shipkit路径与TWGG工作区均干净，svton其他任务仍保持未提交；本报告后续收口作为单独文档提交。
+
 ## 本轮结果
 
 | 检查 | 结果 | 证据 |
 | --- | --- | --- |
 | `pnpm --filter shipkit test` | exit 0；317/317；installer 17/17；包含tsc和生成安装脚本一致性检查 | `/tmp/codex-tool-runs/svton/shipkit-baseline-test-verified-20261004-234423.log` |
-| `pnpm run smoke:package`（shipkit目录） | exit 0；仓库外隔离安装及包内50项部署隔离回归通过 | `/tmp/codex-tool-runs/svton/shipkit-package-smoke-baseline-20261004-234523.log` |
+| `pnpm run smoke:package`（shipkit目录） | exit 0；20/20冒烟项，包含仓库外隔离安装及包内50项部署隔离回归 | `/tmp/codex-tool-runs/svton/shipkit-package-smoke-baseline-20261004-234523.log` |
 | TWGG构建脚本mock（明确复制当前repo脚本） | exit 0；12/12 | `/tmp/codex-tool-runs/svton/commit-plan/twgg-build-mocks-final.log` |
 | TWGG Compose mock（明确import当前repo模块） | exit 0；18/18 | `/tmp/codex-tool-runs/svton/commit-plan/twgg-compose-mocks-final.log` |
 | TWGG Bash/Python静态检查 | 3个Bash入口与5个Python模块均通过 | `/tmp/codex-tool-runs/svton/commit-plan/twgg-syntax-checks.json` |

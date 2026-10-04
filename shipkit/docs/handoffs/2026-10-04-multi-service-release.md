@@ -2,6 +2,8 @@
 
 以下内容可直接作为新实现任务的提示词。规划中的参数尚未实现。
 
+已保存的代码/规划基线：svton `3930b4b23580`，TWGG `97f6bd072d15`。后续文档收口提交以各仓库最新Git日志为准；不要求切换旧提交或覆盖当前工作区。
+
 ```text
 请继续实现 Shipkit 多服务及按服务选择发布。仓库为 /Users/zhaoxingbo/Workspace/ai-driven/svton，源码在 shipkit/；TWGG参考项目为 /Users/zhaoxingbo/Workspace/ai-driven/twgg。
 
