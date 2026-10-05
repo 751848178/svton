@@ -8,7 +8,8 @@ import type { ShipConfig } from '../shared/types.js';
 import type { Logger } from '../shared/log.js';
 import { createBuilderProvider } from '../providers/registry.js';
 import { sweepExpiredBuilders } from '../providers/tencent-client.js';
-import type { BuilderHandle, ProviderLog } from '../providers/provider.js';
+import type { BuilderHandle, BuilderProvider, ProviderLog } from '../providers/provider.js';
+import { armCancellation } from './signal-guard.js';
 
 export type BuilderReleaseOutcome =
   | { builderRelease: 'static' }
@@ -25,22 +26,43 @@ export async function withBuilderLease<T>(o: {
   taskBudgetMs: number;
   log: BuilderLeaseLog;
   run: (handle: BuilderHandle) => Promise<T>;
+  /** test seam: inject a provider instead of the registry default */
+  providerFactory?: () => Promise<BuilderProvider>;
 }): Promise<{ value: T; release: BuilderReleaseOutcome }> {
   const providerLog: ProviderLog = (m, meta) => o.log.info(m, meta);
   await sweepExpiredBuilders(providerLog);
-  const provider = await createBuilderProvider(o.config);
+  const provider = o.providerFactory ? await o.providerFactory() : await createBuilderProvider(o.config);
   const reuseWindow = o.config.builder.dynamic?.keepMinutes ?? 0;
   const keep = o.keepBuilder || reuseWindow > 0;
+  // R09: a dynamic machine is real money — user cancellation (SIGINT/SIGTERM)
+  // releases it eagerly and BOUNDED, even when a keep-window was configured
+  // (keep applies to normal completion, not to an aborted run). Static mode
+  // owns nothing, so no guard is armed.
+  const guard = o.config.builder.mode === 'dynamic'
+    ? armCancellation({
+      log: (m, meta) => o.log.warn(m, meta),
+      onCancel: () => provider.release(),
+    })
+    : null;
   let value: T;
   try {
     value = provider.runExclusive
       ? await provider.runExclusive(providerLog, o.taskBudgetMs, o.run)
       : await o.run(await provider.ensure(providerLog, o.taskBudgetMs));
   } catch (e) {
-    await finishBuilderRelease(o.config, keep, provider, o.log);
+    // guard stays armed through the final release so a signal in that window
+    // still gets bounded cleanup; dispose only afterwards
+    const release = await finishBuilderRelease(o.config, keep, provider, o.log).catch((re: unknown) => {
+      guard?.dispose();
+      throw re;
+    });
+    guard?.dispose();
+    void release;
     throw e;
   }
-  return { value, release: await finishBuilderRelease(o.config, keep, provider, o.log) };
+  const release = await finishBuilderRelease(o.config, keep, provider, o.log);
+  guard?.dispose();
+  return { value, release };
 }
 
 async function finishBuilderRelease(

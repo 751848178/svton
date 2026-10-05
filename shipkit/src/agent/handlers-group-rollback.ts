@@ -1,8 +1,10 @@
-// v2 group rollback (MS-04): default undoes the LAST release's changedServices
-// by restoring them from the parent combination; explicit --services walks the
-// history for the newest release whose changed set covers the request and
-// restores those services from ITS parent. A stale plan (baseReleaseId ≠
-// current) is rejected. The rollback itself is a NEW full release record.
+// v2 group rollback (MS-04 + R02/R03): default undoes the LAST release's
+// changedServices by restoring them from the parent combination; explicit
+// --services walks the history for the newest release whose changed set covers
+// the request and restores those services from ITS parent. A stale plan
+// (baseReleaseId ≠ current) is rejected. The rollback itself is a NEW full
+// release record; identity is re-verified per service and recovery outcomes
+// are reported honestly.
 
 import path from 'node:path';
 import type { GroupDeployResult, GroupRollbackRequest } from '../shared/group-protocol.js';
@@ -15,24 +17,26 @@ import { serviceProject } from './compose-service.js';
 import { pullAuthCtx } from './docker.js';
 import { resolvePullCreds } from './registry-creds.js';
 import { GroupStore, type GroupRelease } from './group-store.js';
-import { pullServiceImage, recoverServices, switchService, verifyService } from './group-activation.js';
+import { pullServiceImage, switchService, verifyService } from './group-activation.js';
+import { recoverServices } from './group-recovery.js';
+import { GroupDeployFailure, describeRecovery } from './handlers-group-deploy.js';
 import type { JobContext } from './jobs.js';
-import { GroupDeployFailure } from './handlers-group-deploy.js';
 
 type Log = JobContext['log'];
 
+interface HistoryEntry { releaseId: string; parentId: string | null; changedServices: string[] }
+
 /** newest history release whose changed set covers `services` (and has a parent) */
-function findRestoreSource(history: GroupStateHistory, services: string[]): string | null {
+function findRestoreSource(history: HistoryEntry[], services: string[]): string | null {
   for (const h of history) {
     if (h.parentId && services.every((s) => h.changedServices.includes(s))) return h.parentId;
   }
   return null;
 }
 
-interface GroupStateHistory extends Array<{ releaseId: string; parentId: string | null; changedServices: string[] }> {}
-
 export async function runGroupRollback(appsRoot: string, req: GroupRollbackRequest, log: Log): Promise<GroupDeployResult> {
   const store = new GroupStore(appsRoot);
+  const identity = { app: req.app, project: req.project, env: req.env };
   const result = await withDeploySlot(() => withAppLock(req.app, async () => {
     const appDir = store.appDir(req.app);
     await store.assertLayout(req.app);
@@ -45,23 +49,20 @@ export async function runGroupRollback(appsRoot: string, req: GroupRollbackReque
     for (const name of Object.keys(current.services)) {
       await assertOwnedCompose({ dir: store.servicesDir(req.app, name), project: serviceProject(req.app, name), service: name });
     }
-    await assertProjectBinding(appDir, { app: req.app, project: req.project, env: req.env }, true);
+    await assertProjectBinding(appDir, identity, true);
 
     const services = req.services ?? current.changedServices;
     if (services.length === 0) throw new Error(`current release '${current.id}' records no changed services — nothing to roll back`);
-    // default rollback restores from current.parent; explicit walks the history
     let restoreFromId: string | null = null;
     if (!req.services) {
       restoreFromId = current.parent;
       if (!restoreFromId) throw new Error(`current release '${current.id}' is the first deployment — no previous combination to restore`);
     } else {
-      const history: GroupStateHistory = [{ releaseId: current.id, parentId: current.parent, changedServices: current.changedServices },
-        ...state.history.map((h) => ({ releaseId: h.releaseId, parentId: null, changedServices: h.changedServices }))];
-      // real parents resolved from the store where the state keeps only ids
-      const withParents: GroupStateHistory = [];
-      for (const h of history) {
+      const withParents: HistoryEntry[] = [];
+      for (const h of [{ releaseId: current.id, parentId: current.parent, changedServices: current.changedServices },
+        ...state.history.map((h) => ({ releaseId: h.releaseId, parentId: null as string | null, changedServices: h.changedServices }))]) {
         const rel = h.releaseId === current.id ? current : await store.loadRelease(req.app, h.releaseId).catch(() => null);
-        withParents.push({ releaseId: h.releaseId, parentId: rel?.parent ?? null, changedServices: h.changedServices });
+        withParents.push({ ...h, parentId: h.parentId ?? rel?.parent ?? null });
       }
       restoreFromId = findRestoreSource(withParents, services);
       if (!restoreFromId) {
@@ -74,6 +75,11 @@ export async function runGroupRollback(appsRoot: string, req: GroupRollbackReque
     for (const name of services) {
       const entry = restoreFrom.services[name];
       if (!entry) throw new Error(`restore source release '${restoreFrom.id}' has no snapshot for service '${name}' — cannot roll back`);
+      // defense-in-depth: even a hand-edited/foreign snapshot cannot smuggle a
+      // mutable tag back into activation through rollback
+      if (!/@sha256:[0-9a-f]{64}$/.test(entry.imageRef)) {
+        throw new Error(`restore source '${restoreFrom.id}' service '${name}' holds a non-digest-pinned ref (${entry.imageRef}) — refusing rollback; inspect the snapshot`);
+      }
       combination[name] = entry;
       changedRefs[name] = entry.imageRef;
     }
@@ -95,7 +101,7 @@ export async function runGroupRollback(appsRoot: string, req: GroupRollbackReque
           const entry = combination[name];
           if (!entry) throw new Error(`internal: rollback combination entry for '${name}' missing`);
           await switchService({
-            appsRoot, group: req.app, service: name, entry, log, env: pullCtx?.env,
+            appsRoot, group: req.app, service: name, entry, identity, log, env: pullCtx?.env,
             onBeforeUp: () => { switched.push(name); },
           });
         }
@@ -115,10 +121,10 @@ export async function runGroupRollback(appsRoot: string, req: GroupRollbackReque
           changedRefs, verification: skipped ? ('skipped' as const) : ('passed' as const),
         };
       } catch (e) {
-        const ok = await recoverServices({ appsRoot, group: req.app, previousCombination: current.services, changedSoFar: switched, log, env: pullCtx?.env });
+        const outcome = await recoverServices({ appsRoot, group: req.app, identity, previousCombination: current.services, changedSoFar: switched, log, env: pullCtx?.env });
         throw new GroupDeployFailure(
-          `rollback of [${services.join(', ')}] failed: ${(e as Error).message}; recovery to the pre-rollback combination ${ok ? 'succeeded' : 'FAILED — inspect the machine'}`,
-          { attempted: true, succeeded: ok, target: switched.map((s) => current.services[s]?.imageRef ?? '').filter(Boolean).join(', ') || null },
+          `rollback of [${services.join(', ')}] failed: ${(e as Error).message}; recovery to the pre-rollback combination ${outcome.succeeded ? 'succeeded ' + describeRecovery(outcome, switched.length) : `FAILED (${outcome.detail}) — inspect the machine`}`,
+          { attempted: true, succeeded: outcome.succeeded, target: switched.map((s) => current.services[s]?.imageRef ?? '').filter(Boolean).join(', ') || null },
         );
       }
     } finally {

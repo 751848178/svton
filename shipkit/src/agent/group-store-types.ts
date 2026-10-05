@@ -7,6 +7,7 @@ export interface GroupServiceSource {
   sha?: string;
   repo?: string;
   ref?: string;
+  contentDigest?: string;
 }
 
 export interface GroupServiceEntry {

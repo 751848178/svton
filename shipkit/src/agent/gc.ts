@@ -11,6 +11,7 @@ import { gcDockerRun } from './gc-docker.js';
 import { withDeploySlot, withGcSlot } from './app-lock.js';
 import { ImageLedger } from './image-ledger.js';
 import { ReleaseStore } from './release.js';
+import { protectedRefs } from './gc-protection.js';
 
 export interface GcCandidate {
   imageRef: string;
@@ -29,47 +30,13 @@ const defaultDockerRun: DockerRun = (args) => gcDockerRun(args);
 
 const NOT_FOUND_RE = /no such image|manifest unknown|no such reference|image not found|not found/i;
 
-/** strict: throws on any unreadable/corrupt state or retained snapshot (RA01) */
-async function protectedRefs(appsRoot: string, store: ReleaseStore): Promise<Set<string>> {
-  const protectedSet = new Set<string>();
-  let appDirs: string[];
-  try {
-    appDirs = (await readdir(appsRoot, { withFileTypes: true })).filter((e) => e.isDirectory()).map((e) => e.name);
-  } catch (e) {
-    // a machine that never deployed anything has no apps root — that is empty, not corruption
-    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return protectedSet;
-    throw new Error(`GC aborted: cannot read apps root ${appsRoot}: ${(e as Error).message}`);
-  }
-  for (const app of appDirs) {
-    const state = await store.loadState(app); // corrupt → throws (loadState is strict except ENOENT)
-    // current/previous MUST resolve to complete snapshots — "unknown reference" is never "no reference"
-    for (const id of [state.current, state.previous]) {
-      if (!id) continue;
-      const rel = await store.loadRelease(app, id);
-      protectedSet.add(rel.imageRef);
-    }
-    let releaseIds: string[];
-    try {
-      releaseIds = await readdir(path.join(appsRoot, app, 'releases'));
-    } catch (e) {
-      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw new Error(`GC aborted: cannot read releases of '${app}': ${(e as Error).message}`);
-      releaseIds = [];
-    }
-    for (const id of releaseIds) {
-      const rel = await store.loadRelease(app, id);
-      protectedSet.add(rel.imageRef);
-    }
-  }
-  return protectedSet;
-}
-
 export function ledgerFileFor(appsRoot: string): string {
   return path.join(path.dirname(appsRoot), 'image-ledger.json');
 }
 
 export async function planImageGc(appsRoot: string): Promise<GcPlan> {
   const store = new ReleaseStore(appsRoot);
-  const protectedSet = await protectedRefs(appsRoot, store);
+  const protectedSet = await protectedRefs(appsRoot);
   const ledger = new ImageLedger(ledgerFileFor(appsRoot));
   const candidates: GcCandidate[] = [];
   // primary source: persistent ledger (RA08) — survives >20 deploys
@@ -113,7 +80,7 @@ export async function executeImageGc(
     const ledger = new ImageLedger(ledgerFileFor(appsRoot));
     // protection recomputed INSIDE the writer slot — nothing can shift references from here on,
     // and a release published between preview and execute is protected before the first rmi
-    const live = await protectedRefs(appsRoot, store);
+    const live = await protectedRefs(appsRoot);
     for (const c of plan.candidates) {
       if (live.has(c.imageRef) || c.imageRef.startsWith('shipbuild/')) {
         result.skippedProtected.push(c.imageRef);

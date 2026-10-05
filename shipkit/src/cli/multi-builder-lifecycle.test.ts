@@ -52,7 +52,8 @@ const stubServer = createServer((req, res) => {
       const id = req.url.split('/')[3] ?? '';
       if (id.startsWith('b')) return json(200, { id, status: 'succeeded', result: { name: 'n', tag: `t${id}`, arch: 'linux/amd64' } });
       const name = id.slice(2) || 'x';
-      return json(200, { id, status: 'succeeded', result: { imageRef: `reg.example/ns/${name}:t`, digest: `sha256:${name[0]?.repeat(64)}` } });
+      const hex = { backend: 'b', admin: 'a', mobile: 'c' }[name] ?? 'f';
+      return json(200, { id, status: 'succeeded', result: { imageRef: `reg.example/ns/${name}:t`, digest: `sha256:${hex.repeat(64)}` } });
     }
     json(404, {});
   });

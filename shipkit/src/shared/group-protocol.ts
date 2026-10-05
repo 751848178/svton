@@ -7,9 +7,12 @@ import type { ProjectSpec } from './spec-v2.js';
 
 export interface GroupServiceSource {
   type: 'git' | 'tarball';
+  /** git commit sha (git sources only — never fabricated for tarballs) */
   sha?: string;
   repo?: string;
   ref?: string;
+  /** deterministic content digest of the uploaded source tree (tarball sources) */
+  contentDigest?: string;
 }
 
 export interface GroupServiceChange {

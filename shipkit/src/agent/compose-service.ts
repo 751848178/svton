@@ -33,10 +33,15 @@ export function renderServiceCompose(group: string, service: string, imageRef: s
     for (const p of spec.ports) lines.push(`      - ${q(p)}`);
   }
   if (withEnvFile) lines.push('    env_file:', `      - ${q(RUNTIME_ENV_FILE)}`);
+  const namedVolumes: string[] = [];
   if (spec.volumes?.length) {
     lines.push('    volumes:');
     for (const v of spec.volumes) {
       const m = parseVolumeMount(v, 'volumes');
+      // named external volumes MUST also appear in the top-level section with
+      // external:true + explicit name — otherwise compose treats the reference
+      // as undefined (R04) or would auto-create a project volume
+      if (m.kind === 'volume') namedVolumes.push(m.source);
       lines.push(`      - ${q(`${m.source}:${m.target}${m.readOnly ? ':ro' : ''}`)}`);
     }
   }
@@ -45,6 +50,10 @@ export function renderServiceCompose(group: string, service: string, imageRef: s
     for (const n of spec.networks) lines.push(`      - ${q(n)}`);
     lines.push('networks:');
     for (const n of spec.networks) lines.push(`  ${n}:`, `    name: ${q(n)}`, '    external: true');
+  }
+  if (namedVolumes.length > 0) {
+    lines.push('volumes:');
+    for (const v of [...new Set(namedVolumes)]) lines.push(`  ${v}:`, `    name: ${q(v)}`, '    external: true');
   }
   return `${lines.join('\n')}\n`;
 }

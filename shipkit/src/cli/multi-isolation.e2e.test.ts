@@ -140,6 +140,16 @@ test('real CLI + real agent: --plan is read-only; invalid first-deploy selection
       admin: { imageRef: digest('a1'), tag: 'ta1', digest: `sha256:${'a'.repeat(64)}`, sha: 'deadbee', platform: 'linux/amd64', source: { type: 'git' } },
     },
   };
+  // ---- R07: the agent API refuses mutable-tag group deploys at the boundary
+  const mutableRes = await fetch(`${agent.url}/api/deploy-group`, {
+    method: 'POST',
+    headers: { authorization: 'Bearer t', 'content-type': 'application/json' },
+    body: JSON.stringify({ schemaVersion: 2, app: 'twgg', project, env: 'local', spec, changed: { admin: { imageRef: 'reg.example/ns/admin:tag' } } }),
+  });
+  assert.equal(mutableRes.status, 400, 'mutable tags are refused before any job exists');
+  const mutBody = (await mutableRes.json()) as { error?: { message?: string } };
+  assert.match(mutBody.error?.message ?? '', /must be digest-pinned/);
+
   const deployEnv = await runGroupDeployPipeline({
     config: JSON.parse(configJson), cwd, logger: log, spec, project, manifest: manifest as never, targetName: 'local', timeoutMs: 30_000,
   });

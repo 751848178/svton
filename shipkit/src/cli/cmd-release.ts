@@ -79,7 +79,7 @@ export async function cmdRelease(argv: string[]): Promise<number> {
   // capability + identity checks BEFORE any builder exists (money boundary)
   await requireGroupProtocol(target.target, `runtime.targets.${target.name}`);
   const state = await fetchGroupState(target.target, `runtime.targets.${target.name}`, spec.name, project, target.name);
-  const plan = buildReleasePlan({ spec, project, env: target.name, target: target.name, selection, requested: requested ?? null, state });
+  const plan = buildReleasePlan({ spec, project, env: target.name, target: target.name, selection, requested: requested ?? null, state, keepEnv: Boolean(args.values['keep-env']) });
   if (args.values.plan) {
     em.payload({ ok: true, plan });
     if (!em.json) {

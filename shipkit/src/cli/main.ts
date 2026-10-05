@@ -41,9 +41,10 @@ commands:
         --services admin          release ONLY these services (default: all)
         --plan                    read-only plan (with --json): selection, inherited
                                   versions, external resources — builds nothing
-  ship rollback <app|group> [--from-dir DIR] [--to TARGET] [--services a,b]
+  ship rollback <app|group> [--from-dir DIR] [--to TARGET] [--services a,b] [--base-release ID]
       roll the target back: v1 = previous release snapshot (image + env + config);
-      v2 groups = undo the last release's changedServices, or an explicit --services set
+      v2 groups = undo the last release's changedServices, or an explicit --services set;
+      --base-release ID rejects a stale plan (use the baseReleaseId from 'ship release --plan')
   ship status [--to TARGET|all]
       apps + versions on runtime targets
   ship doctor

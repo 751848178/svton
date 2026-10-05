@@ -231,7 +231,7 @@ test('switch failure mid-way recovers the services switched so far; first-deploy
     (e: unknown) => e as InstanceType<typeof GroupDeployFailure>,
   );
   assert.ok(err instanceof GroupDeployFailure);
-  assert.match(err.message, /first deploy: removal/, `first deploy reports its real recovery scope: ${err.message}`);
+  assert.match(err.message, /first deploy: verified removal/, `first deploy reports its real recovery scope: ${err.message}`);
   assert.equal(downs().length, 1, 'exactly the started project was removed');
   assert.equal(downs()[0]?.project, 'ship_twgg_backend');
   assert.equal(upsFor('ship_twgg_admin').length, 0, 'admin never started after backend failed');
@@ -259,6 +259,10 @@ test('declared external networks/volumes/binds are verified before anything pull
   assert.match(composeText, /name: "twgg-net"\s*\n\s*external: true/);
   assert.match(composeText, /twgg-data:\/var\/lib\/data/);
   assert.match(composeText, new RegExp(`${bindDir}:/data:ro`));
+  // R04: a named external volume MUST have a top-level declaration with an
+  // explicit name and external:true — otherwise `docker compose config` fails
+  // ("refers to undefined volume") or compose auto-creates a project volume
+  assert.match(composeText, /\nvolumes:\n  twgg-data:\n    name: "twgg-data"\n    external: true\n$/);
   void r;
 });
 
@@ -318,11 +322,12 @@ test('keepEnv inherits the committed env of a changed service; missing committed
   const state = await store.loadState('twgg');
   const cur = await store.loadRelease('twgg', state.current ?? '');
   assert.equal(cur.services.admin?.env, 'A=1\n');
-  // backend never had an env → keepEnv for backend refuses
-  await assert.rejects(
-    () => runGroupDeploy(appsRoot, req({ backend: { imageRef: digest('b2'), keepEnv: true } }), log),
-    /keepEnv for 'backend' requires a committed env/,
-  );
+  // backend was explicitly envless → keepEnv keeps it envless (R05 mixed semantics)
+  FX.compose = [];
+  const mixed = await runGroupDeploy(appsRoot, req({ backend: { imageRef: digest('b2'), keepEnv: true } }), log);
+  assert.deepEqual(mixed.changedServices, ['backend']);
+  assert.equal(existsSync(path.join(appsRoot, 'twgg', 'services', 'backend', 'runtime.env')), false, 'explicitly-envless service stays envless under keep-env');
+  assert.equal(existsSync(path.join(appsRoot, 'twgg', 'services', 'admin', 'runtime.env')), true, 'envful service keeps its committed env');
 });
 
 test('a v1 deploy into a v2-claimed name refuses (layouts never mix)', async (t) => {

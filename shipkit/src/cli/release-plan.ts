@@ -48,9 +48,10 @@ export interface ReleasePlan {
     hasEnv?: boolean;
     networks?: string[];
     volumes?: string[];
+    dependsOn?: string[];
   }>;
   externalResources: { networks: string[]; volumes: string[]; binds: string[] };
-  constraints: { platform: string; requiredServices: string[]; specChangedButNotSelected: string[] };
+  constraints: { platform: string; requiredServices: string[]; specChangedButNotSelected: string[]; declaredDependencies: Record<string, string[]> };
 }
 
 /** plan = selection resolved against the spec + the runtime's committed truth;
@@ -65,11 +66,33 @@ export function buildReleasePlan(o: {
   state: GroupStateView;
   /** phase 1: groups build explicitly for linux/amd64 */
   platform?: string;
+  /** --keep-env: a first deployment has nothing to inherit from (R05 pre-check) */
+  keepEnv?: boolean;
 }): ReleasePlan {
   const platform = o.platform ?? 'linux/amd64';
   const firstDeployment = o.state.current === null;
   if (firstDeployment) assertFirstDeployComplete(o.selection, o.spec);
   assertNoDroppedServices(o.state, o.spec);
+  if (o.keepEnv) {
+    if (firstDeployment) {
+      throw new Error('--keep-env cannot be used on a first deployment — there is no committed environment to keep; ship the env files (or declare none)');
+    }
+    // a SELECTED service with no committed entry has nothing to keep — refuse
+    // before the build instead of failing at the runtime merge afterwards
+    const unkeepable = o.selection.filter((name) => !(name in o.state.services));
+    if (unkeepable.length > 0) {
+      throw new Error(`--keep-env selects service(s) ${unkeepable.join(', ')} with no committed combination — a service's first release must ship its env file (or declare none)`);
+    }
+  }
+  // R06: a declared service that is neither selected nor inheritable would be
+  // refused by the runtime merge AFTER an expensive build — refuse it here first
+  const notInheritable = Object.keys(o.spec.services).filter((name) => !o.selection.includes(name) && !(name in o.state.services));
+  if (notInheritable.length > 0) {
+    throw new Error(
+      `service(s) ${notInheritable.join(', ')} are declared but neither selected nor present in the committed combination — ` +
+      'add them to --services (the runtime would refuse this release too); a release never silently drops or assumes a version for them',
+    );
+  }
 
   const inherited = Object.keys(o.state.services).filter((s) => !o.selection.includes(s));
   const specChangedButNotSelected: string[] = [];
@@ -77,6 +100,7 @@ export function buildReleasePlan(o: {
   const networks = new Set<string>();
   const volumes: string[] = [];
   const binds: string[] = [];
+  const declaredDependencies: Record<string, string[]> = {};
 
   for (const [name, svc] of Object.entries(o.spec.services)) {
     if (o.selection.includes(name)) {
@@ -90,6 +114,7 @@ export function buildReleasePlan(o: {
         ...(svc.envFile ? { envFile: svc.envFile } : {}),
         ...(svc.networks ? { networks: svc.networks } : {}),
         ...(svc.volumes ? { volumes: svc.volumes } : {}),
+        ...(svc.dependsOn ? { dependsOn: svc.dependsOn } : {}),
       };
     } else {
       const current = o.state.services[name];
@@ -106,6 +131,7 @@ export function buildReleasePlan(o: {
     }
     for (const n of svc.networks ?? []) networks.add(n);
     for (const v of svc.volumes ?? []) (v.startsWith('/') ? binds : volumes).push(v);
+    if (svc.dependsOn?.length) declaredDependencies[name] = svc.dependsOn;
   }
   if (specChangedButNotSelected.length > 0) {
     throw new Error(
@@ -125,6 +151,6 @@ export function buildReleasePlan(o: {
     selection: { requested: o.requested, resolved: o.selection, inherited },
     services,
     externalResources: { networks: [...networks], volumes, binds },
-    constraints: { platform, requiredServices: Object.keys(o.spec.services), specChangedButNotSelected },
+    constraints: { platform, requiredServices: Object.keys(o.spec.services), specChangedButNotSelected, declaredDependencies },
   };
 }

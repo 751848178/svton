@@ -30,6 +30,10 @@ export interface ServiceSpec {
   networks?: string[];
   /** external named volumes / restricted absolute bind mounts */
   volumes?: string[];
+  /** declared runtime coexistence constraints (advisory in phase 1): names must
+   *  exist in services; the plan surfaces them, selection is never silently
+   *  expanded (linkage probes are a documented TODO) */
+  dependsOn?: string[];
 }
 
 export interface ProjectSpec {
@@ -41,7 +45,7 @@ export interface ProjectSpec {
 
 const SERVICE_FIELDS = new Set([
   'dockerfile', 'context', 'target', 'platform', 'buildArgsPolicy', 'buildArgs',
-  'ports', 'envFile', 'healthcheck', 'networks', 'volumes',
+  'ports', 'envFile', 'healthcheck', 'networks', 'volumes', 'dependsOn',
 ]);
 const PROJECT_FIELDS = new Set(['schemaVersion', 'name', 'services']);
 const PLATFORM_RE = /^linux\/(amd64|arm64)$/;
@@ -107,6 +111,17 @@ function validateService(name: string, input: unknown): ServiceSpec {
     if (!PLATFORM_RE.test(platform)) throw new SpecError(`must match ${PLATFORM_RE}`, `services.${name}.platform`);
     svc.platform = platform;
   }
+  if ('dependsOn' in input) {
+    const deps = input.dependsOn;
+    if (!Array.isArray(deps)) throw new SpecError('must be a list of service names', `services.${name}.dependsOn`);
+    const seen = new Set<string>();
+    svc.dependsOn = deps.map((d, i) => {
+      if (typeof d !== 'string' || !NAME_RE.test(d)) throw new SpecError('must be a service name', `services.${name}.dependsOn[${i}]`);
+      if (seen.has(d)) throw new SpecError('duplicate dependency', `services.${name}.dependsOn[${i}]`);
+      seen.add(d);
+      return d;
+    });
+  }
   if ('networks' in input) {
     const nets = input.networks;
     if (!Array.isArray(nets)) throw new SpecError('must be a list', `services.${name}.networks`);
@@ -153,6 +168,12 @@ export function validateProjectSpec(input: unknown): ProjectSpec {
   for (const [svcName, raw] of Object.entries(input.services)) {
     if (!NAME_RE.test(svcName)) throw new SpecError(`service name must match ${NAME_RE}`, `services.${svcName}`);
     services[svcName] = validateService(svcName, raw);
+  }
+  for (const [svcName, svc] of Object.entries(services)) {
+    for (const dep of svc.dependsOn ?? []) {
+      if (dep === svcName) throw new SpecError('a service cannot depend on itself', `services.${svcName}.dependsOn`);
+      if (!(dep in services)) throw new SpecError(`unknown service '${dep}' (declared services: ${Object.keys(services).join(', ')})`, `services.${svcName}.dependsOn`);
+    }
   }
   return { schemaVersion: 2, name, services };
 }

@@ -17,15 +17,32 @@ import { saveLastBuild } from './local-state.js';
 import { resolveProjectId } from './project-id.js';
 import { waitAndReport } from './job-report.js';
 import { assertBuilderGroupCapability } from './deployment-protocol.js';
+import { sourceContentDigest } from './source-digest.js';
 import { withBuilderLease, type BuilderReleaseOutcome } from './builder-lease.js';
+
+/** per-service provenance: git keeps repo/ref/sha; from-dir keeps a content
+ *  digest of the exact uploaded tree — no fabricated git identity (R10) */
+export interface GroupBuildProvenance {
+  type: 'git' | 'tarball';
+  id?: string;
+  repo?: string;
+  ref?: string;
+  sha?: string;
+  contentDigest?: string;
+}
 
 export interface GroupBuildService {
   imageRef: string;
   tag: string;
   digest?: string;
   sha?: string;
+  /** the EFFECTIVE platform this slice built for (service override wins) */
   platform: string;
-  source: BuildSource;
+  /** the arch the builder actually reported, when known */
+  arch?: string;
+  /** true only when arch was confirmed === platform (never asserted blindly) */
+  archVerified: boolean;
+  source: GroupBuildProvenance;
 }
 
 /** the deployable build manifest: per-service digest-pinned refs and their OWN
@@ -58,6 +75,10 @@ export async function runMultiBuildPipeline(o: {
   const fromDir = o.fromDir ? path.resolve(o.cwd, o.fromDir) : undefined;
   const project = await resolveProjectId(o.cwd, o.config, fromDir);
   const envFiles = [...new Set(Object.values(o.spec.services).map((s) => s.envFile).filter((f): f is string => Boolean(f)))];
+  // R10: from-dir releases carry a deterministic content digest of the exact
+  // tree that gets uploaded (same exclusions) — never a fabricated Git SHA
+  const contentDigest = fromDir ? await sourceContentDigest(fromDir, envFiles) : null;
+  if (contentDigest) log.info('source content digest', { digest: contentDigest.digest, files: contentDigest.files, bytes: contentDigest.bytes });
   const taskBudgetMs = o.timeoutMs * o.selection.length * 2 + 15 * 60_000;
 
   const run = async (handle: BuilderHandle): Promise<GroupBuildManifest> => {
@@ -84,14 +105,42 @@ export async function runMultiBuildPipeline(o: {
     for (const name of o.selection) {
       const build = builds[name];
       if (!build) throw new CliError(`internal: build result for '${name}' missing after successful build phase`);
+      const svcSpec = o.spec.services[name]!;
+      const effectivePlatform = svcSpec.platform ?? platform;
+      // R11: a KNOWN arch that contradicts the declared platform refuses; an
+      // unknown arch is recorded as unverified, never claimed as checked
+      if (build.arch && build.arch !== effectivePlatform) {
+        throw new CliError(`build:${name} produced ${build.arch} but the effective platform is ${effectivePlatform} — refusing to continue`);
+      }
       const pushed = await api<{ jobId: string }>(handle.url, handle.token, 'POST', '/api/push', {
         name, tag: build.tag, registry: registry.url, namespace: registry.namespace,
       }, 20_000, httpOpts);
       const pushJob = await waitAndReport(handle, pushed.jobId, `push:${name}`, log, o.timeoutMs);
       const push = pushJob.result as PushResult;
-      const imageRef = digestRef(push.imageRef, push.digest);
-      services[name] = { imageRef, tag: build.tag, digest: push.digest, sha: build.sha, platform, source };
-      await saveLastBuild({ app: o.spec.name, project, service: name, imageRef, tag: build.tag, digest: push.digest, at: new Date().toISOString(), builderUrl: handle.url });
+      // R07: a deployable manifest requires a verified digest-pinned ref — a
+      // push without a valid digest stays a mutable tag and is refused here
+      const digestOk = /^sha256:[0-9a-f]{64}$/.test(push.digest ?? '');
+      if (!digestOk) {
+        throw new CliError(`push:${name} returned no valid digest (${JSON.stringify(push.digest)}) — refusing a deployable manifest on a mutable tag`);
+      }
+      const pinned = digestRef(push.imageRef, push.digest);
+      if (push.imageRef.includes('@sha256:') && push.imageRef !== push.imageRef.split('@')[0]) {
+        const existing = push.imageRef.slice(push.imageRef.indexOf('@sha256:') + 1);
+        if (existing !== push.digest) {
+          throw new CliError(`push:${name} ref digest ${existing} disagrees with the reported digest ${push.digest}`);
+        }
+      }
+      services[name] = {
+        imageRef: pinned, tag: build.tag, digest: push.digest,
+        ...(build.sha ? { sha: build.sha } : {}),
+        platform: effectivePlatform,
+        ...(build.arch ? { arch: build.arch } : {}),
+        archVerified: build.arch === effectivePlatform,
+        source: fromDir
+          ? { type: 'tarball', ...(contentDigest ? { contentDigest: contentDigest.digest } : {}) }
+          : { type: 'git', ...(source.type === 'git' ? { repo: source.repo, ref: source.ref, ...(source.token ? {} : {}) } : {}) },
+      };
+      await saveLastBuild({ app: o.spec.name, project, service: name, imageRef: pinned, tag: build.tag, digest: push.digest, at: new Date().toISOString(), builderUrl: handle.url });
     }
     return { project, spec: o.spec, services, builderUrl: handle.url, builderRelease: { builderRelease: 'static' } };
   };

@@ -30,10 +30,24 @@ function parseDeployRequest(ctxJson: unknown): GroupDeployRequest {
     if (typeof change !== 'object' || change === null) throw new HttpFail(400, 'bad_request', `changed.${name} must be a mapping`);
     const c = change as Record<string, unknown>;
     if (typeof c.imageRef !== 'string' || /\s/.test(c.imageRef)) throw new HttpFail(400, 'bad_request', `changed.${name}.imageRef required (no whitespace)`);
+    // R07: group deploys activate immutable refs only — a mutable tag cannot be
+    // verified against what was built/pushed, so it is refused at the boundary
+    if (!/@sha256:[0-9a-f]{64}$/.test(c.imageRef)) {
+      throw new HttpFail(400, 'bad_request', `changed.${name}.imageRef must be digest-pinned (repo:tag@sha256:<64 hex>) — group deploys refuse mutable tags`);
+    }
     if (c.envFileContent !== undefined && typeof c.envFileContent !== 'string') throw new HttpFail(400, 'bad_request', `changed.${name}.envFileContent must be a string`);
     if (c.keepEnv !== undefined && typeof c.keepEnv !== 'boolean') throw new HttpFail(400, 'bad_request', `changed.${name}.keepEnv must be a boolean`);
-    if (c.source !== undefined && (typeof c.source !== 'object' || !['git', 'tarball'].includes(String((c.source as Record<string, unknown>).type)))) {
-      throw new HttpFail(400, 'bad_request', `changed.${name}.source.type must be git|tarball`);
+    if (c.source !== undefined) {
+      const src = c.source as Record<string, unknown>;
+      if (typeof src !== 'object' || !['git', 'tarball'].includes(String(src.type))) {
+        throw new HttpFail(400, 'bad_request', `changed.${name}.source.type must be git|tarball`);
+      }
+      if (src.contentDigest !== undefined && !/^sha256:[0-9a-f]{64}$/.test(String(src.contentDigest))) {
+        throw new HttpFail(400, 'bad_request', `changed.${name}.source.contentDigest must look like sha256:<64 hex>`);
+      }
+      if (src.type === 'tarball' && src.sha !== undefined) {
+        throw new HttpFail(400, 'bad_request', `changed.${name}.source.sha is git-only — tarball provenance uses contentDigest, never a fabricated commit`);
+      }
     }
   }
   validateProjectSpec(req.spec);

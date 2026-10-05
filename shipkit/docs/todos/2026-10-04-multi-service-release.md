@@ -4,6 +4,9 @@
 
 权威规划：[multi-service-release.md](../plans/multi-service-release.md)。使用契约与边界：[multi-service.md](../multi-service.md)。续接提示词：[../handoffs/2026-10-04-multi-service-release.md](../handoffs/2026-10-04-multi-service-release.md)。
 
+2026-10-05 独立复核：372/372、包冒烟、真实 Docker 正常路径复跑通过，但确认 R01–R12，包含首部署清理归属、绑定窗口、恢复健康及发布合约缺陷；下方 done 为实现者记录，**不代表独立验收通过**。[复核报告](../audits/2026-10-05/multi-service-independent-review.md) · [修复提示词](../handoffs/2026-10-05-multi-service-review-remediation.md)。
+- [done] 修复并回归 R01–R12（修复轮见 [../audits/2026-10-05/multi-service-remediation.md](../audits/2026-10-05/multi-service-remediation.md)）：每项先落仓库内稳定回归再修；R01/R02/R03（恢复与激活全路径归属+绑定复核、恢复后再健康、跳过/通过分报）、R04（命名卷顶层 external）、R05（混合 keep-env+首部署前置拒绝）、R06（新增未选服务计划拒绝）、R07（digest 双侧门槛）、R08（GC v1+v2 fail-closed）、R09（信号有界取消+主动释放，子进程证明）、R10（确定性 contentDigest）、R11（生效平台+archVerified）、R12（e2e 拆分≤200行+精确身份清理+零残留复检）。dependsOn 声明校验与 plan 展示、回滚 --base-release 冲突入口已实现；联动探针与同机多环境并存保留 TODO（见 multi-service.md）。复审（子代理对抗式）判 R10 未关闭（排除语义与 tar 不一致）+7 项 P3，第二轮全部修复（含镜像零残留、keepEnv/回滚固定性/GC 杂物/守卫窗口加固）。收口：pnpm test 392/392、包冒烟通过、真实 Docker e2e 全过且容器/网络/卷/镜像零残留（`/tmp/codex-tool-runs/svton/r-remediation/`）。
+
 ## 本轮保存基线（2026-10-04）
 
 - [done] 明确单服务范围、TWGG三个应用镜像、首次部署与H5未验收的区别，记录本机动态配置缺口。

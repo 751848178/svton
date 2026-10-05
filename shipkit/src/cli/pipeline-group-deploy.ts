@@ -57,7 +57,16 @@ export async function runGroupDeployPipeline(o: GroupDeployPipelineOptions): Pro
       imageRef: built.imageRef,
       tag: built.tag,
       digest: built.digest,
-      source: { type: built.source.type, ...(built.source.type === 'git' ? { repo: (built.source as { repo?: string }).repo, ref: (built.source as { ref?: string }).ref } : {}), ...(built.sha ? { sha: built.sha } : {}) },
+      source: {
+        type: built.source.type,
+        ...(built.source.type === 'git'
+          ? { repo: (built.source as { repo?: string }).repo, ref: (built.source as { ref?: string }).ref }
+          : {}),
+        ...(built.sha ? { sha: built.sha } : {}),
+        ...(built.source.type === 'tarball' && (built.source as { contentDigest?: string }).contentDigest
+          ? { contentDigest: (built.source as { contentDigest?: string }).contentDigest }
+          : {}),
+      },
       ...(o.keepEnv ? { keepEnv: true } : {}),
     };
   }
