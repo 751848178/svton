@@ -8,6 +8,13 @@ import type { CvmClientLike } from './tencent-client.js';
 import type { BuilderState } from './builder-state.js';
 
 const realState = await import('./builder-state.js');
+const realTermination = await import('./tencent-termination.js');
+// Keep negative ledger integrations fast; the default cloud budget is independently
+// exercised with a mocked clock in tencent-termination-budget.test.ts.
+mock.module('./tencent-termination.js', { namedExports: {
+  ...realTermination,
+  terminateBuilder: (client: CvmClientLike, instanceId: string, budgetMs?: number) => realTermination.terminateBuilder(client, instanceId, budgetMs ?? 500),
+} });
 const fx = {
   file: '', mode: 'absent' as 'absent' | 'running' | 'throws',
   terminated: [] as string[], cleared: [] as string[], logs: [] as string[],

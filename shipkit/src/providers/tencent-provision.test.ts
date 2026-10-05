@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { ActionTimerView } from './tencent-lifecycle.js';
 import type { BuilderState } from './builder-state.js';
+import type { CvmClientLike } from './tencent-client.js';
 import { validateConfig } from '../shared/config.js';
 import type { Instance } from 'tencentcloud-sdk-nodejs-cvm/tencentcloud/services/cvm/v20170312/cvm_models.js';
 
@@ -17,6 +18,7 @@ interface FakeCalls {
   runInstances: unknown[];
   terminate: string[][];
   timerQueries: number;
+  terminationBudgets: number[];
 }
 
 const fake: {
@@ -32,7 +34,7 @@ const fake: {
   runError: Error | null;
   onRunCreated: (() => void) | null;
 } = {
-  calls: { runInstances: [], terminate: [], timerQueries: 0 },
+  calls: { runInstances: [], terminate: [], timerQueries: 0, terminationBudgets: [] },
   ip: '43.139.1.2',
   timerView: 'auto',
   instances: [{ InstanceState: 'RUNNING', PublicIpAddresses: ['43.139.1.2'] }],
@@ -84,6 +86,15 @@ mock.module('./tencent-client.js', {
   },
 });
 
+const realTermination = await import('./tencent-termination.js');
+mock.module('./tencent-termination.js', { namedExports: {
+  ...realTermination,
+  terminateBuilder: (client: CvmClientLike, instanceId: string, budgetMs?: number) => {
+    fake.calls.terminationBudgets.push(budgetMs ?? realTermination.TERMINATION_CONFIRM_BUDGET_MS);
+    return realTermination.terminateBuilder(client, instanceId, budgetMs ?? 500);
+  },
+} });
+
 const { TencentBuilderProvider } = await import('./tencent.js');
 const { provisionBuilder, EnsureCancelled } = await import('./tencent-provision.js');
 const { readState, stateFileFor, writeState } = await import('./builder-state.js');
@@ -97,7 +108,7 @@ const CFG: TencentCvmConfig = {
 };
 
 function reset(): void {
-  fake.calls = { runInstances: [], terminate: [], timerQueries: 0 };
+  fake.calls = { runInstances: [], terminate: [], timerQueries: 0, terminationBudgets: [] };
   fake.timerView = 'auto';
   fake.retainAfterTerminate = false;
   fake.badDescribe = null;
@@ -213,6 +224,7 @@ test('loginPassword: cancellation preserves EnsureCancelled semantics and compen
     return true;
   });
   assert.deepEqual(fake.calls.terminate, [['ins-NEW']]);
+  assert.deepEqual(fake.calls.terminationBudgets, [6_000], 'cancel cleanup keeps its original bounded budget');
   assert.equal(await readState(stateFileFor(CFG, 'sid')), null);
 });
 

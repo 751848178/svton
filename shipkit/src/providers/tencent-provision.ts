@@ -12,7 +12,7 @@ import { clearState, writeState } from './builder-state.js';
 import { agentHealthy, mkCvmClient } from './tencent-client.js';
 import { sleepOrAbort, waitForPublicIp } from './tencent-lifecycle.js';
 import { ACTION_TIMER_TIMEOUT_MS, waitForVerifiedActionTimer } from './tencent-timer-ready.js';
-import { terminateBuilder } from './tencent-termination.js';
+import { CANCEL_TERMINATION_BUDGET_MS, terminateBuilder } from './tencent-termination.js';
 import { renderCloudInit } from './tencent-userdata.js';
 
 /** provisioning aborted by a user signal: stops at the next checkpoint and
@@ -138,7 +138,7 @@ o: {
     if (instanceId) {
       log('provisioning failed — terminating created instance (compensation)', { instanceId });
       try {
-        await terminateBuilder(client, instanceId);
+        await terminateBuilder(client, instanceId, signal.aborted ? CANCEL_TERMINATION_BUDGET_MS : undefined);
         await clearState(file);
       } catch (term) {
         const safeTerm = redactLoginPassword(term, cfg.loginPassword);
