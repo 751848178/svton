@@ -12,12 +12,12 @@ import type { ProjectSpec } from '../shared/spec-v2.js';
 import { buildSliceFor } from '../shared/spec-v2.js';
 import type { BuilderHandle } from '../providers/provider.js';
 import { CliError } from './errors.js';
-import { digestRef, resolveGitSource, uploadTarballSource } from './pipeline.js';
+import { digestRef, resolveGitSource, uploadFrozenSource } from './pipeline.js';
+import { freezeSourceDir, type FrozenSource } from './source-freeze.js';
 import { saveLastBuild } from './local-state.js';
 import { resolveProjectId } from './project-id.js';
 import { waitAndReport } from './job-report.js';
 import { assertBuilderGroupCapability } from './deployment-protocol.js';
-import { sourceContentDigest } from './source-digest.js';
 import { withBuilderLease, type BuilderReleaseOutcome } from './builder-lease.js';
 
 /** per-service provenance: git keeps repo/ref/sha; from-dir keeps a content
@@ -75,18 +75,20 @@ export async function runMultiBuildPipeline(o: {
   const fromDir = o.fromDir ? path.resolve(o.cwd, o.fromDir) : undefined;
   const project = await resolveProjectId(o.cwd, o.config, fromDir);
   const envFiles = [...new Set(Object.values(o.spec.services).map((s) => s.envFile).filter((f): f is string => Boolean(f)))];
-  // R10: from-dir releases carry a deterministic content digest of the exact
-  // tree that gets uploaded (same exclusions) — never a fabricated Git SHA
-  const contentDigest = fromDir ? await sourceContentDigest(fromDir, envFiles) : null;
-  if (contentDigest) log.info('source content digest', { digest: contentDigest.digest, files: contentDigest.files, bytes: contentDigest.bytes });
+  // S01/S03 + R10: freeze ONCE before any machine/capability work — the frozen
+  // tarball (literal envFile exclusions, applied by our code) is the ONLY thing
+  // uploaded, and its contentDigest covers exactly those bytes; later workspace
+  // edits can no longer desync the manifest from the upload
+  const frozen: FrozenSource | null = fromDir ? await freezeSourceDir(fromDir, envFiles) : null;
+  if (frozen) log.info('source frozen', { digest: frozen.contentDigest, files: frozen.files, bytes: frozen.bytes });
   const taskBudgetMs = o.timeoutMs * o.selection.length * 2 + 15 * 60_000;
 
   const run = async (handle: BuilderHandle): Promise<GroupBuildManifest> => {
     // an old builder cannot parse target/platform — refuse before ANY build (and before pushing anything)
     await assertBuilderGroupCapability(handle);
     const httpOpts = handle.caFile ? { caFile: handle.caFile } : {};
-    const source = fromDir
-      ? await uploadTarballSource(handle, fromDir, envFiles, log)
+    const source = frozen
+      ? await uploadFrozenSource(handle, frozen, log)
       : await resolveGitSource(o.cwd, o.config, log);
 
     // serial builds on the SAME machine, each with its own Dockerfile slice
@@ -136,15 +138,19 @@ export async function runMultiBuildPipeline(o: {
         platform: effectivePlatform,
         ...(build.arch ? { arch: build.arch } : {}),
         archVerified: build.arch === effectivePlatform,
-        source: fromDir
-          ? { type: 'tarball', ...(contentDigest ? { contentDigest: contentDigest.digest } : {}) }
-          : { type: 'git', ...(source.type === 'git' ? { repo: source.repo, ref: source.ref, ...(source.token ? {} : {}) } : {}) },
+        source: frozen
+          ? { type: 'tarball', contentDigest: frozen.contentDigest }
+          : { type: 'git', ...(source.type === 'git' ? { repo: source.repo, ref: source.ref } : {}) },
       };
       await saveLastBuild({ app: o.spec.name, project, service: name, imageRef: pinned, tag: build.tag, digest: push.digest, at: new Date().toISOString(), builderUrl: handle.url });
     }
     return { project, spec: o.spec, services, builderUrl: handle.url, builderRelease: { builderRelease: 'static' } };
   };
 
-  const { value, release } = await withBuilderLease({ config: o.config, keepBuilder: o.keepBuilder, taskBudgetMs, log, run });
-  return { ...value, builderRelease: release };
+  try {
+    const { value, release } = await withBuilderLease({ config: o.config, keepBuilder: o.keepBuilder, taskBudgetMs, log, run });
+    return { ...value, builderRelease: release };
+  } finally {
+    await frozen?.cleanup();
+  }
 }

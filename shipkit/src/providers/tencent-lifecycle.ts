@@ -85,9 +85,11 @@ export async function waitForPublicIp(
   client: { DescribeInstances(req: Record<string, unknown>): Promise<{ InstanceSet?: Array<{ InstanceStatus?: string; PublicIpAddresses?: string[] }> }> },
   instanceId: string,
   log: (msg: string, meta?: Record<string, unknown>) => void,
+  signal?: AbortSignal,
 ): Promise<string> {
   const deadline = Date.now() + 15 * 60_000;
   for (;;) {
+    if (signal?.aborted) throw new Error('provisioning cancelled while waiting for the instance public IP');
     const res = await client.DescribeInstances({ InstanceIds: [instanceId], Limit: 1 });
     const inst = res.InstanceSet?.[0];
     const ip = inst?.PublicIpAddresses?.[0];

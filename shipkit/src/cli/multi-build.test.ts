@@ -261,10 +261,10 @@ test('from-dir tarball upload excludes EVERY declared service envFile (F06 for g
   // declared envFiles must not be inside (F06), and the build requests share
   // ONE uploaded source id
   const { spawnSync } = await import('node:child_process');
-  const tgz = path.join(dir, '..', `mb-${Date.now()}.tgz`);
-  const { packSourceDir } = await import('./pipeline.js');
-  await packSourceDir(dir, tgz, ['admin.env']);
-  const list = spawnSync('tar', ['-tzf', tgz], { encoding: 'utf8' });
+  const { freezeSourceDir } = await import('./source-freeze.js');
+  const frozen = await freezeSourceDir(dir, ['admin.env']);
+  const list = spawnSync('tar', ['-tzf', frozen.tarball], { encoding: 'utf8' });
+  await frozen.cleanup();
   assert.equal(list.status, 0, list.stderr);
   const names = list.stdout.split('\n').filter(Boolean).map((l) => l.replace(/^\.\//, ''));
   assert.ok(!names.some((n) => n.includes('admin.env')), `admin.env must never enter the uploaded archive: ${names.join(',')}`);

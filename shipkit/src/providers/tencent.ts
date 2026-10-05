@@ -21,13 +21,19 @@ import {
 } from './builder-state.js';
 import { agentHealthy, authedBuilderStatus, mkCvmClient, requireCreds, terminateQuietly } from './tencent-client.js';
 import { admissionDecision, verifyActionTimer, waitForPublicIp } from './tencent-lifecycle.js';
-import { renderCloudInit } from './tencent-userdata.js';
+import { EnsureCancelled, provisionBuilder } from './tencent-provision.js';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const DEFAULT_TASK_BUDGET_MS = 90 * 60_000;
 
+const CANCEL_SETTLE_BUDGET_MS = 8_000;
+
 export class TencentBuilderProvider implements BuilderProvider {
   readonly kind = 'tencent';
+  /** the in-flight ensure (if any) — a user cancel aborts it cooperatively so
+   *  release() is never deadlocked on the create lock (S06) */
+  private ensureAbort: AbortController | null = null;
+  private ensureSettled: Promise<unknown> | null = null;
 
   constructor(
     private readonly cfg: TencentCvmConfig,
@@ -45,7 +51,16 @@ export class TencentBuilderProvider implements BuilderProvider {
   async ensure(log: ProviderLog, taskBudgetMs = DEFAULT_TASK_BUDGET_MS): Promise<BuilderHandle> {
     const creds = requireCreds();
     const file = stateFileFor(this.cfg, creds.secretId);
-    return withLock(file, async () => {
+    const ac = new AbortController();
+    this.ensureAbort = ac;
+    const run = (async () => {
+      const guard = (where: string) => {
+        if (ac.signal.aborted) throw new EnsureCancelled();
+        void where;
+      };
+      guard('entry');
+      return withLock(file, async () => {
+        guard('lock');
       const st = await readState(file);
       if (st) {
         if (leaseHeldByOther(st)) {
@@ -64,8 +79,17 @@ export class TencentBuilderProvider implements BuilderProvider {
         await terminateQuietly(client, st.instanceId);
         await clearState(file);
       }
-      return this.create(file, creds, log, taskBudgetMs);
-    });
+        guard('post-admission');
+        return provisionBuilder({ file, creds, log, taskBudgetMs, signal: ac.signal, cfg: this.cfg, distDir: this.distDir, bootstrapDir: this.bootstrapDir, keepMinutes: this.keepMinutes, agentUrl: (ip) => this.agentUrl(ip) });
+      });
+    })();
+    this.ensureSettled = run;
+    try {
+      return await run;
+    } finally {
+      if (this.ensureAbort === ac) this.ensureAbort = null;
+      this.ensureSettled = null;
+    }
   }
 
   /** build/push tasks run under a RENEWED lease; idle clock starts when the task ends (RA04) */
@@ -85,101 +109,27 @@ export class TencentBuilderProvider implements BuilderProvider {
     }
   }
 
-  private async create(file: string, creds: { secretId: string; secretKey: string }, log: ProviderLog, taskBudgetMs: number): Promise<BuilderHandle> {
-    const client = await mkCvmClient(creds.secretId, creds.secretKey, this.cfg.region);
-    const agentToken = this.cfg.installToken ?? randomUUID();
-    const createdAt = new Date().toISOString();
-    // lifetime must cover provisioning (IP 15' + install 20') plus the FULL task budget (RA03)
-    const provisioningMin = 35;
-    const budgetMin = Math.ceil(taskBudgetMs / 60_000);
-    const maxLifetimeMin = this.cfg.maxLifetimeMinutes ?? Math.max(this.keepMinutes + 90, 120, budgetMin + provisioningMin);
-    if (this.cfg.maxLifetimeMinutes && this.cfg.maxLifetimeMinutes < budgetMin + provisioningMin) {
-      throw new Error(
-        `maxLifetimeMinutes=${this.cfg.maxLifetimeMinutes} cannot cover the task budget ${budgetMin}min + provisioning ${provisioningMin}min — raise it or shorten --timeout-min`,
-      );
-    }
-    const expireAt = new Date(Date.now() + maxLifetimeMin * 60_000).toISOString();
-    const expireCloudIso = expireAt.replace(/\.\d{3}Z$/, 'Z');
-    let bundle: BundleServer | null = null;
-    let instanceId: string | null = null;
-    try {
-      let installUrl: string;
-      if (this.cfg.installUrl) {
-        installUrl = this.cfg.installUrl;
-      } else {
-        bundle = await startBundleServer({
-          distDir: this.distDir,
-          bootstrapDir: this.bootstrapDir,
-          advertiseHost: this.cfg.advertiseHost ?? '127.0.0.1',
-          port: this.cfg.bundlePort,
-          // HTTPS terminates at a proxy; its external port is not the agent's listener.
-          agentPort: this.cfg.agentScheme === 'https' ? DEFAULT_AGENT_PORT : this.cfg.agentPort ?? DEFAULT_AGENT_PORT,
-          minutes: 50,
-          agentToken,
-          publicBaseUrl: this.cfg.bundleBaseUrl,
-        });
-        installUrl = bundle.installUrl('builder');
-      }
-      const userData = Buffer.from(renderCloudInit({ installUrl, preInstall: this.cfg.preInstallScript }), 'utf8').toString('base64');
-      log('creating CVM builder instance', { zone: this.cfg.zone, instanceType: this.cfg.instanceType, expireAt: expireCloudIso });
-      const run = await client.RunInstances({
-        Placement: { Zone: this.cfg.zone },
-        InstanceChargeType: 'POSTPAID_BY_HOUR',
-        InstanceType: this.cfg.instanceType,
-        ImageId: this.cfg.imageId,
-        SecurityGroupIds: this.cfg.securityGroupIds,
-        VirtualPrivateCloud: { VpcId: this.cfg.vpcId, SubnetId: this.cfg.subnetId },
-        InternetAccessible: {
-          InternetChargeType: 'TRAFFIC_POSTPAID_BY_HOUR',
-          InternetMaxBandwidthOut: this.cfg.internetMaxBandwidthOut ?? 5,
-          PublicIpAssigned: true,
-        },
-        InstanceName: this.cfg.instanceName ?? 'ship-builder',
-        ...(this.cfg.loginPassword ? { LoginSettings: { Password: this.cfg.loginPassword } } : {}),
-        ActionTimer: { TimerAction: 'TerminateInstances', ActionTime: expireCloudIso },
-        UserData: userData,
-      });
-      instanceId = run.InstanceIdSet?.[0] ?? null;
-      if (!instanceId) throw new Error('RunInstances returned no InstanceIdSet');
-      // persist the moment the instance exists — it can never become an untracked charge (F11)
-      await writeState(file, { instanceId, region: this.cfg.region, token: agentToken, status: 'provisioning', createdAt, expireAt });
-      // STRICT timer verification: any failure/mismatch is a provisioning failure → compensation (RA07)
-      const view = await client.DescribeInstancesActionTimer({ InstanceIds: [instanceId] });
-      const verdict = verifyActionTimer(view, instanceId, expireCloudIso);
-      if (!verdict.ok) throw new Error(`cloud terminate timer verification FAILED: ${verdict.reason}`);
-      log('cloud terminate timer verified', { instanceId, actionTime: verdict.actionTime });
-      const ip = await waitForPublicIp(client, instanceId, log);
-      const url = this.agentUrl(ip);
-      log('waiting for ship-agent on the new builder', { url, instanceId });
-      const deadline = Date.now() + 20 * 60_000;
-      for (;;) {
-        if (await agentHealthy(url)) break;
-        if (Date.now() > deadline) throw new Error(`builder agent not healthy at ${url} within 20 minutes (bootstrap log: /var/log/ship-bootstrap.log)`);
-        await sleep(5000);
-      }
-      await writeState(file, { instanceId, region: this.cfg.region, url, token: agentToken, status: 'ready', createdAt, expireAt });
-      return { url, token: agentToken };
-    } catch (e) {
-      if (instanceId) {
-        log('provisioning failed — terminating created instance (compensation)', { instanceId });
-        try {
-          await terminateQuietly(client, instanceId);
-          await clearState(file);
-        } catch (term) {
-          throw new Error(
-            `${(e as Error).message}; COMPENSATION FAILED: instance ${instanceId} is still running (${String(term)}) — run \`ship builder down\` to release it`,
-          );
-        }
-      }
-      throw e;
-    } finally {
-      if (bundle) await bundle.stop();
-    }
-  }
-
   async release(): Promise<void> {
     const creds = requireCreds();
     const file = stateFileFor(this.cfg, creds.secretId);
+    // S06: a user cancel while ensure() is still provisioning must not wait on
+    // the create lock — abort ensure cooperatively; its compensation path
+    // terminates the instance it created and clears the state, THEN the normal
+    // locked release below finds nothing (or finishes the sweep)
+    const active = this.ensureAbort;
+    if (active) {
+      active.abort();
+      const settled = this.ensureSettled;
+      if (settled) {
+        const okSettled = await Promise.race([
+          settled.then(() => true, () => true),
+          new Promise<boolean>((resolve) => setTimeout(() => resolve(false), CANCEL_SETTLE_BUDGET_MS).unref()),
+        ]);
+        if (!okSettled) {
+          throw new Error('cancel: builder provisioning did not settle after abort within the budget — the instance may still exist; run `ship builder down` and verify');
+        }
+      }
+    }
     await withLock(file, async () => {
       const st = await readState(file);
       if (!st) return;

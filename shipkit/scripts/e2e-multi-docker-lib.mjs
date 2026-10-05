@@ -1,3 +1,8 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
 // Shared helpers for the isolated real-Docker multi-service e2e (R12):
 // precise resource tracking (this run's exact identities only), verified
 // cleanup with a zero-residue check, agent/CLI spawning, health polling.
@@ -20,17 +25,37 @@ export async function must(cmd, what) {
   }
 }
 
-/** tracks every resource this run creates, by exact identity */
-export function resourceTracker(group) {
+/** pre-run preparation (S05): make sure the build base exists so a legit
+ * pull is never counted as residue, then snapshot images (repo:tag) and
+ * dangling ids — the post-cleanup delta proves zero NEW residue */
+export async function prepareRunBasics(run, baseImage) {
+  await run(`docker image inspect ${baseImage}`).catch(() => run(`docker pull ${baseImage}`).catch(() => {}));
+  const lines = async (cmd) => {
+    try {
+      const { stdout } = await run(cmd);
+      return String(stdout).split('\n').map((l) => l.trim()).filter(Boolean);
+    } catch {
+      return [];
+    }
+  };
+  const beforeImages = await lines("docker images --format '{{.Repository}}:{{.Tag}}'");
+  if (!beforeImages.length) console.error('  WARN pre-run image snapshot came back empty — residue verification may false-positive');
+  return { beforeImages, beforeDangling: await lines("docker images --filter dangling=true --format '{{.ID}}'") };
+}
+
+/** tracks every resource this run creates, by exact identity; the image
+ * snapshot taken at start proves "zero NEW residue" without ever touching
+ * pre-existing or shared images */
+export function resourceTracker(group, beforeImages, beforeDangling = []) {
   const networks = new Set();   // docker networks we created (exact names)
   const volumes = new Set();    // docker volumes we created (exact names)
-  const images = new Set();     // image IDs this run built (exact digests)
+  const imageTags = new Set();  // image repo:tag refs this run BUILT
   const projects = [`ship_${group}_api`, `ship_${group}_web`];
   return {
-    networks, volumes, images, projects,
+    networks, volumes, imageTags, projects, beforeImages, beforeDangling,
     addNetwork(n) { networks.add(n); },
     addVolume(v) { volumes.add(v); },
-    addImage(id) { images.add(id); },
+    addImage(tag) { imageTags.add(tag); },
   };
 }
 
@@ -109,68 +134,34 @@ export async function startAgent(ROOT, workRoot) {
   return { agent, url };
 }
 
-/** cleanup by THIS run's exact identities, then verify zero residue — a
- * non-zero exit from any step fails the e2e instead of being assumed away */
+/** cleanup via the compiled, unit-tested verifier (S05): exact identities
+ * only; failed Docker queries and rmi conflicts FAIL; the before/after image
+ * snapshot proves zero NEW residue while pre-existing images stay untouched */
 export async function cleanupAndVerify(tracker, keep, extraDirs = []) {
   if (keep) {
-    console.log(`keep mode: containers=${tracker.projects.join(',')} networks=${[...tracker.networks].join(',')} volumes=${[...tracker.volumes].join(',')} dirs=${extraDirs.join(',')}`);
+    console.log(`keep mode: containers=${tracker.projects.join(',')} networks=${[...tracker.networks].join(',')} volumes=${[...tracker.volumes].join(',')} images=${[...tracker.imageTags].join(',')} dirs=${extraDirs.join(',')}`);
     return;
   }
-  const problems = [];
-  // containers: exact project labels (compose labels every container it made)
-  for (const project of tracker.projects) {
-    const { stdout } = await run(`docker ps -aq --filter label=com.docker.compose.project=${project}`).catch(() => ({ stdout: '' }));
-    for (const id of stdout.trim().split('\n').filter(Boolean)) {
-      const r = await run(`docker rm -f ${id}`).catch((e) => ({ failed: e }));
-      if (r.failed) problems.push(`cannot remove container ${id}: ${String(r.failed.message).slice(0, 120)}`);
-    }
-  }
-  // compose project networks (default networks carry the project label); our
-  // own external networks/volumes by EXACT name
-  const netIds = new Set();
-  for (const project of tracker.projects) {
-    const { stdout } = await run(`docker network ls --filter label=com.docker.compose.project=${project} --format '{{.Name}}'`).catch(() => ({ stdout: '' }));
-    for (const n of stdout.trim().split('\n').filter(Boolean)) netIds.add(n);
-  }
-  for (const n of [...netIds, ...tracker.networks]) {
-    const r = await run(`docker network rm ${n}`).catch((e) => ({ failed: e }));
-    if (r?.failed && !/not found/i.test(String(r.failed.message))) problems.push(`network ${n}: ${String(r.failed.message).slice(0, 120)}`);
-  }
-  for (const v of tracker.volumes) {
-    const r = await run(`docker volume rm ${v}`).catch((e) => ({ failed: e }));
-    if (r?.failed && !/not found|in use/i.test(String(r.failed.message))) problems.push(`volume ${v}: ${String(r.failed.message).slice(0, 120)}`);
-  }
-  for (const img of tracker.images) {
-    const r = await run(`docker rmi ${img}`).catch((e) => ({ failed: e }));
-    if (r?.failed && !/no such image|conflict/i.test(String(r.failed.message))) problems.push(`image ${img}: ${String(r.failed.message).slice(0, 120)}`);
-  }
-  for (const d of extraDirs) await rm(d, { recursive: true, force: true }).catch((e) => problems.push(`rm ${d}: ${e.message}`));
-
-  // residue verification: re-query by exact labels/names; anything left fails
-  for (const project of tracker.projects) {
-    const { stdout } = await run(`docker ps -aq --filter label=com.docker.compose.project=${project}`).catch(() => ({ stdout: '' }));
-    if (stdout.trim()) problems.push(`residue containers for ${project}: ${stdout.trim()}`);
-    const nets = await run(`docker network ls --filter label=com.docker.compose.project=${project} --format '{{.Name}}'`).catch(() => ({ stdout: '' }));
-    if (nets.stdout.trim()) problems.push(`residue networks for ${project}: ${nets.stdout.trim()}`);
-  }
-  for (const n of tracker.networks) {
-    const { stdout } = await run(`docker network ls --format '{{.Name}}'`).catch(() => ({ stdout: '' }));
-    if (stdout.split('\n').includes(n)) problems.push(`residue network ${n}`);
-  }
-  for (const v of tracker.volumes) {
-    const { stdout } = await run(`docker volume ls --format '{{.Name}}'`).catch(() => ({ stdout: '' }));
-    if (stdout.split('\n').includes(v)) problems.push(`residue volume ${v}`);
-  }
-  if (tracker.images.size) {
-    const { stdout } = await run(`docker images --format '{{.ID}}'`).catch(() => ({ stdout: '' }));
-    const present = new Set(stdout.split('\n').filter(Boolean));
-    for (const img of tracker.images) {
-      if (present.has(img.replace('sha256:', ''))) problems.push(`residue image ${img}`);
-    }
-  }
-  if (problems.length) {
-    FAIL(`cleanup residue (${problems.length}): ${problems.join(' | ')}`);
+  const { cleanupAndVerify: verify, snapshotImages } = await import(`${ROOT}/dist/cli/test-support/cleanup-verifier.js`);
+  const runFn = (cmd) => new Promise((resolve, reject) => {
+    exec(cmd, { timeout: 120_000 }, (err, stdout, stderr) => {
+      if (err && err.code === undefined) reject(err);
+      else resolve({ code: err ? err.code ?? 1 : 0, stdout: String(stdout ?? ''), stderr: String(stderr ?? '') });
+    });
+  });
+  const report = await verify(runFn, {
+    projects: tracker.projects,
+    networks: [...tracker.networks],
+    volumes: [...tracker.volumes],
+    imageTags: [...tracker.imageTags],
+    beforeImages: tracker.beforeImages ?? [],
+    beforeDangling: tracker.beforeDangling ?? [],
+  });
+  for (const d of extraDirs) await rm(d, { recursive: true, force: true }).catch((e) => report.problems.push(`rm ${d}: ${e.message}`));
+  if (report.problems.length) {
+    FAIL(`cleanup residue (${report.problems.length}): ${report.problems.join(' | ')}`);
   } else {
-    OK(`cleanup verified: zero containers/networks/volumes/images left from this run (${tracker.images.size} images removed)`);
+    const after = await snapshotImages(runFn);
+    OK(`cleanup verified: zero new residue (removed ${report.removed.containers} containers, ${report.removed.networks} networks, ${report.removed.volumes} volumes, ${report.removed.images} images; ${after?.length ?? '?'} pre-existing images untouched)`);
   }
 }

@@ -10,11 +10,12 @@ import { createHash } from 'node:crypto';
 import { readdir, readFile, readlink, stat } from 'node:fs/promises';
 import path from 'node:path';
 
-const DEFAULT_SOURCE_EXCLUDES = ['.git', 'node_modules', '.env', 'deploy.env', '*.pem', 'ship.config.yaml', 'ship.config.yml', 'ship.config.json'];
+export const DEFAULT_SOURCE_EXCLUDES = ['.git', 'node_modules', '.env', 'deploy.env', '*.pem', 'ship.config.yaml', 'ship.config.yml', 'ship.config.json'];
 
 /** tar-style exclusion: slash-containing patterns match the whole relative
  *  path (and path suffixes); bare names/globs match any single component */
-function excluded(rel: string, excludes: string[]): boolean {
+/** shared matcher: the staging copy and the digest both use exactly this */
+export function excluded(rel: string, excludes: string[]): boolean {
   const parts = rel.split('/');
   for (const ex of excludes) {
     if (ex.includes('/') || ex.includes('*')) {

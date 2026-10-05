@@ -9,7 +9,8 @@ import { spawnSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { packSourceDir, uploadTarballSource } from './pipeline.js';
+import { uploadFrozenSource } from './pipeline.js';
+import { freezeSourceDir } from './source-freeze.js';
 import { startStubAgent } from './init/wizard-fixtures.js';
 import type { BuilderHandle } from '../providers/provider.js';
 import type { Logger } from '../shared/log.js';
@@ -42,23 +43,24 @@ function tarList(file: string): string[] {
 test('A10: packing a source dir includes sources and excludes every secret path', async () => {
   const dir = await sourceProject();
   const outDir = await mkdtemp(path.join(tmpdir(), 'ship-pack-out-'));
-  const tgz = path.join(outDir, 'src.tgz');
+  const frozen = await freezeSourceDir(dir, []);
+  try {
+    const entries = tarList(frozen.tarball);
+    assert.ok(entries.includes('src/app.js'), `source missing from archive: ${entries.join(' ')}`);
+    assert.ok(entries.includes('Dockerfile'), 'Dockerfile missing from archive');
+    for (const banned of ['.env', 'deploy.env', 'server.pem', 'ship.config.yaml', '.git/config', 'node_modules/pkg/index.js']) {
+      assert.ok(!entries.includes(banned), `${banned} must never enter the source archive (F06)`);
+    }
 
-  await packSourceDir(dir, tgz);
-
-  const entries = tarList(tgz);
-  assert.ok(entries.includes('src/app.js'), `source missing from archive: ${entries.join(' ')}`);
-  assert.ok(entries.includes('Dockerfile'), 'Dockerfile missing from archive');
-  for (const banned of ['.env', 'deploy.env', 'server.pem', 'ship.config.yaml', '.git/config', 'node_modules/pkg/index.js']) {
-    assert.ok(!entries.includes(banned), `${banned} must never enter the source archive (F06)`);
+    const extract = path.join(outDir, 'extracted');
+    await mkdir(extract);
+    const x = spawnSync('tar', ['-xzf', frozen.tarball, '-C', extract]);
+    assert.equal(x.status, 0, `extraction failed: ${x.stderr}`);
+    const roundTripped = await readFile(path.join(extract, 'src', 'app.js'), 'utf8');
+    assert.equal(roundTripped, 'console.log("app");\n', 'content must round-trip byte-identically');
+  } finally {
+    await frozen.cleanup();
   }
-
-  const extract = path.join(outDir, 'extracted');
-  await mkdir(extract);
-  const x = spawnSync('tar', ['-xzf', tgz, '-C', extract]);
-  assert.equal(x.status, 0, `extraction failed: ${x.stderr}`);
-  const roundTripped = await readFile(path.join(extract, 'src', 'app.js'), 'utf8');
-  assert.equal(roundTripped, 'console.log("app");\n', 'content must round-trip byte-identically');
 });
 
 test('A10-upload: the full upload path packs and POSTs the tarball (no "no files or directories specified")', async () => {
@@ -66,7 +68,9 @@ test('A10-upload: the full upload path packs and POSTs the tarball (no "no files
   const stub = await startStubAgent();
   try {
     const handle = { url: stub.url, token: 'AUDIT_UPLOAD' } as unknown as BuilderHandle;
-    const source = await uploadTarballSource(handle, dir, ['deploy.env'], noopLog);
+    const frozen = await freezeSourceDir(dir, ['deploy.env']);
+    const source = await uploadFrozenSource(handle, frozen, noopLog);
+    await frozen.cleanup();
     assert.equal(source.type, 'tarball');
     assert.ok((source as { id?: string }).id, 'upload returned a source id');
     const upload = stub.requests.find((r) => r.path === '/api/sources');

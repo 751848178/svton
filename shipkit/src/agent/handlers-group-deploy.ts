@@ -37,9 +37,14 @@ export class GroupDeployFailure extends Error {
 
 export function describeRecovery(outcome: RecoveryOutcome, switchedCount: number): string {
   if (switchedCount === 0) return '(no service had switched before the failure — nothing to recover)';
-  return outcome.verification === 'passed' ? 'and re-verified healthy'
-    : outcome.verification === 'skipped' ? '(restored; no healthcheck declared — verification skipped, not verified)'
-      : 'BUT verification failed — inspect the machine';
+  if (outcome.verification === 'passed') return `and re-verified healthy (${outcome.probed} probe(s))`;
+  if (outcome.verification === 'skipped') {
+    if (outcome.probed === 0) return '(restored; no probes passed — verification skipped, not verified)';
+    // S04: a probe-less service in the mix keeps the summary PARTIAL — the
+    // probed ones passing never upgrades the whole recovery to "verified"
+    return `restored; verification PARTIAL — ${outcome.probed} probe(s) passed, ${outcome.probesSkipped} service(s) have no probe declared (not verified)`;
+  }
+  return 'BUT verification failed — inspect the machine';
 }
 
 export async function runGroupDeploy(appsRoot: string, req: GroupDeployRequest, log: Log): Promise<GroupDeployResult> {

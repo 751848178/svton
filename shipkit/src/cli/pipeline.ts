@@ -2,8 +2,7 @@
 // F20 keep-window semantics, F32 env contract, F04/F28 recovery-aware exit codes).
 
 import { existsSync, readFileSync } from 'node:fs';
-import { readFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { loadSpecAt } from '../shared/spec-load.js';
 import { gitHeadSha, gitRemote } from '../shared/git.js';
@@ -19,6 +18,7 @@ import { resolveTarget } from './targets.js';
 import { waitAndReport } from './job-report.js';
 import { requireDeploymentProtocol } from './deployment-protocol.js';
 import { withBuilderLease } from './builder-lease.js';
+import { freezeSourceDir, type FrozenSource } from './source-freeze.js';
 
 export function minutesArg(v: string | undefined, def: number): number {
   const n = Number(v);
@@ -33,34 +33,15 @@ export async function resolveGitSource(cwd: string, config: ShipConfig, log: Log
   return { type: 'git', repo, ref, token: config.source?.token };
 }
 
-/** secrets and controller config must never enter the builder via --from-dir (F06) */
-const DEFAULT_SOURCE_EXCLUDES = ['.git', 'node_modules', '.env', 'deploy.env', '*.pem', 'ship.config.yaml', 'ship.config.yml', 'ship.config.json'];
-
-/** tar the source dir into `outFile`; excludes stay in force and the `.` operand
- *  is always passed — without it bsdtar fails with "no files or directories
- *  specified" (LEGACY-01) */
-export async function packSourceDir(fromDir: string, outFile: string, envFiles: string[] = []): Promise<string[]> {
-  const args = ['czf', outFile, '-C', fromDir];
-  const excludes = [...new Set([...DEFAULT_SOURCE_EXCLUDES, ...envFiles])].filter(Boolean);
-  for (const x of excludes) args.push(`--exclude=${x}`);
-  args.push('.');
-  const r = await exec('tar', args, { timeoutMs: 10 * 60_000 });
-  if (r.code !== 0) throw new CliError(`packing source dir failed: ${r.stderr.slice(0, 300)}`);
-  return excludes;
-}
-
-export async function uploadTarballSource(handle: BuilderHandle, fromDir: string, envFiles: string[], log: Logger): Promise<BuildSource> {
-  const tgz = path.join(tmpdir(), `ship-src-${Date.now()}.tgz`);
-  const excludes = await packSourceDir(fromDir, tgz, envFiles);
-  try {
-    const bytes = await readFile(tgz);
-    if (bytes.length > 500 * 1024 * 1024) throw new CliError(`source tarball is ${Math.round(bytes.length / 1048576)}MB (limit 500MB)`);
-    log.info('uploading source tarball', { bytes: bytes.length, from: fromDir, excludes });
-    const { id } = await apiUpload(handle.url, handle.token, bytes, 10 * 60_000, handle.caFile ? { caFile: handle.caFile } : {});
-    return { type: 'tarball', id };
-  } finally {
-    await rm(tgz, { force: true });
-  }
+/** upload the ONE frozen source artifact (S01/S03): the caller froze the tree
+ *  (literal envFile exclusions applied by our code) BEFORE any machine was
+ *  prepared — exactly that tarball, whose content the manifest digest covers */
+export async function uploadFrozenSource(handle: BuilderHandle, frozen: FrozenSource, log: Logger): Promise<BuildSource> {
+  const bytes = await readFile(frozen.tarball);
+  if (bytes.length > 500 * 1024 * 1024) throw new CliError(`source tarball is ${Math.round(bytes.length / 1048576)}MB (limit 500MB)`);
+  log.info('uploading frozen source tarball', { bytes: bytes.length, files: frozen.files, digest: frozen.contentDigest });
+  const { id } = await apiUpload(handle.url, handle.token, bytes, 10 * 60_000, handle.caFile ? { caFile: handle.caFile } : {});
+  return { type: 'tarball', id };
 }
 
 /** deployments bind to the pushed digest so mutable tags can never resolve to a stale image (F16) */
@@ -95,11 +76,14 @@ export async function runBuildPipeline(o: {
   const project = await resolveProjectId(o.cwd, o.config, fromDir);
   if (!o.config.registry) throw new CliError('config.registry (url + namespace) is required to push images');
   const registry = o.config.registry;
+  // S03: freeze from-dir content BEFORE any machine exists; the frozen tarball
+  // is the only thing uploaded, immune to concurrent workspace edits
+  const frozen = fromDir ? await freezeSourceDir(fromDir, spec.envFile ? [spec.envFile] : []) : null;
   // the FULL task budget: build wait + push wait + upload/overhead (RA03)
   const taskBudgetMs = o.timeoutMs * 2 + 15 * 60_000;
   const runTask = async (handle: BuilderHandle): Promise<BuildOutcome> => {
-    const source = fromDir
-      ? await uploadTarballSource(handle, fromDir, spec.envFile ? [spec.envFile] : [], log)
+    const source = frozen
+      ? await uploadFrozenSource(handle, frozen, log)
       : await resolveGitSource(o.cwd, o.config, log);
     const httpOpts = handle.caFile ? { caFile: handle.caFile } : {};
     const started = await api<{ jobId: string }>(handle.url, handle.token, 'POST', '/api/build', { source, spec, tag: o.tag }, 20_000, httpOpts);
@@ -121,8 +105,12 @@ export async function runBuildPipeline(o: {
   };
   // leased execution: another CLI cannot destroy this machine mid-task (RA04);
   // release happens on EVERY exit path unless a reuse window / flag kept it (F12/F20)
-  const { value } = await withBuilderLease({ config: o.config, keepBuilder: o.keepBuilder, taskBudgetMs, log, run: runTask });
-  return value;
+  try {
+    const { value } = await withBuilderLease({ config: o.config, keepBuilder: o.keepBuilder, taskBudgetMs, log, run: runTask });
+    return value;
+  } finally {
+    await frozen?.cleanup();
+  }
 }
 
 export async function runDeployPipeline(o: {

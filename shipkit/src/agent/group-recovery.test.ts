@@ -17,6 +17,7 @@ const FX = {
   failUpFor: null as null | string,
   onPull: null as null | (() => Promise<void> | void),
   onUpFail: null as null | (() => Promise<void> | void),
+  onDown: null as null | (() => Promise<void> | void),
 };
 mock.module('../shared/exec.js', {
   namedExports: {
@@ -39,6 +40,7 @@ mock.module('../shared/exec.js', {
             return fail('up failed (injected)');
           }
         }
+        if (args.includes('down') && FX.onDown) await FX.onDown();
         FX.compose.push({ project, args, composeImage });
         return ok('');
       }
@@ -89,7 +91,7 @@ const ups = () => FX.compose.filter((c) => c.args.includes('up'));
 const downs = () => FX.compose.filter((c) => c.args.includes('down'));
 const catchFailure = (p: Promise<unknown>) => p.then(() => { throw new Error('expected failure'); }, (e: unknown) => e as InstanceType<typeof GroupDeployFailure>);
 
-test.beforeEach(() => { FX.containers = []; FX.compose = []; FX.failUpFor = null; FX.onPull = null; FX.onUpFail = null; FXH.healthy = true; FXH.urls = []; });
+test.beforeEach(() => { FX.containers = []; FX.compose = []; FX.failUpFor = null; FX.onPull = null; FX.onUpFail = null; FX.onDown = null; FXH.healthy = true; FXH.urls = []; });
 
 test('R01: first-deploy up failure NEVER downs a foreign same-named project — ownership re-verified, recovery honestly failed', async (t) => {
   const { appsRoot, cleanup } = await root();
@@ -159,7 +161,51 @@ test('R03: recovery of services WITHOUT probes is reported as verification-skipp
   const err = await catchFailure(runGroupDeploy(appsRoot, { ...req({ admin: { imageRef: digest('a2') } }), spec: plain }, log));
   assert.ok(err instanceof GroupDeployFailure, String(err));
   assert.equal(err.recovery.succeeded, true, 'restore itself succeeded');
-  assert.match(err.message, /no healthcheck declared — verification skipped, not verified/, 'skip is explicit, never claimed as verified');
+  assert.match(err.message, /no probes passed — verification skipped, not verified/, 'skip is explicit, never claimed as verified');
+});
+
+test('S02: binding re-pointed between first-deploy cleanups STOPS the second down and reports the exact scope', async (t) => {
+  const { appsRoot, cleanup } = await root();
+  t.after(cleanup);
+  const binding = path.join(appsRoot, 'twgg', 'project.json');
+  let downCount = 0;
+  // first-deploy both services switch, then health fails; during the FIRST
+  // cleanup down the binding is re-pointed at another project/environment
+  FXH.healthy = false;
+  FX.onDown = async () => {
+    downCount++;
+    if (downCount === 1) {
+      const fs = await import('node:fs/promises');
+      await fs.writeFile(binding, `${JSON.stringify({ app: 'twgg', project: 'proj-other', env: 'staging' })}\n`);
+    }
+  };
+  // services: backend (first in map order) + admin(probe) — first deploy, up fails via probe
+  const err = await catchFailure(runGroupDeploy(appsRoot, req({ backend: { imageRef: digest('b1') }, admin: { imageRef: digest('a1') } }), log));
+  assert.ok(err instanceof GroupDeployFailure, String(err));
+  const downProjects = downs().map((d) => d.project);
+  assert.equal(downProjects.length, 1, `exactly ONE down ran, then recovery stopped: ${downProjects.join(',')}`);
+  assert.equal(downProjects[0], 'ship_twgg_backend');
+  assert.equal(err.recovery.succeeded, false, 'recovery is not reported successful');
+  assert.match(err.message, /abandoned=\[admin\]|STOPPED before admin|binding re-check/, `scope reported honestly: ${err.message}`);
+});
+
+test('S04: mixed probes never report overall re-verified — one probed + one probe-less is PARTIAL(skipped)', async (t) => {
+  const { appsRoot, cleanup } = await root();
+  await runGroupDeploy(appsRoot, req({ backend: { imageRef: digest('b1') }, admin: { imageRef: digest('a1') } }), log);
+  // fail the STATE COMMIT after both services switched: recovery restores both;
+  // backend (probe-less) skips, admin's probe passes → summary must be PARTIAL
+  const groupDir = path.join(appsRoot, 'twgg');
+  const { chmod } = await import('node:fs/promises');
+  await chmod(groupDir, 0o555);
+  t.after(async () => { await chmod(groupDir, 0o755).catch(() => {}); await cleanup(); });
+  FX.compose = [];
+  FXH.healthy = true;
+  const err = await catchFailure(runGroupDeploy(appsRoot, req({ backend: { imageRef: digest('b2') }, admin: { imageRef: digest('a2') } }), log));
+  assert.ok(err instanceof GroupDeployFailure, String(err));
+  assert.match(err.message, /state commit failed/, `injected at commit time: ${err.message}`);
+  assert.equal(err.recovery.succeeded, true, 'restore actions + the one declared probe all fine');
+  assert.match(err.message, /verification PARTIAL — 1 probe\(s\) passed, 1 service\(s\) have no probe declared/, `summary keeps the skipped service visible: ${err.message}`);
+  assert.ok(!/re-verified healthy/.test(err.message), 'never claims overall re-verified with a probe-less service in the mix');
 });
 
 test('R03 (rollback): a rollback failure whose recovery re-check fails is not reported successful', async (t) => {

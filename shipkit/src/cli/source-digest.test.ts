@@ -11,7 +11,7 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { sourceContentDigest } from './source-digest.js';
-import { packSourceDir } from './pipeline.js';
+import { freezeSourceDir } from './source-freeze.js';
 
 async function tree(): Promise<string> {
   const dir = await mkdtemp(path.join(tmpdir(), 'ship-sdig-'));
@@ -40,17 +40,18 @@ test('excluded entries (slash-style envFile path AND component-style config) nev
   const afterIncluded = await sourceContentDigest(dir, excludes);
   assert.notEqual(afterIncluded.digest, before.digest, 'changing an INCLUDED file must change the digest');
 
-  // the actual upload excludes the same entries (tar side of the invariant)
-  const tgz = path.join(dir, '..', `sd-${Date.now()}.tgz`);
-  await packSourceDir(dir, tgz, excludes);
-  const list = spawnSync('tar', ['-tzf', tgz], { encoding: 'utf8' });
+  // the actual upload artifact (freeze side of the invariant) carries exactly
+  // the staged set — no glob semantics anywhere (S01)
+  const frozen = await freezeSourceDir(dir, excludes);
+  const list = spawnSync('tar', ['-tzf', frozen.tarball], { encoding: 'utf8' });
+  await frozen.cleanup();
   assert.equal(list.status, 0, list.stderr);
   const names = list.stdout.split('\n').filter(Boolean).map((l) => l.replace(/^\.\//, '')).filter((n) => n && !n.endsWith('/'));
   assert.ok(!names.some((n) => n.includes('prod.env')), `tar must exclude config/prod.env: ${names.join(',')}`);
   assert.ok(!names.some((n) => n === 'ship.config.yaml'), 'tar must exclude ship.config.yaml');
   assert.ok(names.some((n) => n.includes('app.js')), 'sources are uploaded');
   assert.ok(names.some((n) => n.includes('link.md')), 'tar archives the symlink (digest must count it too)');
-  assert.equal(before.files, names.length, 'digest entry count matches the tarball entries');
+  assert.equal(before.files, names.length, 'digest entry count matches the frozen tarball entries');
 });
 
 test('bare-name and glob excludes still match any component; symlinks are hashed deterministically', async (t) => {

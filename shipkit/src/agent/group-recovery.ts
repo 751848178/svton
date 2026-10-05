@@ -1,12 +1,15 @@
-// v2 group recovery (R01/R02/R03): restore exactly the services this release
-// actually changed. Before ANY recovery action the deployment identity is
-// re-verified — a binding that changed/vanished/corrupted during the deploy
-// window refuses recovery (the machine is left as-is and reported honestly).
-// First-deploy removal re-verifies compose ownership immediately before each
-// `down` so a foreign same-named project is never touched. After restoring,
-// every RESTORED service with a declared probe is re-checked: a still-unhealthy
-// restore reports succeeded=false; services without probes report the recovery
-// as verification-skipped, never as verified.
+// v2 group recovery (R01–R03 + S02/S04): restore exactly the services this
+// release actually changed.
+// - The deployment identity is re-verified before EVERY recovery action — a
+//   binding that changed/vanished/corrupted mid-recovery STOPS all further
+//   actions (the machine is left as-is, and the report names what was already
+//   cleaned vs what was abandoned).
+// - First-deploy removal re-verifies compose ownership immediately before each
+//   `down` so a foreign same-named project is never touched.
+// - After restoring, each restored service with a declared probe is re-checked
+//   and the summary keeps them SEPARATE: any failed probe fails the recovery;
+//   a mix of probed and probe-less services reports verification as SKIPPED
+//   (partial), never as fully "re-verified healthy".
 
 import path from 'node:path';
 import type { GroupServiceEntry } from './group-store-types.js';
@@ -18,8 +21,12 @@ import { switchService, verifyService } from './group-activation.js';
 
 export interface RecoveryOutcome {
   succeeded: boolean;
-  /** passed = restored services re-probed healthy · failed = a restore or probe failed · skipped = no probes declared */
+  /** passed = every restored service probed healthy · failed = an action or probe failed · skipped = nothing probed or only part of the services had probes */
   verification: 'passed' | 'failed' | 'skipped';
+  cleaned: string[];
+  pending: string[];
+  probed: number;
+  probesSkipped: number;
   detail: string;
 }
 
@@ -33,26 +40,42 @@ export async function recoverServices(o: {
   env?: Record<string, string>;
 }): Promise<RecoveryOutcome> {
   const log = o.log;
-  // R02: binding re-verified once before touching anything — lost/corrupt/changed refuses ALL recovery
+  const groupDir = path.join(o.appsRoot, o.group);
+  const cleaned: string[] = [];
+  const pending: string[] = [];
+  let hardFail = false;
+  let abortedFor: string | null = null;
+
+  // entry check: with an unverifiable identity there is nothing safe to do —
+  // refuse BEFORE any action (per-action re-checks below cover the windows)
   try {
-    await assertProjectBinding(path.join(o.appsRoot, o.group), o.identity, false, false);
+    await assertProjectBinding(groupDir, o.identity, false, false);
   } catch (e) {
-    const reason = (e as Error).message;
+    abortedFor = `binding re-check refused: ${(e as Error).message}`;
     for (const service of o.changedSoFar) {
-      log(`recovery of ${service} REFUSED — deployment identity no longer verifiable: ${reason}; the machine is left untouched, inspect it manually`);
+      log(`recovery of ${service} REFUSED — deployment identity no longer verifiable: ${abortedFor}; the machine is left untouched, inspect it manually`);
+      pending.push(service);
     }
-    return { succeeded: false, verification: 'failed', detail: `binding re-check refused: ${reason}` };
+    return { succeeded: false, verification: 'failed', cleaned, pending, probed: 0, probesSkipped: 0, detail: abortedFor };
   }
 
-  const restored: string[] = [];
-  let hardFail = false;
   for (const service of o.changedSoFar) {
+    // S02: identity re-verified immediately before EVERY action — a change
+    // stops the whole recovery instead of cleaning the next service anyway
+    try {
+      await assertProjectBinding(groupDir, o.identity, false, false);
+    } catch (e) {
+      abortedFor = `binding re-check before '${service}' refused: ${(e as Error).message}`;
+      log(`recovery STOPPED before ${service} — ${abortedFor}; the machine is left as-is, inspect it manually`);
+      pending.push(service);
+      continue;
+    }
     const prev = o.previousCombination?.[service];
     try {
       if (prev) {
         log(`recovering service ${service} to ${prev.imageRef}`);
         await switchService({ appsRoot: o.appsRoot, group: o.group, service, entry: prev, identity: o.identity, log, env: o.env });
-        restored.push(service);
+        cleaned.push(service);
       } else {
         // first deploy: remove ONLY this service's project, ownership re-verified immediately before down (R01)
         const dir = serviceDir(o.appsRoot, o.group, service);
@@ -60,6 +83,7 @@ export async function recoverServices(o: {
         log(`no previous release for ${service} — removing what this deploy started (project ${project} only, ownership re-verified)`);
         await assertOwnedCompose({ dir, project, service });
         await compose({ appDir: dir, app: service, project, args: ['down'], log, env: o.env });
+        cleaned.push(service);
       }
     } catch (e) {
       hardFail = true;
@@ -67,20 +91,39 @@ export async function recoverServices(o: {
     }
   }
 
-  // R03: re-check health of every RESTORED service with a declared probe
-  let probed = false;
-  let probeFail = false;
-  for (const service of restored) {
+  // per-service re-probe of RESTORED services only (R03/S04): skipped stays visible
+  let probed = 0;
+  let probesSkipped = 0;
+  for (const service of cleaned) {
     const prev = o.previousCombination?.[service];
-    if (!prev) continue;
-    const v = await verifyService({ appsRoot: o.appsRoot, group: o.group, service, entry: prev, log });
-    if (v.skipped) continue; // no probe declared — reported as skipped, not verified
-    probed = true;
+    if (!prev) continue; // removal path: nothing to probe
+    let v: Awaited<ReturnType<typeof verifyService>>;
+    try {
+      v = await verifyService({ appsRoot: o.appsRoot, group: o.group, service, entry: prev, log });
+    } catch (e) {
+      // a HARD probe failure (docker exec error) must not lose the recovery
+      // outcome — it counts as an unverified-failed probe, not a crash
+      hardFail = true;
+      log(`recovered service ${service} probe ERRORED: ${(e as Error).message} — treated as failed verification`);
+      continue;
+    }
+    if (v.skipped) {
+      probesSkipped++;
+      continue;
+    }
+    probed++;
     if (!v.ok) {
-      probeFail = true;
+      hardFail = true;
       log(`recovered service ${service} is still UNHEALTHY after restore — recovery cannot be reported as successful`);
     }
   }
-  const verification = hardFail || probeFail ? 'failed' : probed ? 'passed' : 'skipped';
-  return { succeeded: !hardFail && !probeFail, verification, detail: `${restored.length} restored, verification ${verification}` };
+  const failed = hardFail || Boolean(abortedFor);
+  const verification = failed ? 'failed' : probesSkipped > 0 ? 'skipped' : probed > 0 ? 'passed' : 'skipped';
+  const detail = [
+    `cleaned=[${cleaned.join(',') || '-'}]`,
+    `abandoned=[${pending.join(',') || '-'}]`,
+    abortedFor ? `abort: ${abortedFor}` : null,
+    `probes: ${probed} passed / ${probesSkipped} skipped(no probe declared)`,
+  ].filter(Boolean).join('; ');
+  return { succeeded: !failed, verification, cleaned, pending, probed, probesSkipped, detail };
 }

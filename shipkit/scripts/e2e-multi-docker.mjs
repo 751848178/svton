@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  run, OK, FAIL, must, api, waitJob, healthy, containerSnapshot, spawnShip, startAgent, cleanupAndVerify, resourceTracker,
+  run, OK, FAIL, must, api, waitJob, healthy, containerSnapshot, spawnShip, startAgent, cleanupAndVerify, resourceTracker, prepareRunBasics,
 } from './e2e-multi-docker-lib.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -25,7 +25,8 @@ const VOL = `${GROUP}-data`;
 const keep = process.argv.includes('--keep');
 let agentProc = null;
 const cleanups = [];
-const tracker = resourceTracker(GROUP);
+const { beforeImages, beforeDangling } = await prepareRunBasics(run, 'httpd:alpine');
+const tracker = resourceTracker(GROUP, beforeImages, beforeDangling);
 
 async function main() {
   await must('docker version --format {{.Server.Version}}', 'docker daemon reachable');
@@ -101,7 +102,7 @@ services:
       const result = await waitJob(url, started.jobId, `build ${svc} ${mark}`);
       if (result.arch !== platform) FAIL(`build ${svc}: arch ${result.arch} ≠ ${platform}`);
       const digest = (await run(`docker image inspect ${result.localImage} --format {{.Id}}`)).stdout.trim();
-      tracker.addImage(digest);
+      tracker.addImage(result.localImage);
       const envName = spec.services[svc]?.envFile;
       const envFileContent = !opts.keepEnv && envName ? await readFile(path.join(proj, envName), 'utf8') : undefined;
       changed[svc] = {

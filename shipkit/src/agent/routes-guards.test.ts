@@ -262,21 +262,24 @@ test('LEGACY-02 end-to-end: the REAL CLI packer → apiUpload → streamed extra
   const workRoot = await mkdtemp(path.join(tmpdir(), 'ship-rg-'));
   const agent = await startAgent({ role: 'builder', token: MASTER, port: 0, host: '127.0.0.1', workRoot });
   try {
-    const { packSourceDir } = await import('../cli/pipeline.js');
+    const { freezeSourceDir } = await import('../cli/source-freeze.js');
     const { apiUpload } = await import('../shared/http.js');
     const src = path.join(workRoot, 'project');
     await mkdir(src, { recursive: true });
     await writeFile(path.join(src, 'Dockerfile'), 'FROM scratch\nEXPOSE 8080\n');
     await writeFile(path.join(src, 'app.py'), 'print("legacy-02")\n');
-    await writeFile(path.join(src, 'ship.config.yaml'), 'builder:\n  mode: static\n'); // excluded by the packer (F06)
-    const tgz = path.join(workRoot, 'packed.tgz');
-    await packSourceDir(src, tgz);
-    const { id } = await apiUpload(agent.url, MASTER, await readFile(tgz));
+    await writeFile(path.join(src, 'ship.config.yaml'), 'builder:\n  mode: static\n'); // excluded by the freeze (F06)
+    const frozen = await freezeSourceDir(src, []);
+    try {
+    const { id } = await apiUpload(agent.url, MASTER, await readFile(frozen.tarball));
     const extracted = path.join(workRoot, 'sources', `tar-${id}`);
     assert.ok((await readFile(path.join(extracted, 'Dockerfile'), 'utf8')).includes('EXPOSE 8080'));
     assert.ok((await readFile(path.join(extracted, 'app.py'), 'utf8')).includes('legacy-02'));
     const { readdir } = await import('node:fs/promises');
-    assert.ok(!(await readdir(extracted)).includes('ship.config.yaml'), 'the packer excludes controller config');
+    assert.ok(!(await readdir(extracted)).includes('ship.config.yaml'), 'the freeze excludes controller config');
+    } finally {
+      await frozen.cleanup();
+    }
   } finally {
     await agent.close();
   }
