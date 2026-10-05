@@ -87,6 +87,9 @@ function validateTencent(t: unknown): TencentCvmConfig {
     preInstallScript: asString(t.preInstallScript) || undefined,
     loginPassword: asString(t.loginPassword) || undefined,
   };
+  if (cfg.loginPassword && (cfg.loginPassword.length < 8 || cfg.loginPassword.length > 30 || /[\r\n]/.test(cfg.loginPassword))) {
+    throw new ConfigError(`${at}.loginPassword must be 8-30 characters without CR/LF`);
+  }
   if (!installUrl && !cfg.advertiseHost) {
     throw new ConfigError(`${at}.advertiseHost is required (or set installUrl for a self-hosted bootstrap source)`);
   }
@@ -98,6 +101,18 @@ function validateTencent(t: unknown): TencentCvmConfig {
     throw new ConfigError(`${at}.securityGroupIds must be a non-empty list of strings`);
   }
   cfg.securityGroupIds = sg as string[];
+  if (t.systemDisk !== undefined) {
+    if (!isRecord(t.systemDisk)) throw new ConfigError(`${at}.systemDisk must be a mapping with diskType + diskSize`);
+    const { diskType, diskSize } = t.systemDisk;
+    const diskTypes = ['LOCAL_BASIC', 'LOCAL_SSD', 'CLOUD_BASIC', 'CLOUD_SSD', 'CLOUD_PREMIUM', 'CLOUD_BSSD', 'CLOUD_HSSD', 'CLOUD_TSSD'];
+    if (typeof diskType !== 'string' || !diskTypes.includes(diskType)) {
+      throw new ConfigError(`${at}.systemDisk.diskType must be a supported Tencent system disk type`);
+    }
+    if (typeof diskSize !== 'number' || !Number.isSafeInteger(diskSize) || diskSize <= 0) {
+      throw new ConfigError(`${at}.systemDisk.diskSize must be a positive safe integer in GiB`);
+    }
+    cfg.systemDisk = { diskType, diskSize };
+  }
   const bw = asNumber(t.internetMaxBandwidthOut);
   if (bw !== undefined) { if (bw < 1 || bw > 100) throw new ConfigError(`${at}.internetMaxBandwidthOut must be 1-100`); cfg.internetMaxBandwidthOut = bw; }
   const maxLifetime = asNumber(t.maxLifetimeMinutes);

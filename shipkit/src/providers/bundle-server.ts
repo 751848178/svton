@@ -47,7 +47,7 @@ export async function startBundleServer(o: BundleOptions): Promise<BundleServer>
   const tgz = `${stage}.tgz`;
 
   // agent bundle = compiled dist + a minimal ESM package.json (no npm install needed on the machine)
-  const cp = await exec('cp', ['-R', path.join(o.distDir, '.'), stage]);
+  const cp = await exec('cp', ['-R', `${path.resolve(o.distDir)}${path.sep}.`, stage]);
   if (cp.code !== 0) throw new Error(`staging dist failed: ${cp.stderr}`);
   await writeFile(
     path.join(stage, 'package.json'),

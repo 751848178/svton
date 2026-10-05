@@ -146,6 +146,8 @@ export interface TencentCvmConfig {
   zone: string;
   instanceType: string;
   imageId: string;
+  /** Explicit system disk; omission keeps Tencent's default allocation. Size is in GiB. */
+  systemDisk?: { diskType: string; diskSize: number };
   vpcId: string;
   subnetId: string;
   securityGroupIds: string[];

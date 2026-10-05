@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { ActionTimerView } from './tencent-lifecycle.js';
 import type { BuilderState } from './builder-state.js';
+import { validateConfig } from '../shared/config.js';
 import type { Instance } from 'tencentcloud-sdk-nodejs-cvm/tencentcloud/services/cvm/v20170312/cvm_models.js';
 
 interface FakeCalls {
@@ -27,6 +28,9 @@ const fake: {
   retainAfterTerminate: boolean;
   badDescribe: 'missing' | 'invalid' | 'throws' | null;
   terminateError: Error | null;
+  onTimerQuery: (() => void) | null;
+  runError: Error | null;
+  onRunCreated: (() => void) | null;
 } = {
   calls: { runInstances: [], terminate: [], timerQueries: 0 },
   ip: '43.139.1.2',
@@ -35,6 +39,9 @@ const fake: {
   retainAfterTerminate: false,
   badDescribe: null,
   terminateError: null,
+  onTimerQuery: null,
+  runError: null,
+  onRunCreated: null,
 };
 
 mock.module('./tencent-client.js', {
@@ -43,6 +50,8 @@ mock.module('./tencent-client.js', {
     mkCvmClient: async () => ({
       RunInstances: async (req: unknown) => {
         fake.calls.runInstances.push(req);
+        if (fake.runError) throw fake.runError;
+        fake.onRunCreated?.();
         return { InstanceIdSet: ['ins-NEW'] };
       },
       DescribeInstances: async (req: { InstanceIds: string[] }) => {
@@ -59,6 +68,7 @@ mock.module('./tencent-client.js', {
       },
       DescribeInstancesActionTimer: async () => {
         fake.calls.timerQueries++;
+        fake.onTimerQuery?.();
         if (fake.timerView instanceof Error) throw fake.timerView;
         if (fake.timerView === 'auto') {
           const last = fake.calls.runInstances.at(-1) as { ActionTimer?: { ActionTime?: string } } | undefined;
@@ -75,6 +85,7 @@ mock.module('./tencent-client.js', {
 });
 
 const { TencentBuilderProvider } = await import('./tencent.js');
+const { provisionBuilder, EnsureCancelled } = await import('./tencent-provision.js');
 const { readState, stateFileFor, writeState } = await import('./builder-state.js');
 import type { TencentCvmConfig } from '../shared/types.js';
 
@@ -91,8 +102,119 @@ function reset(): void {
   fake.retainAfterTerminate = false;
   fake.badDescribe = null;
   fake.terminateError = null;
+  fake.onTimerQuery = null;
+  fake.runError = null;
+  fake.onRunCreated = null;
   fake.instances = [{ InstanceId: 'ins-NEW', InstanceState: 'RUNNING', PublicIpAddresses: ['43.139.1.2'] }];
 }
+
+async function provisionForTest(cfg: TencentCvmConfig, signal = new AbortController().signal): Promise<void> {
+  await provisionBuilder({
+    file: stateFileFor(cfg, 'sid'), creds: { secretId: 'sid', secretKey: 'skey' }, log: () => {},
+    taskBudgetMs: 60_000, signal, cfg, distDir: 'd', bootstrapDir: 'b',
+    keepMinutes: 0, agentUrl: ip => `http://${ip}:7410`,
+  });
+}
+
+test('systemDisk: validated 100GiB CLOUD_BSSD reaches the actual RunInstances request', async () => {
+  reset();
+  await tmpHome();
+  const config = validateConfig({
+    builder: { mode: 'dynamic', dynamic: { provider: 'tencent', tencent: { ...CFG, systemDisk: { diskType: 'CLOUD_BSSD', diskSize: 100 } } } },
+    runtime: { targets: { prod: { url: 'http://127.0.0.1:7410', token: 'test' } } },
+  });
+  await provisionForTest(config.builder.dynamic!.tencent!);
+  assert.equal(fake.calls.runInstances.length, 1);
+  assert.deepEqual((fake.calls.runInstances[0] as { SystemDisk?: unknown }).SystemDisk, { DiskType: 'CLOUD_BSSD', DiskSize: 100 });
+});
+
+test('systemDisk: legacy config omits SystemDisk and retains cloud defaults', async () => {
+  reset();
+  await tmpHome();
+  await provisionForTest(CFG);
+  assert.equal(fake.calls.runInstances.length, 1);
+  assert.equal(Object.hasOwn(fake.calls.runInstances[0] as object, 'SystemDisk'), false);
+});
+
+class MockSdkError extends Error {
+  constructor(message: string, readonly code = 'InvalidParameterValue.InvalidPassword') { super(message); }
+  getMessage(): string { return this.message; }
+  override toString(): string { return `[MockSDK] ${this.getMessage()}`; }
+}
+
+test('loginPassword: SDK RunInstances echo is redacted while preserving error identity/type/code', async () => {
+  reset();
+  await tmpHome();
+  const loginPassword = 'synthetic-password#123';
+  const problem = new MockSdkError(`Password rejected: ${loginPassword}; repeated ${loginPassword}`);
+  void problem.stack; // Materialize the original stack before the provider cleans it.
+  fake.runError = problem;
+  await assert.rejects(provisionForTest({ ...CFG, loginPassword }), error => {
+    assert.strictEqual(error, problem);
+    assert.ok(error instanceof MockSdkError);
+    assert.equal(error.code, 'InvalidParameterValue.InvalidPassword');
+    for (const text of [error.message, error.stack!, error.getMessage(), String(error)]) {
+      assert.equal(text.includes(loginPassword), false);
+      assert.ok(text.includes('[REDACTED]'));
+    }
+    return true;
+  });
+  assert.equal(fake.calls.runInstances.length, 1);
+  assert.equal(fake.calls.terminate.length, 0, 'creation rejected without an instance ID');
+});
+
+test('loginPassword: ordinary SDK errors retain their original content and metadata', async () => {
+  for (const loginPassword of [undefined, 'synthetic-password#123']) {
+    reset();
+    await tmpHome();
+    const problem = new MockSdkError('permission denied', 'UnauthorizedOperation');
+    const originalStack = problem.stack;
+    fake.runError = problem;
+    await assert.rejects(provisionForTest({ ...CFG, loginPassword }), error => {
+      assert.strictEqual(error, problem);
+      assert.equal(problem.message, 'permission denied');
+      assert.equal(problem.stack, originalStack);
+      assert.equal(problem.code, 'UnauthorizedOperation');
+      return true;
+    });
+  }
+});
+
+test('loginPassword: failed compensation cleans both primary and termination errors', async () => {
+  reset();
+  await tmpHome();
+  const loginPassword = 'synthetic-password#123';
+  const primary = new MockSdkError(`timer lookup echoes ${loginPassword}`);
+  const termination = new MockSdkError(`termination echoes ${loginPassword}`, 'InternalError');
+  fake.timerView = primary;
+  fake.terminateError = termination;
+  await assert.rejects(provisionForTest({ ...CFG, loginPassword }), error => {
+    assert.ok(error instanceof Error);
+    assert.match(error.message, /COMPENSATION FAILED/);
+    assert.equal(error.message.includes(loginPassword), false);
+    assert.equal(error.stack!.includes(loginPassword), false);
+    assert.ok(error.message.includes('[REDACTED]'));
+    assert.equal(primary.message.includes(loginPassword), false);
+    assert.equal(termination.message.includes(loginPassword), false);
+    return true;
+  });
+  assert.deepEqual(fake.calls.terminate, [['ins-NEW']]);
+  assert.equal((await readState(stateFileFor(CFG, 'sid')))?.instanceId, 'ins-NEW', 'failed cleanup preserves the ledger');
+});
+
+test('loginPassword: cancellation preserves EnsureCancelled semantics and compensates the created ID', async () => {
+  reset();
+  await tmpHome();
+  const ac = new AbortController();
+  fake.onRunCreated = () => ac.abort();
+  await assert.rejects(provisionForTest({ ...CFG, loginPassword: 'synthetic-password#123' }, ac.signal), error => {
+    assert.ok(error instanceof EnsureCancelled);
+    assert.equal(error.message, 'builder provisioning cancelled by user signal');
+    return true;
+  });
+  assert.deepEqual(fake.calls.terminate, [['ins-NEW']]);
+  assert.equal(await readState(stateFileFor(CFG, 'sid')), null);
+});
 
 async function tmpHome(): Promise<string> {
   const home = await mkdtemp(path.join(tmpdir(), 'ship-prov-'));
@@ -159,15 +281,45 @@ test('RA07: matching cloud timer → ready, and the agent URL honours agentSchem
   void home;
 });
 
-test('RA07: timer verification failure (empty set) → compensation terminate + state cleared', async () => {
+test('RA07: timer verification mismatch → compensation terminate + state cleared', async () => {
   reset();
   const home = await tmpHome();
-  fake.timerView = { ActionTimers: [] };
+  fake.timerView = { ActionTimers: [{ InstanceId: 'ins-other', TimerAction: 'TerminateInstances', Status: 'UNDO', ActionTime: new Date().toISOString() }] };
   const p = new TencentBuilderProvider(CFG, 30, 'd', 'b');
-  await assert.rejects(() => p.ensure(() => {}), /verification FAILED.*no action timers/);
+  await assert.rejects(() => p.ensure(() => {}), /verification FAILED.*no timer entry references/);
   assert.deepEqual(fake.calls.terminate, [['ins-NEW']], 'created instance compensated');
   assert.equal(await readState(stateFileFor(CFG, 'sid')), null, 'no orphan record left behind');
   void home;
+});
+
+test('timer readiness: cancellation after an empty SDK read compensates the known instance', async () => {
+  reset();
+  await tmpHome();
+  const ac = new AbortController();
+  fake.timerView = { ActionTimers: [] };
+  fake.onTimerQuery = () => ac.abort();
+  const file = stateFileFor(CFG, 'sid');
+  await assert.rejects(provisionBuilder({
+    file, creds: { secretId: 'sid', secretKey: 'skey' }, log: () => {}, taskBudgetMs: 60_000,
+    signal: ac.signal, cfg: CFG, distDir: 'd', bootstrapDir: 'b', keepMinutes: 0, agentUrl: ip => `http://${ip}:7410`,
+  }), /cancelled/);
+  assert.equal(fake.calls.timerQueries, 1);
+  assert.deepEqual(fake.calls.terminate, [['ins-NEW']]);
+  assert.equal(await readState(file), null);
+});
+
+test('timer readiness: visibility wait is reserved in the lifetime budget before creation', async () => {
+  reset();
+  await tmpHome();
+  const cfg = { ...CFG, maxLifetimeMinutes: 97 };
+  await assert.rejects(provisionBuilder({
+    file: stateFileFor(cfg, 'sid'), creds: { secretId: 'sid', secretKey: 'skey' }, log: () => {},
+    taskBudgetMs: 60 * 60_000, signal: new AbortController().signal, cfg, distDir: 'd', bootstrapDir: 'b',
+    keepMinutes: 0, agentUrl: ip => `http://${ip}:7410`,
+  }), /task budget 60min \+ provisioning 38min/);
+  assert.equal(fake.calls.runInstances.length, 0);
+  assert.equal(fake.calls.timerQueries, 0);
+  assert.equal(fake.calls.terminate.length, 0);
 });
 
 test('RA07: timer query raising → also compensated', async () => {

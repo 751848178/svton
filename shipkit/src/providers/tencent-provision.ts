@@ -10,7 +10,8 @@ import { DEFAULT_AGENT_PORT, startBundleServer, type BundleServer } from './bund
 import type { BuilderHandle, ProviderLog } from './provider.js';
 import { clearState, writeState } from './builder-state.js';
 import { agentHealthy, mkCvmClient } from './tencent-client.js';
-import { sleepOrAbort, verifyActionTimer, waitForPublicIp } from './tencent-lifecycle.js';
+import { sleepOrAbort, waitForPublicIp } from './tencent-lifecycle.js';
+import { ACTION_TIMER_TIMEOUT_MS, waitForVerifiedActionTimer } from './tencent-timer-ready.js';
 import { terminateBuilder } from './tencent-termination.js';
 import { renderCloudInit } from './tencent-userdata.js';
 
@@ -20,6 +21,18 @@ export class EnsureCancelled extends Error {
   constructor() {
     super('builder provisioning cancelled by user signal');
   }
+}
+
+/** Keep SDK error identity, subclass and metadata; its getMessage/toString read message. */
+function redactLoginPassword(error: unknown, password?: string): unknown {
+  if (!password) return error;
+  const clean = (text: string) => text.split(password).join('[REDACTED]');
+  if (error instanceof Error) {
+    error.message = clean(error.message);
+    if (error.stack) error.stack = clean(error.stack);
+    return error;
+  }
+  return typeof error === 'string' ? clean(error) : error;
 }
 
 export async function provisionBuilder(
@@ -43,8 +56,8 @@ o: {
   const client = await mkCvmClient(creds.secretId, creds.secretKey, cfg.region);
   const agentToken = cfg.installToken ?? randomUUID();
   const createdAt = new Date().toISOString();
-  // lifetime must cover provisioning (IP 15' + install 20') plus the FULL task budget (RA03)
-  const provisioningMin = 35;
+  // Cover timer visibility (3'), IP (15'), installation (20') and the FULL task budget.
+  const provisioningMin = 35 + ACTION_TIMER_TIMEOUT_MS / 60_000;
   const budgetMin = Math.ceil(taskBudgetMs / 60_000);
   const maxLifetimeMin = cfg.maxLifetimeMinutes ?? Math.max(keepMinutes + 90, 120, budgetMin + provisioningMin);
   if (cfg.maxLifetimeMinutes && cfg.maxLifetimeMinutes < budgetMin + provisioningMin) {
@@ -82,6 +95,7 @@ o: {
       InstanceChargeType: 'POSTPAID_BY_HOUR',
       InstanceType: cfg.instanceType,
       ImageId: cfg.imageId,
+      ...(cfg.systemDisk ? { SystemDisk: { DiskType: cfg.systemDisk.diskType, DiskSize: cfg.systemDisk.diskSize } } : {}),
       SecurityGroupIds: cfg.securityGroupIds,
       VirtualPrivateCloud: { VpcId: cfg.vpcId, SubnetId: cfg.subnetId },
       InternetAccessible: {
@@ -102,9 +116,7 @@ o: {
     await writeState(file, { instanceId, region: cfg.region, token: agentToken, status: 'provisioning', createdAt, expireAt });
     if (signal.aborted) throw new EnsureCancelled(); // compensate only AFTER the id is durable
     // STRICT timer verification: any failure/mismatch is a provisioning failure → compensation (RA07)
-    const view = await client.DescribeInstancesActionTimer({ InstanceIds: [instanceId] });
-    const verdict = verifyActionTimer(view, instanceId, expireCloudIso);
-    if (!verdict.ok) throw new Error(`cloud terminate timer verification FAILED: ${verdict.reason}`);
+    const verdict = await waitForVerifiedActionTimer(client, instanceId, expireCloudIso, signal, log);
     log('cloud terminate timer verified', { instanceId, actionTime: verdict.actionTime });
     const ip = await waitForPublicIp(client, instanceId, log, signal);
     const url = o.agentUrl(ip);
@@ -122,18 +134,20 @@ o: {
     await writeState(file, { instanceId, region: cfg.region, url, token: agentToken, status: 'ready', createdAt, expireAt });
     return { url, token: agentToken };
   } catch (e) {
+    const safeError = redactLoginPassword(e, cfg.loginPassword);
     if (instanceId) {
       log('provisioning failed — terminating created instance (compensation)', { instanceId });
       try {
         await terminateBuilder(client, instanceId);
         await clearState(file);
       } catch (term) {
+        const safeTerm = redactLoginPassword(term, cfg.loginPassword);
         throw new Error(
-          `${(e as Error).message}; COMPENSATION FAILED: instance ${instanceId} is still running (${String(term)}) — run \`ship builder down\` to release it`,
+          `${safeError instanceof Error ? safeError.message : String(safeError)}; COMPENSATION FAILED: instance ${instanceId} is still running (${String(safeTerm)}) — run \`ship builder down\` to release it`,
         );
       }
     }
-    throw e;
+    throw safeError;
   } finally {
     if (bundle) await bundle.stop();
   }

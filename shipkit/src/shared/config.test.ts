@@ -54,6 +54,41 @@ test('dynamic tencent config gets default keepMinutes', () => {
   assert.equal(c.builder.dynamic?.keepMinutes, 30);
 });
 
+test('systemDisk preserves explicit Tencent disk type and GiB size; omission stays optional', () => {
+  const t = dynamicTencent.dynamic.tencent;
+  const build = (systemDisk?: unknown) => ({ ...base, builder: { mode: 'dynamic', dynamic: { provider: 'tencent', tencent: { ...t, systemDisk } } } });
+  assert.equal(validateConfig(build()).builder.dynamic?.tencent?.systemDisk, undefined);
+  for (const diskType of ['LOCAL_BASIC', 'LOCAL_SSD', 'CLOUD_BASIC', 'CLOUD_SSD', 'CLOUD_PREMIUM', 'CLOUD_BSSD', 'CLOUD_HSSD', 'CLOUD_TSSD']) {
+    const systemDisk = { diskType, diskSize: 100 };
+    assert.deepEqual(validateConfig(build(systemDisk)).builder.dynamic?.tencent?.systemDisk, systemDisk);
+  }
+});
+
+test('systemDisk rejects invalid shape, type and non-positive or unsafe integer size', () => {
+  const t = dynamicTencent.dynamic.tencent;
+  for (const systemDisk of [null, [], 'CLOUD_BSSD', {}, { diskType: 'SSD', diskSize: 100 }, { diskType: 'CLOUD_BSSD' },
+    ...[0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1, '100'].map(diskSize => ({ diskType: 'CLOUD_BSSD', diskSize }))]) {
+    assert.throws(() => validateConfig({ ...base, builder: { mode: 'dynamic', dynamic: { provider: 'tencent', tencent: { ...t, systemDisk } } } }), /systemDisk/);
+  }
+});
+
+test('loginPassword enforces Linux 8–30 characters and rejects CR/LF without echoing the value', () => {
+  const t = dynamicTencent.dynamic.tencent;
+  const build = (loginPassword?: string) => ({ ...base, builder: { mode: 'dynamic', dynamic: { provider: 'tencent', tencent: { ...t, loginPassword } } } });
+  assert.equal(validateConfig(build()).builder.dynamic?.tencent?.loginPassword, undefined);
+  for (const loginPassword of ['a'.repeat(8), 'b'.repeat(24), 'c'.repeat(30)]) {
+    assert.equal(validateConfig(build(loginPassword)).builder.dynamic?.tencent?.loginPassword, loginPassword);
+  }
+  for (const loginPassword of ['a'.repeat(7), 'b'.repeat(31), 'c'.repeat(34), 'abc\ndefgh', 'abc\rdefgh']) {
+    assert.throws(() => validateConfig(build(loginPassword)), error => {
+      assert.ok(error instanceof ConfigError);
+      assert.match(error.message, /loginPassword/);
+      assert.equal(error.message.includes(loginPassword), false);
+      return true;
+    });
+  }
+});
+
 test('F31: registry must be a bare host[:port] — scheme/path rejected', () => {
   assert.equal(validateConfig(base).registry, undefined);
   assert.throws(() => validateConfig({ ...base, registry: { url: 'x' } }), ConfigError);
