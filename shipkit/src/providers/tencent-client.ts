@@ -2,13 +2,16 @@
 
 import { api } from '../shared/http.js';
 import type { ProviderLog } from './provider.js';
-import { clearState, listStates } from './builder-state.js';
+import { clearState, leaseHeldByOther, listStates, readState, withLock } from './builder-state.js';
 import type { ActionTimerView } from './tencent-lifecycle.js';
+import type { Instance } from 'tencentcloud-sdk-nodejs-cvm/tencentcloud/services/cvm/v20170312/cvm_models.js';
+import { terminateBuilder } from './tencent-termination.js';
+export { terminateQuietly } from './tencent-termination.js';
 
 export interface CvmClientLike {
   RunInstances(req: Record<string, unknown>): Promise<{ InstanceIdSet?: string[] }>;
   DescribeInstances(req: Record<string, unknown>): Promise<{
-    InstanceSet?: Array<{ InstanceStatus?: string; PublicIpAddresses?: string[] }>;
+    InstanceSet?: Array<Pick<Instance, 'InstanceId' | 'InstanceState' | 'PublicIpAddresses'>>;
   }>;
   TerminateInstances(req: Record<string, unknown>): Promise<unknown>;
   /** the SDK's real timer-query method (RA07) — required, never optional */
@@ -47,15 +50,6 @@ export async function agentHealthy(url: string): Promise<boolean> {
   }
 }
 
-/** terminate; "instance not exist" errors are treated as already released */
-export async function terminateQuietly(client: CvmClientLike, instanceId: string): Promise<void> {
-  try {
-    await client.TerminateInstances({ InstanceIds: [instanceId] });
-  } catch (e) {
-    if (!/not\s*exist|invalid\s*instance/i.test(String((e as Error).message))) throw e;
-  }
-}
-
 /** release every builder whose expireAt has passed — called on each CLI invocation (F20 backstop). */
 export async function sweepExpiredBuilders(log: ProviderLog): Promise<void> {
   const secretId = process.env.TENCENTCLOUD_SECRET_ID;
@@ -64,10 +58,14 @@ export async function sweepExpiredBuilders(log: ProviderLog): Promise<void> {
   for (const { file, state } of await listStates()) {
     if (new Date(state.expireAt).getTime() > Date.now()) continue;
     try {
-      const client = await mkCvmClient(secretId, secretKey, state.region);
-      await terminateQuietly(client, state.instanceId);
-      await clearState(file);
-      log('swept expired builder instance', { instanceId: state.instanceId, file: file.split('/').pop() });
+      await withLock(file, async () => {
+        const current = await readState(file);
+        if (!current || current.instanceId !== state.instanceId || new Date(current.expireAt).getTime() > Date.now() || leaseHeldByOther(current)) return;
+        const client = await mkCvmClient(secretId, secretKey, current.region);
+        await terminateBuilder(client, current.instanceId);
+        await clearState(file);
+        log('swept expired builder instance', { instanceId: current.instanceId, file: file.split('/').pop() });
+      });
     } catch (e) {
       log('failed to sweep expired builder — run `ship builder down`', { instanceId: state.instanceId, error: String(e) });
     }

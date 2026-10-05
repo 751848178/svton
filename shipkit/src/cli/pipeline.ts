@@ -66,6 +66,8 @@ export async function runBuildPipeline(o: {
   cwd: string;
   logger: Logger;
   fromDir?: string;
+  /** runtime --env-file override must also be kept out of the build upload */
+  envFile?: string;
   tag?: string;
   keepBuilder?: boolean;
   timeoutMs: number;
@@ -78,7 +80,8 @@ export async function runBuildPipeline(o: {
   const registry = o.config.registry;
   // S03: freeze from-dir content BEFORE any machine exists; the frozen tarball
   // is the only thing uploaded, immune to concurrent workspace edits
-  const frozen = fromDir ? await freezeSourceDir(fromDir, spec.envFile ? [spec.envFile] : []) : null;
+  const envFiles = [spec.envFile, o.envFile].filter((f): f is string => Boolean(f));
+  const frozen = fromDir ? await freezeSourceDir(fromDir, envFiles, o.cwd) : null;
   // the FULL task budget: build wait + push wait + upload/overhead (RA03)
   const taskBudgetMs = o.timeoutMs * 2 + 15 * 60_000;
   const runTask = async (handle: BuilderHandle): Promise<BuildOutcome> => {

@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { ActionTimerView } from './tencent-lifecycle.js';
 import type { BuilderState } from './builder-state.js';
+import type { Instance } from 'tencentcloud-sdk-nodejs-cvm/tencentcloud/services/cvm/v20170312/cvm_models.js';
 
 interface FakeCalls {
   runInstances: unknown[];
@@ -22,12 +23,18 @@ const fake: {
   ip: string;
   /** 'auto' echoes the ActionTime actually passed to RunInstances; otherwise an explicit view or a thrown Error */
   timerView: 'auto' | ActionTimerView | Error;
-  instances: Array<{ InstanceStatus?: string; PublicIpAddresses?: string[] }>;
+  instances: Array<Pick<Instance, 'InstanceId' | 'InstanceState' | 'PublicIpAddresses'>>;
+  retainAfterTerminate: boolean;
+  badDescribe: 'missing' | 'invalid' | 'throws' | null;
+  terminateError: Error | null;
 } = {
   calls: { runInstances: [], terminate: [], timerQueries: 0 },
   ip: '43.139.1.2',
   timerView: 'auto',
-  instances: [{ InstanceStatus: 'RUNNING', PublicIpAddresses: ['43.139.1.2'] }],
+  instances: [{ InstanceState: 'RUNNING', PublicIpAddresses: ['43.139.1.2'] }],
+  retainAfterTerminate: false,
+  badDescribe: null,
+  terminateError: null,
 };
 
 mock.module('./tencent-client.js', {
@@ -38,9 +45,16 @@ mock.module('./tencent-client.js', {
         fake.calls.runInstances.push(req);
         return { InstanceIdSet: ['ins-NEW'] };
       },
-      DescribeInstances: async () => ({ InstanceSet: fake.instances }),
+      DescribeInstances: async (req: { InstanceIds: string[] }) => {
+        if (fake.badDescribe === 'throws') throw new Error('mock DescribeInstances failed');
+        if (fake.badDescribe === 'missing') return {};
+        if (fake.badDescribe === 'invalid') return { InstanceSet: { length: 1, 0: { InstanceState: 'TERMINATED' } } };
+        const released = fake.calls.terminate.some(ids => ids.some(id => req.InstanceIds.includes(id)));
+        return { InstanceSet: released && !fake.retainAfterTerminate ? [] : fake.instances };
+      },
       TerminateInstances: async (req: { InstanceIds: string[] }) => {
         fake.calls.terminate.push(req.InstanceIds);
+        if (fake.terminateError) throw fake.terminateError;
         return {};
       },
       DescribeInstancesActionTimer: async () => {
@@ -56,9 +70,6 @@ mock.module('./tencent-client.js', {
       },
     }),
     agentHealthy: async () => true,
-    terminateQuietly: async (client: unknown, instanceId: string) => {
-      fake.calls.terminate.push([instanceId]);
-    },
     authedBuilderStatus: async () => ({ kind: 'tencent', active: true }),
   },
 });
@@ -77,6 +88,10 @@ const CFG: TencentCvmConfig = {
 function reset(): void {
   fake.calls = { runInstances: [], terminate: [], timerQueries: 0 };
   fake.timerView = 'auto';
+  fake.retainAfterTerminate = false;
+  fake.badDescribe = null;
+  fake.terminateError = null;
+  fake.instances = [{ InstanceId: 'ins-NEW', InstanceState: 'RUNNING', PublicIpAddresses: ['43.139.1.2'] }];
 }
 
 async function tmpHome(): Promise<string> {
@@ -183,4 +198,66 @@ test('RA03: explicit maxLifetimeMinutes below provisioning+task budget is reject
   const p = new TencentBuilderProvider({ ...CFG, maxLifetimeMinutes: 90 }, 30, 'd', 'b');
   await assert.rejects(() => p.ensure(() => {}, 60 * 60_000), /maxLifetimeMinutes=90 cannot cover/);
   void home;
+});
+
+test('S06: release accepted by the SDK without confirmed disappearance leaves the existing ledger', async () => {
+  reset();
+  await tmpHome();
+  fake.retainAfterTerminate = true;
+  await writeState(stateFileFor(CFG, 'sid'), state({}));
+  const p = new TencentBuilderProvider(CFG, 30, 'd', 'b');
+  await assert.rejects(() => p.release(), /not confirmed/);
+  assert.deepEqual(fake.calls.terminate, [['ins-OLD']]);
+  assert.equal((await readState(stateFileFor(CFG, 'sid')))?.instanceId, 'ins-OLD');
+});
+
+test('S06: termination errors retain the existing ledger for a retry', async () => {
+  reset();
+  await tmpHome();
+  fake.terminateError = new Error('mock TerminateInstances failed');
+  await writeState(stateFileFor(CFG, 'sid'), state({}));
+  const p = new TencentBuilderProvider(CFG, 30, 'd', 'b');
+  await assert.rejects(() => p.release(), /mock TerminateInstances failed/);
+  assert.equal((await readState(stateFileFor(CFG, 'sid')))?.instanceId, 'ins-OLD');
+});
+
+test('S06: missing/invalid Describe responses and query failures cannot confirm deletion', async () => {
+  const { mkCvmClient } = await import('./tencent-client.js');
+  const { terminateBuilder } = await import('./tencent-termination.js');
+  for (const bad of ['missing', 'invalid', 'throws'] as const) {
+    reset();
+    fake.badDescribe = bad;
+    const client = await mkCvmClient('sid', 'skey', 'r');
+    await assert.rejects(() => terminateBuilder(client, 'ins-OLD', 40), /not confirmed|mock DescribeInstances failed/);
+  }
+});
+
+test('S06: official SDK InstanceState=TERMINATED confirms release of the exact recorded id', async () => {
+  reset();
+  await tmpHome();
+  fake.retainAfterTerminate = true;
+  fake.instances = [{ InstanceId: 'ins-OLD', InstanceState: 'TERMINATED' }];
+  await writeState(stateFileFor(CFG, 'sid'), state({}));
+  await new TencentBuilderProvider(CFG, 30, 'd', 'b').release();
+  assert.deepEqual(fake.calls.terminate, [['ins-OLD']]);
+  assert.equal(await readState(stateFileFor(CFG, 'sid')), null);
+});
+
+test('S06: TERMINATED for another id cannot confirm release of this instance', async () => {
+  reset();
+  fake.retainAfterTerminate = true;
+  fake.instances = [{ InstanceId: 'ins-FOREIGN', InstanceState: 'TERMINATED' }];
+  const { mkCvmClient } = await import('./tencent-client.js');
+  const { terminateBuilder } = await import('./tencent-termination.js');
+  const client = await mkCvmClient('sid', 'skey', 'r');
+  await assert.rejects(() => terminateBuilder(client, 'ins-OLD', 40), /not confirmed/);
+});
+
+test('S06: official SDK InstanceState=LAUNCH_FAILED aborts IP waiting and compensates', async () => {
+  reset();
+  await tmpHome();
+  fake.instances = [{ InstanceId: 'ins-NEW', InstanceState: 'LAUNCH_FAILED' }];
+  await assert.rejects(() => new TencentBuilderProvider(CFG, 30, 'd', 'b').ensure(() => {}), /instance launch failed/);
+  assert.deepEqual(fake.calls.terminate, [['ins-NEW']]);
+  assert.equal(await readState(stateFileFor(CFG, 'sid')), null);
 });

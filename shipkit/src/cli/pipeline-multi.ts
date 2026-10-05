@@ -79,7 +79,7 @@ export async function runMultiBuildPipeline(o: {
   // tarball (literal envFile exclusions, applied by our code) is the ONLY thing
   // uploaded, and its contentDigest covers exactly those bytes; later workspace
   // edits can no longer desync the manifest from the upload
-  const frozen: FrozenSource | null = fromDir ? await freezeSourceDir(fromDir, envFiles) : null;
+  const frozen: FrozenSource | null = fromDir ? await freezeSourceDir(fromDir, envFiles, o.cwd) : null;
   if (frozen) log.info('source frozen', { digest: frozen.contentDigest, files: frozen.files, bytes: frozen.bytes });
   const taskBudgetMs = o.timeoutMs * o.selection.length * 2 + 15 * 60_000;
 

@@ -37,6 +37,24 @@ export interface ServiceActivation {
   onBeforeUp?: () => void;
 }
 
+/** A binding refusal remains a safety stop even if an operator repairs the
+ *  file before recovery catches it. Do not infer identity failures from text. */
+export class ActivationBindingRefusal extends Error {
+  constructor(cause: unknown) {
+    super(cause instanceof Error ? cause.message : String(cause), { cause });
+    this.name = 'ActivationBindingRefusal';
+  }
+}
+
+async function assertActivationOwner(o: ServiceActivation, dir: string, project: string): Promise<void> {
+  await assertOwnedCompose({ dir, project, service: o.service });
+  try {
+    await assertProjectBinding(path.join(o.appsRoot, o.group), o.identity, false, false);
+  } catch (e) {
+    throw new ActivationBindingRefusal(e);
+  }
+}
+
 /** declared external networks / volumes / bind paths of the changed services
  *  must ALL exist before anything is pulled or switched — a missing external
  *  resource preserves the current state instead of failing mid-switch */
@@ -88,8 +106,7 @@ export async function switchService(o: ServiceActivation): Promise<void> {
   // RE-VERIFY ownership AND the (project, env) binding immediately before the
   // mutating step: the pre-flight gate ran before any state was written, but
   // the pull window allows a foreign actor — or a binding edit — to land here
-  await assertOwnedCompose({ dir, project, service: o.service });
-  await assertProjectBinding(path.join(o.appsRoot, o.group), o.identity, false, false);
+  await assertActivationOwner(o, dir, project);
   await writeServiceCompose(dir, renderServiceCompose(o.group, o.service, o.entry.imageRef, o.entry.spec, o.entry.env !== undefined));
   const envFile = path.join(dir, 'runtime.env');
   if (o.entry.env !== undefined) {
@@ -98,6 +115,9 @@ export async function switchService(o: ServiceActivation): Promise<void> {
     await rm(envFile, { force: true });
   }
   await writeFileAtomic(path.join(dir, COMPOSE_ENV_FILE), '');
+  // File writes yield to other actors. Re-check before the actual container
+  // mutation, and record a switched service only after this final gate passes.
+  await assertActivationOwner(o, dir, project);
   o.onBeforeUp?.();
   await compose({ appDir: dir, app: o.service, project, args: ['up', '-d'], log: o.log, env: o.env });
 }

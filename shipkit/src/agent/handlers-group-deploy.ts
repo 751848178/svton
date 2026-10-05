@@ -8,7 +8,7 @@
 // health; the reported recovery result is never inflated.
 
 import path from 'node:path';
-import type { GroupDeployRequest, GroupDeployResult } from '../shared/group-protocol.js';
+import type { GroupDeployRequest, GroupDeployResult, GroupRecoveryResult } from '../shared/group-protocol.js';
 import { validateProjectSpec } from '../shared/spec-v2.js';
 import { withAppLock, withDeploySlot } from './app-lock.js';
 import { ImageLedger } from './image-ledger.js';
@@ -29,7 +29,7 @@ type Log = JobContext['log'];
 export class GroupDeployFailure extends Error {
   constructor(
     message: string,
-    readonly recovery: { attempted: true; succeeded: boolean; target: string | null },
+    readonly recovery: GroupRecoveryResult,
   ) {
     super(message);
   }
@@ -42,7 +42,7 @@ export function describeRecovery(outcome: RecoveryOutcome, switchedCount: number
     if (outcome.probed === 0) return '(restored; no probes passed — verification skipped, not verified)';
     // S04: a probe-less service in the mix keeps the summary PARTIAL — the
     // probed ones passing never upgrades the whole recovery to "verified"
-    return `restored; verification PARTIAL — ${outcome.probed} probe(s) passed, ${outcome.probesSkipped} service(s) have no probe declared (not verified)`;
+    return `restored; verification PARTIAL — ${outcome.probed} probe(s) passed, ${outcome.probesSkipped} service(s) skipped (not verified)`;
   }
   return 'BUT verification failed — inspect the machine';
 }
@@ -90,7 +90,7 @@ export async function runGroupDeploy(appsRoot: string, req: GroupDeployRequest, 
         const outcome = await recoverServices({ appsRoot, group: req.app, identity, previousCombination: current?.services ?? null, changedSoFar: switched, log, env: pullCtx?.env });
         throw new GroupDeployFailure(
           `${reason}; recovery of changed services [${switched.join(', ')}] ${current ? 'to the previous combination ' : '(first deploy: verified removal) '}${outcome.succeeded ? 'succeeded ' + describeRecovery(outcome, switched.length) : `FAILED (${outcome.detail}) — inspect the machine`}`,
-          { attempted: true, succeeded: outcome.succeeded, target: current ? switched.map((s) => current.services[s]?.imageRef ?? '').filter(Boolean).join(', ') || null : null },
+          { attempted: true, ...outcome, target: current ? switched.map((s) => current.services[s]?.imageRef ?? '').filter(Boolean).join(', ') || null : null },
         );
       };
       try {

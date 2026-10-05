@@ -51,6 +51,7 @@ export async function cmdRelease(argv: string[]): Promise<number> {
       cwd: process.cwd(),
       logger: em.log,
       fromDir: args.values['from-dir'],
+      envFile: args.values['env-file'],
       tag: args.values.tag,
       keepBuilder: args.values['keep-builder'],
       timeoutMs,

@@ -5,7 +5,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cleanupAndVerify, snapshotImages, type RunFn, type RunResult } from './test-support/cleanup-verifier.js';
+import { captureCleanupBaseline, cleanupAndVerify, snapshotImages, type RunFn, type RunResult } from './test-support/cleanup-verifier.js';
 
 const ok = (stdout = ''): RunResult => ({ code: 0, stdout, stderr: '' });
 const fail = (stderr: string): RunResult => ({ code: 1, stdout: '', stderr });
@@ -19,8 +19,10 @@ function world(o: {
   dangling?: string[];
   rmiFails?: Record<string, string>;
   breakQuery?: RegExp;
+  calls?: string[];
 }): RunFn {
   return async (cmd: string): Promise<RunResult> => {
+    o.calls?.push(cmd);
     if (o.breakQuery?.test(cmd)) return fail('docker: cannot connect to the daemon');
     const m = /--filter label=com.docker\.compose\.project=(\S+).*--format '\{\{\.Name\}\}'/.exec(cmd);
     if (cmd.startsWith('docker network ls --filter')) {
@@ -123,4 +125,28 @@ test('S05: a leftover NEW image tag (missed by tracking) is caught by the before
   });
   const r = await cleanupAndVerify(run, SCOPE);
   assert.ok(r.problems.some((p) => /new image residue.*UNTRACKED/.test(p)), `delta catches it: ${r.problems.join(' | ')}`);
+});
+
+test('cleanup preserves a tracked tag that already existed before this run', async () => {
+  const calls: string[] = [];
+  const existing = 'shipbuild/api:t1';
+  const scope = { ...SCOPE, imageTags: [existing], beforeImages: [...SCOPE.beforeImages, existing] };
+  const run = world({ calls, images: [...scope.beforeImages], dangling: scope.beforeDangling });
+  const report = await cleanupAndVerify(run, scope);
+  assert.deepEqual(report.problems, []);
+  assert.equal(report.removed.images, 0);
+  assert.ok(!calls.includes(`docker rmi ${existing}`), 'existing tag must never be removed');
+  assert.ok((await snapshotImages(run))?.includes(existing));
+});
+
+test('cleanup cannot claim pre-existing images untouched when one disappeared', async () => {
+  const report = await cleanupAndVerify(world({ images: ['httpd:alpine'], dangling: SCOPE.beforeDangling }), SCOPE);
+  assert.ok(report.problems.some((p) => p.includes('somebody-else:latest') && /pre-existing/.test(p)));
+});
+
+test('cleanup baseline queries must succeed before an e2e can create resources', async () => {
+  for (const breakQuery of [/docker images --format/, /--filter dangling=true/]) {
+    await assert.rejects(captureCleanupBaseline(world({ breakQuery })), /baseline.*query failed/);
+  }
+  assert.deepEqual(await captureCleanupBaseline(world({ images: [], dangling: [] })), { beforeImages: [], beforeDangling: [] });
 });

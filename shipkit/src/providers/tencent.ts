@@ -4,9 +4,8 @@
 // - reuse admission requires room for the FULL task budget; mid-task destruction is impossible
 //   because tasks hold a lease and idle is anchored at task completion
 
-import { randomUUID } from 'node:crypto';
 import type { TencentCvmConfig } from '../shared/types.js';
-import { DEFAULT_AGENT_PORT, startBundleServer, type BundleServer } from './bundle-server.js';
+import { DEFAULT_AGENT_PORT } from './bundle-server.js';
 import type { BuilderHandle, BuilderProvider, BuilderProviderStatus, ProviderLog } from './provider.js';
 import {
   acquireLease,
@@ -17,13 +16,12 @@ import {
   releaseLease,
   stateFileFor,
   withLock,
-  writeState,
 } from './builder-state.js';
-import { agentHealthy, authedBuilderStatus, mkCvmClient, requireCreds, terminateQuietly } from './tencent-client.js';
-import { admissionDecision, verifyActionTimer, waitForPublicIp } from './tencent-lifecycle.js';
+import { agentHealthy, authedBuilderStatus, mkCvmClient, requireCreds } from './tencent-client.js';
+import { admissionDecision } from './tencent-lifecycle.js';
+import { terminateBuilder } from './tencent-termination.js';
 import { EnsureCancelled, provisionBuilder } from './tencent-provision.js';
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const DEFAULT_TASK_BUDGET_MS = 90 * 60_000;
 
 const CANCEL_SETTLE_BUDGET_MS = 8_000;
@@ -69,14 +67,18 @@ export class TencentBuilderProvider implements BuilderProvider {
           );
         }
         const decision = admissionDecision({ state: st, keepMinutes: this.keepMinutes, taskBudgetMs });
-        if (decision.action === 'reuse' && (await agentHealthy(st.url!))) {
-          log('reusing active builder instance', { instanceId: st.instanceId, url: st.url, taskBudgetMin: Math.round(taskBudgetMs / 60_000) });
-          return { url: st.url!, token: st.token };
+        if (decision.action === 'reuse') {
+          const healthy = await agentHealthy(st.url!);
+          guard('reuse-health');
+          if (healthy) {
+            log('reusing active builder instance', { instanceId: st.instanceId, url: st.url, taskBudgetMin: Math.round(taskBudgetMs / 60_000) });
+            return { url: st.url!, token: st.token };
+          }
         }
         if (decision.action === 'reuse') log('builder unreachable — replacing', { instanceId: st.instanceId });
         else log(`replacing builder: ${decision.reason}`, { instanceId: st.instanceId });
         const client = await mkCvmClient(creds.secretId, creds.secretKey, st.region);
-        await terminateQuietly(client, st.instanceId);
+        await terminateBuilder(client, st.instanceId);
         await clearState(file);
       }
         guard('post-admission');
@@ -135,7 +137,7 @@ export class TencentBuilderProvider implements BuilderProvider {
       if (!st) return;
       if (leaseHeldByOther(st)) throw new Error(`builder is BUSY (lease pid ${st.lease?.pid}) — refusing to release a working machine`);
       const client = await mkCvmClient(creds.secretId, creds.secretKey, st.region);
-      await terminateQuietly(client, st.instanceId);
+      await terminateBuilder(client, st.instanceId);
       await clearState(file);
     });
   }

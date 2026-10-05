@@ -9,7 +9,7 @@
 - [done] 修复并回归 R01–R12（修复轮见 [../audits/2026-10-05/multi-service-remediation.md](../audits/2026-10-05/multi-service-remediation.md)）：每项先落仓库内稳定回归再修；R01/R02/R03（恢复与激活全路径归属+绑定复核、恢复后再健康、跳过/通过分报）、R04（命名卷顶层 external）、R05（混合 keep-env+首部署前置拒绝）、R06（新增未选服务计划拒绝）、R07（digest 双侧门槛）、R08（GC v1+v2 fail-closed）、R09（信号有界取消+主动释放，子进程证明）、R10（确定性 contentDigest）、R11（生效平台+archVerified）、R12（e2e 拆分≤200行+精确身份清理+零残留复检）。dependsOn 声明校验与 plan 展示、回滚 --base-release 冲突入口已实现；联动探针与同机多环境并存保留 TODO（见 multi-service.md）。复审（子代理对抗式）判 R10 未关闭（排除语义与 tar 不一致）+7 项 P3，第二轮全部修复（含镜像零残留、keepEnv/回滚固定性/GC 杂物/守卫窗口加固）。收口：pnpm test 392/392、包冒烟通过、真实 Docker e2e 全过且容器/网络/卷/镜像零残留（`/tmp/codex-tool-runs/svton/r-remediation/`）。
 
 2026-10-05 修复后独立复核：重新执行392/392、包冒烟、真实Docker26项通过；R02/R03/R10/R12仍有缺陷，R09准备机器阶段取消存在释放限制。[第二次复核](../audits/2026-10-05/multi-service-remediation-independent-review.md) · [本轮修复提示词](../handoffs/2026-10-05-multi-service-second-remediation.md)。
-- [active] 修复第二次独立复核 S01–S06，再重放原R01–R12；上方done为实现者记录，整体独立验收尚未通过。
+- [done] 第三次独立复核与直接修复（基线 `00f77340`）：环境文件别名/cwd/from-dir/override、恢复及激活异步绑定窗口/停止语义/结构化探针结果、实例 ID 持久化/官方 SDK 销毁确认/过期清理并发账本、清理基线及已有镜像保护均已补稳定反例并修复。全量 442/442、installer 17/17、包冒烟及真实 Docker 通过；前后快照证明零新增残留，17 个已有容器 ID/启动时间、28 个已有卷创建时间及既有镜像/网络均不变。[本轮证据及剩余外部边界](../audits/2026-10-05/multi-service-third-review-and-fixes.md)。本地验收完成；真实 TCR/CVM/TWGG、安装升级及规划 TODO 继续保留。
 
 ## 本轮保存基线（2026-10-04）
 

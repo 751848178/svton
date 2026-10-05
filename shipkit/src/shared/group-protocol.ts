@@ -47,6 +47,20 @@ export interface GroupRollbackRequest {
   baseReleaseId?: string;
 }
 
+export interface GroupRecoveryResult {
+  attempted: true;
+  succeeded: boolean;
+  target: string | null;
+  /** Optional for compatibility with runtimes predating detailed recovery reports. */
+  verification?: 'passed' | 'failed' | 'skipped';
+  cleaned?: string[];
+  pending?: string[];
+  probed?: number;
+  probesFailed?: number;
+  probesSkipped?: number;
+  detail?: string;
+}
+
 export interface GroupDeployResult {
   app: string;
   releaseId: string;
@@ -57,7 +71,7 @@ export interface GroupDeployResult {
   changedRefs: Record<string, string>;
   verification: 'passed' | 'skipped';
   /** reported only when recovery was actually attempted (mirror of DeployResult) */
-  recovery?: { attempted: true; succeeded: boolean; target: string | null };
+  recovery?: GroupRecoveryResult;
 }
 
 /** GET /api/group-state — the read-only planning view of one group */

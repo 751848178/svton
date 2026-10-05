@@ -50,14 +50,24 @@ export async function snapshotImages(run: RunFn): Promise<string[] | null> {
 
 /** dangling (untagged) image IDs — a new dangling ID is this run's residue */
 export async function snapshotDangling(run: RunFn): Promise<string[] | null> {
-  const r = await run(`docker images --filter dangling=true --format '{{.ID}}'`).catch(() => null);
+  const r = await run(`docker images --no-trunc --filter dangling=true --format '{{.ID}}'`).catch(() => null);
   if (!r || r.code !== 0) return null;
   return list(r.stdout);
+}
+
+/** Refuse to start a destructive e2e without both successful baselines. */
+export async function captureCleanupBaseline(run: RunFn): Promise<{ beforeImages: string[]; beforeDangling: string[] }> {
+  const beforeImages = await snapshotImages(run);
+  if (beforeImages === null) throw new Error('cleanup baseline image query failed');
+  const beforeDangling = await snapshotDangling(run);
+  if (beforeDangling === null) throw new Error('cleanup baseline dangling image query failed');
+  return { beforeImages, beforeDangling };
 }
 
 export async function cleanupAndVerify(run: RunFn, scope: CleanupScope): Promise<CleanupReport> {
   const problems: string[] = [];
   const removed = { containers: 0, networks: 0, volumes: 0, images: 0 };
+  const before = new Set(scope.beforeImages);
 
   // containers by exact compose project label
   for (const project of scope.projects) {
@@ -92,6 +102,7 @@ export async function cleanupAndVerify(run: RunFn, scope: CleanupScope): Promise
   // images we BUILT: remove by exact repo:tag. A conflict means the image is
   // still in use/present — that stays a residue, never silently ignored (S05)
   for (const tag of scope.imageTags) {
+    if (before.has(tag)) continue; // tracking a shared tag never grants ownership
     const rm = await run(`docker rmi ${tag}`).catch((e: unknown) => ({ code: 1, stdout: '', stderr: String(e) }));
     if (rm.code === 0) removed.images++;
     else if (!/no such image|No such image/i.test(String(rm.stderr))) problems.push(`image ${tag}: rmi failed (still present?): ${String(rm.stderr).slice(0, 140)}`);
@@ -114,8 +125,9 @@ export async function cleanupAndVerify(run: RunFn, scope: CleanupScope): Promise
   const after = await snapshotImages(run);
   if (!after) problems.push('image list query failed during residue verification');
   else {
-    const before = new Set(scope.beforeImages);
     for (const tag of after) if (!before.has(tag)) problems.push(`new image residue (not present before the run): ${tag}`);
+    const present = new Set(after);
+    for (const tag of before) if (!present.has(tag)) problems.push(`pre-existing image missing after cleanup: ${tag}`);
   }
   // dangling images all render as '<none>:<none>' — diff them by ID
   const afterDangling = await snapshotDangling(run);
@@ -123,6 +135,8 @@ export async function cleanupAndVerify(run: RunFn, scope: CleanupScope): Promise
   else {
     const beforeDangling = new Set(scope.beforeDangling ?? []);
     for (const id of afterDangling) if (!beforeDangling.has(id)) problems.push(`new dangling image residue: ${id}`);
+    const present = new Set(afterDangling);
+    for (const id of beforeDangling) if (!present.has(id)) problems.push(`pre-existing dangling image missing after cleanup: ${id}`);
   }
   return { problems, removed };
 }

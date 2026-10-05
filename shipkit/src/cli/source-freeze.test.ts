@@ -6,15 +6,18 @@
 // freeze (env edits, source edits during capability check / machine prep)
 // cannot change the bytes or the digest that ship in the manifest.
 
-import test from 'node:test';
+import test, { mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { spawn, spawnSync } from 'node:child_process';
+import { link, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { freezeSourceDir, normalizeLiteralPath } from './source-freeze.js';
 import { sourceContentDigest } from './source-digest.js';
+
+// Pipeline seams exercise source uploads, not the user's controller ledger.
+mock.module('./local-state.js', { namedExports: { saveLastBuild: async () => undefined, readLastBuild: async () => null } });
 
 async function tree(extra: Record<string, string> = {}): Promise<string> {
   const dir = await mkdtemp(path.join(tmpdir(), 'ship-sfreeze-'));
@@ -118,6 +121,118 @@ test('S03 (pipeline seam): a source edit during the capability check still ships
   assert.ok(/v1/.test(body.stdout), `uploaded archive carries the frozen source: ${JSON.stringify(body.stdout)} ${body.stderr}`);
 });
 
+test('declared env files exclude their symlink targets and hardlink aliases from the real archive', async (t) => {
+  const dir = await tree({ 'private.txt': 'DECLARED_SECRET=synthetic\n' });
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await symlink('../private.txt', path.join(dir, 'config', 'runtime.env'));
+  await link(path.join(dir, 'private.txt'), path.join(dir, 'copy.txt'));
+  const frozen = await freezeSourceDir(dir, ['config/runtime.env']);
+  t.after(() => frozen.cleanup());
+  const names = tarEntries(frozen.tarball);
+  for (const secret of ['config/runtime.env', 'private.txt', 'copy.txt']) {
+    assert.ok(!names.includes(secret), `secret alias ${secret} entered the source archive`);
+  }
+  assert.ok(names.includes('src/app.js'), 'ordinary source must remain included');
+});
+
+test('env paths through a directory symlink exclude the physical secret, retaining its public sibling', async (t) => {
+  const dir = await tree();
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await mkdir(path.join(dir, 'settings'));
+  await writeFile(path.join(dir, 'settings', 'runtime.env'), 'TOKEN=synthetic\n');
+  await writeFile(path.join(dir, 'settings', 'public.txt'), 'public\n');
+  await symlink('settings', path.join(dir, 'env-alias'));
+  const frozen = await freezeSourceDir(dir, ['env-alias/runtime.env']);
+  t.after(() => frozen.cleanup());
+  const names = tarEntries(frozen.tarball);
+  assert.ok(!names.includes('settings/runtime.env'), 'physical secret behind directory alias must be excluded');
+  assert.ok(names.includes('settings/public.txt'), 'public sibling must not be over-excluded');
+});
+
+test('default secret filenames also exclude their physical file aliases', async (t) => {
+  const dir = await tree({ 'private.txt': 'TOKEN=synthetic\n', 'cert-data.txt': 'PRIVATE_KEY=synthetic\n' });
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await symlink('private.txt', path.join(dir, '.env'));
+  await symlink('cert-data.txt', path.join(dir, 'server.pem'));
+  const frozen = await freezeSourceDir(dir, []);
+  t.after(() => frozen.cleanup());
+  const names = tarEntries(frozen.tarball);
+  for (const secret of ['.env', 'private.txt', 'server.pem', 'cert-data.txt']) {
+    assert.ok(!names.includes(secret), `default secret alias ${secret} entered the archive`);
+  }
+  assert.ok(names.includes('src/app.js'));
+});
+
+test('v1/v2 use cwd-relative env paths when the uploaded source root is a subdirectory', async (t) => {
+  const stub = await startStubBuilder();
+  t.after(() => stub.close());
+  const dir = await tree();
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await mkdir(path.join(dir, 'build'));
+  await writeFile(path.join(dir, 'build', 'runtime.env'), 'TOKEN=synthetic\n');
+  await writeFile(path.join(dir, 'build', 'app.js'), 'public\n');
+  await writeFile(path.join(dir, 'ship.yaml'), 'name: api\nenvFile: build/runtime.env\n');
+  const { runBuildPipeline } = await import('./pipeline.js');
+  const { runMultiBuildPipeline } = await import('./pipeline-multi.js');
+  const options = { config: stub.config, cwd: dir, logger: stub.log, fromDir: 'build', timeoutMs: 5_000 };
+  for (const run of [
+    () => runBuildPipeline(options),
+    () => runMultiBuildPipeline({ ...options, spec: { schemaVersion: 2, name: 'g', services: { api: { envFile: 'build/runtime.env' } } }, selection: ['api'] }),
+  ]) {
+    await run();
+    const list = spawnSync('tar', ['-tzf', '-'], { input: stub.fx.uploadedBytes, encoding: 'utf8' });
+    assert.equal(list.status, 0, list.stderr);
+    assert.ok(!list.stdout.includes('runtime.env'), 'runtime env path must be relative to cwd, not from-dir');
+    assert.ok(list.stdout.includes('app.js'), 'public source must still upload');
+  }
+});
+
+test('v1 runtime env override is excluded as well as the default declared env file', async (t) => {
+  const stub = await startStubBuilder();
+  t.after(() => stub.close());
+  const dir = await tree({ 'default.txt': 'DEFAULT=synthetic\n', 'override.txt': 'OVERRIDE=synthetic\n' });
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await writeFile(path.join(dir, 'ship.yaml'), 'name: api\nenvFile: default.txt\n');
+  const { runBuildPipeline } = await import('./pipeline.js');
+  const options = { config: stub.config, cwd: dir, logger: stub.log, fromDir: '.', timeoutMs: 5_000, envFile: 'override.txt' };
+  await runBuildPipeline(options);
+  const list = spawnSync('tar', ['-tzf', '-'], { input: stub.fx.uploadedBytes, encoding: 'utf8' });
+  assert.equal(list.status, 0, list.stderr);
+  assert.ok(!list.stdout.includes('default.txt'), 'default env must remain excluded');
+  assert.ok(!list.stdout.includes('override.txt'), 'runtime override must never be uploaded');
+});
+
+test('ship release wires --env-file into packing and retains default/keep-env precedence', async (t) => {
+  const stub = await startStubBuilder();
+  t.after(() => stub.close());
+  const dir = await tree({ 'default.txt': 'DEFAULT=synthetic\n', 'override.txt': 'OVERRIDE=synthetic\n' });
+  const controllerHome = await mkdtemp(path.join(tmpdir(), 'ship-sfreeze-controller-'));
+  t.after(() => rm(controllerHome, { recursive: true, force: true }));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await writeFile(path.join(dir, 'ship.yaml'), 'name: api\nenvFile: default.txt\n');
+  await writeFile(path.join(dir, 'ship.config.json'), JSON.stringify(stub.config));
+  for (const [flags, expected] of [
+    [[], 'DEFAULT=synthetic\n'],
+    [['--env-file', 'override.txt'], 'OVERRIDE=synthetic\n'],
+    [['--env-file', 'override.txt', '--keep-env'], 'OVERRIDE=synthetic\n'],
+    [['--keep-env'], undefined],
+  ] as Array<[string[], string | undefined]>) {
+    const code = await new Promise<number | null>((resolve, reject) => {
+      const child = spawn(process.execPath, [new URL('./main.js', import.meta.url).pathname, 'release', '--from-dir', '.', '--json', ...flags], {
+        cwd: dir, env: { ...process.env, HOME: controllerHome }, stdio: 'ignore',
+      });
+      child.on('error', reject);
+      child.on('exit', resolve);
+    });
+    assert.equal(code, 0, `CLI release failed for ${flags.join(' ')}`);
+    assert.equal(stub.fx.deployedEnv, expected, 'runtime env precedence must remain compatible');
+    const list = spawnSync('tar', ['-tzf', '-'], { input: stub.fx.uploadedBytes, encoding: 'utf8' });
+    assert.equal(list.status, 0, list.stderr);
+    assert.ok(!list.stdout.includes('default.txt'));
+    if (flags.includes('--env-file')) assert.ok(!list.stdout.includes('override.txt'), 'CLI env override must stay off the builder');
+  }
+});
+
 // ---- a minimal builder stub with a mid-capability-check hook ----
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -125,11 +240,11 @@ import { createLogger } from '../shared/log.js';
 
 async function startStubBuilder(): Promise<{
   close: () => Promise<void>;
-  fx: { onStatus: null | (() => Promise<void> | void); uploadedBytes: Buffer };
+  fx: { onStatus: null | (() => Promise<void> | void); uploadedBytes: Buffer; deployedEnv: string | undefined };
   config: import('../shared/types.js').ShipConfig;
   log: import('../shared/log.js').Logger;
 }> {
-  const fx = { onStatus: null as null | (() => Promise<void> | void), uploadedBytes: Buffer.alloc(0) };
+  const fx = { onStatus: null as null | (() => Promise<void> | void), uploadedBytes: Buffer.alloc(0), deployedEnv: undefined as string | undefined };
   let builds = 0;
   const server = createServer((req, res) => {
     const chunks: Buffer[] = [];
@@ -137,13 +252,15 @@ async function startStubBuilder(): Promise<{
     req.on('end', async () => {
       const body = Buffer.concat(chunks);
       const json = (status: number, payload: unknown) => { res.writeHead(status, { 'content-type': 'application/json' }); res.end(JSON.stringify(payload)); };
-      if (req.url === '/api/status') { await fx.onStatus?.(); return json(200, { role: 'builder', auth: { role: 'builder', capabilities: ['build', 'push', 'multi-service-v2'] } }); }
+      if (req.url === '/api/status') { await fx.onStatus?.(); return json(200, { role: 'both', auth: { role: 'both', capabilities: ['build', 'push', 'multi-service-v2', 'deployment-identity-v1', 'deployment-env-preserve-v1'] } }); }
       if (req.url === '/api/sources') { fx.uploadedBytes = body; return json(201, { id: '01234567-89ab-cdef-0123-456789abcdef' }); }
       if (req.url === '/api/build') { builds++; return json(202, { jobId: `b${builds}` }); }
       if (req.url === '/api/push') return json(202, { jobId: 'p1' });
+      if (req.url === '/api/deploy') { fx.deployedEnv = (JSON.parse(body.toString()) as { envFileContent?: string }).envFileContent; return json(202, { jobId: 'd1' }); }
       if (req.url?.startsWith('/api/jobs/')) {
         const id = req.url.split('/')[3] ?? '';
         if (id.startsWith('b')) return json(200, { id, status: 'succeeded', result: { name: 'api', tag: 't', arch: 'linux/amd64' } });
+        if (id.startsWith('d')) return json(200, { id, status: 'succeeded', result: { imageRef: 'reg.example/ns/api:t', healthy: true } });
         return json(200, { id, status: 'succeeded', result: { imageRef: 'reg.example/ns/api:t', digest: `sha256:${'a'.repeat(64)}` } });
       }
       json(404, {});

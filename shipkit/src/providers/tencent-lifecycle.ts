@@ -7,6 +7,7 @@ import type {
   DescribeInstancesActionTimerResponse,
 } from 'tencentcloud-sdk-nodejs-cvm/tencentcloud/services/cvm/v20170312/cvm_models.js';
 import type { BuilderState } from './builder-state.js';
+import type { CvmClientLike } from './tencent-client.js';
 
 export interface AdmissionInput {
   state: BuilderState;
@@ -79,10 +80,8 @@ export function sdkTimerEntry(fields: Partial<ActionTimer>): ActionTimer {
   return { TimerAction: 'TerminateInstances', Status: 'UNDO', ...fields };
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
 export async function waitForPublicIp(
-  client: { DescribeInstances(req: Record<string, unknown>): Promise<{ InstanceSet?: Array<{ InstanceStatus?: string; PublicIpAddresses?: string[] }> }> },
+  client: Pick<CvmClientLike, 'DescribeInstances'>,
   instanceId: string,
   log: (msg: string, meta?: Record<string, unknown>) => void,
   signal?: AbortSignal,
@@ -91,13 +90,25 @@ export async function waitForPublicIp(
   for (;;) {
     if (signal?.aborted) throw new Error('provisioning cancelled while waiting for the instance public IP');
     const res = await client.DescribeInstances({ InstanceIds: [instanceId], Limit: 1 });
+    if (signal?.aborted) throw new Error('provisioning cancelled while waiting for the instance public IP');
     const inst = res.InstanceSet?.[0];
     const ip = inst?.PublicIpAddresses?.[0];
     if (ip) return ip;
-    const status = inst?.InstanceStatus ?? 'PENDING';
+    const status = inst?.InstanceState ?? 'PENDING';
     if (status === 'LAUNCH_FAILED') throw new Error('CVM instance launch failed');
     if (Date.now() > deadline) throw new Error('timed out waiting for CVM instance public IP');
     log('waiting for instance', { instanceId, status });
-    await sleep(5000);
+    await sleepOrAbort(5000, signal);
   }
+}
+
+/** Cancellation wakes polling immediately instead of spending its cleanup budget asleep. */
+export async function sleepOrAbort(ms: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) throw new Error('builder provisioning cancelled');
+  await new Promise<void>((resolve, reject) => {
+    const cleanup = () => { clearTimeout(timer); signal?.removeEventListener('abort', abort); };
+    const abort = () => { cleanup(); reject(new Error('builder provisioning cancelled')); };
+    const timer = setTimeout(() => { cleanup(); resolve(); }, ms);
+    signal?.addEventListener('abort', abort, { once: true });
+  });
 }

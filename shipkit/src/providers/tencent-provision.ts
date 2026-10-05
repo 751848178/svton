@@ -9,11 +9,10 @@ import type { TencentCvmConfig } from '../shared/types.js';
 import { DEFAULT_AGENT_PORT, startBundleServer, type BundleServer } from './bundle-server.js';
 import type { BuilderHandle, ProviderLog } from './provider.js';
 import { clearState, writeState } from './builder-state.js';
-import { agentHealthy, mkCvmClient, terminateQuietly } from './tencent-client.js';
-import { verifyActionTimer, waitForPublicIp } from './tencent-lifecycle.js';
+import { agentHealthy, mkCvmClient } from './tencent-client.js';
+import { sleepOrAbort, verifyActionTimer, waitForPublicIp } from './tencent-lifecycle.js';
+import { terminateBuilder } from './tencent-termination.js';
 import { renderCloudInit } from './tencent-userdata.js';
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** provisioning aborted by a user signal: stops at the next checkpoint and
  *  compensates (terminate + clear) exactly like any provisioning failure */
@@ -39,6 +38,7 @@ o: {
 },
 ): Promise<BuilderHandle> {
   const { file, creds, log, taskBudgetMs, signal, cfg } = o;
+  if (signal.aborted) throw new EnsureCancelled();
   const { keepMinutes } = o;
   const client = await mkCvmClient(creds.secretId, creds.secretKey, cfg.region);
   const agentToken = cfg.installToken ?? randomUUID();
@@ -75,6 +75,7 @@ o: {
       installUrl = bundle.installUrl('builder');
     }
     const userData = Buffer.from(renderCloudInit({ installUrl, preInstall: cfg.preInstallScript }), 'utf8').toString('base64');
+    if (signal.aborted) throw new EnsureCancelled();
     log('creating CVM builder instance', { zone: cfg.zone, instanceType: cfg.instanceType, expireAt: expireCloudIso });
     const run = await client.RunInstances({
       Placement: { Zone: cfg.zone },
@@ -97,9 +98,9 @@ o: {
     // discard the id — the catch below terminates what was actually created
     instanceId = run.InstanceIdSet?.[0] ?? null;
     if (!instanceId) throw new Error('RunInstances returned no InstanceIdSet');
-    if (signal.aborted) throw new EnsureCancelled(); // rides the compensation path
     // persist the moment the instance exists — it can never become an untracked charge (F11)
     await writeState(file, { instanceId, region: cfg.region, token: agentToken, status: 'provisioning', createdAt, expireAt });
+    if (signal.aborted) throw new EnsureCancelled(); // compensate only AFTER the id is durable
     // STRICT timer verification: any failure/mismatch is a provisioning failure → compensation (RA07)
     const view = await client.DescribeInstancesActionTimer({ InstanceIds: [instanceId] });
     const verdict = verifyActionTimer(view, instanceId, expireCloudIso);
@@ -116,7 +117,7 @@ o: {
       // inside the release settle budget, not after the 5s sleep
       if (signal.aborted) throw new EnsureCancelled();
       if (Date.now() > deadline) throw new Error(`builder agent not healthy at ${url} within 20 minutes (bootstrap log: /var/log/ship-bootstrap.log)`);
-      await sleep(5000);
+      await sleepOrAbort(5000, signal);
     }
     await writeState(file, { instanceId, region: cfg.region, url, token: agentToken, status: 'ready', createdAt, expireAt });
     return { url, token: agentToken };
@@ -124,7 +125,7 @@ o: {
     if (instanceId) {
       log('provisioning failed — terminating created instance (compensation)', { instanceId });
       try {
-        await terminateQuietly(client, instanceId);
+        await terminateBuilder(client, instanceId);
         await clearState(file);
       } catch (term) {
         throw new Error(
@@ -137,5 +138,3 @@ o: {
     if (bundle) await bundle.stop();
   }
 }
-
-

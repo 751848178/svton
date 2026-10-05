@@ -29,18 +29,20 @@ export async function must(cmd, what) {
  * pull is never counted as residue, then snapshot images (repo:tag) and
  * dangling ids — the post-cleanup delta proves zero NEW residue */
 export async function prepareRunBasics(run, baseImage) {
-  await run(`docker image inspect ${baseImage}`).catch(() => run(`docker pull ${baseImage}`).catch(() => {}));
-  const lines = async (cmd) => {
+  await run(`docker image inspect ${baseImage}`).catch(() => run(`docker pull ${baseImage}`));
+  const { captureCleanupBaseline } = await import(`${ROOT}/dist/cli/test-support/cleanup-verifier.js`);
+  return captureCleanupBaseline(dockerRunner(run));
+}
+
+function dockerRunner(execute) {
+  return async (cmd) => {
     try {
-      const { stdout } = await run(cmd);
-      return String(stdout).split('\n').map((l) => l.trim()).filter(Boolean);
-    } catch {
-      return [];
+      const { stdout, stderr } = await execute(cmd, { timeout: 120_000 });
+      return { code: 0, stdout: String(stdout ?? ''), stderr: String(stderr ?? '') };
+    } catch (err) {
+      return { code: Number.isInteger(err.code) ? err.code : 1, stdout: String(err.stdout ?? ''), stderr: String(err.stderr ?? err.message) };
     }
   };
-  const beforeImages = await lines("docker images --format '{{.Repository}}:{{.Tag}}'");
-  if (!beforeImages.length) console.error('  WARN pre-run image snapshot came back empty — residue verification may false-positive');
-  return { beforeImages, beforeDangling: await lines("docker images --filter dangling=true --format '{{.ID}}'") };
 }
 
 /** tracks every resource this run creates, by exact identity; the image
@@ -142,13 +144,8 @@ export async function cleanupAndVerify(tracker, keep, extraDirs = []) {
     console.log(`keep mode: containers=${tracker.projects.join(',')} networks=${[...tracker.networks].join(',')} volumes=${[...tracker.volumes].join(',')} images=${[...tracker.imageTags].join(',')} dirs=${extraDirs.join(',')}`);
     return;
   }
-  const { cleanupAndVerify: verify, snapshotImages } = await import(`${ROOT}/dist/cli/test-support/cleanup-verifier.js`);
-  const runFn = (cmd) => new Promise((resolve, reject) => {
-    exec(cmd, { timeout: 120_000 }, (err, stdout, stderr) => {
-      if (err && err.code === undefined) reject(err);
-      else resolve({ code: err ? err.code ?? 1 : 0, stdout: String(stdout ?? ''), stderr: String(stderr ?? '') });
-    });
-  });
+  const { cleanupAndVerify: verify } = await import(`${ROOT}/dist/cli/test-support/cleanup-verifier.js`);
+  const runFn = dockerRunner(run);
   const report = await verify(runFn, {
     projects: tracker.projects,
     networks: [...tracker.networks],
@@ -161,7 +158,6 @@ export async function cleanupAndVerify(tracker, keep, extraDirs = []) {
   if (report.problems.length) {
     FAIL(`cleanup residue (${report.problems.length}): ${report.problems.join(' | ')}`);
   } else {
-    const after = await snapshotImages(runFn);
-    OK(`cleanup verified: zero new residue (removed ${report.removed.containers} containers, ${report.removed.networks} networks, ${report.removed.volumes} volumes, ${report.removed.images} images; ${after?.length ?? '?'} pre-existing images untouched)`);
+    OK(`cleanup verified: zero new residue (removed ${report.removed.containers} containers, ${report.removed.networks} networks, ${report.removed.volumes} volumes, ${report.removed.images} images; ${tracker.beforeImages.length} pre-existing images preserved)`);
   }
 }

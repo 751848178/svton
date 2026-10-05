@@ -5,6 +5,7 @@
 
 import { mock } from 'node:test';
 import { appendFileSync } from 'node:fs';
+import type { CvmClientLike } from '../tencent-client.js';
 
 const INSTANCE = 'ins-s06-cancel-1';
 
@@ -14,6 +15,7 @@ function record(entry: Record<string, unknown>): void {
 }
 
 class Client {
+  private terminated = false;
   constructor(cfg: { region: string }) {
     record({ method: 'ctor', region: cfg.region });
   }
@@ -32,13 +34,18 @@ class Client {
     return { ActionTimers: [{ InstanceId: req.InstanceIds[0] ?? INSTANCE, TimerAction: 'TerminateInstances', Status: 'UNDO', ActionTime: at }] };
   }
 
-  async DescribeInstances(req: { InstanceIds: string[] }): Promise<{ InstanceSet: Array<{ InstanceStatus: string; PublicIpAddresses: string[] }> }> {
+  async DescribeInstances(req: { InstanceIds: string[] }): ReturnType<CvmClientLike['DescribeInstances']> {
     record({ method: 'DescribeInstances', ids: req.InstanceIds });
-    return { InstanceSet: [{ InstanceStatus: 'RUNNING', PublicIpAddresses: ['203.0.113.10'] }] };
+    if (this.terminated) return { InstanceSet: [] };
+    const delay = Number(process.env.MOCK_DESCRIBE_DELAY_MS ?? 0);
+    if (delay) await new Promise((r) => setTimeout(r, delay));
+    return { InstanceSet: [{ InstanceId: req.InstanceIds[0], InstanceState: 'RUNNING', PublicIpAddresses: process.env.MOCK_NO_PUBLIC_IP ? [] : ['203.0.113.10'] }] };
   }
 
   async TerminateInstances(req: { InstanceIds: string[] }): Promise<Record<string, never>> {
     record({ method: 'TerminateInstances', ids: req.InstanceIds });
+    if (process.env.MOCK_TERMINATE_FAILURE) throw new Error('mock termination rejected');
+    this.terminated = !process.env.MOCK_TERMINATE_PENDING;
     return {};
   }
 }

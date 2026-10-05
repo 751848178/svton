@@ -17,15 +17,16 @@ import { assertProjectBinding, type BindingRequest } from './project-binding.js'
 import { assertOwnedCompose } from './compose-ownership.js';
 import { serviceDir, serviceProject } from './compose-service.js';
 import { compose } from './docker.js';
-import { switchService, verifyService } from './group-activation.js';
+import { ActivationBindingRefusal, switchService, verifyService } from './group-activation.js';
 
 export interface RecoveryOutcome {
   succeeded: boolean;
-  /** passed = every restored service probed healthy · failed = an action or probe failed · skipped = nothing probed or only part of the services had probes */
+  /** passed = every restored service probed healthy · failed = an action or probe failed · skipped = some restored service could not be verified */
   verification: 'passed' | 'failed' | 'skipped';
   cleaned: string[];
   pending: string[];
   probed: number;
+  probesFailed: number;
   probesSkipped: number;
   detail: string;
 }
@@ -45,25 +46,37 @@ export async function recoverServices(o: {
   const pending: string[] = [];
   let hardFail = false;
   let abortedFor: string | null = null;
+  const verifyBinding = async (service?: string) => {
+    try {
+      await assertProjectBinding(groupDir, o.identity, false, false);
+    } catch (e) {
+      abortedFor = `binding re-check${service ? ` before '${service}'` : ''} refused: ${(e as Error).message}`;
+      throw e;
+    }
+  };
 
   // entry check: with an unverifiable identity there is nothing safe to do —
   // refuse BEFORE any action (per-action re-checks below cover the windows)
   try {
-    await assertProjectBinding(groupDir, o.identity, false, false);
+    await verifyBinding();
   } catch (e) {
     abortedFor = `binding re-check refused: ${(e as Error).message}`;
     for (const service of o.changedSoFar) {
       log(`recovery of ${service} REFUSED — deployment identity no longer verifiable: ${abortedFor}; the machine is left untouched, inspect it manually`);
       pending.push(service);
     }
-    return { succeeded: false, verification: 'failed', cleaned, pending, probed: 0, probesSkipped: 0, detail: abortedFor };
+    return { succeeded: false, verification: 'failed', cleaned, pending, probed: 0, probesFailed: 0, probesSkipped: 0, detail: abortedFor };
   }
 
   for (const service of o.changedSoFar) {
+    if (abortedFor) {
+      pending.push(service);
+      continue;
+    }
     // S02: identity re-verified immediately before EVERY action — a change
     // stops the whole recovery instead of cleaning the next service anyway
     try {
-      await assertProjectBinding(groupDir, o.identity, false, false);
+      await verifyBinding(service);
     } catch (e) {
       abortedFor = `binding re-check before '${service}' refused: ${(e as Error).message}`;
       log(`recovery STOPPED before ${service} — ${abortedFor}; the machine is left as-is, inspect it manually`);
@@ -82,17 +95,26 @@ export async function recoverServices(o: {
         const project = serviceProject(o.group, service);
         log(`no previous release for ${service} — removing what this deploy started (project ${project} only, ownership re-verified)`);
         await assertOwnedCompose({ dir, project, service });
+        // Ownership inspection awaits Docker; identity may change while it runs.
+        await verifyBinding(service);
         await compose({ appDir: dir, app: service, project, args: ['down'], log, env: o.env });
         cleaned.push(service);
       }
     } catch (e) {
       hardFail = true;
+      pending.push(service);
+      if (e instanceof ActivationBindingRefusal) abortedFor = `binding refused during recovery of '${service}': ${e.message}`;
+      // switchService also checks binding internally. If its safety gate failed,
+      // latch the identity refusal before any subsequent recovery action.
+      if (!abortedFor) await verifyBinding(service).catch(() => {});
+      if (abortedFor) log(`recovery STOPPED before ${service} — ${abortedFor}; no further recovery actions will run`);
       log(`recovery of service ${service} FAILED: ${(e as Error).message} — inspect the machine; unselected services were not touched`);
     }
   }
 
   // per-service re-probe of RESTORED services only (R03/S04): skipped stays visible
   let probed = 0;
+  let probesFailed = 0;
   let probesSkipped = 0;
   for (const service of cleaned) {
     const prev = o.previousCombination?.[service];
@@ -104,6 +126,7 @@ export async function recoverServices(o: {
       // a HARD probe failure (docker exec error) must not lose the recovery
       // outcome — it counts as an unverified-failed probe, not a crash
       hardFail = true;
+      probesFailed++;
       log(`recovered service ${service} probe ERRORED: ${(e as Error).message} — treated as failed verification`);
       continue;
     }
@@ -111,11 +134,11 @@ export async function recoverServices(o: {
       probesSkipped++;
       continue;
     }
-    probed++;
     if (!v.ok) {
       hardFail = true;
+      probesFailed++;
       log(`recovered service ${service} is still UNHEALTHY after restore — recovery cannot be reported as successful`);
-    }
+    } else probed++;
   }
   const failed = hardFail || Boolean(abortedFor);
   const verification = failed ? 'failed' : probesSkipped > 0 ? 'skipped' : probed > 0 ? 'passed' : 'skipped';
@@ -123,7 +146,7 @@ export async function recoverServices(o: {
     `cleaned=[${cleaned.join(',') || '-'}]`,
     `abandoned=[${pending.join(',') || '-'}]`,
     abortedFor ? `abort: ${abortedFor}` : null,
-    `probes: ${probed} passed / ${probesSkipped} skipped(no probe declared)`,
+    `probes: ${probed} passed / ${probesFailed} failed / ${probesSkipped} skipped(not verified)`,
   ].filter(Boolean).join('; ');
-  return { succeeded: !failed, verification, cleaned, pending, probed, probesSkipped, detail };
+  return { succeeded: !failed, verification, cleaned, pending, probed, probesFailed, probesSkipped, detail };
 }

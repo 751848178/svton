@@ -6,7 +6,7 @@
 // traffic goes through a corporate proxy — see docs/multi-service.md).
 // Usage: node scripts/e2e-multi-docker.mjs [--keep]   (docker required)
 
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { mkdtemp, writeFile, mkdir, readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -17,7 +17,7 @@ import {
 } from './e2e-multi-docker-lib.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const GROUP = `e2eg${Date.now().toString(36).slice(-5)}`;
+const GROUP = `e2eg${randomUUID().replace(/-/g, '').slice(0, 12)}`;
 const API_PORT = 19101 + (Date.now() % 700);
 const WEB_PORT = API_PORT + 1;
 const NET = `${GROUP}-net`;
@@ -40,7 +40,8 @@ async function main() {
   const workRoot = await mkdtemp(path.join(tmpdir(), `${GROUP}-work-`));
   const home = await mkdtemp(path.join(tmpdir(), `${GROUP}-home-`));
   const proj = await mkdtemp(path.join(tmpdir(), `${GROUP}-proj-`));
-  cleanups.push(workRoot, home, proj);
+  const tgz = path.join(proj, '..', `${GROUP}-src.tgz`);
+  cleanups.push(workRoot, home, proj, tgz);
 
   for (const svc of ['api', 'web']) {
     await mkdir(path.join(proj, svc), { recursive: true });
@@ -48,7 +49,7 @@ async function main() {
       'FROM httpd:alpine AS dev\nWORKDIR /usr/local/apache2/htdocs\nCOPY index.html .\n' +
       'FROM httpd:alpine AS prod\nWORKDIR /usr/local/apache2/htdocs\nCOPY index.html .\nCOPY marker.txt .\nEXPOSE 80\n');
     await writeFile(path.join(proj, svc, 'index.html'), `hello from ${svc} PROD\n`);
-    await writeFile(path.join(proj, svc, 'marker.txt'), `built-with-target=prod service=${svc}\n`);
+    await writeFile(path.join(proj, svc, 'marker.txt'), `built-with-target=prod service=${svc} run=${GROUP}\n`);
   }
   const specYaml = `schemaVersion: 2
 name: ${GROUP}
@@ -91,7 +92,6 @@ services:
   const ship = spawnShip(ROOT, home, proj);
   const deploy = async (services, mark, opts = {}) => {
     const spec = opts.spec ?? baseSpec;
-    const tgz = path.join(proj, '..', `${GROUP}-src.tgz`);
     await run(`tar czf ${tgz} -C ${proj} --exclude ship.config.json .`, { timeout: 60_000 });
     const up = await fetch(`${url}/api/sources`, { method: 'POST', headers: { authorization: 'Bearer t', 'content-type': 'application/gzip' }, body: await readFile(tgz) });
     if (up.status !== 201) throw new Error(`source upload → ${up.status}`);
@@ -127,6 +127,9 @@ services:
   if (r1.result.changedServices.length === 2) OK('R1 full release deployed BOTH services'); else FAIL('R1 changed set wrong');
   await healthy(API_PORT, /^hello from api PROD\n$/);
   await healthy(WEB_PORT, /^hello from web PROD\n$/);
+  const marker = await fetch(`http://127.0.0.1:${API_PORT}/marker.txt`);
+  if (marker.ok && await marker.text() === `built-with-target=prod service=api run=${GROUP}\n`) OK('R1 prod target includes this run\'s marker');
+  else FAIL('R1 prod target marker missing');
   const snap = await containerSnapshot(GROUP);
   if (!snap.api || !snap.web) { FAIL(`R1 containers missing: ${JSON.stringify(snap)}`); return; }
   const webNets = (await run(`docker inspect --format '{{json .NetworkSettings.Networks}}' ${snap.web.id}`)).stdout;

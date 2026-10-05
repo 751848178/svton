@@ -124,7 +124,7 @@ export async function runGroupRollback(appsRoot: string, req: GroupRollbackReque
         const outcome = await recoverServices({ appsRoot, group: req.app, identity, previousCombination: current.services, changedSoFar: switched, log, env: pullCtx?.env });
         throw new GroupDeployFailure(
           `rollback of [${services.join(', ')}] failed: ${(e as Error).message}; recovery to the pre-rollback combination ${outcome.succeeded ? 'succeeded ' + describeRecovery(outcome, switched.length) : `FAILED (${outcome.detail}) — inspect the machine`}`,
-          { attempted: true, succeeded: outcome.succeeded, target: switched.map((s) => current.services[s]?.imageRef ?? '').filter(Boolean).join(', ') || null },
+          { attempted: true, ...outcome, target: switched.map((s) => current.services[s]?.imageRef ?? '').filter(Boolean).join(', ') || null },
         );
       }
     } finally {

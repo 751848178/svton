@@ -5,8 +5,8 @@
 import test from 'node:test';
 import { mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { existsSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -18,6 +18,7 @@ const FX = {
   onPull: null as null | (() => Promise<void> | void),
   onUpFail: null as null | (() => Promise<void> | void),
   onDown: null as null | (() => Promise<void> | void),
+  onOwnership: null as null | (() => Promise<void> | void),
 };
 mock.module('../shared/exec.js', {
   namedExports: {
@@ -45,6 +46,7 @@ mock.module('../shared/exec.js', {
         return ok('');
       }
       if (args[0] === 'ps' && args.includes('--filter')) {
+        if (FX.onOwnership) await FX.onOwnership();
         const project = args.find((a) => a.startsWith('label=com.docker.compose.project='))?.split('=')[2];
         return ok(FX.containers.filter((c) => c.project === project).map((c) => c.id).join('\n') + '\n');
       }
@@ -70,8 +72,11 @@ mock.module('./healthcheck.js', {
   },
 });
 
-const { runGroupDeploy, GroupDeployFailure } = await import('./handlers-group-deploy.js');
+const { runGroupDeploy, GroupDeployFailure, describeRecovery } = await import('./handlers-group-deploy.js');
 const { GroupStore } = await import('./group-store.js');
+const { recoverServices } = await import('./group-recovery.js');
+const { JobStore } = await import('./jobs.js');
+const { recoveryExitCode } = await import('../cli/job-report.js');
 
 const log = (..._l: unknown[]) => undefined;
 const digest = (s: string) => `reg/ns/${s}@sha256:${s.repeat(64).slice(0, 64)}`;
@@ -91,7 +96,81 @@ const ups = () => FX.compose.filter((c) => c.args.includes('up'));
 const downs = () => FX.compose.filter((c) => c.args.includes('down'));
 const catchFailure = (p: Promise<unknown>) => p.then(() => { throw new Error('expected failure'); }, (e: unknown) => e as InstanceType<typeof GroupDeployFailure>);
 
-test.beforeEach(() => { FX.containers = []; FX.compose = []; FX.failUpFor = null; FX.onPull = null; FX.onUpFail = null; FX.onDown = null; FXH.healthy = true; FXH.urls = []; });
+test.beforeEach(() => { FX.containers = []; FX.compose = []; FX.failUpFor = null; FX.onPull = null; FX.onUpFail = null; FX.onDown = null; FX.onOwnership = null; FXH.healthy = true; FXH.urls = []; });
+
+async function bindingFor(appsRoot: string) {
+  const groupDir = path.join(appsRoot, 'twgg');
+  await mkdir(groupDir, { recursive: true });
+  const identity = { app: 'twgg', project: 'proj-x', env: 'prod' };
+  const file = path.join(groupDir, 'project.json');
+  await writeFile(file, JSON.stringify(identity));
+  return { identity, file };
+}
+
+for (const change of ['foreign', 'missing', 'corrupt'] as const) {
+  test(`S02: ${change} binding during ownership inspection refuses the first-deploy down`, async (t) => {
+    const { appsRoot, cleanup } = await root();
+    t.after(cleanup);
+    const { identity, file } = await bindingFor(appsRoot);
+    FX.onOwnership = async () => {
+      if (change === 'missing') await rm(file);
+      else await writeFile(file, change === 'corrupt' ? '{broken' : JSON.stringify({ ...identity, project: 'other' }));
+    };
+    const outcome = await recoverServices({ appsRoot, group: 'twgg', identity, previousCombination: null, changedSoFar: ['backend'], log });
+    assert.equal(downs().length, 0, 'ownership inspection is an async window; binding must be checked again before down');
+    assert.equal(outcome.succeeded, false);
+    assert.deepEqual(outcome.pending, ['backend']);
+  });
+}
+
+test('S02: a binding refusal latches the stop even if the original binding is restored later', async (t) => {
+  const { appsRoot, cleanup } = await root();
+  t.after(cleanup);
+  const { identity, file } = await bindingFor(appsRoot);
+  FX.onDown = async () => { await writeFile(file, JSON.stringify({ ...identity, project: 'other' })); };
+  const outcome = await recoverServices({
+    appsRoot, group: 'twgg', identity, previousCombination: null, changedSoFar: ['backend', 'admin', 'mobile'],
+    log: (line) => { if (line.includes('STOPPED before admin')) writeFileSync(file, JSON.stringify(identity)); },
+  });
+  assert.deepEqual(downs().map((d) => d.project), ['ship_twgg_backend']);
+  assert.deepEqual(outcome.cleaned, ['backend']);
+  assert.deepEqual(outcome.pending, ['admin', 'mobile']);
+  assert.equal(outcome.succeeded, false);
+});
+
+test('S04: an unhealthy recovery probe is never counted or described as passed', async (t) => {
+  const { appsRoot, cleanup } = await root();
+  t.after(cleanup);
+  const { identity } = await bindingFor(appsRoot);
+  FXH.healthy = false;
+  const outcome = await recoverServices({
+    appsRoot, group: 'twgg', identity, changedSoFar: ['admin'], log,
+    previousCombination: { admin: { imageRef: digest('a1'), spec: SPEC.services.admin!, hasEnv: false } },
+  });
+  assert.equal(outcome.succeeded, false);
+  assert.equal(outcome.verification, 'failed');
+  assert.equal(outcome.probed, 0, 'probed count used as passed count in reports must contain only successful probes');
+  assert.match(outcome.detail, /0 passed \/ 1 failed/);
+});
+
+test('S04: an unresolved declared probe remains skipped without claiming the declaration is absent', async (t) => {
+  const { appsRoot, cleanup } = await root();
+  t.after(cleanup);
+  const { identity } = await bindingFor(appsRoot);
+  const outcome = await recoverServices({
+    appsRoot, group: 'twgg', identity, changedSoFar: ['backend', 'admin'], log,
+    previousCombination: {
+      backend: { imageRef: digest('b1'), spec: SPEC.services.admin!, hasEnv: false },
+      admin: { imageRef: digest('a1'), spec: { ports: ['8080'], healthcheck: { path: '/healthz' } }, hasEnv: false },
+    },
+  });
+  assert.equal(outcome.succeeded, true);
+  assert.equal(outcome.verification, 'skipped');
+  assert.equal(outcome.probed, 1);
+  assert.equal(outcome.probesSkipped, 1);
+  assert.match(describeRecovery(outcome, 2), /1 service\(s\) skipped \(not verified\)/);
+  assert.doesNotMatch(describeRecovery(outcome, 2), /no probe declared|re-verified healthy/);
+});
 
 test('R01: first-deploy up failure NEVER downs a foreign same-named project — ownership re-verified, recovery honestly failed', async (t) => {
   const { appsRoot, cleanup } = await root();
@@ -107,6 +186,7 @@ test('R01: first-deploy up failure NEVER downs a foreign same-named project — 
   assert.equal(downs().length, 0, 'no compose down ever ran — the foreign project was not touched');
   assert.match(err.message, /ship_twgg_backend.*up -d failed/, 'our own backend up ran and failed (injected) before recovery refused');
   assert.equal(err.recovery.succeeded, false, 'recovery is NOT reported as successful');
+  assert.deepEqual(err.recovery.pending, ['backend'], 'failed ownership leaves the service pending, not silently absent from the scope');
   assert.match(err.message, /FAILED.*inspect the machine/i, `honest failure text: ${err.message}`);
 });
 
@@ -143,6 +223,10 @@ test('R03: a restored service that is STILL unhealthy reports recovery FAILED, n
   const err = await catchFailure(runGroupDeploy(appsRoot, req({ admin: { imageRef: digest('a2') } }), log));
   assert.ok(err instanceof GroupDeployFailure, String(err));
   assert.equal(err.recovery.succeeded, false, 'recovery restored the image but the service is unhealthy — not a success');
+  assert.equal(err.recovery.verification, 'failed');
+  assert.equal(err.recovery.probed, 0);
+  assert.equal(err.recovery.probesFailed, 1);
+  assert.equal(recoveryExitCode('deploy', err.recovery), 6);
   assert.match(err.message, /verification failed|UNHEALTHY|FAILED/i, `message reflects reality: ${err.message}`);
   // the restore DID happen (recovery up with the previous image) before being judged unhealthy
   const restored = ups().map((u) => u.composeImage);
@@ -204,8 +288,24 @@ test('S04: mixed probes never report overall re-verified — one probed + one pr
   assert.ok(err instanceof GroupDeployFailure, String(err));
   assert.match(err.message, /state commit failed/, `injected at commit time: ${err.message}`);
   assert.equal(err.recovery.succeeded, true, 'restore actions + the one declared probe all fine');
-  assert.match(err.message, /verification PARTIAL — 1 probe\(s\) passed, 1 service\(s\) have no probe declared/, `summary keeps the skipped service visible: ${err.message}`);
+  assert.equal(err.recovery.verification, 'skipped');
+  assert.equal(err.recovery.probesSkipped, 1);
+  assert.equal(recoveryExitCode('deploy', err.recovery), 5, 'restore succeeds while verification explicitly remains partial');
+  assert.match(err.message, /verification PARTIAL — 1 probe\(s\) passed, 1 service\(s\) skipped/, `summary keeps the skipped service visible: ${err.message}`);
   assert.ok(!/re-verified healthy/.test(err.message), 'never claims overall re-verified with a probe-less service in the mix');
+  // The actual JobStore transport persists Error.recovery into job.result.
+  // Verify its JSON survives a restart instead of testing only an Error field.
+  const workRoot = path.join(path.dirname(appsRoot), 'work');
+  const jobs = new JobStore(workRoot);
+  const job = jobs.create('deploy', async () => { throw err; });
+  const deadline = Date.now() + 2000;
+  while (jobs.activeCount() && Date.now() < deadline) await new Promise((r) => setTimeout(r, 5));
+  assert.equal(jobs.activeCount(), 0, 'failed job is persisted within the test deadline');
+  const restarted = new JobStore(workRoot);
+  await restarted.loadPersisted();
+  const saved = restarted.get(job.id);
+  assert.equal(saved?.status, 'failed');
+  assert.deepEqual(saved?.result, { recovery: err.recovery }, 'API JSON preserves the partial verification and exact recovery scope');
 });
 
 test('R03 (rollback): a rollback failure whose recovery re-check fails is not reported successful', async (t) => {
@@ -228,6 +328,8 @@ test('R03 (rollback): a rollback failure whose recovery re-check fails is not re
   const err = await catchFailure(runGroupRollback(appsRoot, { app: 'twgg', project: 'proj-x', env: 'prod' }, log));
   assert.ok(err instanceof GroupDeployFailure, String(err));
   assert.equal(err.recovery.succeeded, false, 'recovery re-check failed (backend restored but still unhealthy) — honest failure');
+  assert.equal(err.recovery.verification, 'failed');
+  assert.equal(err.recovery.probesFailed, 1);
   const store = new GroupStore(appsRoot);
   const state = await store.loadState('twgg');
   const cur = await store.loadRelease('twgg', state.current ?? '');
