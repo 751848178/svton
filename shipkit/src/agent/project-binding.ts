@@ -23,8 +23,12 @@ export interface BindingRequest {
   env: string;
 }
 
+/** A safety refusal stays latched even if an operator repairs the file before
+ * the failed operation enters recovery. */
+export class ProjectBindingRefusal extends Error {}
+
 function refuse(message: string): never {
-  throw new Error(`拒绝执行：${message}`);
+  throw new ProjectBindingRefusal(`拒绝执行：${message}`);
 }
 
 /** any evidence that this app name was already deployed here (legacy apps
@@ -60,6 +64,19 @@ export async function inspectProjectBinding(appDir: string): Promise<BindingRequ
     refuse(`项目绑定 ${path.join(appDir, 'project.json')} 结构非法（需 {app,project,env}）— 原文件已保留，请人工检查`);
   }
   return { app: parsed.app, project: parsed.project as string, env: parsed.env as string };
+}
+
+/** Planning may read a genuinely fresh name without claiming it. Missing
+ * ownership on any existing deployment evidence must refuse before a builder
+ * is prepared; it must not expose a foreign combination as an unclaimed app. */
+export async function assertProjectBindingForRead(appDir: string, req: BindingRequest): Promise<void> {
+  if (await inspectProjectBinding(appDir)) {
+    await assertProjectBinding(appDir, req, false, false);
+    return;
+  }
+  if ((await deploymentEvidence(appDir)).length > 0) {
+    refuse(`应用 '${req.app}' 已有部署证据但缺少项目绑定 — 请核对原项目与环境后显式迁移绑定；只读规划不会自动认领`);
+  }
 }
 
 export async function assertProjectBinding(appDir: string, req: BindingRequest, hasContainers = false, allowClaim = true): Promise<void> {

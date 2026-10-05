@@ -9,6 +9,7 @@ import { createEmitter } from './output.js';
 import { minutesArg, runBuildPipeline } from './pipeline.js';
 import { parseServicesArg, resolveSelection } from './service-selection.js';
 import { runMultiBuildPipeline } from './pipeline-multi.js';
+import { CliError } from './errors.js';
 
 export async function cmdBuild(argv: string[]): Promise<number> {
   const args = parseArgs({
@@ -36,6 +37,7 @@ export async function cmdBuild(argv: string[]): Promise<number> {
       cwd: process.cwd(),
       logger: em.log,
       fromDir: args.values['from-dir'],
+      tag: args.values.tag,
       keepBuilder: args.values['keep-builder'],
       spec,
       selection,
@@ -51,6 +53,9 @@ export async function cmdBuild(argv: string[]): Promise<number> {
     return 0;
   }
 
+  if (args.values.services !== undefined) {
+    throw new CliError('--services requires a multi-service ship.yaml (schemaVersion: 2) — this project is a v1 single-app spec');
+  }
   const out = await runBuildPipeline({
     config: loadConfig(args.values.config),
     cwd: process.cwd(),

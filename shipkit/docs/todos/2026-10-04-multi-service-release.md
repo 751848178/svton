@@ -10,6 +10,7 @@
 
 2026-10-05 修复后独立复核：重新执行392/392、包冒烟、真实Docker26项通过；R02/R03/R10/R12仍有缺陷，R09准备机器阶段取消存在释放限制。[第二次复核](../audits/2026-10-05/multi-service-remediation-independent-review.md) · [本轮修复提示词](../handoffs/2026-10-05-multi-service-second-remediation.md)。
 - [done] 第三次独立复核与直接修复（基线 `00f77340`）：环境文件别名/cwd/from-dir/override、恢复及激活异步绑定窗口/停止语义/结构化探针结果、实例 ID 持久化/官方 SDK 销毁确认/过期清理并发账本、清理基线及已有镜像保护均已补稳定反例并修复。全量 442/442、installer 17/17、包冒烟及真实 Docker 通过；前后快照证明零新增残留，17 个已有容器 ID/启动时间、28 个已有卷创建时间及既有镜像/网络均不变。[本轮证据及剩余外部边界](../audits/2026-10-05/multi-service-third-review-and-fixes.md)。本地验收完成；真实 TCR/CVM/TWGG、安装升级及规划 TODO 继续保留。
+- [done] 第四次完整独立复核（基线 `33a0d44d`，路线 specialized）：14 类确认缺陷已直接修复；最新全量 498+4、installer 17/17，当前包外 215 文件身份一致+50 项回归，真实 Docker 发布/恢复/回滚/卷保留及全资源零差分通过。证据见 `docs/audits/2026-10-05/multi-service-fourth-full-review.md`；TCP 协议未改，其他 569 项改动状态保留。真实 TCR/CVM/TWGG、已安装 CLI 升级、联动探针与同机多环境边界保留。
 
 ## 本轮保存基线（2026-10-04）
 

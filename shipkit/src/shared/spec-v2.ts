@@ -172,7 +172,7 @@ export function validateProjectSpec(input: unknown): ProjectSpec {
   for (const [svcName, svc] of Object.entries(services)) {
     for (const dep of svc.dependsOn ?? []) {
       if (dep === svcName) throw new SpecError('a service cannot depend on itself', `services.${svcName}.dependsOn`);
-      if (!(dep in services)) throw new SpecError(`unknown service '${dep}' (declared services: ${Object.keys(services).join(', ')})`, `services.${svcName}.dependsOn`);
+      if (!Object.hasOwn(services, dep)) throw new SpecError(`unknown service '${dep}' (declared services: ${Object.keys(services).join(', ')})`, `services.${svcName}.dependsOn`);
     }
   }
   return { schemaVersion: 2, name, services };

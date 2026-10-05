@@ -14,7 +14,7 @@ import { resolveProjectId } from './project-id.js';
 import { parseServicesArg, resolveSelection } from './service-selection.js';
 import { buildReleasePlan, fetchGroupState } from './release-plan.js';
 import { runMultiBuildPipeline } from './pipeline-multi.js';
-import { runGroupDeployPipeline } from './pipeline-group-deploy.js';
+import { readServiceEnvFiles, runGroupDeployPipeline } from './pipeline-group-deploy.js';
 import { CliError } from './errors.js';
 
 export async function cmdRelease(argv: string[]): Promise<number> {
@@ -94,12 +94,16 @@ export async function cmdRelease(argv: string[]): Promise<number> {
     return 0;
   }
   if (args.values['env-file']) throw new CliError('--env-file is v1-only; v2 services declare envFile per service in ship.yaml');
+  // Validate/read private runtime input before leasing a builder, and deliver
+  // this snapshot even if the working tree changes while the build runs.
+  const envFiles = readServiceEnvFiles(process.cwd(), spec, selection, Boolean(args.values['keep-env']));
 
   const manifest = await runMultiBuildPipeline({
     config,
     cwd: process.cwd(),
     logger: em.log,
     fromDir: args.values['from-dir'],
+    tag: args.values.tag,
     keepBuilder: args.values['keep-builder'],
     spec,
     selection,
@@ -113,6 +117,7 @@ export async function cmdRelease(argv: string[]): Promise<number> {
     project,
     manifest,
     keepEnv: args.values['keep-env'],
+    envFiles,
     targetName: args.values.to,
     timeoutMs,
   });

@@ -11,7 +11,7 @@ import type { GroupDeployResult, GroupRollbackRequest } from '../shared/group-pr
 import { withAppLock, withDeploySlot } from './app-lock.js';
 import { ImageLedger } from './image-ledger.js';
 import { ledgerFileFor } from './gc.js';
-import { assertProjectBinding } from './project-binding.js';
+import { assertProjectBinding, ProjectBindingRefusal } from './project-binding.js';
 import { assertOwnedCompose } from './compose-ownership.js';
 import { serviceProject } from './compose-service.js';
 import { pullAuthCtx } from './docker.js';
@@ -113,7 +113,8 @@ export async function runGroupRollback(appsRoot: string, req: GroupRollbackReque
           if (!v.ok) throw new Error(`health check failed for restored service '${name}'`);
           if (v.skipped) skipped = true;
         }
-        const { cleanupError } = await store.shift(req.app, release.id, 'rollback');
+        const { cleanupError } = await store.shift(req.app, release.id, 'rollback',
+          () => assertProjectBinding(appDir, identity, false, false));
         if (cleanupError) log(`release snapshot cleanup failed after successful state commit: ${cleanupError}`);
         return {
           app: req.app, releaseId: release.id, previousReleaseId: state.current,
@@ -121,7 +122,8 @@ export async function runGroupRollback(appsRoot: string, req: GroupRollbackReque
           changedRefs, verification: skipped ? ('skipped' as const) : ('passed' as const),
         };
       } catch (e) {
-        const outcome = await recoverServices({ appsRoot, group: req.app, identity, previousCombination: current.services, changedSoFar: switched, log, env: pullCtx?.env });
+        const outcome = await recoverServices({ appsRoot, group: req.app, identity, previousCombination: current.services, changedSoFar: switched, log, env: pullCtx?.env,
+          bindingRefusal: e instanceof ProjectBindingRefusal ? e.message : undefined });
         throw new GroupDeployFailure(
           `rollback of [${services.join(', ')}] failed: ${(e as Error).message}; recovery to the pre-rollback combination ${outcome.succeeded ? 'succeeded ' + describeRecovery(outcome, switched.length) : `FAILED (${outcome.detail}) — inspect the machine`}`,
           { attempted: true, ...outcome, target: switched.map((s) => current.services[s]?.imageRef ?? '').filter(Boolean).join(', ') || null },

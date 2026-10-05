@@ -79,14 +79,14 @@ export function buildReleasePlan(o: {
     }
     // a SELECTED service with no committed entry has nothing to keep — refuse
     // before the build instead of failing at the runtime merge afterwards
-    const unkeepable = o.selection.filter((name) => !(name in o.state.services));
+    const unkeepable = o.selection.filter((name) => !Object.hasOwn(o.state.services, name));
     if (unkeepable.length > 0) {
       throw new Error(`--keep-env selects service(s) ${unkeepable.join(', ')} with no committed combination — a service's first release must ship its env file (or declare none)`);
     }
   }
   // R06: a declared service that is neither selected nor inheritable would be
   // refused by the runtime merge AFTER an expensive build — refuse it here first
-  const notInheritable = Object.keys(o.spec.services).filter((name) => !o.selection.includes(name) && !(name in o.state.services));
+  const notInheritable = Object.keys(o.spec.services).filter((name) => !o.selection.includes(name) && !Object.hasOwn(o.state.services, name));
   if (notInheritable.length > 0) {
     throw new Error(
       `service(s) ${notInheritable.join(', ')} are declared but neither selected nor present in the committed combination — ` +
@@ -124,7 +124,7 @@ export function buildReleasePlan(o: {
         action: 'inherit',
         imageRef: current.imageRef,
         hasEnv: current.hasEnv,
-        platform,
+        platform: svc.platform ?? platform,
         ...(svc.networks ? { networks: svc.networks } : {}),
         ...(svc.volumes ? { volumes: svc.volumes } : {}),
       };

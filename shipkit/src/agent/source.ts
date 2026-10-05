@@ -64,13 +64,26 @@ export async function ensureSource(
   }
 
   const repo = source.repo;
-  if (!/^https?:\/\//.test(repo)) throw new Error(`git repo must be an http(s) URL, got: ${repo}`);
+  const secrets = source.token ? [source.token, encodeURIComponent(source.token)] : [];
+  const redact = (line: string) => secrets.reduce((text, secret) => text.split(secret).join('***'), REDACT(line));
+  const rawLog = log;
+  log = (line) => rawLog(redact(line));
+  if (!/^https?:\/\//.test(repo)) throw new Error(redact(`git repo must be an http(s) URL, got: ${repo}`));
+  const cleanUrl = new URL(repo);
+  const embeddedAuth = !!(cleanUrl.username || cleanUrl.password);
+  if (cleanUrl.password) {
+    secrets.push(cleanUrl.password);
+    try { secrets.push(decodeURIComponent(cleanUrl.password)); } catch { /* already covered literally */ }
+  }
+  cleanUrl.username = ''; cleanUrl.password = '';
+  const cleanRepo = cleanUrl.toString();
   const ref = source.ref ?? 'HEAD';
   const key = createHash('sha1').update(`${repo}#${ref}`).digest('hex').slice(0, 12);
   const dir = path.join(sourcesRoot, `git-${key}`);
 
   if (existsSync(path.join(dir, '.git'))) {
     log(`fetching updates in existing clone of ${repo}`);
+    if (source.token || embeddedAuth) await git(log, ['-C', dir, 'remote', 'set-url', 'origin', cleanRepo], 60_000);
     // auth URL passed per-invocation and never persisted in .git/config (F23)
     await git(log, [
       '-C', dir, 'fetch', '--tags', '--force', authUrl(repo, source.token),
@@ -80,11 +93,11 @@ export async function ensureSource(
     log(`cloning ${repo} (ref ${ref})`);
     try {
       await git(log, ['clone', authUrl(repo, source.token), dir], 30 * 60_000);
+      if (source.token || embeddedAuth) await git(log, ['-C', dir, 'remote', 'set-url', 'origin', cleanRepo], 60_000);
     } catch (e) {
       await rm(dir, { recursive: true, force: true });
       throw e;
     }
-    if (source.token) await git(log, ['-C', dir, 'remote', 'set-url', 'origin', repo], 60_000);
   }
 
   let target: string;

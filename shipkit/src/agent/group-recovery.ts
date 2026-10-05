@@ -39,6 +39,8 @@ export async function recoverServices(o: {
   changedSoFar: string[];
   log: (line: string) => void;
   env?: Record<string, string>;
+  /** A prior identity refusal cannot be cleared by a later repair mid-task. */
+  bindingRefusal?: string;
 }): Promise<RecoveryOutcome> {
   const log = o.log;
   const groupDir = path.join(o.appsRoot, o.group);
@@ -48,6 +50,7 @@ export async function recoverServices(o: {
   let abortedFor: string | null = null;
   const verifyBinding = async (service?: string) => {
     try {
+      if (o.bindingRefusal) throw new Error(o.bindingRefusal);
       await assertProjectBinding(groupDir, o.identity, false, false);
     } catch (e) {
       abortedFor = `binding re-check${service ? ` before '${service}'` : ''} refused: ${(e as Error).message}`;

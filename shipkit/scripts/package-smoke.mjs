@@ -1,6 +1,4 @@
-// Isolated-package smoke (M2 remediation, delivery step 4): install the packed
-// shipkit-<version>.tgz into a temp prefix OUTSIDE the repository (no symlink to
-// the repo) and prove the key M2 fixes hold inside the installed package:
+// Isolated package smoke: verify the current artifact OUTSIDE the repository.
 //   cross-process pairing · role gates (M2-03) · status auth (M2-04) ·
 //   tokenRef doctor chain (M2-05/M2-10) · raw source upload (LEGACY-02).
 // No Docker mutations, no cloud, no publication.
@@ -12,6 +10,7 @@ import { promisify } from 'node:util';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
+import { prepareSmokeArtifact, assertInstalledArtifact } from './package-smoke-artifact.mjs';
 
 const exec = promisify(run);
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -29,6 +28,7 @@ function check(cond, name, detail = '') {
 }
 
 try {
+  await prepareSmokeArtifact(REPO);
   // 1. offline-ish isolated install (deps resolved from the npm cache when possible)
   try {
     await exec('npm', ['install', '--prefix', prefix, '--omit=dev', '--no-audit', '--no-fund', '--offline', TARBALL], { timeout: 180_000 });
@@ -40,6 +40,8 @@ try {
   const pkgRoot = path.join(prefix, 'node_modules', 'shipkit');
   check(await stat(path.join(pkgRoot, 'dist', 'agent', 'server.js')).then(() => true, () => false), 'installed package layout present');
   check(!path.resolve(pkgRoot).startsWith(REPO + path.sep) || false === pkgRoot.startsWith(REPO), 'prefix is outside the repository');
+  const verifiedFiles = await assertInstalledArtifact(REPO, pkgRoot);
+  check(verifiedFiles > 0, `installed artifact matches current compiled source (${verifiedFiles} files)`);
 
   await mkdir(path.join(home, '.ship'), { recursive: true });
   await mkdir(project, { recursive: true });

@@ -6,6 +6,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { loadSpecAt } from '../shared/spec-load.js';
 import { gitHeadSha, gitRemote } from '../shared/git.js';
+import { publicGitRepoUrl } from '../shared/git-url.js';
 import { exec } from '../shared/exec.js';
 import { api, apiUpload, fetchLogTail, waitForJob } from '../shared/http.js';
 import type { Logger } from '../shared/log.js';
@@ -29,7 +30,7 @@ export async function resolveGitSource(cwd: string, config: ShipConfig, log: Log
   const repo = config.source?.repo ?? (await gitRemote(cwd));
   if (!repo) throw new CliError('no git origin remote and no config.source.repo — run inside the project repo or set source.repo');
   const ref = config.source?.ref ?? (await gitHeadSha(cwd)) ?? 'HEAD';
-  log.info('build source', { repo, ref, auth: config.source?.token ? 'token' : 'none' });
+  log.info('build source', { repo: publicGitRepoUrl(repo), ref, auth: config.source?.token ? 'token' : 'none' });
   return { type: 'git', repo, ref, token: config.source?.token };
 }
 
@@ -47,6 +48,12 @@ export async function uploadFrozenSource(handle: BuilderHandle, frozen: FrozenSo
 /** deployments bind to the pushed digest so mutable tags can never resolve to a stale image (F16) */
 export function digestRef(imageRef: string, digest?: string): string {
   if (!digest) return imageRef;
+  const at = imageRef.indexOf('@');
+  if (at !== -1) {
+    const existing = imageRef.slice(at + 1);
+    if (existing !== digest) throw new CliError(`ref digest ${existing} disagrees with the reported digest ${digest}`);
+    return imageRef;
+  }
   const base = imageRef.replace(/:[^/:]+$/, '');
   return `${base}@${digest}`;
 }

@@ -8,7 +8,7 @@ import { validEnvironmentIdentity, validProjectIdentity } from '../shared/deploy
 import type { GroupDeployRequest, GroupRollbackRequest } from '../shared/group-protocol.js';
 import { HttpFail } from './http-fail.js';
 import { GroupStore } from './group-store.js';
-import { assertProjectBinding, inspectProjectBinding } from './project-binding.js';
+import { assertProjectBindingForRead } from './project-binding.js';
 import { runGroupDeploy } from './handlers-group-deploy.js';
 import { runGroupRollback } from './handlers-group-rollback.js';
 import { requireDocker } from './route-guards.js';
@@ -90,9 +90,7 @@ export function groupRoutes(d: RouteDeps): Route[] {
       // read-only: an EXISTING binding must match exactly (verified without
       // claiming); an unclaimed name reports a fresh empty state — planning
       // must never write anything
-      if (await inspectProjectBinding(appDir)) {
-        await assertProjectBinding(appDir, { app, project, env }, false, false);
-      }
+      await assertProjectBindingForRead(appDir, { app, project, env });
       const state = await s.loadState(app);
       const current = state.current ? await s.loadRelease(app, state.current) : null;
       const services: Record<string, { imageRef: string; hasEnv: boolean; spec: unknown }> = {};

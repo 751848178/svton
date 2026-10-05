@@ -13,7 +13,7 @@ import { validateProjectSpec } from '../shared/spec-v2.js';
 import { withAppLock, withDeploySlot } from './app-lock.js';
 import { ImageLedger } from './image-ledger.js';
 import { ledgerFileFor } from './gc.js';
-import { assertProjectBinding } from './project-binding.js';
+import { assertProjectBinding, ProjectBindingRefusal } from './project-binding.js';
 import { assertOwnedCompose } from './compose-ownership.js';
 import { serviceProject } from './compose-service.js';
 import { pullAuthCtx } from './docker.js';
@@ -86,8 +86,9 @@ export async function runGroupDeploy(appsRoot: string, req: GroupDeployRequest, 
         await pullServiceImage(entry.imageRef, log, pullCtx?.env);
       }
       const switched: string[] = [];
-      const fail = async (reason: string): Promise<never> => {
-        const outcome = await recoverServices({ appsRoot, group: req.app, identity, previousCombination: current?.services ?? null, changedSoFar: switched, log, env: pullCtx?.env });
+      const fail = async (reason: string, cause?: unknown): Promise<never> => {
+        const outcome = await recoverServices({ appsRoot, group: req.app, identity, previousCombination: current?.services ?? null, changedSoFar: switched, log, env: pullCtx?.env,
+          bindingRefusal: cause instanceof ProjectBindingRefusal ? cause.message : undefined });
         throw new GroupDeployFailure(
           `${reason}; recovery of changed services [${switched.join(', ')}] ${current ? 'to the previous combination ' : '(first deploy: verified removal) '}${outcome.succeeded ? 'succeeded ' + describeRecovery(outcome, switched.length) : `FAILED (${outcome.detail}) — inspect the machine`}`,
           { attempted: true, ...outcome, target: current ? switched.map((s) => current.services[s]?.imageRef ?? '').filter(Boolean).join(', ') || null : null },
@@ -113,10 +114,13 @@ export async function runGroupDeploy(appsRoot: string, req: GroupDeployRequest, 
           if (v.skipped) skipped = true;
         }
         try {
-          const { cleanupError } = await store.shift(req.app, release.id, 'deploy');
+          // Health polling yields after activation. Never commit a release to
+          // a project/environment whose binding changed while probes ran.
+          const { cleanupError } = await store.shift(req.app, release.id, 'deploy',
+            () => assertProjectBinding(appDir, identity, false, false));
           if (cleanupError) log(`release snapshot cleanup failed after successful state commit: ${cleanupError}`);
         } catch (e) {
-          await fail(`deploy state commit failed: ${(e as Error).message}`);
+          await fail(`deploy state commit failed: ${(e as Error).message}`, e);
         }
         return {
           app: req.app,
@@ -129,7 +133,7 @@ export async function runGroupDeploy(appsRoot: string, req: GroupDeployRequest, 
         };
       } catch (e) {
         if (e instanceof GroupDeployFailure) throw e;
-        throw await fail(`deploy of [${changedServices.join(', ')}] failed: ${(e as Error).message}`);
+        throw await fail(`deploy of [${changedServices.join(', ')}] failed: ${(e as Error).message}`, e);
       }
     } finally {
       await pullCtx?.cleanup();

@@ -5,10 +5,11 @@
 //   because tasks hold a lease and idle is anchored at task completion
 
 import type { TencentCvmConfig } from '../shared/types.js';
+import { randomUUID } from 'node:crypto';
 import { DEFAULT_AGENT_PORT } from './bundle-server.js';
 import type { BuilderHandle, BuilderProvider, BuilderProviderStatus, ProviderLog } from './provider.js';
 import {
-  acquireLease,
+  acquireLeaseLocked,
   clearState,
   leaseHeldByOther,
   readState,
@@ -32,6 +33,7 @@ export class TencentBuilderProvider implements BuilderProvider {
    *  release() is never deadlocked on the create lock (S06) */
   private ensureAbort: AbortController | null = null;
   private ensureSettled: Promise<unknown> | null = null;
+  private leaseToken: string | null = null;
 
   constructor(
     private readonly cfg: TencentCvmConfig,
@@ -47,6 +49,11 @@ export class TencentBuilderProvider implements BuilderProvider {
   }
 
   async ensure(log: ProviderLog, taskBudgetMs = DEFAULT_TASK_BUDGET_MS): Promise<BuilderHandle> {
+    return this.prepare(log, taskBudgetMs);
+  }
+
+  private async prepare(log: ProviderLog, taskBudgetMs: number, leaseToken?: string): Promise<BuilderHandle> {
+    if (this.ensureAbort) throw new Error('builder is BUSY: preparation already running on this provider');
     const creds = requireCreds();
     const file = stateFileFor(this.cfg, creds.secretId);
     const ac = new AbortController();
@@ -59,9 +66,13 @@ export class TencentBuilderProvider implements BuilderProvider {
       guard('entry');
       return withLock(file, async () => {
         guard('lock');
+        const admit = async (handle: BuilderHandle) => {
+          if (leaseToken) await acquireLeaseLocked(file, leaseToken);
+          return handle;
+        };
       const st = await readState(file);
       if (st) {
-        if (leaseHeldByOther(st)) {
+        if (leaseHeldByOther(st, leaseToken)) {
           throw new Error(
             `builder is BUSY: task lease held by pid ${st.lease?.pid} until ${st.lease?.expiresAt} — refusing to touch instance ${st.instanceId}`,
           );
@@ -72,7 +83,7 @@ export class TencentBuilderProvider implements BuilderProvider {
           guard('reuse-health');
           if (healthy) {
             log('reusing active builder instance', { instanceId: st.instanceId, url: st.url, taskBudgetMin: Math.round(taskBudgetMs / 60_000) });
-            return { url: st.url!, token: st.token };
+            return admit({ url: st.url!, token: st.token });
           }
         }
         if (decision.action === 'reuse') log('builder unreachable — replacing', { instanceId: st.instanceId });
@@ -82,7 +93,7 @@ export class TencentBuilderProvider implements BuilderProvider {
         await clearState(file);
       }
         guard('post-admission');
-        return provisionBuilder({ file, creds, log, taskBudgetMs, signal: ac.signal, cfg: this.cfg, distDir: this.distDir, bootstrapDir: this.bootstrapDir, keepMinutes: this.keepMinutes, agentUrl: (ip) => this.agentUrl(ip) });
+        return admit(await provisionBuilder({ file, creds, log, taskBudgetMs, signal: ac.signal, cfg: this.cfg, distDir: this.distDir, bootstrapDir: this.bootstrapDir, keepMinutes: this.keepMinutes, agentUrl: (ip) => this.agentUrl(ip) }));
       });
     })();
     this.ensureSettled = run;
@@ -98,16 +109,20 @@ export class TencentBuilderProvider implements BuilderProvider {
   async runExclusive<T>(log: ProviderLog, taskBudgetMs: number, fn: (handle: BuilderHandle) => Promise<T>): Promise<T> {
     const creds = requireCreds();
     const file = stateFileFor(this.cfg, creds.secretId);
-    const handle = await this.ensure(log, taskBudgetMs);
-    await acquireLease(file);
-    const renewer = setInterval(() => {
-      void renewLease(file).catch(() => {});
-    }, 60_000);
+    if (this.leaseToken) throw new Error('builder is BUSY: a task already owns this provider');
+    const token = randomUUID();
+    this.leaseToken = token;
+    let renewer: NodeJS.Timeout | undefined;
     try {
+      const handle = await this.prepare(log, taskBudgetMs, token);
+      renewer = setInterval(() => {
+        void renewLease(file, token).catch((e: unknown) => log('lease renewal failed', { error: String(e) }));
+      }, 60_000);
       return await fn(handle);
     } finally {
       clearInterval(renewer);
-      await releaseLease(file).catch((e: unknown) => log('lease release failed', { error: String(e) }));
+      await releaseLease(file, token).catch((e: unknown) => log('lease release failed', { error: String(e) }));
+      if (this.leaseToken === token) this.leaseToken = null;
     }
   }
 
@@ -135,7 +150,7 @@ export class TencentBuilderProvider implements BuilderProvider {
     await withLock(file, async () => {
       const st = await readState(file);
       if (!st) return;
-      if (leaseHeldByOther(st)) throw new Error(`builder is BUSY (lease pid ${st.lease?.pid}) — refusing to release a working machine`);
+      if (leaseHeldByOther(st, this.leaseToken ?? undefined)) throw new Error(`builder is BUSY (lease pid ${st.lease?.pid}) — refusing to release a working machine`);
       const client = await mkCvmClient(creds.secretId, creds.secretKey, st.region);
       await terminateBuilder(client, st.instanceId);
       await clearState(file);

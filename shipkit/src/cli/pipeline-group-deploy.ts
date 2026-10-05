@@ -25,6 +25,8 @@ export interface GroupDeployPipelineOptions {
   manifest: GroupBuildManifest;
   /** per-service env file override (--env-file style is v1-only) */
   keepEnv?: boolean;
+  /** private snapshot read before the build; never included in public output */
+  envFiles?: Record<string, string>;
   targetName?: string;
   timeoutMs: number;
 }
@@ -70,7 +72,7 @@ export async function runGroupDeployPipeline(o: GroupDeployPipelineOptions): Pro
       ...(o.keepEnv ? { keepEnv: true } : {}),
     };
   }
-  const envFiles = readServiceEnvFiles(o.cwd, o.spec, Object.keys(o.manifest.services), Boolean(o.keepEnv));
+  const envFiles = o.envFiles ?? readServiceEnvFiles(o.cwd, o.spec, Object.keys(o.manifest.services), Boolean(o.keepEnv));
   for (const [svc, content] of Object.entries(envFiles)) {
     if (changed[svc]) changed[svc].envFileContent = content;
   }

@@ -7,6 +7,7 @@
 import path from 'node:path';
 import type { Logger } from '../shared/log.js';
 import { api } from '../shared/http.js';
+import { publicGitRepoUrl } from '../shared/git-url.js';
 import type { BuildResult, PushResult, ShipConfig, BuildSource } from '../shared/types.js';
 import type { ProjectSpec } from '../shared/spec-v2.js';
 import { buildSliceFor } from '../shared/spec-v2.js';
@@ -19,6 +20,7 @@ import { resolveProjectId } from './project-id.js';
 import { waitAndReport } from './job-report.js';
 import { assertBuilderGroupCapability } from './deployment-protocol.js';
 import { withBuilderLease, type BuilderReleaseOutcome } from './builder-lease.js';
+import { resolveSelection } from './service-selection.js';
 
 /** per-service provenance: git keeps repo/ref/sha; from-dir keeps a content
  *  digest of the exact uploaded tree — no fabricated git identity (R10) */
@@ -60,6 +62,8 @@ export async function runMultiBuildPipeline(o: {
   cwd: string;
   logger: Logger;
   fromDir?: string;
+  /** explicit tag applies to each selected image; repositories stay distinct */
+  tag?: string;
   keepBuilder?: boolean;
   spec: ProjectSpec;
   selection: string[];
@@ -70,6 +74,7 @@ export async function runMultiBuildPipeline(o: {
   const log = o.logger;
   const platform = o.platform ?? 'linux/amd64';
   if (o.selection.length === 0) throw new CliError('selection is empty — nothing to build');
+  resolveSelection(o.spec, o.selection);
   if (!o.config.registry) throw new CliError('config.registry (url + namespace) is required to push images');
   const registry = o.config.registry;
   const fromDir = o.fromDir ? path.resolve(o.cwd, o.fromDir) : undefined;
@@ -98,7 +103,7 @@ export async function runMultiBuildPipeline(o: {
       if (!svcSpec) throw new CliError(`selection contains '${name}' which is not declared in the group spec`);
       const slice = buildSliceFor(name, svcSpec, platform);
       log.info(`building service ${name}`, { target: slice.target, platform: slice.platform });
-      const started = await api<{ jobId: string }>(handle.url, handle.token, 'POST', '/api/build', { source, spec: slice }, 20_000, httpOpts);
+      const started = await api<{ jobId: string }>(handle.url, handle.token, 'POST', '/api/build', { source, spec: slice, tag: o.tag }, 20_000, httpOpts);
       builds[name] = (await waitAndReport(handle, started.jobId, `build:${name}`, log, o.timeoutMs)).result as BuildResult;
     }
 
@@ -126,12 +131,6 @@ export async function runMultiBuildPipeline(o: {
         throw new CliError(`push:${name} returned no valid digest (${JSON.stringify(push.digest)}) — refusing a deployable manifest on a mutable tag`);
       }
       const pinned = digestRef(push.imageRef, push.digest);
-      if (push.imageRef.includes('@sha256:') && push.imageRef !== push.imageRef.split('@')[0]) {
-        const existing = push.imageRef.slice(push.imageRef.indexOf('@sha256:') + 1);
-        if (existing !== push.digest) {
-          throw new CliError(`push:${name} ref digest ${existing} disagrees with the reported digest ${push.digest}`);
-        }
-      }
       services[name] = {
         imageRef: pinned, tag: build.tag, digest: push.digest,
         ...(build.sha ? { sha: build.sha } : {}),
@@ -140,7 +139,7 @@ export async function runMultiBuildPipeline(o: {
         archVerified: build.arch === effectivePlatform,
         source: frozen
           ? { type: 'tarball', contentDigest: frozen.contentDigest }
-          : { type: 'git', ...(source.type === 'git' ? { repo: source.repo, ref: source.ref } : {}) },
+          : { type: 'git', ...(source.type === 'git' ? { repo: publicGitRepoUrl(source.repo), ref: source.ref } : {}) },
       };
       await saveLastBuild({ app: o.spec.name, project, service: name, imageRef: pinned, tag: build.tag, digest: push.digest, at: new Date().toISOString(), builderUrl: handle.url });
     }

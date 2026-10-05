@@ -6,6 +6,7 @@ import path from 'node:path';
 import { exec, type ExecOptions } from '../shared/exec.js';
 import { COMPOSE_ENV_FILE } from './compose.js';
 import { assertOwnedCompose } from './compose-ownership.js';
+import { resolveBuildPaths } from './build-paths.js';
 
 type Log = (line: string) => void;
 
@@ -59,12 +60,13 @@ export async function dockerBuild(o: {
   platform?: string;
   log: Log;
 }): Promise<{ imageId: string; arch?: string }> {
+  const paths = await resolveBuildPaths(o.repoDir, o.contextDir, o.dockerfileAbs);
   const args = ['build', '--progress=plain'];
   if (o.target) args.push('--target', o.target);
   if (o.platform) args.push('--platform', o.platform);
   for (const [k, v] of Object.entries(o.buildArgs)) args.push('--build-arg', `${k}=${v}`);
-  args.push('-f', o.dockerfileAbs, '-t', o.tag, o.contextDir);
-  await must('docker', args, { cwd: o.repoDir, timeoutMs: 60 * 60_000, log: o.log });
+  args.push('-f', paths.dockerfileAbs, '-t', o.tag, paths.contextDir);
+  await must('docker', args, { cwd: paths.repoDir, timeoutMs: 60 * 60_000, log: o.log });
   const inspect = await exec('docker', ['image', 'inspect', o.tag, '--format', '{{.Id}}\t{{.Os}}/{{.Architecture}}'], { timeoutMs: 15_000 });
   if (inspect.code !== 0) return { imageId: o.tag };
   const [imageId, arch] = inspect.stdout.trim().split('\t');
@@ -107,10 +109,15 @@ export async function pullAuthCtx(imageRef: string, log: Log, creds?: { user: st
   const host = imageRef.split('/')[0] ?? '';
   if (!/[.:]/.test(host)) return null;
   const ctx = await authCtx();
-  await must('docker', ['login', host, '-u', user, '--password-stdin'], {
-    timeoutMs: 30_000, log, stdin: password, env: ctx.env,
-  });
-  return ctx;
+  try {
+    await must('docker', ['login', host, '-u', user, '--password-stdin'], {
+      timeoutMs: 30_000, log, stdin: password, env: ctx.env,
+    });
+    return ctx;
+  } catch (e) {
+    await ctx.cleanup();
+    throw e;
+  }
 }
 
 export async function imageExists(imageRef: string): Promise<boolean> {

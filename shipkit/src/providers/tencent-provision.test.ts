@@ -5,7 +5,7 @@ import test from 'node:test';
 import { mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtemp, readFile } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { ActionTimerView } from './tencent-lifecycle.js';
@@ -110,6 +110,37 @@ function state(over: Partial<BuilderState>): BuilderState {
 }
 
 test.afterEach(() => { process.env.HOME = realHome; });
+
+test('F11: an unreadable ledger refuses ensure/release before any cloud mutation', async (t) => {
+  reset();
+  await tmpHome();
+  const file = stateFileFor(CFG, 'sid');
+  await writeState(file, state({}));
+  const before = await readFile(file, 'utf8');
+  await chmod(file, 0);
+  t.after(() => chmod(file, 0o600));
+  const provider = new TencentBuilderProvider(CFG, 30, 'd', 'b');
+  await assert.rejects(provider.ensure(() => {}), /cannot read|unreadable|不可读|EACCES/i);
+  await assert.rejects(provider.release(), /cannot read|unreadable|不可读|EACCES/i);
+  assert.equal(fake.calls.runInstances.length, 0);
+  assert.equal(fake.calls.terminate.length, 0);
+  await chmod(file, 0o600);
+  assert.equal(await readFile(file, 'utf8'), before, 'original ledger must remain intact');
+});
+
+test('F11: invalid ledger timestamps fail closed instead of bypassing expiry admission', async () => {
+  reset();
+  await tmpHome();
+  const file = stateFileFor(CFG, 'sid');
+  await writeState(file, state({ createdAt: 'invalid', expireAt: 'invalid' }));
+  const before = await readFile(file, 'utf8');
+  const provider = new TencentBuilderProvider(CFG, 30, 'd', 'b');
+  await assert.rejects(provider.ensure(() => {}), /invalid|corrupt|timestamp|结构|时间/i);
+  await assert.rejects(provider.release(), /invalid|corrupt|timestamp|结构|时间/i);
+  assert.equal(fake.calls.runInstances.length, 0);
+  assert.equal(fake.calls.terminate.length, 0);
+  assert.equal(await readFile(file, 'utf8'), before);
+});
 
 test('RA07: matching cloud timer → ready, and the agent URL honours agentScheme/host/port (RA06)', async () => {
   reset();

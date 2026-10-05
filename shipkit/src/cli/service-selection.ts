@@ -26,7 +26,7 @@ export function parseServicesArg(raw: string | undefined): string[] | undefined 
 export function resolveSelection(spec: ProjectSpec, requested: string[] | undefined): string[] {
   const known = Object.keys(spec.services);
   if (!requested) return known;
-  const unknown = requested.filter((s) => !(s in spec.services));
+  const unknown = requested.filter((s) => !Object.hasOwn(spec.services, s));
   if (unknown.length > 0) {
     throw new CliError(`--services references unknown service(s): ${unknown.join(', ')} — this project declares: ${known.join(', ')}`);
   }
@@ -47,7 +47,7 @@ export function assertFirstDeployComplete(selection: string[], spec: ProjectSpec
 /** services running in the current combination but absent from the new spec are
  *  never silently dropped — the operator must resolve that explicitly */
 export function assertNoDroppedServices(state: GroupStateView, spec: ProjectSpec): void {
-  const dropped = Object.keys(state.services).filter((s) => !(s in spec.services));
+  const dropped = Object.keys(state.services).filter((s) => !Object.hasOwn(spec.services, s));
   if (dropped.length > 0) {
     throw new CliError(
       `service(s) ${dropped.join(', ')} exist in the current combination on the runtime but are absent from ship.yaml — ` +

@@ -16,7 +16,7 @@ import { COMPOSE_ENV_FILE } from './compose.js';
 import { writeFileAtomic } from './atomic.js';
 import { compose, dockerPullImage, composePort } from './docker.js';
 import { assertOwnedCompose } from './compose-ownership.js';
-import { assertProjectBinding, type BindingRequest } from './project-binding.js';
+import { assertProjectBinding, ProjectBindingRefusal, type BindingRequest } from './project-binding.js';
 import { renderServiceCompose, serviceDir, serviceProject, writeServiceCompose, serviceExplicitHostPort, serviceFirstContainerPort } from './compose-service.js';
 import { waitHealthy } from './healthcheck.js';
 
@@ -39,7 +39,7 @@ export interface ServiceActivation {
 
 /** A binding refusal remains a safety stop even if an operator repairs the
  *  file before recovery catches it. Do not infer identity failures from text. */
-export class ActivationBindingRefusal extends Error {
+export class ActivationBindingRefusal extends ProjectBindingRefusal {
   constructor(cause: unknown) {
     super(cause instanceof Error ? cause.message : String(cause), { cause });
     this.name = 'ActivationBindingRefusal';

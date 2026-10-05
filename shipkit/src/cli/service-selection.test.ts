@@ -35,6 +35,12 @@ test('resolve: default selects every declared service; unknown names refuse with
   assert.throws(() => resolveSelection(spec, ['backend', 'nope']), /unknown service\(s\): nope.*backend, admin, mobile/);
 });
 
+test('prototype names are unknown unless explicitly declared services', () => {
+  assert.throws(() => resolveSelection(spec, parseServicesArg('constructor')), /unknown service\(s\): constructor/);
+  const explicit = validateProjectSpec({ schemaVersion: 2, name: 'twgg', services: { backend: {}, constructor: {} } });
+  assert.deepEqual(resolveSelection(explicit, ['constructor']), ['constructor']);
+});
+
 const stateWith = (services: Record<string, unknown>): GroupStateView =>
   ({ schemaVersion: 2, app: 'twgg', current: services ? 'r1' : null, services: services as GroupStateView['services'] });
 
@@ -47,4 +53,10 @@ test('services running on the runtime but absent from the new spec are never sil
   const state = stateWith({ backend: {}, admin: {}, legacy: {} });
   assert.throws(() => assertNoDroppedServices(state, spec), /legacy.*absent from ship.yaml/);
   assertNoDroppedServices(stateWith({ backend: {}, admin: {} }), spec);
+});
+
+test('a committed constructor service cannot be silently dropped through a prototype lookup', () => {
+  assert.throws(() => assertNoDroppedServices(stateWith({ constructor: {} }), spec), /constructor.*absent from ship.yaml/);
+  const explicit = validateProjectSpec({ schemaVersion: 2, name: 'twgg', services: { constructor: {} } });
+  assertNoDroppedServices(stateWith({ constructor: {} }), explicit);
 });

@@ -136,3 +136,21 @@ test('sameServiceSpec ignores key order and list order', () => {
   assert.ok(sameServiceSpec({ ports: ['1:1', '2:2'], target: 'a' }, { target: 'a', ports: ['2:2', '1:1'] }));
   assert.ok(!sameServiceSpec({ ports: ['1:1'] }, { ports: ['2:2'] }));
 });
+
+test('an inherited arm64 service keeps its effective platform in the plan', () => {
+  const armSpec = validateProjectSpec({ schemaVersion: 2, name: 'g', services: { api: {}, web: { platform: 'linux/arm64' } } });
+  const state: GroupStateView = { schemaVersion: 2, app: 'g', current: 'r1', services: {
+    api: { imageRef: 'reg/api:1', hasEnv: false, spec: {} },
+    web: { imageRef: 'reg/web:1', hasEnv: false, spec: { platform: 'linux/arm64' } },
+  } };
+  const plan = buildReleasePlan({ spec: armSpec, project: 'p', env: 'e', target: 'e', selection: ['api'], requested: ['api'], state });
+  assert.equal(plan.services.web?.platform, 'linux/arm64');
+});
+
+test('declared constructor cannot inherit or keep env without an own committed entry', () => {
+  const explicit = validateProjectSpec({ schemaVersion: 2, name: 'g', services: { api: {}, constructor: {} } });
+  const state: GroupStateView = { schemaVersion: 2, app: 'g', current: 'r1', services: { api: { imageRef: 'reg/api:1', hasEnv: false, spec: {} } } };
+  const opts = { spec: explicit, project: 'p', env: 'e', target: 'e', requested: null, state };
+  assert.throws(() => buildReleasePlan({ ...opts, selection: ['api'] }), /constructor.*neither selected nor present/);
+  assert.throws(() => buildReleasePlan({ ...opts, selection: ['api', 'constructor'], keepEnv: true }), /constructor.*no committed combination/);
+});

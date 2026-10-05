@@ -82,3 +82,13 @@ test('buildSliceFor emits a v1-shaped spec with build-time fields only, defaulti
   const custom = buildSliceFor('a', { platform: 'linux/arm64' }, 'linux/amd64');
   assert.equal(custom.platform, 'linux/arm64', 'service platform wins over the group default');
 });
+
+test('dependencies cannot refer to undeclared prototype properties', () => {
+  assert.throws(() => validateProjectSpec({ schemaVersion: 2, name: 'g', services: { api: { dependsOn: ['constructor'] } } }), /unknown service 'constructor'/);
+});
+
+test('explicitly declared constructor remains a valid service and dependency', () => {
+  const spec = validateProjectSpec({ schemaVersion: 2, name: 'g', services: { api: { dependsOn: ['constructor'] }, constructor: {} } });
+  assert.deepEqual(spec.services.api?.dependsOn, ['constructor']);
+  assert.ok(Object.hasOwn(spec.services, 'constructor'));
+});

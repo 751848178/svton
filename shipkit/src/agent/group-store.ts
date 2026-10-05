@@ -101,7 +101,7 @@ export class GroupStore {
     return this.snapshots.load(group, id);
   }
 
-  async shift(group: string, releaseId: string, event: 'deploy' | 'rollback'): Promise<{ cleanupError?: string }> {
+  async shift(group: string, releaseId: string, event: 'deploy' | 'rollback', beforeCommit?: () => Promise<void>): Promise<{ cleanupError?: string }> {
     const s = await this.loadState(group);
     const rel = await this.loadRelease(group, releaseId);
     if (s.current && s.current !== releaseId) s.previous = s.current;
@@ -109,7 +109,10 @@ export class GroupStore {
     s.updatedAt = new Date().toISOString();
     s.history.unshift({ releaseId, changedServices: rel.changedServices, at: s.updatedAt, event });
     s.history = s.history.slice(0, 20);
-    await writeFileAtomic(this.stateFile(group), JSON.stringify(s, null, 2));
+    // All awaited metadata reads have completed; the orchestrator's read-only
+    // ownership gate must run immediately before the one state write.
+    await beforeCommit?.();
+    await writeFileAtomic(this.stateFile(group), JSON.stringify(s, null, 2), undefined, beforeCommit);
     try {
       await this.snapshots.gc(group, [s.current, s.previous]);
     } catch (e) {

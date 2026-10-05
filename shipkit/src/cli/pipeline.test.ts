@@ -9,7 +9,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { uploadFrozenSource } from './pipeline.js';
+import { digestRef, uploadFrozenSource } from './pipeline.js';
 import { freezeSourceDir } from './source-freeze.js';
 import { startStubAgent } from './init/wizard-fixtures.js';
 import type { BuilderHandle } from '../providers/provider.js';
@@ -17,6 +17,13 @@ import type { Logger } from '../shared/log.js';
 import type { ShipSpec } from '../shared/types.js';
 
 const noopLog: Logger = { info() {}, warn() {}, error() {} };
+
+test('digestRef preserves a matching pinned ref and rejects a conflicting digest', () => {
+  const digest = 'sha256:' + 'a'.repeat(64);
+  assert.equal(digestRef('reg:5000/ns/app:tag', digest), 'reg:5000/ns/app@' + digest);
+  assert.equal(digestRef('reg:5000/ns/app@' + digest, digest), 'reg:5000/ns/app@' + digest);
+  assert.throws(() => digestRef('reg/ns/app@sha256:' + 'b'.repeat(64), digest), /disagrees with the reported digest/);
+});
 
 async function sourceProject(): Promise<string> {
   const dir = await mkdtemp(path.join(tmpdir(), 'ship-pack-'));
