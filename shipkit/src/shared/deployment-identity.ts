@@ -1,6 +1,9 @@
 // Shared wire contract for deployment identity and runtime capability negotiation.
 export const DEPLOYMENT_IDENTITY_CAPABILITY = 'deployment-identity-v1';
 export const DEPLOYMENT_ENV_CAPABILITY = 'deployment-env-preserve-v1';
+/** multi-service release groups (schemaVersion: 2): selective deploy, full-combination
+ *  snapshots, in-lock merge and rollback of changedServices */
+export const MULTI_SERVICE_CAPABILITY = 'multi-service-v2';
 export const ENVIRONMENT_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 
 export function validProjectIdentity(value: unknown): value is string {

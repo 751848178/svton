@@ -62,6 +62,9 @@ export class ReleaseStore {
     }
     try {
       const state: unknown = JSON.parse(text);
+      if (isRecord(state) && state.schemaVersion === 2) {
+        throw new Error(`state.json of '${app}' belongs to a multi-service (v2) group — use the group-aware CLI/agent; this v1 path will not touch it`);
+      }
       if (!validState(state)) throw new Error('invalid state structure');
       return state;
     } catch (e) {

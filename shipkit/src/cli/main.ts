@@ -33,12 +33,17 @@ commands:
       with a named test image; reports reachability / distribution / push / pull levels
   ship build [--from-dir DIR | git repo of cwd] [--tag TAG] [--keep-builder] [--timeout-min N]
       trigger the builder agent: docker build + push to the registry
+      multi-service projects (schemaVersion: 2): build every service, or --services a,b
   ship deploy [--ref IMAGE] [--app NAME] [--from-dir DIR] [--to TARGET] [--env-file FILE | --keep-env] [--timeout-min N]
       trigger the runtime agent: pull + compose up + healthcheck (+ auto recovery to previous release)
-  ship release [flags of build+deploy]
-      build + push + deploy in one shot
-  ship rollback <app> [--from-dir DIR] [--to TARGET]
-      roll the target back to its previous release snapshot (image + env + config)
+  ship release [flags of build+deploy] [--services a,b] [--plan]
+      build + push + deploy in one shot; multi-service projects add:
+        --services admin          release ONLY these services (default: all)
+        --plan                    read-only plan (with --json): selection, inherited
+                                  versions, external resources — builds nothing
+  ship rollback <app|group> [--from-dir DIR] [--to TARGET] [--services a,b]
+      roll the target back: v1 = previous release snapshot (image + env + config);
+      v2 groups = undo the last release's changedServices, or an explicit --services set
   ship status [--to TARGET|all]
       apps + versions on runtime targets
   ship doctor

@@ -1,0 +1,28 @@
+# Multi-service project spec (schemaVersion: 2) — one ship.yaml = one release
+# group. `ship release` builds/pushes/updates every service below; select a
+# subset with --services (e.g. --services web). v1 single-app ship.yaml files
+# keep working unchanged.
+schemaVersion: 2
+name: demo-multi
+
+services:
+  # static site served by httpd; prod is a dedicated Dockerfile stage
+  web:
+    dockerfile: web/Dockerfile
+    context: web
+    target: prod
+    ports: ["8080:80"]
+    healthcheck: { path: /, hostPort: 8080, timeoutSeconds: 30 }
+
+  # second independent service: its own context, port, env file and healthcheck
+  api:
+    dockerfile: api/Dockerfile
+    context: api
+    target: prod
+    ports: ["8081:80"]
+    envFile: api.env            # runtime env delivered via the deploy API (never baked into the image)
+    healthcheck: { path: /, hostPort: 8081, timeoutSeconds: 30 }
+    # join a pre-existing docker network (must already exist on the runtime):
+    # networks: ["my-shared-net"]
+    # external named volume / read-only bind mount:
+    # volumes: ["my-data:/var/www/data", "/srv/shared:/srv/shared:ro"]

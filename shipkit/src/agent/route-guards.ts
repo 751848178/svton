@@ -4,7 +4,7 @@
 
 import type { AgentRole } from '../shared/types.js';
 import { HttpFail } from './http-fail.js';
-import { DEPLOYMENT_ENV_CAPABILITY, DEPLOYMENT_IDENTITY_CAPABILITY } from '../shared/deployment-identity.js';
+import { DEPLOYMENT_ENV_CAPABILITY, DEPLOYMENT_IDENTITY_CAPABILITY, MULTI_SERVICE_CAPABILITY } from '../shared/deployment-identity.js';
 import type { RouteCtx } from './route-types.js';
 
 export function requireDocker(dockerOk: () => Promise<boolean>): () => Promise<void> {
@@ -34,7 +34,7 @@ export function assertMachineCan(role: AgentRole, capability: 'builder' | 'runti
 
 /** capabilities advertised by /api/status for the authenticated caller (M2-04) */
 export function capabilitiesFor(role: AgentRole): string[] {
-  if (role === 'builder') return ['build', 'push'];
-  if (role === 'runtime') return ['deploy', 'rollback', 'gc', DEPLOYMENT_IDENTITY_CAPABILITY, DEPLOYMENT_ENV_CAPABILITY];
-  return ['build', 'push', 'deploy', 'rollback', 'gc', DEPLOYMENT_IDENTITY_CAPABILITY, DEPLOYMENT_ENV_CAPABILITY];
+  if (role === 'builder') return ['build', 'push', MULTI_SERVICE_CAPABILITY];
+  if (role === 'runtime') return ['deploy', 'rollback', 'gc', DEPLOYMENT_IDENTITY_CAPABILITY, DEPLOYMENT_ENV_CAPABILITY, MULTI_SERVICE_CAPABILITY];
+  return ['build', 'push', 'deploy', 'rollback', 'gc', DEPLOYMENT_IDENTITY_CAPABILITY, DEPLOYMENT_ENV_CAPABILITY, MULTI_SERVICE_CAPABILITY];
 }

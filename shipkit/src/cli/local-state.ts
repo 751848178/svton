@@ -1,19 +1,33 @@
 // Last-build records, scoped per (app, project) so a stale or foreign record
 // can never deploy B's image into A (F01) — and a different repo with the
-// SAME app name can never reuse this project's image either.
+// SAME app name can never reuse this project's image either. v2 groups add a
+// service dimension: records are scoped per (group, project, service).
 
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { LastBuildRecord } from '../shared/types.js';
+
+export interface LastBuildRecord {
+  app: string;
+  /** owning project identity — records are scoped per (app, project); a
+   *  different repo with the same app name can never reuse this image */
+  project: string;
+  /** v2 groups: which service of the group this image belongs to */
+  service?: string;
+  imageRef: string;
+  tag: string;
+  digest?: string;
+  at: string;
+  builderUrl: string;
+}
 
 function shipDir(): string {
   return path.join(process.env.HOME ?? '.', '.ship');
 }
 
 /** identity-scoped file name — same app under different projects never share */
-function fileFor(app: string, project: string): string {
-  const key = createHash('sha256').update(`${project}\u0000${app}`).digest('hex').slice(0, 16);
+function fileFor(app: string, project: string, service?: string): string {
+  const key = createHash('sha256').update(`${project}\u0000${app}\u0000${service ?? ''}`).digest('hex').slice(0, 16);
   return path.join(shipDir(), `last-build-${app}.${key}.json`);
 }
 
@@ -24,11 +38,17 @@ function legacyFile(app: string): string {
   return path.join(shipDir(), `last-build-${app}.json`);
 }
 
-export async function readLastBuild(app: string, project: string): Promise<LastBuildRecord | null> {
-  for (const file of [fileFor(app, project), legacyFile(app)]) {
+function recordMatches(record: LastBuildRecord, app: string, project: string, service?: string): boolean {
+  if (record?.app !== app || record.project !== project || !record.imageRef) return false;
+  return service === undefined ? record.service === undefined : record.service === service;
+}
+
+export async function readLastBuild(app: string, project: string, service?: string): Promise<LastBuildRecord | null> {
+  const candidates = service === undefined ? [fileFor(app, project), legacyFile(app)] : [fileFor(app, project, service)];
+  for (const file of candidates) {
     try {
       const record = JSON.parse(await readFile(file, 'utf8')) as LastBuildRecord;
-      if (record?.app === app && record.project === project && record.imageRef) return record;
+      if (recordMatches(record, app, project, service)) return record;
     } catch {
       // absent or unreadable — try next source
     }
@@ -41,5 +61,5 @@ export async function saveLastBuild(record: LastBuildRecord): Promise<void> {
     throw new Error('last-build record requires a project identity — refusing to write an unscoped record');
   }
   await mkdir(shipDir(), { recursive: true });
-  await writeFile(fileFor(record.app, record.project), JSON.stringify(record, null, 2), { mode: 0o600 });
+  await writeFile(fileFor(record.app, record.project, record.service), JSON.stringify(record, null, 2), { mode: 0o600 });
 }

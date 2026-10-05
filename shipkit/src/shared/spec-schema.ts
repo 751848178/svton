@@ -15,8 +15,9 @@ export const NAME_RE = /^[a-z][a-z0-9-]{0,62}$/;
 export const PUBLIC_BUILD_ARG_RE = /^(NEXT_PUBLIC_|VITE_|PUBLIC_|REACT_APP_)[A-Z0-9_]+$/;
 
 const PORT_RE = /^\d{1,5}(?::\d{1,5})?$/;
+const PLATFORM_RE = /^linux\/(amd64|arm64)$/;
 const KNOWN_FIELDS = new Set([
-  'name', 'dockerfile', 'context', 'buildArgsPolicy', 'buildArgs', 'ports', 'envFile', 'healthcheck',
+  'name', 'dockerfile', 'context', 'target', 'platform', 'buildArgsPolicy', 'buildArgs', 'ports', 'envFile', 'healthcheck',
 ]);
 
 function bad(field: string, want: string, got: unknown): never {
@@ -73,6 +74,18 @@ export function validateSpec(input: unknown): ShipSpec {
 
   const context = optString(input, 'context');
   if (context !== undefined) { assertRelPath(context, 'context'); spec.context = context; }
+
+  const target = optString(input, 'target');
+  if (target !== undefined) {
+    if (!target || /\s/.test(target) || target.length > 128) throw new SpecError('must be a non-empty stage name without whitespace', 'target');
+    spec.target = target;
+  }
+
+  const platform = optString(input, 'platform');
+  if (platform !== undefined) {
+    if (!PLATFORM_RE.test(platform)) throw new SpecError(`must match ${PLATFORM_RE}`, 'platform');
+    spec.platform = platform;
+  }
 
   const policy = optString(input, 'buildArgsPolicy');
   if (policy !== undefined) {

@@ -5,7 +5,8 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
-import type { LastBuildRecord, ShipConfig } from '../shared/types.js';
+import type { ShipConfig } from '../shared/types.js';
+import type { LastBuildRecord } from './local-state.js';
 
 const config: ShipConfig = {
   source: { repo: 'https://source.example/team/configured.git' },
@@ -22,7 +23,10 @@ const cache = new Map<string, LastBuildRecord>();
 const logger = { info() {}, warn() {}, error() {} };
 const key = (app: string, project: string) => `${app}\0${project}`;
 mock.module('../shared/config.js', { namedExports: { loadConfig: () => config } });
-mock.module('../shared/spec-load.js', { namedExports: { loadSpecAt: () => ({ name: 'web' }) } });
+mock.module('../shared/spec-load.js', { namedExports: {
+  loadSpecAt: () => ({ name: 'web' }),
+  loadSpecAnyAt: () => ({ version: 1, spec: { name: 'web' } }),
+} });
 mock.module('../shared/git.js', { namedExports: { gitRemote: async () => null, gitHeadSha: async () => 'HEAD' } });
 mock.module('../shared/credentials.js', { namedExports: { resolveTargetToken: async (t: unknown) => t } });
 mock.module('../providers/tencent-client.js', { namedExports: { sweepExpiredBuilders: async () => {} } });

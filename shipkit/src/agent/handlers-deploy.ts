@@ -3,6 +3,7 @@
 // any failure after the previous release exists triggers full-snapshot recovery.
 
 import path from 'node:path';
+import { existsSync } from 'node:fs';
 import { validateSpec } from '../shared/spec-schema.js';
 import type { DeployRequest, DeployResult, RollbackRequest } from '../shared/types.js';
 import { withAppLock, withDeploySlot } from './app-lock.js';
@@ -16,6 +17,14 @@ import type { JobContext } from './jobs.js';
 import { ReleaseStore, type AppRelease } from './release.js';
 
 type Log = JobContext['log'];
+
+/** a v2 group claiming this app name makes the v1 single-app path refuse — the
+ *  two layouts must never mix on the same deployment identity */
+function assertNotV2Group(appDir: string, app: string): void {
+  if (existsSync(path.join(appDir, 'group.json'))) {
+    throw new Error(`应用 '${app}' 是 v2 多服务发布组（${path.join(appDir, 'group.json')}）— v1 单服务部署不得接管；请使用多服务 CLI 或人工迁移`);
+  }
+}
 
 export class DeployFailure extends Error {
   constructor(
@@ -55,6 +64,7 @@ export async function runDeploy(appsRoot: string, req: DeployRequest, log: Log):
   const store = new ReleaseStore(appsRoot);
   const result: DeployResult = await withDeploySlot(() => withAppLock(app, async () => {
     const appDir = store.appDir(app);
+    assertNotV2Group(appDir, app);
     // a same-named project/container owned by ANOTHER deployment (another
     // environment, repo or an external actor) must be refused BEFORE this
     // deployment writes or modifies anything
@@ -110,6 +120,7 @@ export async function runRollback(appsRoot: string, req: RollbackRequest, log: L
     const appDir = store.appDir(app);
     // rollback mutates the same resources — verify ownership first, refuse on
     // any foreign same-named project/container before touching anything
+    assertNotV2Group(appDir, app);
     const hasContainers = await assertComposeOwnership({ appDir, app });
     await assertProjectBinding(appDir, { app, project: req.project, env: req.env }, hasContainers);
     log(`rolling back ${app} to release ${target.id} (${target.imageRef})`);

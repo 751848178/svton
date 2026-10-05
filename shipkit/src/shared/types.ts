@@ -12,6 +12,10 @@ export interface ShipSpec {
   dockerfile?: string;
   /** build context dir relative to repo root, default '.' */
   context?: string;
+  /** Dockerfile build target (multi-stage builds); default = the final stage */
+  target?: string;
+  /** explicit image platform, e.g. linux/amd64; default = builder native */
+  platform?: string;
   /** 'strict' (default): only public bake-time build args, mirroring devpilot buildEnvironment rules */
   buildArgsPolicy?: 'strict' | 'open';
   buildArgs?: Record<string, string>;
@@ -37,6 +41,8 @@ export interface BuildResult {
   tag: string;
   localImage: string;
   sha?: string;
+  /** normalized os/arch of the built image, e.g. 'linux/amd64' (platform gate) */
+  arch?: string;
 }
 
 export interface PushRequest {
@@ -81,7 +87,7 @@ export interface RollbackRequest {
   env: string;
 }
 
-export type JobType = 'build' | 'push' | 'deploy' | 'rollback' | 'gc' | 'verify';
+export type JobType = 'build' | 'push' | 'deploy' | 'rollback' | 'gc' | 'verify' | 'group-deploy' | 'group-rollback';
 export type JobStatus = 'queued' | 'running' | 'succeeded' | 'failed';
 
 export interface Job {
@@ -116,6 +122,8 @@ export interface AgentStatus {
   workRoot: string;
   docker: boolean;
   apps?: AppStatus[];
+  /** v2 multi-service release groups on this runtime */
+  groups?: Array<{ app: string; currentReleaseId: string | null; updatedAt?: string }>;
   activeJobs?: number;
   /** what the CALLING credential may actually do (M2-04): the authenticated
    *  identity's effective role — machine `role` above must not be read as a
@@ -185,16 +193,4 @@ export interface ShipConfig {
   registry?: { url: string; namespace: string };
   source?: { repo?: string; ref?: string; token?: string };
   runtime: { targets: Record<string, TargetConfig> };
-}
-
-export interface LastBuildRecord {
-  app: string;
-  /** owning project identity — records are scoped per (app, project); a
-   *  different repo with the same app name can never reuse this image */
-  project: string;
-  imageRef: string;
-  tag: string;
-  digest?: string;
-  at: string;
-  builderUrl: string;
 }

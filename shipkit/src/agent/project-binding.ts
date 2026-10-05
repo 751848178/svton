@@ -40,6 +40,28 @@ async function deploymentEvidence(appDir: string): Promise<string[]> {
   }
 }
 
+/** read-only binding inspection for planning/status reads: absent = unclaimed
+ *  (fresh), present = must parse strictly; NEVER writes or claims anything */
+export async function inspectProjectBinding(appDir: string): Promise<BindingRequest | null> {
+  let text: string;
+  try {
+    text = await readFile(path.join(appDir, 'project.json'), 'utf8');
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    refuse(`无法读取项目绑定 ${path.join(appDir, 'project.json')}（${(e as NodeJS.ErrnoException).code ?? 'EIO'}）— 原文件已保留，请人工检查后重试`);
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    refuse(`项目绑定 ${path.join(appDir, 'project.json')} 不是合法 JSON（内容损坏）— 原文件已保留，请人工修复或迁移后重试`);
+  }
+  if (!isRecord(parsed) || typeof parsed.app !== 'string' || !validProjectIdentity(parsed.project) || !validEnvironmentIdentity(parsed.env)) {
+    refuse(`项目绑定 ${path.join(appDir, 'project.json')} 结构非法（需 {app,project,env}）— 原文件已保留，请人工检查`);
+  }
+  return { app: parsed.app, project: parsed.project as string, env: parsed.env as string };
+}
+
 export async function assertProjectBinding(appDir: string, req: BindingRequest, hasContainers = false, allowClaim = true): Promise<void> {
   if (!validProjectIdentity(req.project) || !validEnvironmentIdentity(req.env)) refuse('项目或环境身份非法');
   const file = path.join(appDir, 'project.json');

@@ -2,6 +2,8 @@
 
 **使用文档：** [图文使用手册](docs/user-guide.md) · [浏览器阅读版](docs/user-guide.html)。新用户从这里开始；覆盖安装、配置、发布、回滚、清理与动态构建机，注明当前真实环境验收边界。
 
+**多服务发布：** [多服务与选择性发布](docs/multi-service.md)——一份 ship.yaml 描述一个发布组（schemaVersion: 2），`--services` 选择性发布、`--plan` 只读计划、完整组合快照与按服务回滚；v1 单应用用法不变，示例见 [examples/demo-multi](examples/demo-multi/)。
+
 **改进方案：** [新手使用体验实施方案](docs/beginner-experience-plan.md)——安装即用、首次向导、机器接入与日常发布的分阶段改造计划（待实施）。
 
 脱离 devpilot 的独立交付工具链：**控制器 CLI + 机器 agent（HTTP 开放接口）+ 私有镜像仓库**。控制器从不 SSH 到任何机器，一切操作通过 agent 的 HTTP API + 参数触发。跑通后可反哺 devpilot（见 `docs/design.md`）。

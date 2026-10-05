@@ -24,15 +24,21 @@ export async function runBuild(workRoot: string, req: BuildRequest, log: JobCont
   const localImage = `shipbuild/${spec.name}:${tag}`;
   const contextDir = path.join(dir, spec.context ?? '.');
   const dockerfileAbs = path.join(dir, spec.dockerfile ?? 'Dockerfile');
-  log(`building ${localImage} (context ${spec.context ?? '.'}, dockerfile ${spec.dockerfile ?? 'Dockerfile'}, source ${dir})`);
-  await dockerBuild({
+  log(`building ${localImage} (context ${spec.context ?? '.'}, dockerfile ${spec.dockerfile ?? 'Dockerfile'}${spec.target ? `, target ${spec.target}` : ''}${spec.platform ? `, platform ${spec.platform}` : ''}, source ${dir})`);
+  const built = await dockerBuild({
     repoDir: dir,
     contextDir,
     dockerfileAbs,
     buildArgs: spec.buildArgs ?? {},
     tag: localImage,
+    target: spec.target,
+    platform: spec.platform,
     log,
   });
-  log(`built ${localImage}`);
-  return { name: spec.name, tag, localImage, sha };
+  // platform gate: the produced image must really be what the request declared
+  if (spec.platform && built.arch && built.arch !== spec.platform) {
+    throw new Error(`built image is ${built.arch} but the request pinned ${spec.platform} — refusing to continue with a mismatched architecture`);
+  }
+  log(`built ${localImage} (${built.arch ?? 'unknown arch'})`);
+  return { name: spec.name, tag, localImage, sha, arch: built.arch };
 }

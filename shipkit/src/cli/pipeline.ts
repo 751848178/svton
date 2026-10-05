@@ -11,8 +11,6 @@ import { exec } from '../shared/exec.js';
 import { api, apiUpload, fetchLogTail, waitForJob } from '../shared/http.js';
 import type { Logger } from '../shared/log.js';
 import type { BuildResult, BuildSource, DeployResult, Job, PushResult, ShipConfig, ShipSpec } from '../shared/types.js';
-import { createBuilderProvider } from '../providers/registry.js';
-import { sweepExpiredBuilders } from '../providers/tencent-client.js';
 import type { BuilderHandle } from '../providers/provider.js';
 import { CliError } from './errors.js';
 import { readLastBuild, saveLastBuild } from './local-state.js';
@@ -20,13 +18,14 @@ import { resolveProjectId } from './project-id.js';
 import { resolveTarget } from './targets.js';
 import { waitAndReport } from './job-report.js';
 import { requireDeploymentProtocol } from './deployment-protocol.js';
+import { withBuilderLease } from './builder-lease.js';
 
 export function minutesArg(v: string | undefined, def: number): number {
   const n = Number(v);
   return Number.isFinite(n) && n > 0 ? n * 60_000 : def * 60_000;
 }
 
-async function resolveGitSource(cwd: string, config: ShipConfig, log: Logger): Promise<BuildSource> {
+export async function resolveGitSource(cwd: string, config: ShipConfig, log: Logger): Promise<BuildSource> {
   const repo = config.source?.repo ?? (await gitRemote(cwd));
   if (!repo) throw new CliError('no git origin remote and no config.source.repo — run inside the project repo or set source.repo');
   const ref = config.source?.ref ?? (await gitHeadSha(cwd)) ?? 'HEAD';
@@ -40,9 +39,9 @@ const DEFAULT_SOURCE_EXCLUDES = ['.git', 'node_modules', '.env', 'deploy.env', '
 /** tar the source dir into `outFile`; excludes stay in force and the `.` operand
  *  is always passed — without it bsdtar fails with "no files or directories
  *  specified" (LEGACY-01) */
-export async function packSourceDir(fromDir: string, outFile: string, envFile?: string): Promise<string[]> {
+export async function packSourceDir(fromDir: string, outFile: string, envFiles: string[] = []): Promise<string[]> {
   const args = ['czf', outFile, '-C', fromDir];
-  const excludes = [...new Set([...DEFAULT_SOURCE_EXCLUDES, envFile ?? ''])].filter(Boolean);
+  const excludes = [...new Set([...DEFAULT_SOURCE_EXCLUDES, ...envFiles])].filter(Boolean);
   for (const x of excludes) args.push(`--exclude=${x}`);
   args.push('.');
   const r = await exec('tar', args, { timeoutMs: 10 * 60_000 });
@@ -50,9 +49,9 @@ export async function packSourceDir(fromDir: string, outFile: string, envFile?: 
   return excludes;
 }
 
-export async function uploadTarballSource(handle: BuilderHandle, fromDir: string, spec: ShipSpec, log: Logger): Promise<BuildSource> {
+export async function uploadTarballSource(handle: BuilderHandle, fromDir: string, envFiles: string[], log: Logger): Promise<BuildSource> {
   const tgz = path.join(tmpdir(), `ship-src-${Date.now()}.tgz`);
-  const excludes = await packSourceDir(fromDir, tgz, spec.envFile);
+  const excludes = await packSourceDir(fromDir, tgz, envFiles);
   try {
     const bytes = await readFile(tgz);
     if (bytes.length > 500 * 1024 * 1024) throw new CliError(`source tarball is ${Math.round(bytes.length / 1048576)}MB (limit 500MB)`);
@@ -65,7 +64,7 @@ export async function uploadTarballSource(handle: BuilderHandle, fromDir: string
 }
 
 /** deployments bind to the pushed digest so mutable tags can never resolve to a stale image (F16) */
-function digestRef(imageRef: string, digest?: string): string {
+export function digestRef(imageRef: string, digest?: string): string {
   if (!digest) return imageRef;
   const base = imageRef.replace(/:[^/:]+$/, '');
   return `${base}@${digest}`;
@@ -96,15 +95,11 @@ export async function runBuildPipeline(o: {
   const project = await resolveProjectId(o.cwd, o.config, fromDir);
   if (!o.config.registry) throw new CliError('config.registry (url + namespace) is required to push images');
   const registry = o.config.registry;
-  await sweepExpiredBuilders((m, meta) => log.info(m, meta));
-  const provider = await createBuilderProvider(o.config);
-  const reuseWindow = o.config.builder.dynamic?.keepMinutes ?? 0;
-  const keep = o.keepBuilder || reuseWindow > 0;
   // the FULL task budget: build wait + push wait + upload/overhead (RA03)
   const taskBudgetMs = o.timeoutMs * 2 + 15 * 60_000;
   const runTask = async (handle: BuilderHandle): Promise<BuildOutcome> => {
     const source = fromDir
-      ? await uploadTarballSource(handle, fromDir, spec, log)
+      ? await uploadTarballSource(handle, fromDir, spec.envFile ? [spec.envFile] : [], log)
       : await resolveGitSource(o.cwd, o.config, log);
     const httpOpts = handle.caFile ? { caFile: handle.caFile } : {};
     const started = await api<{ jobId: string }>(handle.url, handle.token, 'POST', '/api/build', { source, spec, tag: o.tag }, 20_000, httpOpts);
@@ -124,21 +119,10 @@ export async function runBuildPipeline(o: {
     await saveLastBuild({ app: spec.name, project, imageRef, tag: build.tag, digest: push.digest, at: new Date().toISOString(), builderUrl: handle.url });
     return { project, spec, build, push, imageRef, builderUrl: handle.url };
   };
-  try {
-    // leased execution: another CLI cannot destroy this machine mid-task (RA04)
-    if (provider.runExclusive) return await provider.runExclusive((m, meta) => log.info(m, meta), taskBudgetMs, runTask);
-    return await runTask(await provider.ensure((m, meta) => log.info(m, meta), taskBudgetMs));
-  } finally {
-    // release on EVERY exit path (success and failure) unless a reuse window / flag asked to keep (F12/F20)
-    if (o.config.builder.mode === 'dynamic') {
-      if (keep) {
-        log.info('dynamic builder kept for reuse — release it with `ship builder down`');
-      } else {
-        log.info('releasing dynamic builder');
-        await provider.release().catch((e: unknown) => log.warn('builder release failed — run `ship builder down`', { error: String(e) }));
-      }
-    }
-  }
+  // leased execution: another CLI cannot destroy this machine mid-task (RA04);
+  // release happens on EVERY exit path unless a reuse window / flag kept it (F12/F20)
+  const { value } = await withBuilderLease({ config: o.config, keepBuilder: o.keepBuilder, taskBudgetMs, log, run: runTask });
+  return value;
 }
 
 export async function runDeployPipeline(o: {

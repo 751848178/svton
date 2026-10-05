@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { exec, type ExecOptions } from '../shared/exec.js';
 import { COMPOSE_ENV_FILE } from './compose.js';
+import { assertOwnedCompose } from './compose-ownership.js';
 
 type Log = (line: string) => void;
 
@@ -52,14 +53,22 @@ export async function dockerBuild(o: {
   dockerfileAbs: string;
   buildArgs: Record<string, string>;
   tag: string;
+  /** explicit Dockerfile build target (multi-stage) */
+  target?: string;
+  /** explicit image platform, e.g. linux/amd64 (cross-build via emulation) */
+  platform?: string;
   log: Log;
-}): Promise<string> {
+}): Promise<{ imageId: string; arch?: string }> {
   const args = ['build', '--progress=plain'];
+  if (o.target) args.push('--target', o.target);
+  if (o.platform) args.push('--platform', o.platform);
   for (const [k, v] of Object.entries(o.buildArgs)) args.push('--build-arg', `${k}=${v}`);
   args.push('-f', o.dockerfileAbs, '-t', o.tag, o.contextDir);
   await must('docker', args, { cwd: o.repoDir, timeoutMs: 60 * 60_000, log: o.log });
-  const inspect = await exec('docker', ['image', 'inspect', o.tag, '--format', '{{.Id}}'], { timeoutMs: 15_000 });
-  return inspect.code === 0 ? inspect.stdout.trim() : o.tag;
+  const inspect = await exec('docker', ['image', 'inspect', o.tag, '--format', '{{.Id}}\t{{.Os}}/{{.Architecture}}'], { timeoutMs: 15_000 });
+  if (inspect.code !== 0) return { imageId: o.tag };
+  const [imageId, arch] = inspect.stdout.trim().split('\t');
+  return { imageId: imageId || o.tag, arch };
 }
 
 /** login → retag → push, all inside a private DOCKER_CONFIG; logout awaited before cleanup (F35).
@@ -109,6 +118,26 @@ export async function imageExists(imageRef: string): Promise<boolean> {
   return r.code === 0;
 }
 
+/** pull one image ref directly (independent of any compose file) so ALL changed
+ *  images can land BEFORE the first container switches (MS-04); digest-pinned
+ *  refs may reuse a local copy, mutable tags must hit the registry first (F16) */
+export async function dockerPullImage(o: { imageRef: string; log: Log; env?: Record<string, string> }): Promise<void> {
+  const immutable = /@sha256:[0-9a-f]{64}$/.test(o.imageRef);
+  if (immutable && (await imageExists(o.imageRef))) {
+    o.log(`image ${o.imageRef} present locally (digest-pinned) — skipping pull`);
+    return;
+  }
+  try {
+    await must('docker', ['pull', o.imageRef], { timeoutMs: 30 * 60_000, log: o.log, env: o.env });
+  } catch (e) {
+    if (await imageExists(o.imageRef)) {
+      o.log(`registry pull failed — falling back to local ${o.imageRef} (tag may be stale)`);
+    } else {
+      throw e;
+    }
+  }
+}
+
 export interface ComposeOpts {
   appDir: string;
   app: string;
@@ -116,6 +145,9 @@ export interface ComposeOpts {
   log: Log;
   timeoutMs?: number;
   env?: Record<string, string>;
+  /** explicit compose project (defaults to composeProject(app)); v2 groups
+   *  pass their per-service project ship_<group>_<service> */
+  project?: string;
 }
 
 /** the compose project pinned for an app (F15) — this identity must be
@@ -124,62 +156,20 @@ export const composeProject = (app: string): string => `ship-${app}`;
 
 /** compose is always pinned: explicit project name + isolated --env-file (F15). */
 export async function compose(o: ComposeOpts): Promise<void> {
-  await must('docker', ['compose', '-p', composeProject(o.app), '--env-file', COMPOSE_ENV_FILE, '-f', 'compose.yaml', ...o.args], {
+  await must('docker', ['compose', '-p', o.project ?? composeProject(o.app), '--env-file', COMPOSE_ENV_FILE, '-f', 'compose.yaml', ...o.args], {
     cwd: o.appDir, timeoutMs: o.timeoutMs ?? 15 * 60_000, log: o.log, env: { ...o.env, COMPOSE_REMOVE_ORPHANS: 'false' },
   });
 }
 
-/** REFUSE to operate when a same-named compose project or container is NOT
- *  owned by THIS deployment. Every existing container of the app's project —
- *  plus any container occupying the project's derived names without our
- *  label — must carry the compose working_dir label of THIS appDir (the
- *  deployment identity; another environment/repo on the same machine has a
- *  different appDir). Strictly read-only: inspects, never stops, removes or
- *  deletes anything; docker errors fail CLOSED (no verification ⇒ no
- *  modification). Callers run this BEFORE any mutating step. */
+/** v1 wrapper over the generalized ownership check (compose-ownership.ts) */
 export async function assertComposeOwnership(o: { appDir: string; app: string }): Promise<boolean> {
-  const project = composeProject(o.app);
-  const fail = (why: string): Error => new Error(`无法核验 compose 项目 ${project} 的资源归属（${why}）— 拒绝执行`);
-  const labeled = await exec('docker', ['ps', '-a', '--filter', `label=com.docker.compose.project=${project}`, '--format', '{{.ID}}'], { timeoutMs: 20_000 });
-  if (labeled.code !== 0 || labeled.truncated || labeled.timedOut) throw fail('docker ps 按项目标签过滤失败或结果不完整');
-  const all = await exec('docker', ['ps', '-a', '--format', '{{.ID}}\t{{.Names}}'], { timeoutMs: 20_000 });
-  if (all.code !== 0 || all.truncated || all.timedOut) throw fail('docker ps 列出同名容器失败或结果不完整');
-  const ids = new Set(labeled.stdout.split('\n').map((l) => l.trim()).filter(Boolean));
-  // EXACT derived-name match (compose v2 `<project>-<service>-<n>`, legacy v1
-  // `<project>_<service>_n`; service === app): a prefix test would swallow a
-  // sibling app like `web` matching `ship-web-api-web-api-1`
-  const esc = o.app.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const derivedName = new RegExp(`^${project}-${esc}-\\d+$|^${project}_${esc}_\\d+$`);
-  for (const line of all.stdout.split('\n')) {
-    const [id, name] = line.trim().split('\t');
-    if (id && derivedName.test(name ?? '')) ids.add(id); // name squatter (may lack our label)
-  }
-  if (!ids.size) return false;
-  const inspect = await exec('docker', ['inspect', '--format',
-    '{{.Name}}\t{{index .Config.Labels "com.docker.compose.project"}}\t{{index .Config.Labels "com.docker.compose.project.working_dir"}}',
-    ...ids], { timeoutMs: 20_000 });
-  if (inspect.code !== 0 || inspect.truncated || inspect.timedOut) throw fail('docker inspect 失败或结果不完整');
-  const rows = inspect.stdout.split('\n').filter((line) => line.trim());
-  if (rows.length !== ids.size) throw fail('docker inspect 未返回全部容器的归属');
-  const mine = path.resolve(o.appDir);
-  for (const line of rows) {
-    const [name, labelProject, workingDir] = line.trim().split('\t');
-    if (!name) continue;
-    const owner = (workingDir ?? '').trim();
-    if (labelProject !== project || !owner || path.resolve(owner) !== mine) {
-      throw new Error(
-        `拒绝执行：容器 ${name}（compose 项目 ${labelProject || project}）属于其他部署（工作目录 ${owner || '未知'}，本次部署为 ${mine}）— ` +
-        '同名资源不属于当前部署；请人工处理该环境或为应用更名',
-      );
-    }
-  }
-  return true; // existing containers are deployment evidence even if local state was lost
+  return assertOwnedCompose({ dir: o.appDir, project: composeProject(o.app), service: o.app });
 }
 
 /** actual published host port for a container port (dynamic mappings, F26); null when unpublished. */
-export async function composePort(o: { appDir: string; app: string; service: string; containerPort: number }): Promise<number | null> {
+export async function composePort(o: { appDir: string; app: string; service: string; containerPort: number; project?: string }): Promise<number | null> {
   const r = await exec('docker', [
-    'compose', '-p', composeProject(o.app), '--env-file', COMPOSE_ENV_FILE, '-f', 'compose.yaml',
+    'compose', '-p', o.project ?? composeProject(o.app), '--env-file', COMPOSE_ENV_FILE, '-f', 'compose.yaml',
     'port', o.service, String(o.containerPort),
   ], { cwd: o.appDir, timeoutMs: 20_000 });
   const m = /:(\d{2,5})\s*$/.exec(r.stdout.trim());

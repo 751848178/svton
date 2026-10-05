@@ -145,7 +145,7 @@ test('M2-04: status.auth distinguishes master/builder/runtime callers on a both 
     const get = async (token: string) => (await (await fetch(`${agent.url}/api/status`, { headers: { authorization: `Bearer ${token}` } })).json()) as {
       role: string; auth?: { role: string; capabilities: string[] };
     };
-    assert.deepEqual((await get(MASTER)).auth, { role: 'both', capabilities: ['build', 'push', 'deploy', 'rollback', 'gc', 'deployment-identity-v1', 'deployment-env-preserve-v1'] });
+    assert.deepEqual((await get(MASTER)).auth, { role: 'both', capabilities: ['build', 'push', 'deploy', 'rollback', 'gc', 'deployment-identity-v1', 'deployment-env-preserve-v1', 'multi-service-v2'] });
     assert.equal((await get(bt)).auth?.role, 'builder');
     assert.ok((await get(bt)).auth?.capabilities.includes('push') && !(await get(bt)).auth?.capabilities.includes('deploy'));
     assert.equal((await get(rt)).auth?.role, 'runtime');

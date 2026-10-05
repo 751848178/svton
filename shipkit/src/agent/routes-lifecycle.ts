@@ -1,7 +1,9 @@
 // Read-side routes: health, self-authenticated status (reports the CALLER's
 // effective permissions, M2-04) and job polling.
 
+import path from 'node:path';
 import { SHIP_VERSION, type AgentStatus } from '../shared/types.js';
+import { GroupStore } from './group-store.js';
 import { HttpFail } from './http-fail.js';
 import type { Route, RouteCtx, RouteDeps } from './route-types.js';
 import { capabilitiesFor } from './route-guards.js';
@@ -29,7 +31,10 @@ export function lifecycleRoutes(d: RouteDeps): Route[] {
         activeJobs: d.jobs.activeCount(),
         auth: { role: effective, capabilities: capabilitiesFor(effective) },
       };
-      if (d.role === 'runtime' || d.role === 'both') status.apps = await d.releases.list();
+      if (d.role === 'runtime' || d.role === 'both') {
+        status.apps = await d.releases.list();
+        status.groups = await new GroupStore(path.join(d.workRoot, 'apps')).list();
+      }
       return { status: 200, body: status };
     } },
 

@@ -66,8 +66,7 @@ test('A10-upload: the full upload path packs and POSTs the tarball (no "no files
   const stub = await startStubAgent();
   try {
     const handle = { url: stub.url, token: 'AUDIT_UPLOAD' } as unknown as BuilderHandle;
-    const spec = { name: 'audit-app', envFile: 'deploy.env' } as ShipSpec;
-    const source = await uploadTarballSource(handle, dir, spec, noopLog);
+    const source = await uploadTarballSource(handle, dir, ['deploy.env'], noopLog);
     assert.equal(source.type, 'tarball');
     assert.ok((source as { id?: string }).id, 'upload returned a source id');
     const upload = stub.requests.find((r) => r.path === '/api/sources');

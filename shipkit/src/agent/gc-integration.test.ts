@@ -47,6 +47,7 @@ mock.module('./docker.js', {
     dockerPushAsImageRef: async () => ({ digest: 'sha256:push' }),
     imageExists: async () => false,
     pullAuthCtx: async () => null,
+    dockerPullImage: async () => {},
     compose: async (o: { app: string; args: string[] }) => {
       composeCalls.push({ at: Date.now(), app: o.app, args: o.args });
     },
