@@ -1,0 +1,291 @@
+{
+  "completedAt": "2026-10-05T16:09:18.067072+00:00",
+  "scope": "TWGG prod native full/selective/rollback chain",
+  "sourceCommits": {
+    "shipkit": [
+      "148b8ec2",
+      "fcf26690",
+      "0a7e710e"
+    ],
+    "twgg": [
+      "d70980a",
+      "a3d0c02",
+      "c788de3"
+    ]
+  },
+  "installedArtifacts": {
+    "cliSha256": "7742d6ba705f82c897a932f0b02e149c0d2f15e163bf37f7f41083da9ffce7da",
+    "agentSha256": "a7a8da9fe8c2f106c0d32fc81c35927519456f71d11e65710b01bc905ed0642b",
+    "compiledJsByteVerified": 219,
+    "runtimeFilesByteVerified": 221
+  },
+  "regression": {
+    "shipkitTests": 526,
+    "packageTests": 4,
+    "installerChecks": 17,
+    "packageSmoke": "passed",
+    "wrapperAndStartup": 14,
+    "h5FreshArtifacts": [
+      8,
+      8
+    ],
+    "nginxHttp": 9
+  },
+  "rounds": [
+    {
+      "round": "r1-first",
+      "releaseId": "muve7m8l-712a0137",
+      "changedServices": [
+        "backend",
+        "admin",
+        "mobile"
+      ],
+      "verification": "passed",
+      "readOnlyBusinessProbes": 15,
+      "businessPassed": true,
+      "all48TableCountsUnchanged": true,
+      "core9TableChecksumsUnchanged": true
+    },
+    {
+      "round": "r2-full",
+      "releaseId": "muvfhtnl-996bd808",
+      "changedServices": [
+        "backend",
+        "admin",
+        "mobile"
+      ],
+      "verification": "passed",
+      "readOnlyBusinessProbes": 15,
+      "businessPassed": true,
+      "all48TableCountsUnchanged": true,
+      "core9TableChecksumsUnchanged": true
+    },
+    {
+      "round": "r3-admin",
+      "releaseId": "muvfs64u-9e458f09",
+      "changedServices": [
+        "admin"
+      ],
+      "verification": "passed",
+      "readOnlyBusinessProbes": 15,
+      "businessPassed": true,
+      "all48TableCountsUnchanged": true,
+      "core9TableChecksumsUnchanged": true
+    },
+    {
+      "round": "r4-rollback",
+      "releaseId": "muvfv4z8-0c02f385",
+      "changedServices": [
+        "admin"
+      ],
+      "verification": "passed",
+      "readOnlyBusinessProbes": 15,
+      "businessPassed": true,
+      "all48TableCountsUnchanged": true,
+      "core9TableChecksumsUnchanged": true
+    }
+  ],
+  "dynamicBuilderCloudProof": [
+    {
+      "round": "r2",
+      "instanceId": "ins-6m9tmw9w",
+      "observedSpec": {
+        "id": "ins-6m9tmw9w",
+        "state": "RUNNING",
+        "type": "SA9.2XLARGE16",
+        "cpu": 8,
+        "memory": 16,
+        "systemDisk": {
+          "DiskType": "CLOUD_BSSD",
+          "DiskId": "disk-0lpwfzhm",
+          "DiskSize": 100,
+          "Encrypt": false,
+          "KmsKeyId": null,
+          "ThroughputPerformance": 0,
+          "CdcId": null
+        },
+        "securityGroupIds": [
+          "sg-1c9x1cq3"
+        ]
+      },
+      "timer": {
+        "ActionTimerId": "95547dc3-172e-4c8f-9911-0ee3182f621f",
+        "InstanceId": "ins-6m9tmw9w",
+        "TimerAction": "TerminateInstances",
+        "ActionTime": "2026-10-05T18:44:07Z",
+        "Status": "UNDO",
+        "Externals": {}
+      },
+      "absenceConfirmedAt": "2026-10-05T15:53:59.880Z",
+      "instancesAfterRelease": []
+    },
+    {
+      "round": "r3",
+      "instanceId": "ins-mpnhg79c",
+      "observedSpec": {
+        "id": "ins-mpnhg79c",
+        "state": "RUNNING",
+        "type": "SA9.2XLARGE16",
+        "cpu": 8,
+        "memory": 16,
+        "systemDisk": {
+          "DiskType": "CLOUD_BSSD",
+          "DiskId": "disk-rq8sju2q",
+          "DiskSize": 100,
+          "Encrypt": false,
+          "KmsKeyId": null,
+          "ThroughputPerformance": 0,
+          "CdcId": null
+        },
+        "securityGroupIds": [
+          "sg-1c9x1cq3"
+        ]
+      },
+      "timer": {
+        "ActionTimerId": "ffd3d933-eac8-4f80-af4c-32099037c9d3",
+        "InstanceId": "ins-mpnhg79c",
+        "TimerAction": "TerminateInstances",
+        "ActionTime": "2026-10-05T18:55:07Z",
+        "Status": "UNDO",
+        "Externals": {}
+      },
+      "absenceConfirmedAt": "2026-10-05T16:01:50.008Z",
+      "instancesAfterRelease": []
+    }
+  ],
+  "independentTimedDeletion": {
+    "instance": "ins-8s9txdyg",
+    "scheduledAt": "2026-10-05T14:36:53Z",
+    "initialResponse": "empty, later UNDO confirmed",
+    "observedGoneAt": "2026-10-05T14:37:10.374Z",
+    "explicitTerminationCalled": false,
+    "instanceSet": [],
+    "timerSet": [],
+    "passed": true
+  },
+  "finalChecks": {
+    "backendUnchanged": true,
+    "mobileUnchanged": true,
+    "adminRollbackDigest": true,
+    "adminReplacedForRollback": true,
+    "fourNonTargetsUnchanged": true,
+    "business15": true,
+    "allTableCounts": true,
+    "coreData": true,
+    "zeroBuilderLedger": true,
+    "zeroLiveRegionInstances": true
+  },
+  "finalReleaseId": "muvfv4z8-0c02f385",
+  "finalRefs": {
+    "backend": "ccr.ccs.tencentyun.com/shipkit-zxb/backend@sha256:cac9ac9f427cbecd616f8f8e3c19622e28070cfc96b4374262ff3516a0cf7e61",
+    "admin": "ccr.ccs.tencentyun.com/shipkit-zxb/admin@sha256:433b974902c5a7fbadb66d030f4b4a2978157ca07e1c97d0bfa08c028a307293",
+    "mobile": "ccr.ccs.tencentyun.com/shipkit-zxb/mobile@sha256:0982620dbc89412f9364ab90f9e7bb812e16b875b298506a3d5c46ace2ab1412"
+  },
+  "retainedResources": [
+    {
+      "id": "78df1cd64c8816f0efea775357153a5ad7f0e3cddc62b2ff150fb8dfb6a0dfc7",
+      "name": "twgg-redis",
+      "status": "running",
+      "startedAt": "2026-09-25T14:09:58.889791013Z",
+      "mounts": [
+        {
+          "type": "volume",
+          "name": "twgg_redis_data",
+          "source": "/var/lib/docker/volumes/twgg_redis_data/_data",
+          "target": "/data",
+          "rw": true
+        }
+      ]
+    },
+    {
+      "id": "2c791539a5ab65d6525bf2d9e9da68e226827133a913766a73616bc375b141e1",
+      "name": "twgg-mysql",
+      "status": "running",
+      "startedAt": "2026-09-25T14:09:33.474076135Z",
+      "mounts": [
+        {
+          "type": "volume",
+          "name": "twgg_mysql_data",
+          "source": "/var/lib/docker/volumes/twgg_mysql_data/_data",
+          "target": "/var/lib/mysql",
+          "rw": true
+        }
+      ]
+    },
+    {
+      "id": "284b2ed524984b608400d34afdbddd669b60be5449c703cb34b40bfbb5406739",
+      "name": "nginx-proxy-manager",
+      "status": "running",
+      "startedAt": "2026-09-25T03:01:03.872699525Z",
+      "mounts": [
+        {
+          "type": "bind",
+          "source": "/root/nginx-proxy-manager/data",
+          "target": "/data",
+          "rw": true
+        },
+        {
+          "type": "bind",
+          "source": "/root/nginx-proxy-manager/letsencrypt",
+          "target": "/etc/letsencrypt",
+          "rw": true
+        }
+      ]
+    },
+    {
+      "id": "14ec9597baa251c710319300857670ee794cd8438e583fe7ad7768c6264b67ea",
+      "name": "happy-server-happy-server-1",
+      "status": "running",
+      "startedAt": "2026-09-25T03:01:03.759552283Z",
+      "mounts": [
+        {
+          "type": "volume",
+          "name": "happy-server_happy_server_data",
+          "source": "/var/lib/docker/volumes/happy-server_happy_server_data/_data",
+          "target": "/data",
+          "rw": true
+        }
+      ]
+    }
+  ],
+  "anonymousNativeRegistryRead": "denied with official public-image positive control",
+  "h5Browser": {
+    "viewport": [
+      390,
+      844
+    ],
+    "rootFontPx": 20.8,
+    "titleFontPx": 22.88,
+    "loginButtonVisible": true,
+    "debugOverlay": false,
+    "reactRuntimeError": false,
+    "normalCacheEnabled": true
+  },
+  "cloudInstancesRemaining": 0,
+  "builderLedgersRemaining": 0,
+  "activeAgentJobsRemaining": 0,
+  "optionalFutureScope": [
+    "cross-service business health probes",
+    "same-host multi-environment deployment"
+  ],
+  "backupDirectory": "/root/.ship/production-backups/20261005-native/",
+  "finalJsonPlan": {
+    "passed": true,
+    "stdoutSingleJson": true,
+    "command": "sh scripts/shipkit/release.sh --services admin --plan --json",
+    "baseReleaseId": "muvfv4z8-0c02f385",
+    "selection": {
+      "requested": [
+        "admin"
+      ],
+      "resolved": [
+        "admin"
+      ],
+      "inherited": [
+        "backend",
+        "mobile"
+      ]
+    },
+    "createdBuilder": false
+  }
+}
