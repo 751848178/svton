@@ -54,12 +54,12 @@ describe('ReleaseDeployHistoryDrawer', () => {
     const lastCell = container.querySelector('tbody tr td:last-child');
     expect(lastCell?.textContent).toContain('viewReleaseStagingLogs');
     expect(lastCell?.textContent).toContain('deployExactManifest');
-    // ROD-4/PX-23：行首 cuid 折叠（title 全文），构建列以 #revision 为主。
+    // PMC072：行首 ID 折叠，构建列只保留 revision 与短 digest，不再展示 BuildRun ID。
     const runHeader = container.querySelector('tbody tr th')!;
     expect(runHeader.textContent).toContain('staging-old');
     const artifactCell = container.querySelector('tbody tr td:nth-child(2)')!;
     expect(artifactCell.textContent).toContain('releaseBuildRevision');
-    expect(artifactCell.textContent).toContain('build-un…');
+    expect(artifactCell.textContent).toContain('sha256:');
     expect(container.textContent).not.toContain('build-unbounded');
     await act(async () => root.unmount());
   });

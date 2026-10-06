@@ -51,13 +51,11 @@ export function targetEditDraftFrom(
 export function SettingsEnvTargetEditDialog({
   open,
   draft,
-  otherEnvironments,
   onClose,
   onConfirm,
 }: {
   open: boolean;
   draft: TargetEditDraft | null;
-  otherEnvironments: Array<{ id: string; key: string; name: string }>;
   onClose: () => void;
   onConfirm: (input: EnvironmentBindTargetInput) => Promise<boolean>;
 }) {
@@ -129,7 +127,6 @@ export function SettingsEnvTargetEditDialog({
     >
       <SettingsEnvTargetFields
         value={target}
-        otherEnvironments={otherEnvironments}
         onChange={setTarget}
       />
     </Modal>

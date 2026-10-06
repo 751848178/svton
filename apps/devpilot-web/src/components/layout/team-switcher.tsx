@@ -8,14 +8,8 @@ import { Avatar } from '@svton/ui';
 import { useBoolean, usePersistFn } from '@svton/hooks';
 import { useTeamStore, Team } from '@/store/hooks';
 import { CreateTeamModal } from './create-team-modal';
+import { TeamSwitcherEmpty } from './team-switcher-empty';
 
-/**
- * 团队切换器（2026-08-23 按社区范式重构，参考 GitHub/Linear/Vercel）：
- *  - 触发器：24px 方形首字母块 + 团队名 + chevron，无边框、hover:bg-accent
- *  - 菜单三段式：分组标题 → 团队列表（方块 + 主名 + 成员数副行 + 当前项右缘
- *    Check）→ 分隔线 + 低频动作（创建/管理）
- *  - 可达性：aria-haspopup/aria-expanded、ESC 关闭并还焦触发器、点击外部收起
- */
 export function TeamSwitcher() {
   const t = useTranslations('nav');
   const router = useRouter();
@@ -31,7 +25,6 @@ export function TeamSwitcher() {
     fetchTeams();
   }, [fetchTeams]);
 
-  // 点击外部收起 + ESC 关闭并还焦触发器。
   useEffect(() => {
     if (!isOpen) return;
     const onPointerDown = (event: MouseEvent) => {
@@ -84,27 +77,7 @@ export function TeamSwitcher() {
   }
 
   if (teams.length === 0) {
-    return (
-      <div className="relative shrink-0">
-        <div className="flex min-h-11 items-center gap-2 rounded-md px-2 text-xs text-muted-foreground">
-          <span>{t('noTeamHint')}</span>
-          <button
-            onClick={openModal}
-            className="shrink-0 font-medium text-primary hover:underline"
-          >
-            {t('createTeam')}
-          </button>
-        </div>
-        <CreateTeamModal
-          open={modalOpen}
-          onClose={closeModal}
-          onSubmit={handleCreateTeam}
-          teamName={newTeamName}
-          setTeamName={setNewTeamName}
-          creating={creating}
-        />
-      </div>
-    );
+    return <TeamSwitcherEmpty />;
   }
 
   const initials = (name: string) => name.trim().charAt(0).toUpperCase() || '?';

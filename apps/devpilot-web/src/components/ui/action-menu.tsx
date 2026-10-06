@@ -7,14 +7,14 @@
  */
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 export interface ActionMenuItem {
   key: string;
   label: string;
   danger?: boolean;
   disabled?: boolean;
-  onSelect: () => void;
+  onSelect: (restoreFocusTarget?: HTMLButtonElement) => void;
 }
 
 export interface ActionMenuGroup {
@@ -29,6 +29,7 @@ export function ActionMenu(props: {
   const { groups, triggerLabel = '⋯' } = props;
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -51,8 +52,12 @@ export function ActionMenu(props: {
   }, [open]);
 
   return (
-    <div ref={rootRef} className="relative inline-block">
+    <div
+      ref={rootRef}
+      className="relative inline-block"
+    >
       <button
+        ref={triggerRef}
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
@@ -67,23 +72,37 @@ export function ActionMenu(props: {
           className="absolute right-0 z-50 mt-1 min-w-[10rem] rounded-md border bg-popover py-1 text-popover-foreground shadow-md"
         >
           {groups.map((group, groupIndex) => (
-            <li key={group.label ?? groupIndex} role="none">
-              {groupIndex > 0 ? <div role="separator" className="my-1 h-px bg-border" /> : null}
+            <li
+              key={group.label ?? groupIndex}
+              role="none"
+            >
+              {groupIndex > 0 ? (
+                <div
+                  role="separator"
+                  className="my-1 h-px bg-border"
+                />
+              ) : null}
               {group.label ? (
                 <div className="px-3 py-1 text-xs font-medium text-muted-foreground">
                   {group.label}
                 </div>
               ) : null}
-              <ul role="group" aria-label={group.label}>
+              <ul
+                role="group"
+                aria-label={group.label}
+              >
                 {group.items.map((item) => (
-                  <li key={item.key} role="none">
+                  <li
+                    key={item.key}
+                    role="none"
+                  >
                     <button
                       type="button"
                       role="menuitem"
                       disabled={item.disabled}
                       onClick={() => {
                         setOpen(false);
-                        item.onSelect();
+                        item.onSelect(triggerRef.current ?? undefined);
                       }}
                       className={`flex w-full items-center px-3 py-2 text-left text-sm hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50 ${
                         item.danger ? 'text-destructive hover:bg-destructive/10' : ''

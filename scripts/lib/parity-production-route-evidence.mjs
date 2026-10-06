@@ -5,6 +5,15 @@ export function buildProductionRouteExpectation(input) {
   const route = input.routeSnapshot || {};
   const primaryDomain = route.domains?.[0];
   const domains = [...(route.domains || [])].sort();
+  const entries = Array.isArray(route.entries)
+    ? route.entries.map(normalizedEntry)
+    : [];
+  const structuredUpstreams = new Set(
+    entries.map((entry) => `${entry.component}:${entry.port}`),
+  );
+  const proxyTarget = entries.length > 0 && structuredUpstreams.size === 1
+    ? [...structuredUpstreams][0]
+    : route.proxyTarget ?? null;
   const tlsRequired = route.tlsRequired !== false;
   const finalSitePort = validPort(input.finalSitePort)
     ? `:${input.finalSitePort}`
@@ -18,7 +27,8 @@ export function buildProductionRouteExpectation(input) {
     siteId: input.siteId,
     primaryDomain,
     domains,
-    proxyTarget: route.proxyTarget ?? null,
+    entries,
+    proxyTarget,
     targetRef: input.targetRef,
   };
   const routeHash = createHash("sha256")
@@ -45,7 +55,7 @@ export function productionRouteEvidenceChecks(proof = {}) {
   const probe = proof.siteProbe || {};
   const routeRows = proof.routeRuns || [];
   const row = routeRows[0] || {};
-  const persisted = row.result?.routeSwitch || {};
+  const persisted = proof.deploymentRouteSwitch || {};
   const receipt = persisted.receipt || {};
   const observed = receipt.observed || {};
   return [
@@ -77,8 +87,16 @@ export function productionRouteEvidenceChecks(proof = {}) {
     check("routeRunTargetRef", row.targetRef, expected.targetRef),
     predicate("routeRunDomains", jsonEqual(sorted(row.domains), expected.domains), row.domains),
     check("routeRunProxyTarget", row.proxyTarget, expected.proxyTarget),
-    check("routeRunStatus", row.status, "switched"),
+    check("routeRunOperationId", row.operationId, expected.operationId),
+    check("routeRunProviderKey", row.providerKey, expected.providerKey),
+    check("routeRunStatus", row.status, "committed"),
     check("routeRunReasonCode", row.reasonCode, "site_route_switched"),
+    predicate(
+      "routeRunDesiredRoute",
+      jsonEqual(row.desiredRoute, routeInput(persisted)),
+      row.desiredRoute,
+    ),
+    predicate("routeRunApplyReceipt", jsonEqual(row.applyReceipt, receipt), row.applyReceipt),
     predicate("routeRunFinishedAt", validTime(row.finishedAt), row.finishedAt),
     check("routeVersion", persisted.version, 1),
     check("routeOperationId", persisted.operationId, expected.operationId),
@@ -110,7 +128,6 @@ export function productionRouteEvidenceChecks(proof = {}) {
     predicate("observedAfterDeploymentStart", atOrAfter(receipt.observedAt, deployment.startedAt), receipt.observedAt),
     predicate("observedBeforeRouteFinish", atOrBefore(receipt.observedAt, row.finishedAt), receipt.observedAt),
     predicate("observedBeforeCapture", atOrBefore(receipt.observedAt, proof.capturedAt), receipt.observedAt),
-    predicate("deploymentRouteMatches", jsonEqual(proof.deploymentRouteSwitch, persisted), proof.deploymentRouteSwitch),
     predicate("siteCurrentRouteMatches", jsonEqual(proof.siteCurrent?.routeSwitch, persisted), proof.siteCurrent?.routeSwitch),
     predicate("routeRunProbeMatches", jsonEqual(row.result?.siteProbe, probe), row.result?.siteProbe),
     check("probePrimaryDomain", probe.primaryDomain, expected.primaryDomain),
@@ -129,6 +146,19 @@ function tlsChecksPass(tls, expected) {
   return tls?.status === "valid" && tls.host === expected.primaryDomain &&
     tls.servername === expected.primaryDomain && tls.authorized === true &&
     tls.authorizationErrorCode === null;
+}
+
+function normalizedEntry(entry) {
+  return {
+    domain: entry.domain,
+    path: entry.path || "/",
+    serviceId: entry.serviceId,
+    component: entry.component,
+    port: entry.port,
+    tlsMode: entry.tlsMode === "existing_cert_asset"
+      ? "existing_cert_asset"
+      : "managed_cert",
+  };
 }
 
 function validProvider(value) {
@@ -157,5 +187,26 @@ function sorted(value) {
 }
 
 function jsonEqual(left, right) {
-  return JSON.stringify(left) === JSON.stringify(right);
+  return canonical(left) === canonical(right);
+}
+
+function routeInput(value) {
+  const {
+    providerKey: _providerKey,
+    status: _status,
+    reasonCode: _reasonCode,
+    switchedAt: _switchedAt,
+    receipt: _receipt,
+    ...input
+  } = value || {};
+  return input;
+}
+
+function canonical(value) {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.keys(value).sort().map((key) =>
+      `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
 }

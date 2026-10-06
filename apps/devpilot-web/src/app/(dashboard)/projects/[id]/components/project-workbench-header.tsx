@@ -1,98 +1,112 @@
 'use client';
 
-import React, { useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import type { ReactNode } from 'react';
+import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { ArrowLeft, GearSix, GlobeHemisphereWest } from '@phosphor-icons/react';
-import { Dropdown } from '@svton/ui';
+import { ArrowLeft, ArrowRight, GearSix, GitBranch, GithubLogo } from '@phosphor-icons/react';
 import { LinkButton } from '@/components/ui';
+import { cn } from '@/lib/utils';
+import type { ProjectWorkbenchIdentity } from '../utils/project-workbench-identity.model';
+import { projectWorkbenchHeaderNavigation } from '../utils/project-workbench-navigation.model';
 
-/**
- * 项目页公共页头（2026-08-23 IA 重构）。
- *
- * 单一职责：页面身份（← 返回 + 项目名）+ 右上角动作区
- * （主操作「创建发布」直达发布工作台；低频配置域收进「配置」下拉）。
- * 不再渲染：项目 icon、仓库地址/默认分支副行（低频参考信息已在项目信息区
- * 与仓库解析区呈现，重复违反"同一事实不进多个视觉容器"）、一级 tabs
- * （发布/配置/域名/部署已迁移为独立页面或跟随发布，见 IA 文档）。
- */
-export function ProjectWorkbenchHeader(props: { projectId: string; name: string }) {
+/** Shared project identity, project issue, deterministic back, and contextual actions. */
+export function ProjectWorkbenchHeader({
+  identity,
+  issue,
+}: {
+  identity: ProjectWorkbenchIdentity;
+  issue?: ReactNode;
+}) {
   const t = useTranslations('projects');
-  const tc = useTranslations('common');
-  const router = useRouter();
-  const [configOpen, setConfigOpen] = useState(false);
-  const encodedId = encodeURIComponent(props.projectId);
-  const base = `/projects/${encodedId}`;
-
-  const goBack = () => {
-    // 常规路径：从项目列表进入 → 返回上一页；深链直达（无历史）时回列表。
-    if (typeof window !== 'undefined' && window.history.length > 1) router.back();
-    else router.push('/projects');
-  };
+  const pathname = usePathname();
+  const base = `/projects/${encodeURIComponent(identity.projectId)}`;
+  const navigation = projectWorkbenchHeaderNavigation(identity.projectId, pathname);
 
   return (
-    <header className="flex flex-wrap items-center justify-between gap-3">
-      <div className="flex min-w-0 items-center gap-2">
-        <button
-          type="button"
-          onClick={goBack}
-          aria-label={tc('back')}
-          className="inline-flex size-9 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-        >
-          <ArrowLeft
-            size={18}
-            aria-hidden="true"
-          />
-        </button>
-        <h1 className="truncate text-xl font-semibold">{props.name}</h1>
-      </div>
-      <div className="flex items-center gap-2">
-        <Dropdown
-          trigger={
-            <button
-              type="button"
-              aria-haspopup="menu"
-              aria-expanded={configOpen}
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-md px-2.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+    <div className="min-w-0 bg-background">
+      <header className="grid gap-3 pt-3 md:pt-4">
+        <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 flex-1 items-start gap-2 sm:items-center">
+            <LinkButton
+              href={navigation.back.href}
+              variant="ghost"
+              size="icon"
+              aria-label={t(navigation.back.labelKey)}
+              title={t(navigation.back.labelKey)}
+              className="shrink-0"
             >
-              <GearSix
+              <ArrowLeft
+                size={19}
+                aria-hidden="true"
+              />
+            </LinkButton>
+            <div className="min-w-0 flex-1">
+              {/* impeccable-disable-next-line design-system-font-size -- documented project headline */}
+              <h1 className="truncate text-[24px] font-semibold leading-none tracking-[-0.035em] md:text-[26px]">
+                {identity.name}
+              </h1>
+              <div className="mt-2 flex min-w-0 flex-col items-start gap-1.5 text-xs text-muted-foreground sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-1">
+                <Metadata
+                  icon={GithubLogo}
+                  value={identity.repository}
+                  mono
+                />
+                <Metadata
+                  icon={GitBranch}
+                  value={identity.branch}
+                />
+              </div>
+            </div>
+          </div>
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+            {navigation.contextAction ? (
+              <LinkButton
+                href={navigation.contextAction.href}
+                variant="outline"
+                className="flex-1 sm:flex-none"
+              >
+                <GearSix
+                  size={16}
+                  aria-hidden="true"
+                />
+                {t(navigation.contextAction.labelKey)}
+              </LinkButton>
+            ) : null}
+            <LinkButton
+              href={`${base}?create=true`}
+              className="flex-1 shadow-[0_4px_10px_rgba(79,94,232,.18)] sm:flex-none"
+            >
+              {t('createReleaseOrder')}
+              <ArrowRight
                 size={15}
                 aria-hidden="true"
               />
-              {t('workbenchConfigMenu')}
-            </button>
-          }
-          open={configOpen}
-          onOpenChange={setConfigOpen}
-        >
-          <Link
-            href={`${base}/settings`}
-            onClick={() => setConfigOpen(false)}
-            className="flex min-h-11 items-center gap-2 rounded-sm px-3 text-sm hover:bg-accent"
-          >
-            <GearSix
-              size={15}
-              aria-hidden="true"
-              className="text-muted-foreground"
-            />
-            {t('workbenchTabConfiguration')}
-          </Link>
-          <Link
-            href={`${base}/domains`}
-            onClick={() => setConfigOpen(false)}
-            className="flex min-h-11 items-center gap-2 rounded-sm px-3 text-sm hover:bg-accent"
-          >
-            <GlobeHemisphereWest
-              size={15}
-              aria-hidden="true"
-              className="text-muted-foreground"
-            />
-            {t('workbenchTabDomains')}
-          </Link>
-        </Dropdown>
-        <LinkButton href={`${base}/releases?create=true`}>{t('createReleaseOrder')}</LinkButton>
-      </div>
-    </header>
+            </LinkButton>
+          </div>
+        </div>
+        {issue}
+      </header>
+    </div>
+  );
+}
+
+function Metadata({
+  icon: Icon,
+  value,
+  mono = false,
+}: {
+  icon: typeof GithubLogo;
+  value: string | null;
+  mono?: boolean;
+}) {
+  if (!value) return null;
+  return (
+    <span className={cn('inline-flex min-w-0 items-center gap-1.5', mono && 'font-mono')}>
+      <Icon
+        size={14}
+        aria-hidden="true"
+      />
+      <span className="max-w-[36rem] truncate">{value}</span>
+    </span>
   );
 }

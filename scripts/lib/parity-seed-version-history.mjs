@@ -28,18 +28,12 @@ export async function seedParityVersionHistory({
     digestB,
     capturedAt,
   });
-  const orderCreatedAt = parityHistoryOrderCreatedAt(records);
+  await releaseClaimedVersionPointers(prisma, records);
+  const releaseOrder = parityHistoryReleaseOrderData(ids, scope, records);
   await prisma.releaseOrder.upsert({
     where: { id: ids.orderPrev },
-    create: {
-      id: ids.orderPrev,
-      ...scope,
-      createdById: ids.user,
-      releaseVersion: "0.9.0",
-      status: "succeeded",
-      createdAt: orderCreatedAt,
-    },
-    update: { status: "succeeded", createdAt: orderCreatedAt },
+    create: { id: ids.orderPrev, ...releaseOrder },
+    update: releaseOrder,
   });
   let stagingPreviousVersionId = null;
   let productionPreviousVersionId = null;
@@ -67,6 +61,27 @@ export async function seedParityVersionHistory({
     }),
   ]);
   return records;
+}
+
+export function parityHistoryReleaseOrderData(ids, scope, records) {
+  return {
+    ...scope,
+    createdById: ids.user,
+    releaseVersion: "0.9.0",
+    status: "succeeded",
+    createdAt: parityHistoryOrderCreatedAt(records),
+  };
+}
+
+export function releaseClaimedVersionPointers(prisma, records) {
+  const claimedVersionIds = records.flatMap((record) => [
+    record.stagingVersionId,
+    record.productionVersionId,
+  ]);
+  return prisma.projectEnvironment.updateMany({
+    where: { currentEnvironmentVersionId: { in: claimedVersionIds } },
+    data: { currentEnvironmentVersionId: null },
+  });
 }
 
 async function seedBuildArtifact(prisma, ids, scope, record) {

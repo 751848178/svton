@@ -7,6 +7,8 @@
  * 单一职责：渲染阻断原因 + 可选恢复动作。无业务逻辑。
  */
 
+'use client';
+
 import type { ReactNode } from 'react';
 import { WarningCircle } from '@phosphor-icons/react';
 import { cn } from '@/lib/utils';

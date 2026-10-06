@@ -57,26 +57,62 @@ function releaseProgress(parent, stages) {
   return chain;
 }
 
+function arrowProgressStyle(state) {
+  if (state === "completed") return { fill: "#DBEAFE", stroke: "#BFDBFE", text: "#1D4ED8", glyph: "check" };
+  if (state === "current") return { fill: "#0F62FE", stroke: "#0F62FE", text: T.bg, glyph: "current" };
+  if (state === "pending") return { fill: "#E4E7EC", stroke: "#D0D5DD", text: "#475467", glyph: "pending" };
+  if (state === "blocked") return { fill: "#E5484D", stroke: "#E5484D", text: T.bg, glyph: "blocked" };
+  return { fill: "#F8FAFC", stroke: "#EAECF0", text: "#98A2B3", glyph: "disabled" };
+}
+
+function arrowProgressGlyph(parent, style) {
+  if (style.glyph === "check") icon(parent, "check", { width: 14, height: 14, fill: F(style.text) });
+  else if (style.glyph === "blocked") icon(parent, "circle-alert", { width: 14, height: 14, fill: F(style.text) });
+  else if (style.glyph === "disabled") icon(parent, "minus", { width: 14, height: 14, fill: F(style.text) });
+  else if (style.glyph === "pending") I(parent, { type: "ellipse", width: 12, height: 12, fill: F("#00000000"), stroke: S(style.text, 2) });
+  else I(parent, { type: "ellipse", width: 8, height: 8, fill: F(style.text) });
+}
+
 function releaseArrowProgress(parent, stages) {
-  const chain = frame(parent, { name: "Staging arrow progress", width: "fill_container", height: 56, layout: "horizontal", gap: 0, alignItems: "center", fill: F(T.bg) });
+  const chain = frame(parent, {
+    name: "V2-06 segmented chevron rail — selectable stages need hover/focus; current uses aria-current=step; disabled uses aria-disabled=true",
+    width: "fill_container",
+    height: 40,
+    layout: "none",
+    clipContent: true,
+    cornerRadius: 6,
+    fill: F(T.bg),
+    stroke: S("#D0D5DD"),
+  });
+  // OpenPencil 0.8.4 paints earlier layout:none children above later siblings.
+  for (let index = 1; index < stages.length; index += 1) {
+    const adjacent = [stages[index - 1][1], stages[index][1]];
+    const color = adjacent.some((state) => state === "current" || state === "blocked") ? T.bg : "#CBD5E1";
+    icon(chain, "chevron-right", { x: index * 287 - 7.5, y: 12.5, width: 15, height: 15, fill: F(color) });
+  }
   stages.forEach(([label, state], index) => {
-    const style = progressStyle(state);
-    const active = state === "current" || state === "blocked";
-    const foreground = state === "current" ? T.bg : style.text;
+    const style = arrowProgressStyle(state);
+    const interaction = state === "current" || state === "blocked"
+      ? "aria-current=step"
+      : state === "disabled"
+        ? "aria-disabled=true"
+        : "selectable; hover+focus required";
     const segment = frame(chain, {
-      name: `Arrow release step: ${label} — ${state}`,
+      name: `Chevron rail segment: ${label} — ${state} — ${interaction}`,
+      role: "button",
+      x: index * 287,
+      y: 0,
       width: 287,
       height: 40,
-      layout: "none",
+      layout: "horizontal",
+      padding: [0, 16],
+      gap: 8,
+      alignItems: "center",
+      justifyContent: "center",
+      fill: F(style.fill),
     });
-    const copy = frame(segment, { x: index === 0 ? 18 : 28, y: 0, width: 216, height: 40, layout: "horizontal", gap: 8, alignItems: "center", justifyContent: "center" });
-    if (state === "completed") icon(copy, "check", { width: 14, height: 14, fill: F(T.blue700) });
-    else if (state === "blocked") icon(copy, "circle-alert", { width: 14, height: 14, fill: F(T.red) });
-    else I(copy, { type: "ellipse", width: active ? 8 : 6, height: active ? 8 : 6, fill: F(state === "current" ? T.bg : style.text) });
-    text(copy, label, { fontSize: 13, fontWeight: active ? 700 : 600, fill: F(foreground) });
-    if (index > 0) I(segment, { type: "polygon", x: 0, y: 0, width: 20, height: 40, polygonCount: 3, rotation: 90, fill: F(T.bg) });
-    I(segment, { type: "polygon", x: 247, y: 0, width: 40, height: 40, polygonCount: 3, rotation: 90, fill: F(style.fill) });
-    frame(segment, { x: 0, y: 0, width: 267, height: 40, cornerRadius: index === 0 ? [6, 0, 0, 6] : 0, fill: F(style.fill) });
+    arrowProgressGlyph(segment, style);
+    text(segment, label, { fontSize: 13, fontWeight: state === "current" || state === "blocked" ? 700 : 600, fill: F(style.text) });
   });
   return chain;
 }

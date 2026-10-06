@@ -2,6 +2,7 @@ import { ConflictException } from "@nestjs/common";
 import { executeEnvironmentVersion } from "./environment-version-execution";
 
 describe("executeEnvironmentVersion staging admission", () => {
+  const originalProfile = process.env.DEVPILOT_RELEASE_FLOW_PROFILE;
   const repository = {
     environment: jest.fn(),
     manifest: jest.fn(),
@@ -43,6 +44,7 @@ describe("executeEnvironmentVersion staging admission", () => {
   };
 
   beforeEach(() => {
+    process.env.DEVPILOT_RELEASE_FLOW_PROFILE = "governed_v1";
     jest.clearAllMocks();
     repository.environment.mockResolvedValue({
       id: "staging-1",
@@ -79,6 +81,11 @@ describe("executeEnvironmentVersion staging admission", () => {
       stage: "staging",
       inputHash: "gate-hash",
     });
+  });
+
+  afterAll(() => {
+    if (originalProfile === undefined) delete process.env.DEVPILOT_RELEASE_FLOW_PROFILE;
+    else process.env.DEVPILOT_RELEASE_FLOW_PROFILE = originalProfile;
   });
 
   it("fails before reserving a run when no Provider-matched target is bound", async () => {

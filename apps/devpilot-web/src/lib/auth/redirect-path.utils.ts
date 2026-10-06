@@ -11,3 +11,8 @@ export function buildLoginRedirectPath(pathname: string, search = ''): string {
   const redirect = toSafeRedirectPath(`${pathname}${search}`);
   return `/login?redirect=${encodeURIComponent(redirect)}`;
 }
+
+export function buildTeamRequiredRedirectPath(pathname: string, search = ''): string {
+  const redirect = toSafeRedirectPath(`${pathname}${search}`);
+  return `/teams?required=1&redirect=${encodeURIComponent(redirect)}`;
+}

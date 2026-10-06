@@ -22,6 +22,7 @@ describe('useProductionReleases scope ownership', () => {
   let root: Root;
   let latest: ReturnType<typeof useProductionReleases>;
   let enabled: boolean;
+  let deployImmediately: boolean;
 
   beforeEach(() => {
     (
@@ -32,6 +33,7 @@ describe('useProductionReleases scope ownership', () => {
     mocks.actorId = 'actor-1';
     mocks.teamId = 'team-1';
     enabled = true;
+    deployImmediately = false;
     root = createRoot(document.createElement('div'));
   });
 
@@ -93,12 +95,43 @@ describe('useProductionReleases scope ownership', () => {
     expect(mocks.apiRequest).not.toHaveBeenCalled();
   });
 
+  it('executes the production environment with the confirmed run in basic mode', async () => {
+    deployImmediately = true;
+    mocks.apiRequest
+      .mockResolvedValueOnce(preview('project-1', 'order-1', 'manifest-1', 'hash'))
+      .mockResolvedValueOnce(run())
+      .mockResolvedValueOnce({ run: { id: 'deployment-1' } });
+    await render();
+
+    await act(async () => {
+      await latest.confirm();
+    });
+
+    expect(mocks.apiRequest).toHaveBeenNthCalledWith(
+      3,
+      'POST:/projects/project-1/delivery/environment-versions/production-1/actions',
+      expect.objectContaining({
+        kind: 'upgrade',
+        manifestId: 'manifest-1',
+        releaseRunId: 'release-1',
+      }),
+    );
+    expect(mocks.onChanged).toHaveBeenCalledOnce();
+  });
+
   async function render() {
     await act(async () => root.render(<Probe />));
   }
 
   function Probe() {
-    latest = useProductionReleases('project-1', 'order-1', 'manifest-1', mocks.onChanged, enabled);
+    latest = useProductionReleases(
+      'project-1',
+      'order-1',
+      'manifest-1',
+      mocks.onChanged,
+      enabled,
+      deployImmediately,
+    );
     return null;
   }
 });
@@ -119,6 +152,7 @@ function run() {
     id: 'release-1',
     projectId: 'project-1',
     releaseOrderId: 'order-1',
+    environmentId: 'production-1',
   } as ProductionReleaseRun;
 }
 

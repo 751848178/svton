@@ -6,14 +6,35 @@ export interface Site {
   id: string;
   name: string;
   primaryDomain: string;
-  aliases: unknown;
+  aliases: string[] | null;
   runtimeType: SiteRuntimeType;
-  runtimeConfig: unknown;
-  tls: unknown;
+  runtimeConfig: Record<string, unknown> | null;
+  tls: {
+    status?: string | null;
+    enabled?: boolean;
+    type?: string | null;
+    expiresAt?: string | null;
+    probe?: {
+      status?: string | null;
+      checkedAt?: string | null;
+    } | null;
+  } | null;
   accessPolicy: unknown;
   status: string;
   lastSyncAt: string | null;
   syncError: string | null;
+  dns?: {
+    status?: string | null;
+    hostname?: string | null;
+    records?: string[] | null;
+    checkedAt?: string | null;
+  } | null;
+  routeSwitch?: {
+    status?: string | null;
+    targetRef?: string | null;
+    proxyTarget?: string | null;
+    switchedAt?: string | null;
+  } | null;
   createdAt: string;
   project?: { id: string; name: string } | null;
   environment?: { id: string; key: string; name: string; status: string } | null;

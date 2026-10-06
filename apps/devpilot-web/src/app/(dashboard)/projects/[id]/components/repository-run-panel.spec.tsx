@@ -7,16 +7,26 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RepositoryRunPanel } from './repository-run-panel';
 
 vi.mock('next-intl', () => ({ useTranslations: () => (key: string) => key }));
+vi.mock('@/components/ui', () => ({
+  Select: ({ options = [] }: { options?: Array<{ value: string; label: string }> }) => (
+    <select>
+      {options.map((option) => (
+        <option key={option.value}>{option.label}</option>
+      ))}
+    </select>
+  ),
+}));
 vi.mock('@svton/ui', () => ({
   LoadingState: () => <div>loading</div>,
   EmptyState: () => <div>empty</div>,
   Card: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  Button: (props: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
-    <button {...props} />
-  ),
+  Button: (props: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props} />,
 }));
 
-const EVIDENCE = Array.from({ length: 25 }, (_, i) => ({ file: `file-${i}.ts`, detail: 'changed' }));
+const EVIDENCE = Array.from({ length: 25 }, (_, i) => ({
+  file: `file-${i}.ts`,
+  detail: 'changed',
+}));
 
 const RUN = {
   id: 'run-1',
@@ -45,15 +55,22 @@ describe('RepositoryRunPanel evidence paging (INFO-2)', () => {
 
   it('labels the first page and expands all evidence on demand', async () => {
     await act(async () => {
-      root.render(<RepositoryRunPanel analysis={analysis} onSelectRun={() => undefined} />);
+      root.render(
+        <RepositoryRunPanel
+          analysis={analysis}
+          onSelectRun={() => undefined}
+        />,
+      );
     });
     const summary = [...container.querySelectorAll('summary')].find((s) =>
       s.textContent?.includes('25 条证据'),
     )!;
     expect(summary).not.toBeNull();
     // 默认仅 20 条 + 显式声明
-    expect(container.querySelectorAll('li.font-mono').length
-      + container.querySelectorAll('li.break-all').length).toBeGreaterThanOrEqual(20);
+    expect(
+      container.querySelectorAll('li.font-mono').length +
+        container.querySelectorAll('li.break-all').length,
+    ).toBeGreaterThanOrEqual(20);
     expect(container.textContent).toContain('仅展示前 20 条');
 
     const expand = [...container.querySelectorAll('button')].find((b) =>

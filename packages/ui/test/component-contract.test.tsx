@@ -266,3 +266,22 @@ describe('Notification registry', () => {
     expect(screen.queryByText('Running')).not.toBeInTheDocument();
   });
 });
+
+describe('Drawer body scroll contract', () => {
+  it('merges bodyClassName so callers can keep a single scroll layer', async () => {
+    const { Drawer } = await import('../src/components/Drawer');
+    render(
+      <Drawer
+        open
+        onClose={() => {}}
+        ariaCloseLabel="Close"
+        bodyClassName="overflow-hidden"
+      >
+        <div data-testid="drawer-content">log</div>
+      </Drawer>,
+    );
+    const body = screen.getByTestId('drawer-content').parentElement!;
+    expect(body.className).toContain('overflow-hidden');
+    expect(body.className).not.toContain('overflow-auto');
+  });
+});

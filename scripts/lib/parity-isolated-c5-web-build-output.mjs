@@ -85,7 +85,7 @@ function outputIdentity(environment) {
   if (
     manifestPath !== join(runDirectory, "runtime.json") ||
     output !== join(runDirectory, "web-image-dist") ||
-    !/^c5-[a-f0-9]{8}-[a-f0-9]{32}$/.test(
+    !/^c5-[a-f0-9]{8}-(?:[a-f0-9]{8}|[a-f0-9]{32})$/.test(
       environment.PARITY_RUNTIME_ID || "",
     ) ||
     !/^[a-f0-9]{40}$/.test(environment.PARITY_SOURCE_REVISION || "") ||

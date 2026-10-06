@@ -12,7 +12,7 @@
 
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, type RefObject } from 'react';
 import { Textarea } from '@/components/ui';
 import { useTranslations } from 'next-intl';
 import { Modal } from '@svton/ui';
@@ -26,6 +26,7 @@ interface EnvironmentEnvImportModalProps {
   /** 已存在的 KEY（用于高亮冲突），可选。 */
   existingKeys?: Set<string>;
   onImport: (vars: Record<string, string>) => void;
+  restoreFocusRef?: RefObject<HTMLElement | null>;
   t: ProjectsTranslator;
 }
 
@@ -34,6 +35,7 @@ export function EnvironmentEnvImportModal({
   onClose,
   existingKeys,
   onImport,
+  restoreFocusRef,
   t,
 }: EnvironmentEnvImportModalProps) {
   const tc = useTranslations('common');
@@ -49,9 +51,8 @@ export function EnvironmentEnvImportModal({
   const validKeys = parsed ? Object.keys(parsed.plainVars).length : 0;
   const sensitiveKeys = parsed ? Object.keys(parsed.sensitiveVars).length : 0;
   const dupKeys = parsed ? Object.keys(parsed.duplicates).length : 0;
-  const conflictKeys = parsed && existingKeys
-    ? Object.keys(parsed.vars).filter((k) => existingKeys.has(k)).length
-    : 0;
+  const conflictKeys =
+    parsed && existingKeys ? Object.keys(parsed.vars).filter((k) => existingKeys.has(k)).length : 0;
 
   const canImport = parsed !== null && validKeys > 0;
 
@@ -70,6 +71,7 @@ export function EnvironmentEnvImportModal({
       onClose={onClose}
       title={t('envImportTitle')}
       width={620}
+      restoreFocusRef={restoreFocusRef}
       footer={
         <div className="flex justify-end gap-2">
           <button
@@ -123,12 +125,21 @@ export function EnvironmentEnvImportModal({
               </p>
             ) : null}
             {validKeys > 0 ? (
-              <ul className="mt-2 max-h-40 space-y-0.5 overflow-auto rounded-md border bg-muted/30 p-2">
+              <ul className="mt-2 space-y-0.5 rounded-md border bg-muted/30 p-2">
                 {Object.entries(parsed.plainVars)
                   .slice(0, 50)
                   .map(([k, v]) => (
-                    <li key={k} className="flex items-baseline gap-2 font-mono">
-                      <span className={existingKeys?.has(k) ? 'text-yellow-700 dark:text-yellow-500' : 'text-foreground'}>
+                    <li
+                      key={k}
+                      className="flex items-baseline gap-2 font-mono"
+                    >
+                      <span
+                        className={
+                          existingKeys?.has(k)
+                            ? 'text-yellow-700 dark:text-yellow-500'
+                            : 'text-foreground'
+                        }
+                      >
                         {k}
                       </span>
                       <span className="text-muted-foreground">=</span>
@@ -138,11 +149,14 @@ export function EnvironmentEnvImportModal({
               </ul>
             ) : null}
             {sensitiveKeys > 0 ? (
-              <ul className="mt-2 max-h-40 space-y-0.5 overflow-auto rounded-md border border-amber-300 bg-amber-50 p-2 dark:border-amber-700/50 dark:bg-amber-950/30">
+              <ul className="mt-2 space-y-0.5 rounded-md border border-amber-300 bg-amber-50 p-2 dark:border-amber-700/50 dark:bg-amber-950/30">
                 {Object.entries(parsed.sensitiveVars)
                   .slice(0, 50)
                   .map(([k]) => (
-                    <li key={k} className="flex items-baseline gap-2 font-mono">
+                    <li
+                      key={k}
+                      className="flex items-baseline gap-2 font-mono"
+                    >
                       <span className="text-amber-800 dark:text-amber-400">{k}</span>
                       <span className="rounded bg-amber-200/60 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-800/60 dark:text-amber-200">
                         {t('envImportSensitiveBadge')}

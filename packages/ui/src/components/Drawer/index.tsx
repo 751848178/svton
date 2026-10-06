@@ -25,6 +25,8 @@ export interface DrawerProps {
   closeOnEscape?: boolean;
   showCloseButton?: boolean;
   className?: string;
+  /** 内容区追加类（twMerge 合并，可覆盖默认 overflow-auto 实现单层滚动）。 */
+  bodyClassName?: string;
   /** 关闭按钮的本地化 accessible name；缺省用英文 "Close"。 */
   ariaCloseLabel?: string;
   'aria-label'?: string;
@@ -38,7 +40,7 @@ export const Drawer = React.forwardRef<HTMLDivElement, DrawerProps>(function Dra
   const {
     open, onClose, children, title, description, placement = 'right', width = 300,
     height = 300, mask = true, maskClosable = true, closeOnEscape = true,
-    showCloseButton = true, className, initialFocusRef, initialFocusSelector,
+    showCloseButton = true, className, bodyClassName, initialFocusRef, initialFocusSelector,
     restoreFocusRef, restoreFocusSelector, ariaCloseLabel = 'Close',
   } = props;
   const openerRef = useRef<HTMLElement | null>(null);
@@ -83,10 +85,10 @@ export const Drawer = React.forwardRef<HTMLDivElement, DrawerProps>(function Dra
           aria-labelledby={title ? titleId : undefined}
           aria-describedby={description ? descriptionId : undefined}
           className={cn('absolute bg-popover text-popover-foreground shadow-xl flex flex-col outline-none', placement === 'left' && 'inset-y-0 left-0', placement === 'right' && 'inset-y-0 right-0', placement === 'top' && 'inset-x-0 top-0', placement === 'bottom' && 'inset-x-0 bottom-0', panelAnim, className)}
-          style={horizontal ? { width } : { height }}
+          style={horizontal ? { width, maxWidth: '100vw' } : { height, maxHeight: '100vh' }}
         >
           {title && <header className="px-6 py-4 border-b border-border flex items-start justify-between gap-4"><div><h2 id={titleId} className="text-base font-medium">{title}</h2>{description && <div id={descriptionId} className="mt-1 text-sm text-muted-foreground">{description}</div>}</div>{showCloseButton && <button type="button" onClick={onClose} className="inline-flex size-11 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring" aria-label={ariaCloseLabel}><CloseIcon size={18} aria-hidden="true" /></button>}</header>}
-          <div className="flex-1 p-6 overflow-auto">{children}</div>
+          <div className={cn('flex-1 p-6 overflow-auto', bodyClassName)}>{children}</div>
         </DialogFocusPanel>
       </ModalLayerRoot>
     </Portal>

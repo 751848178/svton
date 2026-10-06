@@ -1,5 +1,16 @@
-import { IsBoolean, IsInt, IsObject, IsOptional, IsString, Min } from 'class-validator';
-import type { ReleaseInitializationEvidenceRef } from '../release-initialization-evidence.types';
+import { Transform, Type } from "class-transformer";
+import {
+  IsBoolean,
+  IsDateString,
+  IsIn,
+  IsInt,
+  IsObject,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from "class-validator";
+import type { ReleaseInitializationEvidenceRef } from "../release-initialization-evidence.types";
 
 export class ListDeploymentRunsQueryDto {
   @IsOptional()
@@ -21,11 +32,42 @@ export class ListDeploymentRunsQueryDto {
 
   @IsOptional()
   @IsString()
+  @IsIn(["queued", "running", "blocked", "completed", "failed", "cancelled"])
   status?: string;
 
   @IsOptional()
   @IsString()
   source?: string;
+
+  @IsOptional()
+  @IsString()
+  environmentId?: string;
+
+  @IsOptional()
+  @IsDateString()
+  startedFrom?: string;
+
+  @IsOptional()
+  @IsDateString()
+  startedTo?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  skip?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  take?: number;
+
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === "true")
+  @IsBoolean()
+  attentionFirst?: boolean;
 }
 
 export class CreateDeploymentRunDto {

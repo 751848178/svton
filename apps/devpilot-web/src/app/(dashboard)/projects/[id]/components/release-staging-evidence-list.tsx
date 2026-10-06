@@ -18,10 +18,6 @@ interface Props {
   onDeploy: (manifestId: string) => void;
 }
 
-/**
- * PX-5：去掉固定最小宽度，短 ID 化后表格在抽屉内自适应，
- * 「操作」列（日志/部署）不再被裁出视口。
- */
 export function ReleaseStagingEvidenceList(props: Props) {
   const t = useTranslations('projects');
   return (
@@ -32,15 +28,15 @@ export function ReleaseStagingEvidenceList(props: Props) {
         </p>
       ) : null}
       <ReleaseScrollTable>
-        <table className="w-full table-fixed text-sm">
+        <table className="w-full min-w-[1040px] table-fixed text-sm">
           <caption className="sr-only">{t('releaseStagingHistoryTable')}</caption>
           <colgroup>
             <col className="w-[16%]" />
-            <col className="w-[19%]" />
-            <col className="w-[13%]" />
-            <col className="w-[22%]" />
-            <col className="w-[16%]" />
-            <col className="w-[14%]" />
+            <col className="w-[20%]" />
+            <col className="w-[23%]" />
+            <col className="w-[21%]" />
+            <col className="w-[10%]" />
+            <col className="w-[10%]" />
           </colgroup>
           <thead className="bg-muted/50 text-left">
             <tr>

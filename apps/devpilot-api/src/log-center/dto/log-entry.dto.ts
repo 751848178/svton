@@ -51,6 +51,10 @@ export class ListLogEntriesQueryDto {
   managedResourceId?: string;
 
   @IsOptional()
+  @IsString()
+  deploymentRunId?: string;
+
+  @IsOptional()
   @IsInt()
   @Min(1)
   windowMinutes?: number;

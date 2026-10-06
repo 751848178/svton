@@ -4,7 +4,11 @@ import {
   buildParityVersionHistoryRecords,
   parityHistoryOrderCreatedAt,
 } from "./parity-seed-version-history-records.mjs";
-import { parityHistoryArtifactItem } from "./parity-seed-version-history.mjs";
+import {
+  parityHistoryArtifactItem,
+  parityHistoryReleaseOrderData,
+  releaseClaimedVersionPointers,
+} from "./parity-seed-version-history.mjs";
 import {
   parityHistoryApprovalData,
   parityHistoryDeploymentData,
@@ -53,6 +57,47 @@ assert.deepEqual(parityHistoryArtifactItem(records[0]), {
   uri: "release-artifact://build-a/bundle.zip",
   digest: records[0].digest,
   metadata: { seededBaseline: true },
+});
+assert.deepEqual(
+  parityHistoryReleaseOrderData(
+    { user: "user" },
+    { teamId: "team", projectId: "fresh-project" },
+    records,
+  ),
+  {
+    teamId: "team",
+    projectId: "fresh-project",
+    createdById: "user",
+    releaseVersion: "0.9.0",
+    status: "succeeded",
+    createdAt: parityHistoryOrderCreatedAt(records),
+  },
+);
+
+let pointerRelease;
+await releaseClaimedVersionPointers(
+  {
+    projectEnvironment: {
+      updateMany(input) {
+        pointerRelease = input;
+        return { count: 2 };
+      },
+    },
+  },
+  records,
+);
+assert.deepEqual(pointerRelease, {
+  where: {
+    currentEnvironmentVersionId: {
+      in: [
+        "staging-version-a",
+        "production-version-a",
+        "staging-version-b",
+        "production-version-b",
+      ],
+    },
+  },
+  data: { currentEnvironmentVersionId: null },
 });
 
 const scope = { teamId: "team", projectId: "project" };

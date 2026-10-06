@@ -31,7 +31,17 @@ export async function claimPositiveDeliveryFixture(options) {
     digestB,
     capturedAt: options.capturedAt,
   });
+  await retirePositiveSeedProject(options.prisma, scope.projectId);
   return readback(options.prisma, ids, scope, applications);
+}
+
+export function retirePositiveSeedProject(prisma, claimedProjectId) {
+  if (claimedProjectId === "parity-project-0001") {
+    return Promise.resolve({ count: 0 });
+  }
+  return prisma.project.deleteMany({
+    where: { id: "parity-project-0001" },
+  });
 }
 
 function exactScope(options) {

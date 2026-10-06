@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useTranslations } from 'next-intl';
-import { Checkbox, Input, Select } from '@/components/ui';
+import { Input, Select } from '@/components/ui';
 
 export interface TargetFieldsValue {
   providerKey: string;
@@ -18,7 +18,6 @@ const PROVIDERS = [
 
 export function SettingsEnvTargetFields(props: {
   value: TargetFieldsValue;
-  otherEnvironments: Array<{ id: string; key: string; name: string }>;
   onChange: (value: TargetFieldsValue) => void;
 }) {
   const t = useTranslations('projects');
@@ -56,57 +55,6 @@ export function SettingsEnvTargetFields(props: {
           />
         </label>
       )}
-      <fieldset className="text-sm">
-        <legend className="mb-1 font-medium">{t('envTargetSharedScopeLabel')}</legend>
-        <p className="mb-1 text-[11px] text-muted-foreground">{t('envTargetSharedScopeHint')}</p>
-        {props.otherEnvironments.length === 0 ? (
-          <p className="text-xs text-muted-foreground">{t('envTargetNoOtherEnvironments')}</p>
-        ) : (
-          <div className="space-y-1">
-            {props.otherEnvironments.map((environment) => (
-              <TargetEnvironmentOption
-                key={environment.id}
-                environment={environment}
-                checked={props.value.sharedEnvironmentIds.includes(environment.id)}
-                onToggle={() => toggleEnvironment(props.value, environment.id, props.onChange)}
-              />
-            ))}
-          </div>
-        )}
-      </fieldset>
     </div>
   );
-}
-
-function TargetEnvironmentOption(props: {
-  environment: { id: string; key: string; name: string };
-  checked: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <label className="flex items-center gap-2 text-xs">
-      <Checkbox
-        checked={props.checked}
-        onChange={props.onToggle}
-      />
-      <span>
-        {props.environment.name}
-        <span className="ml-1 font-mono text-muted-foreground">{props.environment.key}</span>
-      </span>
-    </label>
-  );
-}
-
-function toggleEnvironment(
-  value: TargetFieldsValue,
-  environmentId: string,
-  onChange: (value: TargetFieldsValue) => void,
-) {
-  const checked = value.sharedEnvironmentIds.includes(environmentId);
-  onChange({
-    ...value,
-    sharedEnvironmentIds: checked
-      ? value.sharedEnvironmentIds.filter((id) => id !== environmentId)
-      : [...value.sharedEnvironmentIds, environmentId],
-  });
 }

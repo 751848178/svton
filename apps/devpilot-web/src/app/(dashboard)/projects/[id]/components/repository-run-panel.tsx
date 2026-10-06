@@ -1,14 +1,16 @@
 'use client';
 
-import React, { useState } from 'react';
-
+import React from 'react';
 import { useTranslations } from 'next-intl';
-import { Button, Card, EmptyState, LoadingState } from '@svton/ui';
+import { EmptyState, LoadingState } from '@svton/ui';
+import { Select } from '@/components/ui';
+import { formatDateTimeMinute } from '@/lib/format-date';
 import type { RepositoryAnalysisHook } from '../hooks/use-repository-analysis.hooks';
-import type {
-  RepositoryAnalysisRun,
-  RepositoryAnalysisStage,
-} from '../types/repository-analysis.types';
+import {
+  repositoryRunStatusClass,
+  repositoryRunStatusLabel,
+} from './repository-analysis-status.model';
+import { RepositoryRunDetail } from './repository-run-detail';
 
 export function RepositoryRunPanel({
   analysis,
@@ -19,191 +21,61 @@ export function RepositoryRunPanel({
 }) {
   const t = useTranslations('projects');
   if (analysis.loading) return <LoadingState text="正在加载解析记录…" />;
-  if (analysis.runs.length === 0) {
-    return <EmptyState text={t('repositoryNoRuns')} />;
-  }
+  if (analysis.runs.length === 0) return <EmptyState text={t('repositoryNoRuns')} />;
   const run = analysis.selectedRun;
   return (
-    <section className="grid gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
-      <Card className="space-y-2">
-        <h2 className="font-semibold">仓库变更识别记录</h2>
-        <p className="text-xs text-muted-foreground">
-          每条记录都是一次主动发起的分支与 commit 快照解析，不是每次提交自动审计。
-        </p>
-        <div className="space-y-2">
-          {analysis.runs.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={`w-full rounded-md border p-3 text-left text-sm ${
-                item.id === run?.id ? 'border-primary bg-primary/5' : 'hover:bg-muted/40'
-              }`}
-              onClick={() => onSelectRun(item.id)}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-medium">{statusLabel(item.status)}</span>
-                <span className="font-mono text-xs">{item.commitSha.slice(0, 8)}</span>
-              </div>
-              <p className="mt-1 truncate text-xs text-muted-foreground">
-                {item.branch} · {new Date(item.createdAt).toLocaleString()}
-              </p>
-            </button>
-          ))}
-        </div>
-      </Card>
-      {run ? (
-        <RunDetail
-          analysis={analysis}
-          run={run}
-        />
-      ) : null}
-    </section>
-  );
-}
-
-function RunDetail({
-  analysis,
-  run,
-}: {
-  analysis: RepositoryAnalysisHook;
-  run: RepositoryAnalysisRun;
-}) {
-  const active = run.status === 'queued' || run.status === 'running';
-  return (
-    <Card className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="font-semibold">{statusLabel(run.status)}</h2>
-          <p className="mt-1 font-mono text-xs text-muted-foreground">
-            {run.branch}@{run.commitSha}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          {active ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={analysis.mutating}
-              onClick={() => void analysis.cancel(run.id)}
-            >
-              取消
-            </Button>
-          ) : null}
-          {run.status === 'failed' || run.status === 'cancelled' ? (
-            <Button
-              size="sm"
-              disabled={analysis.mutating}
-              onClick={() => void analysis.retry(run.id)}
-            >
-              重试
-            </Button>
-          ) : null}
-        </div>
-      </div>
-      {run.errorMessage ? (
-        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
-          <p className="font-medium">{run.errorMessage}</p>
-          {run.errorAction ? <p className="mt-1 text-muted-foreground">{run.errorAction}</p> : null}
-          {run.errorCode ? <code className="mt-2 block text-xs">{run.errorCode}</code> : null}
-        </div>
-      ) : null}
-      <ol className="space-y-2">
-        {(run.stages || []).map((stage) => (
-          <StageRow
-            key={stage.id}
-            stage={stage}
-          />
-        ))}
-      </ol>
-      {run.warnings?.length ? (
-        <ul className="list-disc pl-5 text-sm text-amber-700">
-          {run.warnings.map((warning) => (
-            <li key={warning}>{warning}</li>
-          ))}
-        </ul>
-      ) : null}
-    </Card>
-  );
-}
-
-const EVIDENCE_PAGE_SIZE = 20;
-
-function StageRow({ stage }: { stage: RepositoryAnalysisStage }) {
-  const evidence = Array.isArray(stage.evidence) ? stage.evidence : [];
-  const logs = Array.isArray(stage.logs) ? stage.logs : [];
-  // INFO-2：证据超过一页时明确标注「仅展示前 N 条」并提供展开全部，
-  // 不再悄悄截断到 20 条。
-  const [showAllEvidence, setShowAllEvidence] = useState(false);
-  const visibleEvidence = showAllEvidence ? evidence : evidence.slice(0, EVIDENCE_PAGE_SIZE);
-  return (
-    <li className="rounded-md border p-3">
-      <div className="flex items-center justify-between gap-3">
-        <span className="font-medium">{stageLabel(stage.name)}</span>
-        <span
-          className={`text-xs ${stage.status === 'failed' ? 'text-destructive' : 'text-muted-foreground'}`}
-        >
-          {statusLabel(stage.status)}
-          {stage.durationMs != null ? ` · ${stage.durationMs}ms` : ''}
+    <section>
+      <label className="mb-4 block lg:hidden">
+        <span className="mb-1 block text-xs font-medium text-muted-foreground">
+          {t('repositoryAnalysisRunPickerLabel')}
         </span>
-      </div>
-      {logs.length ? (
-        <p className="mt-1 text-sm text-muted-foreground">{logs.map(String).join('；')}</p>
-      ) : null}
-      {stage.errorMessage ? (
-        <p className="mt-1 text-sm text-destructive">{stage.errorMessage}</p>
-      ) : null}
-      {evidence.length ? (
-        <details className="mt-2 text-xs">
-          <summary className="cursor-pointer text-primary">查看 {evidence.length} 条证据</summary>
-          <ul className="mt-2 space-y-1">
-            {visibleEvidence.map((item, index) => (
-              <li
-                key={`${item.file}-${index}`}
-                className="break-all font-mono"
-              >
-                {item.file} · {item.detail}
+        <Select
+          className="h-11 w-full"
+          value={run?.id || ''}
+          onChange={(event) => onSelectRun(event.target.value)}
+          options={analysis.runs.map((item) => ({
+            value: item.id,
+            label: `${repositoryRunStatusLabel(item.status)} · ${item.branch}@${item.commitSha.slice(0, 8)} · ${formatDateTimeMinute(item.createdAt)}`,
+          }))}
+        />
+      </label>
+      <div className="grid gap-5 lg:grid-cols-[15rem_minmax(0,1fr)]">
+        <div className="hidden min-w-0 border-r pr-5 lg:block">
+          <h4 className="text-xs font-semibold text-muted-foreground">
+            {t('repositoryAnalysisHistoryTitle')}
+          </h4>
+          <ul className="mt-2 max-h-[28rem] divide-y overflow-y-auto border-y">
+            {analysis.runs.map((item) => (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  className={`min-h-14 w-full border-l px-2 py-3 text-left text-sm hover:bg-muted/30 ${
+                    item.id === run?.id ? 'border-primary bg-primary/5' : 'border-transparent'
+                  }`}
+                  aria-current={item.id === run?.id ? 'true' : undefined}
+                  onClick={() => onSelectRun(item.id)}
+                >
+                  <span className="flex items-center justify-between gap-2">
+                    <span className={`font-medium ${repositoryRunStatusClass(item.status)}`}>
+                      {repositoryRunStatusLabel(item.status)}
+                    </span>
+                    <span className="font-mono text-xs">{item.commitSha.slice(0, 8)}</span>
+                  </span>
+                  <span className="mt-1 block truncate text-xs text-muted-foreground">
+                    {item.branch} · {formatDateTimeMinute(item.createdAt)}
+                  </span>
+                </button>
               </li>
             ))}
           </ul>
-          {evidence.length > EVIDENCE_PAGE_SIZE ? (
-            <button
-              type="button"
-              className="mt-1 rounded border px-1.5 py-0.5 hover:bg-accent"
-              onClick={() => setShowAllEvidence((value) => !value)}
-              aria-expanded={showAllEvidence}
-            >
-              {showAllEvidence
-                ? `收起（仅展示前 ${EVIDENCE_PAGE_SIZE} 条）`
-                : `仅展示前 ${EVIDENCE_PAGE_SIZE} 条，展开全部 ${evidence.length} 条`}
-            </button>
-          ) : null}
-        </details>
-      ) : null}
-    </li>
-  );
-}
-
-function statusLabel(status: string): string {
-  return (
-    {
-      queued: '排队中',
-      running: '解析中',
-      succeeded: '解析成功',
-      failed: '解析失败',
-      cancelled: '已取消',
-    }[status] || status
-  );
-}
-
-function stageLabel(stage: string): string {
-  return (
-    {
-      resolve: '固定仓库快照',
-      checkout: '只读检出',
-      inventory: '文件盘点',
-      detect: '技术栈与服务检测',
-      suggest: '生成可审建议',
-      cleanup: '隔离目录清理',
-    }[stage] || stage
+        </div>
+        {run ? (
+          <RepositoryRunDetail
+            analysis={analysis}
+            run={run}
+          />
+        ) : null}
+      </div>
+    </section>
   );
 }

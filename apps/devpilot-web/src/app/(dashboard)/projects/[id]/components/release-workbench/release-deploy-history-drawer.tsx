@@ -36,17 +36,13 @@ export function ReleaseDeployHistoryDrawer(props: Props) {
     if (props.deployGate.allowed !== false) void deployments.deploy(manifestId);
   };
   const deploymentErrorKey = releaseClientErrorLabelKey(deployments.error);
-  // PX-7：单行数据时抽屉收窄，避免 920px 只装一行的大片空白。
-  const drawerWidth =
-    deployments.items.length <= 1 ? 'min(640px, 100vw)' : 'min(800px, 100vw)';
-
   return (
     <Drawer
       open={props.open}
       onClose={props.onClose}
       title={t('releaseWorkbenchDeployDrawerTitle')}
       description={t('releaseStepStagingDescription')}
-      width={drawerWidth}
+      width="min(1120px, 100vw)"
       ariaCloseLabel={tc('close')}
     >
       <div className="space-y-4">
@@ -79,7 +75,9 @@ export function ReleaseDeployHistoryDrawer(props: Props) {
         {deployments.loading && deployments.items.length === 0 ? (
           <LoadingState text={t('releaseStagingLoading')} />
         ) : null}
-        {!deployments.loading && deployments.loadedSuccessfully && deployments.items.length === 0 ? (
+        {!deployments.loading &&
+        deployments.loadedSuccessfully &&
+        deployments.items.length === 0 ? (
           <EmptyState title={t('releaseStepStagingEmpty')} />
         ) : null}
         {deployments.items.length > 0 ? (

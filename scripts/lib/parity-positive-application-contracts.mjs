@@ -1,30 +1,43 @@
+const LOCAL_RESOURCE_REQUIREMENTS = Object.freeze({
+  cpuMillicores: 100,
+  memoryBytes: 67_108_864,
+  diskBytes: 67_108_864,
+});
+
 const COMPONENTS = Object.freeze([
   Object.freeze({
     name: "web",
     repoPath: "apps/web",
+    ports: Object.freeze([80]),
     staging: Object.freeze({
       workingDirectory: "apps/web",
       buildCommand: "node scripts/build.mjs",
       artifactPaths: ["apps/web/dist"],
-      workloadExecutionMode: "managed-command-v1",
-      deployCommand: "test -f dist/index.html",
-      statusCommand: "test -f dist/index.html",
-      failureCleanupCommand: "true",
+      workloadExecutionMode: "managed-process-v1",
+      deployCommand: "node dist/server.mjs 4310",
+      healthCheckUrl: "http://127.0.0.1:4310/health",
+      healthCheckAttempts: 3,
+      healthCheckIntervalMs: 250,
+      healthCheckTimeoutMs: 2_000,
+      resourceRequirements: LOCAL_RESOURCE_REQUIREMENTS,
     }),
     production: Object.freeze({
       workingDirectory: "apps/web",
-      buildCommand:
-        "node scripts/build.mjs && mkdir -p dist-production && cp -f dist/index.html dist-production/index.html",
-      artifactPaths: ["apps/web/dist-production"],
-      workloadExecutionMode: "managed-command-v1",
-      deployCommand: "test -f dist-production/index.html",
-      statusCommand: "test -f dist-production/index.html",
-      failureCleanupCommand: "true",
+      buildCommand: "node scripts/build.mjs",
+      artifactPaths: ["apps/web/dist"],
+      workloadExecutionMode: "managed-process-v1",
+      deployCommand: "node dist/server.mjs 4311",
+      healthCheckUrl: "http://127.0.0.1:4311/health",
+      healthCheckAttempts: 3,
+      healthCheckIntervalMs: 250,
+      healthCheckTimeoutMs: 2_000,
+      resourceRequirements: LOCAL_RESOURCE_REQUIREMENTS,
     }),
   }),
   Object.freeze({
     name: "api",
     repoPath: "apps/api",
+    ports: Object.freeze([4300]),
     staging: Object.freeze({
       workingDirectory: "apps/api",
       buildCommand: "node scripts/build.mjs",
@@ -33,16 +46,17 @@ const COMPONENTS = Object.freeze([
       deployCommand: "test -f dist/server.js",
       statusCommand: "test -f dist/server.js",
       failureCleanupCommand: "true",
+      resourceRequirements: LOCAL_RESOURCE_REQUIREMENTS,
     }),
     production: Object.freeze({
       workingDirectory: "apps/api",
-      buildCommand:
-        "node scripts/build.mjs && mkdir -p dist-production && cp -f dist/server.js dist-production/server.js",
-      artifactPaths: ["apps/api/dist-production"],
+      buildCommand: "node scripts/build.mjs",
+      artifactPaths: ["apps/api/dist"],
       workloadExecutionMode: "managed-command-v1",
-      deployCommand: "test -f dist-production/server.js",
-      statusCommand: "test -f dist-production/server.js",
+      deployCommand: "test -f dist/server.js",
+      statusCommand: "test -f dist/server.js",
       failureCleanupCommand: "true",
+      resourceRequirements: LOCAL_RESOURCE_REQUIREMENTS,
     }),
   }),
 ]);
@@ -106,8 +120,12 @@ function bindService(prisma, scope, application, component, role, name) {
   if (existing) {
     return prisma.applicationService.update({
       where: { id: existing.id },
-      data: { status: "active", deployConfig: component[role] },
-      select: { id: true },
+      data: {
+        status: "active",
+        ports: component.ports,
+        deployConfig: component[role],
+      },
+      select: { id: true, name: true, ports: true },
     });
   }
   return prisma.applicationService.upsert({
@@ -124,11 +142,16 @@ function bindService(prisma, scope, application, component, role, name) {
       applicationId: application.id,
       environmentId,
       name,
+      ports: component.ports,
       status: "active",
       deployConfig: component[role],
     },
-    update: { status: "active", deployConfig: component[role] },
-    select: { id: true },
+    update: {
+      status: "active",
+      ports: component.ports,
+      deployConfig: component[role],
+    },
+    select: { id: true, name: true, ports: true },
   });
 }
 

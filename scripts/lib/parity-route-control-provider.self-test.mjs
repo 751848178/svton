@@ -18,7 +18,11 @@ await listen(target);
 const targetPort = target.address().port;
 const stateRoot = await mkdtemp(join(process.cwd(), ".route-control-self-test-"));
 const stateFile = join(stateRoot, "state.json");
-const provider = createRouteControlServer({ token, stateFile });
+const provider = createRouteControlServer({
+  token,
+  stateFile,
+  upstreamMap: { "@parity/web:80": `http://127.0.0.1:${targetPort}/` },
+});
 await listen(provider);
 const providerPort = provider.address().port;
 
@@ -107,6 +111,30 @@ try {
   assert.equal(await live.text(), "live-route-ok");
   assert.equal(
     live.headers.get("x-route-control-upstream"),
+    `http://127.0.0.1:${targetPort}`,
+  );
+
+  const mapped = {
+    ...input,
+    operationId: `site-route:mapped:${"b".repeat(64)}`,
+    siteId: "mapped-site",
+    deploymentRunId: "mapped-deployment",
+    primaryDomain: "mapped.parity.example.test",
+    domains: ["mapped.parity.example.test"],
+    proxyTarget: "@parity/web:80",
+    routeHash: "b".repeat(64),
+  };
+  assert.equal((await fetch(
+    `http://127.0.0.1:${providerPort}/v1/routes/${encodeURIComponent(mapped.operationId)}`,
+    { method: "PUT", headers: authorizationHeaders(), body: JSON.stringify(mapped) },
+  )).status, 204);
+  const mappedLive = await fetch(
+    `http://127.0.0.1:${providerPort}/sites/mapped-site/`,
+  );
+  assert.equal(mappedLive.status, 200);
+  assert.equal(await mappedLive.text(), "live-route-ok");
+  assert.equal(
+    mappedLive.headers.get("x-route-control-upstream"),
     `http://127.0.0.1:${targetPort}`,
   );
 

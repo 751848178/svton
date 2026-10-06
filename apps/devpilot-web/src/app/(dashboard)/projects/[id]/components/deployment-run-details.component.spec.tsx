@@ -50,7 +50,7 @@ describe('DeploymentRunDetails copy', () => {
   });
 
   it('DEP-2: a finished run without a traceable job no longer claims it awaits approval', () => {
-    const finished: DeploymentRun = { ...fixture(), status: 'succeeded', serverExecutionJob: null, finishedAt: '2026-08-10T12:00:00Z' };
+    const finished: DeploymentRun = { ...fixture(), status: 'completed', serverExecutionJob: null, finishedAt: '2026-08-10T12:00:00Z' };
     const html = renderToStaticMarkup(<DeploymentRunDetails run={finished} />);
     expect(html).toContain('runDetailExecutionNoTrace');
     expect(html).not.toContain('runDetailExecutionNotCreated');

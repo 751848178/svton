@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { EnvironmentTargetBindingRow } from './settings-env-target-rows';
 import { renderEnvTab } from './settings-env-tab-switch';
+import { SubtabShell } from './settings-subtab-shell';
 
 vi.mock('next-intl', () => ({ useTranslations: () => (key: string) => key }));
 vi.mock('./environment-version-config', () => ({
@@ -18,6 +19,9 @@ vi.mock('./settings-env-variables-tab', () => ({
 vi.mock('./settings-env-access-tab', () => ({ EnvAccessTab: () => <div>access-config</div> }));
 vi.mock('./settings-env-verification-tab', () => ({
   EnvVerificationTab: () => <div>verification-config</div>,
+}));
+vi.mock('./settings-env-domains-tab', () => ({
+  EnvDomainsTab: () => <div>domains-config</div>,
 }));
 
 describe('project configuration tabs', () => {
@@ -40,19 +44,18 @@ describe('project configuration tabs', () => {
             isCurrent
             currentRoot="/srv/picshare"
             targetReady
-            serverHref="/servers?serverId=server-1"
             t={((key: string) => key) as never}
             onAdjust={vi.fn()}
-            onUnbind={vi.fn()}
           />
         </tbody>
       </table>,
     );
     expect(html).toContain('prod-web');
     expect(html).toContain('10.0.0.1');
-    expect(html).toContain('ssh-v1');
     expect(html).toContain('/srv/picshare');
-    expect(html).toContain('envTargetCredentialReady');
+    expect(html).toContain('envTargetStatusReady');
+    expect(html).not.toContain('Picshare · web:3000');
+    expect(html).not.toContain('envTargetMoreActions');
   });
 
   it('explains incomplete target facts and their release impact', () => {
@@ -74,19 +77,36 @@ describe('project configuration tabs', () => {
             isCurrent
             currentRoot={null}
             targetReady={false}
-            serverHref="/servers?serverId=server-1"
             t={((key: string) => key) as never}
             onAdjust={vi.fn()}
-            onUnbind={vi.fn()}
           />
         </tbody>
       </table>,
     );
-    expect(html).toContain('envTargetMissingProvider');
     expect(html).toContain('envTargetMissingPath');
     expect(html).toContain('envTargetIssueImpact');
     expect(html).toContain('envTargetComplete');
-    expect(html).toContain('envTargetCheckServer');
+    expect(html).toContain('envTargetStatusOffline');
+    expect(html).not.toContain('envTargetCheckServer');
+    expect(html).toContain('inline-flex min-h-11');
+  });
+
+  it('keeps professional module links touchable on narrow screens', () => {
+    const html = renderToStaticMarkup(
+      <SubtabShell
+        title="resources"
+        helper="resource help"
+        moduleHref="/resource-instances"
+        moduleLabel="open resources"
+      >
+        <p>content</p>
+      </SubtabShell>,
+    );
+    expect(html).toContain('inline-flex min-h-11');
+    expect(html).toContain('sm:min-h-8');
+    expect(html).toContain('data-settings-subtab-layout="flat"');
+    expect(html).toContain('data-settings-subtab-content="true"');
+    expect(html).not.toContain('rounded-lg border p-3');
   });
 
   it.each([
@@ -96,6 +116,7 @@ describe('project configuration tabs', () => {
     ['variables', 'variable-config'],
     ['access', 'access-config'],
     ['verification', 'verification-config'],
+    ['domains', 'domains-config'],
   ] as const)('routes %s through the environment configuration owner', (tab, expected) => {
     expect(renderToStaticMarkup(renderEnvTab(tab, context()))).toContain(expected);
   });

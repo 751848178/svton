@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useBoolean, usePersistFn } from '@svton/hooks';
@@ -9,6 +9,7 @@ import { Button, PageHeader, ErrorBanner, Modal } from '@/components/ui';
 import { useTeams } from '../hooks/use-teams';
 import { CreateTeamModal } from './create-team-modal';
 import { TeamCard } from './team-card';
+import { TeamPrerequisiteNotice } from './team-prerequisite-notice';
 import type { Team } from '@/store/hooks';
 
 /**
@@ -16,21 +17,36 @@ import type { Team } from '@/store/hooks';
  *
  * 接收首屏 server 数据 initialTeams（SWR fallback），创建/删除团队等交互在此完成。
  */
-export function TeamsContent({ initialTeams }: { initialTeams?: Team[] }) {
+interface TeamsContentProps {
+  initialTeams?: Team[];
+  teamRequired?: boolean;
+  returnTo?: string;
+}
+
+export function TeamsContent({
+  initialTeams,
+  teamRequired = false,
+  returnTo = '/dashboard',
+}: TeamsContentProps) {
   const router = useRouter();
   const t = useTranslations('teams');
   const tc = useTranslations('common');
-  const { teams, loading, create, remove } = useTeams(initialTeams);
+  const { teams, currentTeam, loading, create, remove } = useTeams(initialTeams);
   const [error, setError] = useState('');
   const [createOpen, { setTrue: openCreate, setFalse: closeCreate }] = useBoolean(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   const clearError = usePersistFn(() => setError(''));
 
+  useEffect(() => {
+    if (teamRequired && currentTeam) router.replace(returnTo);
+  }, [currentTeam, returnTo, router, teamRequired]);
+
   const handleCreate = usePersistFn(async (name: string, description?: string) => {
     setError('');
     try {
       await create(name, description);
+      if (teamRequired) router.replace(returnTo);
     } catch (err) {
       setError(err instanceof Error ? err.message : t('createFailed'));
       throw err;
@@ -54,7 +70,11 @@ export function TeamsContent({ initialTeams }: { initialTeams?: Team[] }) {
         <PageHeader
           title={t('pageTitle')}
           description={t('pageDescription')}
-          actions={<Button onClick={openCreate}>{t('createTeam')}</Button>}
+          actions={
+            !teamRequired && teams.length > 0 ? (
+              <Button onClick={openCreate}>{t('createTeam')}</Button>
+            ) : undefined
+          }
         />
       </div>
 
@@ -67,7 +87,11 @@ export function TeamsContent({ initialTeams }: { initialTeams?: Team[] }) {
         />
       ) : null}
 
-      {loading && teams.length === 0 ? (
+      {teamRequired && teams.length === 0 ? (
+        <TeamPrerequisiteNotice onCreate={openCreate} />
+      ) : teamRequired ? (
+        <LoadingState text={t('restoringTeamContext')} />
+      ) : loading && teams.length === 0 ? (
         <LoadingState text={tc('loading')} />
       ) : teams.length === 0 ? (
         <EmptyState

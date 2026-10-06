@@ -36,9 +36,25 @@ vi.mock('../hooks/use-project-delivery-summary', () => ({
     refresh: vi.fn(),
   }),
 }));
+vi.mock('../hooks/use-project-detail', () => ({
+  useProjectDetail: () => ({ project: null, loading: false, error: '', loadProject: vi.fn() }),
+}));
+vi.mock('../hooks/use-repository-analysis.hooks', () => ({
+  useRepositoryAnalysis: () => ({
+    state: { canonicalIdentity: null, connection: null },
+    selectedRun: null,
+    loading: false,
+    error: '',
+  }),
+}));
 vi.mock('../hooks/use-release-orders', () => ({ useReleaseOrders: () => mocks.orders }));
 vi.mock('./project-workbench-header', () => ({
-  ProjectWorkbenchHeader: () => <div>workbench-header</div>,
+  ProjectWorkbenchHeader: ({ issue }: { issue?: React.ReactNode }) => (
+    <div>
+      workbench-header
+      {issue}
+    </div>
+  ),
 }));
 vi.mock('./project-context-issue', () => ({
   ProjectContextIssue: ({ message, actionLabel }: { message: string; actionLabel: string }) => (
@@ -47,14 +63,17 @@ vi.mock('./project-context-issue', () => ({
     </div>
   ),
 }));
-vi.mock('./project-delivery-content', () => ({
-  ProjectDeliveryContent: () => <div>release-orders</div>,
+vi.mock('./project-overview-content', () => ({
+  ProjectOverviewContent: () => <div>release-orders</div>,
 }));
 vi.mock('./release-order-create-modal', () => ({
   ReleaseOrderCreateModal: ({ open, onClose }: { open: boolean; onClose: () => void }) =>
     open ? (
       <div role="dialog">
-        <button type="button" onClick={onClose}>
+        <button
+          type="button"
+          onClick={onClose}
+        >
           close-create
         </button>
       </div>
@@ -108,7 +127,7 @@ function summary() {
     checkpoints: [
       {
         id: 'targets',
-        scope: 'production',
+        scope: 'staging',
         status: 'blocked',
         reasonCodes: ['TARGET_MISSING'],
         action: { kind: 'bind_target', href: '/settings' },

@@ -11,6 +11,20 @@ vi.mock('@svton/ui', () => ({
   Drawer: ({ open, children, title }: React.PropsWithChildren<{ open: boolean; title: string }>) =>
     open ? <section aria-label={title}>{children}</section> : null,
   LoadingState: ({ text }: { text: string }) => <div>{text}</div>,
+  Tabs: ({
+    items,
+  }: {
+    items: Array<{ key: string; label: React.ReactNode; children: React.ReactNode }>;
+  }) => (
+    <div>
+      {items.map((item) => (
+        <section key={item.key}>
+          {item.label}
+          {item.children}
+        </section>
+      ))}
+    </div>
+  ),
 }));
 vi.mock('@/components/ui', () => ({
   StatusTag: ({ label }: { label: string }) => <span>{label}</span>,
@@ -30,6 +44,7 @@ describe('ReleaseStagingLogDrawer', () => {
   let container: HTMLDivElement;
 
   beforeEach(() => {
+    (globalThis as typeof globalThis & { React: typeof React }).React = React;
     (
       globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
     ).IS_REACT_ACT_ENVIRONMENT = true;
@@ -41,18 +56,28 @@ describe('ReleaseStagingLogDrawer', () => {
 
   it('shows isolated logs, structured technical evidence, and separate business status', async () => {
     await render(stagingRun(), build());
-    expect(container.textContent).toContain('releaseStagingDeploymentRunIdrun-1');
+    expect(container.textContent).toContain('deploymentEvidenceOverview');
+    expect(container.textContent).toContain('releaseStagingExecutionTab');
+    expect(container.textContent).toContain('deploymentEvidenceLogs');
+    expect(container.textContent).toContain('releaseRunTechnicalDetails');
     expect(container.textContent).toContain('workload exact Manifest started');
     expect(container.textContent).toContain('releaseStagingVerificationPassed');
     expect(container.textContent).toContain('releaseStagingBusinessPending');
     expect(container.textContent).toContain('releaseStagingBusinessResultDetail');
     expect(container.querySelector('[role="log"]')?.textContent).toContain('health passed');
     expect(container.querySelector('a')?.getAttribute('href')).toContain('runId=run-1');
+    // 主层关键事实：构建来源（#revision）替代裸 BuildRun cuid。
+    expect(container.textContent).toContain('releaseStagingSourceBuildreleaseBuildRevision');
     // PX-31：技术证据结构化（探针状态提为字段），raw JSON 折叠进未展开的 details。
     expect(container.textContent).toContain('releaseEvidenceProbe.healthProbe');
-    const details = container.querySelector('details');
-    expect(details?.hasAttribute('open')).toBe(false);
-    expect(details?.textContent).toContain('"healthProbe"');
+    const rawDetails = container
+      .querySelector('[data-testid="staging-technical-raw-json"]')
+      ?.closest('details');
+    expect(rawDetails?.hasAttribute('open')).toBe(false);
+    expect(rawDetails?.textContent).toContain('"healthProbe"');
+    // 运行 ID 等机器证据只位于独立技术详情 Tab。
+    expect(container.textContent).toContain('releaseStagingDeploymentRunIdrun-1');
+    expect(container.textContent).toContain('sha256:exact');
   });
 
   it('folds raw technical JSON behind a closed disclosure and shortens raw cuids (PX-31/PX-3)', async () => {

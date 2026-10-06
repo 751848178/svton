@@ -1,5 +1,13 @@
 import type { ReleaseBuildItem, ReleaseStagingDeploymentItem } from '../types/release-order.types';
 
+export type ReleaseStagingValidationEvidence = Pick<
+  ReleaseStagingDeploymentItem,
+  'id' | 'status' | 'result'
+> & {
+  artifactManifestId?: string | null;
+  dryRun?: boolean;
+};
+
 export type ReleaseStagingConclusion = {
   key:
     | 'releaseStagingVerificationPassed'
@@ -17,7 +25,7 @@ export function stagingBuildForRun(run: ReleaseStagingDeploymentItem, builds: Re
 }
 
 export function stagingTechnicalConclusion(
-  run: ReleaseStagingDeploymentItem,
+  run: ReleaseStagingValidationEvidence,
 ): ReleaseStagingConclusion {
   const status = run.status.toLowerCase();
   if (isReleaseStagingActive(status)) {

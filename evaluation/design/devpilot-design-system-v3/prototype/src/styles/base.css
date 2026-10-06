@@ -1,0 +1,24 @@
+:root { color-scheme: light; --paper: #ffffff; --paper-deep: #f5f6f8; --surface: #ffffff; --surface-soft: #f7f8fa; --shell: #202126; --shell-soft: #2a2b31; --ink: #1b1c20; --muted: #666a73; --muted-2: #686b72; --line: #e5e7eb; --line-strong: #d1d5db; --accent: #4f5ee8; --accent-dark: #3d49c7; --accent-soft: #eef0ff; --danger: #bd443d; --danger-soft: #fff1ef; --warning: #7d4b0b; --warning-soft: #fff7e8; --success: #147a55; --success-soft: #eaf7f1; --radius: 12px; --control-radius: 8px; --shadow: 0 18px 52px rgba(24, 25, 29, 0.16), 0 2px 8px rgba(24, 25, 29, 0.07); --surface-shadow: 0 1px 2px rgba(20, 24, 36, 0.05), 0 6px 18px rgba(20, 24, 36, 0.045); font-family: "Avenir Next", "PingFang SC", "Noto Sans CJK SC", sans-serif; color: var(--ink); background: var(--paper); font-synthesis: none; text-rendering: optimizelegibility; -webkit-font-smoothing: antialiased; }
+* { box-sizing: border-box; }
+html { min-width: 320px; background: var(--paper); }
+body { margin: 0px; min-width: 320px; min-height: 100vh; overflow-x: clip; background: var(--paper); }
+button, input, select { font: inherit; }
+button { color: inherit; }
+button:not(:disabled), select { cursor: pointer; }
+button:disabled { cursor: default; }
+::selection { color: rgb(255, 255, 255); background: var(--accent); }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: padding-box rgb(201, 205, 212); border: 3px solid transparent; border-radius: 99px; }
+:focus-visible { outline: rgba(79, 94, 232, 0.28) solid 3px; outline-offset: 2px; }
+h1, h2, h3, p { margin-top: 0px; }
+h1, h2, h3 { text-wrap: balance; }
+.mono { font-family: SFMono-Regular, Consolas, "Liberation Mono", monospace; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.inline-icon, .cell-detail { display: inline-flex; align-items: center; gap: 6px; }
+.spin { animation: 0.95s linear 0s infinite normal none running spin; }
+@keyframes spin {
+  100% { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}

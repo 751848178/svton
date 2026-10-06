@@ -18,9 +18,13 @@ vi.mock('@/components/ui', () => ({
   Button: ({
     children,
     disabled,
+    loading: _loading,
     ...rest
-  }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
-    <button disabled={disabled} {...rest}>
+  }: React.ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean }) => (
+    <button
+      disabled={disabled}
+      {...rest}
+    >
       {children}
     </button>
   ),
@@ -34,14 +38,24 @@ vi.mock('@/components/ui', () => ({
     title: ReactNode;
     children: ReactNode;
     footer: ReactNode;
-  }) => (open ? <div role="dialog" aria-label={String(title)}>{children}{footer}</div> : null),
+  }) =>
+    open ? (
+      <div
+        role="dialog"
+        aria-label={String(title)}
+      >
+        {children}
+        {footer}
+      </div>
+    ) : null,
 }));
 
 describe('ProductionConfirmModal (PX-8)', () => {
   beforeEach(() => {
     (globalThis as typeof globalThis & { React: typeof React }).React = React;
-    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
-      .IS_REACT_ACT_ENVIRONMENT = true;
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
   });
 
   it('renders the full diff summary and an enabled confirm button when a snapshot exists', async () => {
@@ -66,6 +80,10 @@ describe('ProductionConfirmModal (PX-8)', () => {
     expect(dialog.textContent).toContain('productionVersion');
     expect(dialog.textContent).toContain('productionArtifact');
     expect(dialog.textContent).toContain('productionBuildSource');
+    expect(dialog.textContent).toContain('releaseProductionCheckConfigRevision');
+    expect(dialog.textContent).toContain('releaseProductionCheckApproval');
+    expect(dialog.textContent).toContain('releaseProductionCheckConcurrency');
+    expect(dialog.textContent).toContain('releaseProductionCheckListTitle');
     expect(dialog.textContent).toContain('sha256:aaaa');
     expect(container.querySelector('[data-testid="production-confirm-empty-state"]')).toBeNull();
     const confirmButton = [...container.querySelectorAll('button')].find((button) =>
@@ -109,6 +127,31 @@ describe('ProductionConfirmModal (PX-8)', () => {
     expect(onConfirm).not.toHaveBeenCalled();
     await act(async () => root.unmount());
   });
+
+  it('keeps the basic confirmation limited to environment, version, and artifact reuse', async () => {
+    const container = document.createElement('div');
+    const root = createRoot(container);
+    await act(async () =>
+      root.render(
+        <ProductionConfirmModal
+          basic
+          open
+          loading={false}
+          confirming={false}
+          error=""
+          preview={preview()}
+          onClose={vi.fn()}
+          onConfirm={vi.fn(async () => ({}))}
+        />,
+      ),
+    );
+    expect(container.textContent).toContain('productionEnvironment');
+    expect(container.textContent).toContain('productionVersion');
+    expect(container.textContent).toContain('releaseBasicProductionReuse');
+    expect(container.textContent).not.toContain('productionArtifact');
+    expect(container.textContent).not.toContain('productionStagingProofNeutral');
+    await act(async () => root.unmount());
+  });
 });
 
 function preview(): ProductionReleasePreview {
@@ -118,10 +161,24 @@ function preview(): ProductionReleasePreview {
       version: 2,
       projectId: 'project-1',
       releaseOrder: { id: 'order-1', releaseVersion: '0.0.1' },
-      environment: { id: 'env-1', key: 'production', name: 'Production', baselineRole: 'production' },
-      build: { id: 'build-1', revision: 10, sourceBranch: 'master', sourceCommitSha: '8e7c465d56e6' },
+      environment: {
+        id: 'env-1',
+        key: 'production',
+        name: 'Production',
+        baselineRole: 'production',
+      },
+      build: {
+        id: 'build-1',
+        revision: 10,
+        sourceBranch: 'master',
+        sourceCommitSha: '8e7c465d56e6',
+      },
       manifest: { id: 'manifest-1', digest: `sha256:${'a'.repeat(64)}` },
-      stagingProof: { deploymentRunId: 'deploy-1', environmentId: 'env-0', finishedAt: '2026-08-10T19:37:27.000Z' },
+      stagingProof: {
+        deploymentRunId: 'deploy-1',
+        environmentId: 'env-0',
+        finishedAt: '2026-08-10T19:37:27.000Z',
+      },
       config: {
         revisionId: 'rev-1',
         revision: 1,
@@ -143,6 +200,13 @@ function preview(): ProductionReleasePreview {
     },
     preflight: {
       decision: { preApprovalAllowed: true },
+      checks: [],
+      concurrency: {
+        limit: 1,
+        state: 'available',
+        checkedAt: '2026-08-10T19:37:27.000Z',
+        activeRun: null,
+      },
     } as unknown as ProductionReleasePreview['preflight'],
   } as unknown as ProductionReleasePreview;
 }

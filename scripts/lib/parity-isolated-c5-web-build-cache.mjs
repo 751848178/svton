@@ -10,7 +10,7 @@ import {
 } from "node:fs";
 import { join, resolve } from "node:path";
 
-const RUNTIME_PATTERN = /^c5-[a-f0-9]{8}-[a-f0-9]{32}$/;
+const RUNTIME_PATTERN = /^c5-[a-f0-9]{8}-(?:[a-f0-9]{8}|[a-f0-9]{32})$/;
 const CONTROL_FILES = Object.freeze([
   "apps/devpilot-web/next-env.d.ts",
   "apps/devpilot-web/tsconfig.json",
@@ -125,7 +125,7 @@ function cacheOwner(environment) {
   const sourceRevision = environment.PARITY_SOURCE_REVISION;
   const token = environment.PARITY_CLEANUP_OWNER_TOKEN;
   if (!RUNTIME_PATTERN.test(runtimeId || "")) throw cacheError("runtime-id");
-  if (goalId !== "devpilot-v13-opencode-acceptance") {
+  if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(goalId || "")) {
     throw cacheError("goal-id");
   }
   if (!/^[a-f0-9]{40}$/.test(sourceRevision || "")) {

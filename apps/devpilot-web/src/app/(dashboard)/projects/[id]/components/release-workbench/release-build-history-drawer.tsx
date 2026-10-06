@@ -34,7 +34,7 @@ export function ReleaseBuildHistoryDrawer(props: Props) {
       onClose={props.onClose}
       title={t('releaseWorkbenchBuildDrawerTitle')}
       description={t('releaseStepBuildDescription')}
-      width="min(800px, 100vw)"
+      width="min(1120px, 100vw)"
       ariaCloseLabel={tc('close')}
     >
       <div className="space-y-4">

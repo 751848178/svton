@@ -22,6 +22,7 @@ type Policy = {
 };
 
 export type ConfigRevisionDraft = {
+  plainVariables?: Record<string, string>;
   secretReferences: EnvironmentConfigSecretReference[];
   resourceReferences: EnvironmentConfigResourceReference[];
   routeSnapshot: Record<string, unknown>;
@@ -82,7 +83,7 @@ export function useEnvironmentConfigGovernance(
   );
 
   const save = useCallback(
-    async (draft: ConfigRevisionDraft) => {
+    async (draft: ConfigRevisionDraft, options?: { notifySaved?: boolean }) => {
       setSaving(true);
       setError('');
       try {
@@ -100,7 +101,9 @@ export function useEnvironmentConfigGovernance(
               componentKey: reference.componentKey,
               envBindings: reference.envBindings,
             })),
-            expectedCurrentRevisionId: data?.currentConfigRevisionId || undefined,
+            expectedCurrentRevisionId: data
+              ? data.currentConfigRevisionId
+              : (environment.currentConfigRevisionId ?? null),
           },
         );
         setData((previous) => ({
@@ -111,7 +114,9 @@ export function useEnvironmentConfigGovernance(
             ...(previous?.revisions ?? []).map((revision) => ({ ...revision, current: false })),
           ],
         }));
-        onSaved({ ...environment, ...result.environment });
+        if (options?.notifySaved !== false) {
+          onSaved({ ...environment, ...result.environment });
+        }
         return result;
       } catch (cause) {
         const message = cause instanceof Error ? cause.message : '保存配置修订失败';

@@ -6,6 +6,7 @@ import { EnvTargetsTab } from './settings-env-targets-tab';
 vi.mock('next-intl', () => ({ useTranslations: () => (key: string) => key }));
 vi.mock('@/components/ui', () => ({
   Button: ({ children }: { children: React.ReactNode }) => <button>{children}</button>,
+  ActionMenu: ({ triggerLabel }: { triggerLabel: string }) => <button>{triggerLabel}</button>,
   ConfirmDialog: () => null,
 }));
 vi.mock('../../hooks/use-environment-actions', () => ({
@@ -48,7 +49,11 @@ describe('EnvTargetsTab', () => {
 
     expect(html).toContain('envTargetCreate');
     expect(html).toContain('envTargetTableServer');
-    expect(html).toContain('envTargetTableProvider');
+    expect(html).toContain('envTargetTablePath');
+    expect(html).toContain('envTargetTableStatus');
+    expect(html).toContain('envTargetTableActions');
+    expect(html).not.toContain('envTargetTableComponent');
+    expect(html).not.toContain('envTargetTableProvider');
     expect(html).toContain('envTargetsNone');
     expect(html).not.toContain('envBindServer');
   });

@@ -31,10 +31,7 @@ export function EnvironmentVersionDetail(props: {
     <aside className="space-y-5 border-l pl-6">
       <div>
         <div className="flex items-start justify-between gap-3">
-          <h4 className="font-semibold">
-            {identity.name ||
-              (identity.canonical ? identity.version : t('releaseLegacyNameFallback'))}
-          </h4>
+          <h4 className="font-semibold">{identity.name || t('releaseUnnamedVersion')}</h4>
           <StatusTag
             status={props.active || approved ? 'success' : props.production ? 'warning' : 'default'}
             label={

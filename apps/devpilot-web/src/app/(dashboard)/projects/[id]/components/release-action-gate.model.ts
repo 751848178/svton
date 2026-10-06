@@ -23,7 +23,7 @@ export function releaseActionGate(
   if (stage === 'staging' && catalog.targetReadiness.matchState !== 'ready') {
     return {
       allowed: false,
-      reason: targetReason(catalog.targetReadiness.reasonCode, locale),
+      reason: targetReason(catalog.targetReadiness.reasonCode, locale, catalog.targetReadiness.expectedProviderKey),
       repairArea: 'targets',
     };
   }
@@ -52,16 +52,41 @@ export function releaseActionGate(
 function targetReason(
   code: ReleaseGateCatalog['targetReadiness']['reasonCode'],
   locale: string,
+  expectedProviderKey?: string,
 ) {
+  const provider = providerTypeName(expectedProviderKey, locale);
   const reasons = {
     TARGET_READY: ['部署目标已就绪', 'Deployment target is ready'],
-    TARGET_MISSING: ['Staging 尚未绑定部署目标', 'Staging has no deployment target'],
-    TARGET_DUPLICATED: ['Staging 存在重复的部署目标绑定', 'Staging has duplicate deployment targets'],
-    PROVIDER_MISMATCH: ['部署目标与当前 Provider 不匹配', 'Deployment target does not match the current Provider'],
-    SSH_ROOT_INVALID: ['SSH 部署根目录缺失或不安全', 'SSH deployment root is missing or unsafe'],
-    SSH_CONNECTION_INVALID: ['SSH 服务器未在线或连接信息无效', 'SSH server is offline or its connection settings are invalid'],
+    TARGET_MISSING: [
+      'Staging 尚未绑定部署目标，请在 项目配置 → 部署目标 中绑定',
+      'Staging has no deployment target; bind one in Project configuration → Deployment targets',
+    ],
+    TARGET_DUPLICATED: [
+      'Staging 绑定了多个部署目标，请保留一个后再发布',
+      'Staging has duplicate deployment targets; keep one before publishing',
+    ],
+    PROVIDER_MISMATCH: [
+      `预发（Staging）绑定的部署目标类型与本次发布要求的不一致（需要 ${provider}）`,
+      `The Staging deployment target type does not match what this release requires (${provider})`,
+    ],
+    SSH_ROOT_INVALID: [
+      '部署目标的 SSH 根目录缺失或不安全，请检查部署目标设置',
+      'The deployment target SSH root is missing or unsafe; check the target settings',
+    ],
+    SSH_CONNECTION_INVALID: [
+      '部署目标的 SSH 服务器未在线或连接信息无效，请检查服务器连接',
+      'The deployment target SSH server is offline or its connection settings are invalid',
+    ],
   } as const;
   return locale.startsWith('zh') ? reasons[code][0] : reasons[code][1];
+}
+
+/** Provider key → 用户可理解的部署目标类型名。 */
+function providerTypeName(key: string | undefined, locale: string) {
+  const zh = locale.startsWith('zh');
+  if (key === 'ssh-v1') return zh ? 'SSH 服务器' : 'SSH server';
+  if (key === 'local-filesystem-v1') return zh ? '本机目录' : 'local directory';
+  return key ?? (zh ? '指定类型' : 'the required type');
 }
 
 function local(locale: string, zh: string, en: string) {

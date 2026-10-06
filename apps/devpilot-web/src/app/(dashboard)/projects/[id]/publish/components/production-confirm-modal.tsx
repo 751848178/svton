@@ -13,9 +13,13 @@
 import { useTranslations } from 'next-intl';
 import { Button, Modal } from '@/components/ui';
 import type { ProductionReleasePreview } from '../../types/release-production.types';
+import { productionConfirmBlocker } from '../../utils/release-production-run.model';
 import { PublishErrorDetail } from './publish-error-detail';
+import { ProductionConfirmBasicSummary } from './production-confirm-basic-summary';
+import { ProductionConfirmSummary } from './production-confirm-summary';
 
 interface Props {
+  basic?: boolean;
   open: boolean;
   loading: boolean;
   confirming: boolean;
@@ -28,6 +32,7 @@ interface Props {
 }
 
 export function ProductionConfirmModal({
+  basic = false,
   open,
   loading,
   confirming,
@@ -40,13 +45,18 @@ export function ProductionConfirmModal({
   const t = useTranslations('projects');
   const tc = useTranslations('common');
   const snapshot = preview?.snapshot ?? null;
+  const blocker = productionConfirmBlocker(preview);
   const confirmBlockedReason = confirming
     ? t('productionConfirmInProgress')
     : loading
       ? t('productionConfirmLoadingPreview')
       : !snapshot
         ? loadError || t('productionConfirmNoSnapshot')
-        : '';
+        : blocker === 'preflight'
+          ? t('productionConfirmPreflightBlocked')
+          : blocker === 'concurrency'
+            ? t('productionConfirmConcurrencyOccupied')
+            : '';
 
   const handleConfirm = async () => {
     const run = await onConfirm();
@@ -92,27 +102,14 @@ export function ProductionConfirmModal({
         </p>
         {snapshot ? (
           <>
-            <dl className="grid gap-2 text-sm">
-              <Row
-                label={t('productionEnvironment')}
-                value={snapshot.environment.name}
-              />
-              <Row
-                label={t('productionVersion')}
-                value={snapshot.releaseOrder.releaseVersion}
-              />
-              <Row
-                label={t('productionArtifact')}
-                value={shortId(snapshot.manifest.digest)}
-                mono
-              />
-              <Row
-                label={t('productionBuildSource')}
-                value={`${snapshot.build.sourceBranch} · ${shortId(snapshot.build.sourceCommitSha)}`}
-                mono
-              />
-            </dl>
-            <p className="text-xs text-muted-foreground">{t('productionStagingProofNeutral')}</p>
+            {basic ? (
+              <ProductionConfirmBasicSummary preview={preview!} />
+            ) : (
+              <ProductionConfirmSummary preview={preview!} />
+            )}
+            {!basic ? (
+              <p className="text-xs text-muted-foreground">{t('productionStagingProofNeutral')}</p>
+            ) : null}
           </>
         ) : loading ? (
           <p className="text-sm text-muted-foreground">{tc('loading')}</p>
@@ -122,9 +119,7 @@ export function ProductionConfirmModal({
             className="rounded-md border bg-muted/30 px-3 py-3 text-sm text-muted-foreground"
           >
             {t('productionConfirmSnapshotUnavailable')}
-            {loadError ? (
-              <span className="mt-1 block break-all text-xs">{loadError}</span>
-            ) : null}
+            {loadError ? <span className="mt-1 block break-all text-xs">{loadError}</span> : null}
           </p>
         )}
         {confirmBlockedReason ? (
@@ -141,17 +136,4 @@ export function ProductionConfirmModal({
       </div>
     </Modal>
   );
-}
-
-function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div className="min-w-0 rounded bg-muted/40 p-3">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className={`mt-1 break-all font-medium ${mono ? 'font-mono text-xs' : ''}`}>{value}</dd>
-    </div>
-  );
-}
-
-function shortId(value: string): string {
-  return value.length > 12 ? `${value.slice(0, 12)}…` : value;
 }

@@ -1,0 +1,115 @@
+.rail {
+  display: grid;
+  grid-template-columns: repeat(var(--release-stage-count, 4), minmax(0, 1fr));
+  overflow: hidden;
+  border-radius: 10px;
+}
+
+.stage {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  min-height: 64px;
+  padding: 12px 24px 12px 34px;
+  text-align: left;
+  color: #5f636d;
+  background: #f1f1ef;
+  clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 50%, calc(100% - 18px) 100%, 0 100%, 18px 50%);
+  transition:
+    color 150ms ease,
+    background-color 150ms ease;
+}
+
+.stage:first-child {
+  padding-left: 20px;
+  clip-path: polygon(0 0, calc(100% - 18px) 0, 100% 50%, calc(100% - 18px) 100%, 0 100%);
+}
+
+.stage:last-child {
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 18px 50%);
+}
+
+.stage + .stage {
+  margin-left: -1px;
+}
+.stage:focus-visible {
+  z-index: 5;
+  outline: 2px solid #1677ff;
+  outline-offset: -3px;
+}
+.selected {
+  z-index: 4;
+  color: #fff;
+  background: #1677ff;
+}
+.done {
+  color: #096dd9;
+  background: #e6f4ff;
+}
+.available {
+  color: #5f636d;
+  background: #f1f1ef;
+}
+.current {
+  color: #096dd9;
+  background: #e6f4ff;
+}
+.blocked {
+  color: #c53b37;
+  background: #fff1f0;
+}
+.disabled {
+  color: #b7bbc2;
+  background: #f7f7f6;
+  cursor: not-allowed;
+}
+
+.label,
+.description {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.label {
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 20px;
+}
+.description {
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 16px;
+  opacity: 0.78;
+}
+
+@media (max-width: 720px) {
+  .rail {
+    grid-template-columns: repeat(var(--release-stage-count, 4), minmax(0, 1fr));
+  }
+  .stage,
+  .stage:first-child,
+  .stage:last-child {
+    min-height: 64px;
+    padding: 10px 8px 10px 23px;
+  }
+  .stage:first-child {
+    padding-left: 11px;
+  }
+  .stage:last-child {
+    padding-right: 9px;
+  }
+  .label {
+    font-size: 12px;
+    line-height: 18px;
+  }
+  .description {
+    font-size: 9px;
+    line-height: 12px;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+}

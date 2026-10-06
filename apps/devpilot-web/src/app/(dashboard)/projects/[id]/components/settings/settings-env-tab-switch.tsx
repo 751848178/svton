@@ -6,6 +6,7 @@
 'use client';
 
 import React from 'react';
+import type { useEnvironmentConfigGovernance } from '../../hooks/use-environment-config-governance';
 import type { useProjectDetail } from '../../hooks/use-project-detail';
 import { useEnvironmentDeploymentTargets } from '../../hooks/use-environment-deployment-targets';
 import type { ProjectEnvironment } from '../../types';
@@ -18,6 +19,7 @@ import type { SettingsEnvTab } from '../../utils/project-route.utils';
 import type { SettingsObservabilityDraft, SettingsRouteDraft } from './settings-env.model';
 import { EnvironmentVersionConfig } from './environment-version-config';
 import { EnvAccessTab } from './settings-env-access-tab';
+import { EnvDomainsTab } from './settings-env-domains-tab';
 import { EnvResourcesTab } from './settings-env-resources-tab';
 import { EnvTargetsTab } from './settings-env-targets-tab';
 import { EnvVariablesTab } from './settings-env-variables-tab';
@@ -25,11 +27,15 @@ import { EnvVerificationTab } from './settings-env-verification-tab';
 
 export type DetailHook = ReturnType<typeof useProjectDetail>;
 export type DeploymentTargetsHook = ReturnType<typeof useEnvironmentDeploymentTargets>;
+export type ConfigGovernanceHook = ReturnType<typeof useEnvironmentConfigGovernance>;
 
 export interface EnvTabContext {
   detail: DetailHook;
   environment: ProjectEnvironment;
   targets: DeploymentTargetsHook;
+  governance: ConfigGovernanceHook;
+  plainVariables: Record<string, string>;
+  setPlainVariables: (next: Record<string, string>) => void;
   secrets: EnvironmentConfigSecretReference[];
   setSecrets: (next: EnvironmentConfigSecretReference[]) => void;
   policyIds: string[];
@@ -87,6 +93,8 @@ export function renderEnvTab(envTab: SettingsEnvTab, ctx: EnvTabContext) {
         <EnvVariablesTab
           environment={ctx.environment}
           detail={ctx.detail}
+          plainVariables={ctx.plainVariables}
+          onPlainVariablesChange={ctx.setPlainVariables}
           secretReferences={ctx.secrets}
           onSecretReferencesChange={ctx.setSecrets}
           resources={ctx.resources}
@@ -102,20 +110,30 @@ export function renderEnvTab(envTab: SettingsEnvTab, ctx: EnvTabContext) {
           policies={ctx.policies}
           policyIds={ctx.policyIds}
           onPolicyIdsChange={ctx.setPolicyIds}
+          revision={ctx.revision}
         />
       );
     case 'verification':
       return (
         <EnvVerificationTab
+          projectId={ctx.detail.project?.id ?? ''}
           value={ctx.observability}
           onChange={ctx.setObservability}
-          environmentLabel={environmentDisplayName(ctx.environment)}
+          environment={ctx.environment}
+          sites={ctx.detail.project?.sites ?? []}
+          deploymentRuns={ctx.detail.deploymentRuns}
+          revision={ctx.revision}
+          evidenceError={ctx.detail.deploymentError}
+          onRetryEvidence={ctx.detail.loadDeploymentRuns}
+        />
+      );
+    case 'domains':
+      return (
+        <EnvDomainsTab
+          detail={ctx.detail}
+          environment={ctx.environment}
+          governance={ctx.governance}
         />
       );
   }
-}
-
-/** SET-8/SET-18：统一「中文名 (key)」环境命名。 */
-function environmentDisplayName(environment: ProjectEnvironment): string {
-  return `${environment.name} (${environment.key})`;
 }

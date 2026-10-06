@@ -21,8 +21,32 @@ vi.mock('@/components/ui', () => ({
   Select: (props: React.SelectHTMLAttributes<HTMLSelectElement>) => <select {...props} />,
 }));
 vi.mock('./environment-settings-detail', () => ({
-  EnvironmentSettingsDetail: ({ environment }: { environment: { key: string } }) => (
-    <div data-testid="environment-detail">detail:{environment.key}</div>
+  EnvironmentSettingsDetail: ({
+    environment,
+    environments,
+    onEnvironmentSelect,
+  }: {
+    environment: { key: string };
+    environments: Array<{ id: string; key: string; name: string }>;
+    onEnvironmentSelect: (key: string) => void;
+  }) => (
+    <div data-testid="environment-detail">
+      <select
+        aria-label="currentEnvironmentLabel"
+        value={environment.key}
+        onChange={(event) => onEnvironmentSelect(event.target.value)}
+      >
+        {environments.map((item) => (
+          <option
+            key={item.id}
+            value={item.key}
+          >
+            {item.name} ({item.key})
+          </option>
+        ))}
+      </select>
+      detail:{environment.key}
+    </div>
   ),
 }));
 
@@ -41,11 +65,11 @@ describe('EnvironmentSettingsArea existing-environment configuration', () => {
 
   it('renders a single existing-environment selector and no create action', () => {
     const html = renderToStaticMarkup(<EnvironmentSettingsArea detail={detail()} />);
-    expect(html).toContain('projectConfigurationTitle');
+    expect(html).not.toContain('projectConfigurationTitle');
     expect(html).toContain('currentEnvironmentLabel');
     expect(html).toContain('Staging (staging)');
     expect(html).toContain('Production (production)');
-    expect(html).toContain('detail:production');
+    expect(html).toContain('detail:staging');
     expect(html).not.toContain('envCreateAction');
   });
 
@@ -59,7 +83,15 @@ describe('EnvironmentSettingsArea existing-environment configuration', () => {
       select.dispatchEvent(new Event('change', { bubbles: true }));
     });
     expect(mocks.replace).toHaveBeenCalledWith(
-      '/projects/project-1/settings?env=staging&section=environments',
+      '/projects/project-1/settings?env=staging&envTab=targets&section=environments',
+      { scroll: false },
+    );
+  });
+
+  it('canonicalizes a missing environment route to staging deployment targets', async () => {
+    await act(async () => root.render(<EnvironmentSettingsArea detail={detail()} />));
+    expect(mocks.replace).toHaveBeenCalledWith(
+      '/projects/project-1/settings?env=staging&envTab=targets&section=environments',
       { scroll: false },
     );
   });

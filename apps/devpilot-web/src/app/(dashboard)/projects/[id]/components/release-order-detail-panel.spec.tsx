@@ -15,10 +15,12 @@ const mocks = vi.hoisted(() => ({
   searchParams: new URLSearchParams(),
   replace: vi.fn(),
   load: vi.fn(),
+  evidenceLoad: vi.fn(),
   buildLatest: vi.fn(),
   builds: {} as { building: boolean; buildLatest: ReturnType<typeof vi.fn> },
   deployments: {} as Record<string, unknown>,
   detailHook: {} as DetailHook,
+  evidenceHook: {} as Record<string, unknown>,
 }));
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ replace: mocks.replace }),
@@ -35,19 +37,19 @@ vi.mock('@svton/ui', () => ({
     open ? <aside>{children}</aside> : null,
 }));
 vi.mock('@/components/ui', () => ({
-  ErrorBanner: ({ message }: { message: string }) => <div>{message}</div>,
+  ErrorBanner: ({ message, onRetry }: { message: string; onRetry?: () => void }) => (
+    <div>
+      {message}
+      {onRetry ? <button onClick={onRetry}>retry</button> : null}
+    </div>
+  ),
   StatusTag: ({ label }: { label?: string }) => <span>{label}</span>,
 }));
 vi.mock('../hooks/use-release-order-detail', () => ({
   useReleaseOrderDetail: () => mocks.detailHook,
 }));
 vi.mock('../hooks/use-release-order-evidence', () => ({
-  useReleaseOrderEvidence: () => ({
-    evidence: null,
-    loading: false,
-    error: '',
-    load: mocks.load,
-  }),
+  useReleaseOrderEvidence: () => mocks.evidenceHook,
 }));
 vi.mock('../hooks/use-release-builds', () => ({
   useReleaseBuilds: () => mocks.builds,
@@ -67,15 +69,28 @@ vi.mock('./release-workbench/release-order-detail-workbench', () => ({
   ReleaseOrderDetailWorkbench: ({
     navigation,
     onBuildLatest,
+    onRefresh,
+    productionRuns,
     detail,
   }: WorkbenchProps) => (
-    <div data-release={navigation.release} data-step={navigation.step}>
+    <div
+      data-release={navigation.release}
+      data-step={navigation.step}
+      data-production-runs={productionRuns.length}
+    >
       {(['preflight', 'build', 'staging'] as ReleaseWorkbenchStep[]).map((step) => (
-        <button key={step} data-step={step} onClick={() => navigation.selectStep(step)}>
+        <button
+          key={step}
+          data-step={step}
+          onClick={() => navigation.selectStep(step)}
+        >
           {step}
         </button>
       ))}
-      <button data-release-production onClick={() => navigation.selectRelease('production')}>
+      <button
+        data-release-production
+        onClick={() => navigation.selectRelease('production')}
+      >
         production
       </button>
       <button
@@ -84,6 +99,12 @@ vi.mock('./release-workbench/release-order-detail-workbench', () => ({
         onClick={onBuildLatest}
       >
         build
+      </button>
+      <button
+        data-refresh
+        onClick={() => void onRefresh()}
+      >
+        refresh
       </button>
     </div>
   ),
@@ -99,6 +120,7 @@ describe('ReleaseOrderDetailPanel route contract', () => {
     mocks.searchParams = new URLSearchParams();
     mocks.replace.mockReset();
     mocks.load.mockReset().mockResolvedValue(undefined);
+    mocks.evidenceLoad.mockReset().mockResolvedValue(undefined);
     mocks.buildLatest.mockReset().mockResolvedValue(null);
     mocks.builds = { building: false, buildLatest: mocks.buildLatest };
     mocks.deployments = {
@@ -112,6 +134,18 @@ describe('ReleaseOrderDetailPanel route contract', () => {
       load: vi.fn(),
     };
     mocks.detailHook = { scope: null, detail: null, loading: true, error: '', load: mocks.load };
+    mocks.evidenceHook = {
+      evidence: {
+        projectId: 'project-1',
+        releaseOrderId: 'order-1',
+        buildRuns: { items: [], total: 0, hasMore: false },
+        stagingDeploymentRuns: { items: [], total: 0, hasMore: false },
+        productionReleaseRuns: { items: [], total: 0, hasMore: false },
+      },
+      loading: false,
+      error: '',
+      load: mocks.evidenceLoad,
+    };
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -147,7 +181,7 @@ describe('ReleaseOrderDetailPanel route contract', () => {
     mocks.detailHook = detailHook('production');
     await render(root);
     expect(mocks.replace.mock.calls[0]?.[0]).toBe(
-      '/projects/project-1/releases?releaseOrderId=order-1&release=production&releaseRunId=rel-1',
+      '/projects/project-1/releases/order-1?release=production&releaseRunId=rel-1',
     );
   });
 
@@ -159,7 +193,7 @@ describe('ReleaseOrderDetailPanel route contract', () => {
       container.querySelector<HTMLButtonElement>('[data-step="build"]')?.click(),
     );
     expect(mocks.replace.mock.calls.at(-1)?.[0]).toBe(
-      '/projects/project-1/releases?releaseOrderId=order-1&step=build',
+      '/projects/project-1/releases/order-1?step=build',
     );
   });
 
@@ -171,7 +205,7 @@ describe('ReleaseOrderDetailPanel route contract', () => {
       container.querySelector<HTMLButtonElement>('[data-release-production]')?.click(),
     );
     expect(mocks.replace.mock.calls.at(-1)?.[0]).toBe(
-      '/projects/project-1/releases?releaseOrderId=order-1&release=production',
+      '/projects/project-1/releases/order-1?release=production',
     );
   });
 
@@ -182,10 +216,9 @@ describe('ReleaseOrderDetailPanel route contract', () => {
     await act(async () =>
       container.querySelector<HTMLButtonElement>('[data-build-latest]')?.click(),
     );
-    expect(mocks.replace).toHaveBeenCalledWith(
-      '/projects/project-1/releases?releaseOrderId=order-1&step=build',
-      { scroll: false },
-    );
+    expect(mocks.replace).toHaveBeenCalledWith('/projects/project-1/releases/order-1?step=build', {
+      scroll: false,
+    });
     expect(mocks.buildLatest).toHaveBeenCalledOnce();
   });
 
@@ -207,7 +240,39 @@ describe('ReleaseOrderDetailPanel route contract', () => {
     await render(root, 'order-b');
     expect(mocks.replace).not.toHaveBeenCalled();
     expect(container.querySelector('header')).toBeNull();
-    expect(container.textContent).toBe('releaseOrderDetailUnavailable');
+    expect(container.textContent).toContain('releaseOrderDetailUnavailable');
+  });
+
+  it('does not block the basic flow while advanced evidence is loading', async () => {
+    mocks.detailHook = detailHook('production');
+    mocks.evidenceHook = { ...mocks.evidenceHook, evidence: null, loading: true };
+    await render(root);
+    expect(container.textContent).not.toBe('loading');
+    expect(container.textContent).toContain('build');
+  });
+
+  it('does not surface an advanced-evidence failure in the basic flow', async () => {
+    mocks.detailHook = detailHook('production');
+    mocks.evidenceHook = { ...mocks.evidenceHook, evidence: null, error: 'evidence failed' };
+    await render(root);
+    expect(container.textContent).not.toContain('evidence failed');
+    expect(container.textContent).toContain('build');
+    expect(mocks.evidenceLoad).not.toHaveBeenCalled();
+  });
+
+  it('passes production runs into the MVP flow and refreshes their server evidence', async () => {
+    mocks.detailHook = detailHook('production');
+    mocks.evidenceHook = {
+      ...mocks.evidenceHook,
+      evidence: {
+        ...(mocks.evidenceHook.evidence as Record<string, unknown>),
+        productionReleaseRuns: { items: [{ id: 'production-1' }], total: 1, hasMore: false },
+      },
+    };
+    await render(root);
+    expect(container.querySelector('[data-production-runs="1"]')).not.toBeNull();
+    await act(async () => container.querySelector<HTMLButtonElement>('[data-refresh]')?.click());
+    expect(mocks.evidenceLoad).toHaveBeenCalledOnce();
   });
 });
 async function render(root: Root, releaseOrderId = 'order-1') {

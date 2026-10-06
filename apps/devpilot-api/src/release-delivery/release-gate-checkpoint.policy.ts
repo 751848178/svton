@@ -10,7 +10,19 @@ export type ReleaseGateCheckpointPolicy = {
   requiredGateIds: readonly string[];
 };
 
-const CHECKPOINTS: Record<
+export type ReleaseFlowProfile = "basic_v1" | "governed_v1";
+export const ACTIVE_RELEASE_FLOW_PROFILE = releaseFlowProfileFromEnvironment();
+
+export function releaseFlowProfileFromEnvironment(
+  environment: NodeJS.ProcessEnv = process.env,
+): ReleaseFlowProfile {
+  const profile = environment.DEVPILOT_RELEASE_FLOW_PROFILE || "basic_v1";
+  if (profile === "basic_v1" || profile === "governed_v1") return profile;
+  throw new Error("DEVPILOT_RELEASE_FLOW_PROFILE_INVALID");
+}
+
+/** Full policy is retained so advanced governance can be re-enabled without reconstructing it. */
+const GOVERNED_CHECKPOINTS: Record<
   ReleaseGateCheckpoint,
   ReleaseGateCheckpointPolicy
 > = {
@@ -33,8 +45,24 @@ const CHECKPOINTS: Record<
     stage: "production",
     phase: "deploy",
     requiredGateIds: [
-      "D01", "D02", "D03", "D05", "D06", "D07", "D08", "D09", "D10",
-      "D11", "D12", "D13", "D14", "D15", "D16", "D17", "D18", "D19",
+      "D01",
+      "D02",
+      "D03",
+      "D05",
+      "D06",
+      "D07",
+      "D08",
+      "D09",
+      "D10",
+      "D11",
+      "D12",
+      "D13",
+      "D14",
+      "D15",
+      "D16",
+      "D17",
+      "D18",
+      "D19",
       "D20",
     ],
   },
@@ -60,10 +88,52 @@ const CHECKPOINTS: Record<
   },
 };
 
+const BASIC_CHECKPOINTS: Record<
+  ReleaseGateCheckpoint,
+  ReleaseGateCheckpointPolicy
+> = {
+  ...GOVERNED_CHECKPOINTS,
+  build_pre_execution: {
+    ...GOVERNED_CHECKPOINTS.build_pre_execution,
+    requiredGateIds: ["C01"],
+  },
+  build_post_execution: {
+    ...GOVERNED_CHECKPOINTS.build_post_execution,
+    requiredGateIds: [],
+  },
+  staging_pre_execution: {
+    ...GOVERNED_CHECKPOINTS.staging_pre_execution,
+    requiredGateIds: ["B02", "B09"],
+  },
+  production_pre_execution: {
+    ...GOVERNED_CHECKPOINTS.production_pre_execution,
+    requiredGateIds: ["D01", "D02", "D03"],
+  },
+  production_post_deploy: {
+    ...GOVERNED_CHECKPOINTS.production_post_deploy,
+    requiredGateIds: [],
+  },
+  production_promote: {
+    ...GOVERNED_CHECKPOINTS.production_promote,
+    requiredGateIds: [],
+  },
+  production_promote_pre_route: {
+    ...GOVERNED_CHECKPOINTS.production_promote_pre_route,
+    requiredGateIds: [],
+  },
+  production_post_route: {
+    ...GOVERNED_CHECKPOINTS.production_post_route,
+    requiredGateIds: [],
+  },
+};
+
 export function releaseGateCheckpointPolicy(
   checkpoint: ReleaseGateCheckpoint,
+  profile: ReleaseFlowProfile = ACTIVE_RELEASE_FLOW_PROFILE,
 ): ReleaseGateCheckpointPolicy {
-  return CHECKPOINTS[checkpoint];
+  return profile === "basic_v1"
+    ? BASIC_CHECKPOINTS[checkpoint]
+    : GOVERNED_CHECKPOINTS[checkpoint];
 }
 
 export function defaultCheckpointForStage(
@@ -72,4 +142,16 @@ export function defaultCheckpointForStage(
   if (stage === "build") return "build_pre_execution";
   if (stage === "staging") return "staging_pre_execution";
   return "production_pre_execution";
+}
+
+export function productionApprovalRequired(
+  profile: ReleaseFlowProfile = releaseFlowProfileFromEnvironment(),
+) {
+  return profile === "governed_v1";
+}
+
+export function productionPromotionRequired(
+  profile: ReleaseFlowProfile = releaseFlowProfileFromEnvironment(),
+) {
+  return profile === "governed_v1";
 }

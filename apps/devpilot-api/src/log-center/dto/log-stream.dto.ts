@@ -39,6 +39,10 @@ export class ListLogStreamsQueryDto {
   @IsOptional()
   @IsString()
   managedResourceId?: string;
+
+  @IsOptional()
+  @IsString()
+  deploymentRunId?: string;
 }
 
 export class CreateLogStreamDto {

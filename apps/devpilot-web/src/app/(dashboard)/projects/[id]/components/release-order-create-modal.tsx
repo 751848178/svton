@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Button, Input, Modal, Textarea } from '@/components/ui';
+import { Button, Input, Modal } from '@/components/ui';
 import type { ReleaseOrdersHook } from '../hooks/use-release-orders';
 import { buildReleaseOrderInput } from '../utils/release-order.utils';
 import {
@@ -21,38 +21,29 @@ export function ReleaseOrderCreateModal({
 }) {
   const t = useTranslations('projects');
   const tc = useTranslations('common');
-  const [releaseName, setReleaseName] = useState('');
   const [releaseVersion, setReleaseVersion] = useState('');
-  const [note, setNote] = useState('');
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const created = await orders.create(buildReleaseOrderInput(releaseName, releaseVersion, note));
+    const created = await orders.create(buildReleaseOrderInput(releaseVersion, releaseVersion, ''));
     if (!created) return;
-    setReleaseName('');
     setReleaseVersion('');
-    setNote('');
     onClose();
   };
 
   // 取消视为放弃本次输入：清空暂存，避免重开时残留上次的草稿（WIZ-5）。
   const closeAndReset = () => {
-    setReleaseName('');
     setReleaseVersion('');
-    setNote('');
     onClose();
   };
 
-  const nameEmpty = !releaseName.trim();
   const versionEmpty = !releaseVersion.trim();
   const versionInvalid = !versionEmpty && !isCanonicalReleaseVersion(releaseVersion);
-  const disabledReason = nameEmpty
-    ? t('releaseNameRequiredHint')
-    : versionEmpty
-      ? t('releaseVersionRequiredHint')
-      : versionInvalid
-        ? t('releaseVersionFormatHint')
-        : '';
+  const disabledReason = versionEmpty
+    ? t('releaseVersionRequiredHint')
+    : versionInvalid
+      ? t('releaseVersionFormatHint')
+      : '';
 
   return (
     <Modal
@@ -73,17 +64,6 @@ export function ReleaseOrderCreateModal({
           {t('createReleaseOrderDescription')}
         </p>
         <label className="block text-sm">
-          <span className="mb-1 block font-medium">{t('releaseNameLabel')}</span>
-          <Input
-            value={releaseName}
-            onChange={(event) => setReleaseName(event.target.value)}
-            placeholder={t('releaseNamePlaceholder')}
-            maxLength={100}
-            required
-            autoFocus
-          />
-        </label>
-        <label className="block text-sm">
           <span className="mb-1 block font-medium">{t('releaseVersionLabel')}</span>
           <Input
             value={releaseVersion}
@@ -93,6 +73,8 @@ export function ReleaseOrderCreateModal({
             pattern={RELEASE_VERSION_INPUT_PATTERN}
             title={t('releaseVersionFormatHint')}
             aria-invalid={versionInvalid || undefined}
+            required
+            autoFocus
           />
           {versionInvalid ? (
             <span
@@ -102,14 +84,6 @@ export function ReleaseOrderCreateModal({
               {t('releaseVersionFormatHint')}
             </span>
           ) : null}
-        </label>
-        <label className="block text-sm">
-          <span className="mb-1 block font-medium">{t('releaseNoteLabel')}</span>
-          <Textarea
-            value={note}
-            onChange={(event) => setNote(event.target.value)}
-            maxLength={2000}
-          />
         </label>
         {orders.createError ? (
           <p
@@ -135,7 +109,7 @@ export function ReleaseOrderCreateModal({
               className="min-h-11"
               type="submit"
               loading={orders.creating}
-              disabled={nameEmpty || versionEmpty || versionInvalid}
+              disabled={orders.creating || versionEmpty || versionInvalid}
             >
               {t('createReleaseOrder')}
             </Button>

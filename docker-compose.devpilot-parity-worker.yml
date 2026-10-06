@@ -1,0 +1,96 @@
+# Local-only parity overlay for the external OCI release-build worker.
+# The API never receives the Docker socket. A separate trusted launcher owns it
+# and starts one network-disabled, read-only, non-root job container per build.
+services:
+  api:
+    environment:
+      RELEASE_BUILD_UNTRUSTED_WORKER_PROVIDER: external-oci-launcher-v1
+      RELEASE_BUILD_WORKER_INPUT_ROOT: /exchange/input
+      RELEASE_BUILD_WORKER_OUTPUT_ROOT: /exchange/output
+      RELEASE_BUILD_ARTIFACT_ROOT: /exchange/output/artifacts
+      RELEASE_BUILD_WORKER_HMAC_SECRET_FILE: /run/secrets/release-build-worker-hmac
+      RELEASE_BUILD_LAUNCHER_PROOF_FILE: /run/launcher/release-build-proof.json
+      RELEASE_BUILD_LAUNCHER_JOB_IMAGE: ${RELEASE_BUILD_LAUNCHER_JOB_IMAGE:?required}
+      RELEASE_BUILD_SUPPLY_PROOF_FILE: /opt/devpilot/security/release-build-supply-proof.json
+      RELEASE_BUILD_WORKER_SHARED_GID: "2000"
+    volumes:
+      - type: bind
+        source: ${PARITY_WORKER_INPUT_ROOT_HOST:?required}
+        target: /exchange/input
+      - type: bind
+        source: ${PARITY_WORKER_OUTPUT_ROOT_HOST:?required}
+        target: /exchange/output
+      - type: bind
+        source: ${PARITY_WORKER_PROOF_ROOT_HOST:?required}
+        target: /run/launcher
+        read_only: true
+    secrets:
+      - source: release-build-worker-hmac
+        target: release-build-worker-hmac
+        mode: 0440
+    depends_on:
+      build-launcher:
+        condition: service_healthy
+
+  build-launcher:
+    build:
+      context: .
+      dockerfile: scripts/parity-release-build-launcher.Dockerfile
+      args:
+        PARITY_API_IMAGE: ${PARITY_API_IMAGE:-devpilot-parity-api:local}
+    image: ${PARITY_BUILD_LAUNCHER_IMAGE:-devpilot-parity-build-launcher:local}
+    restart: unless-stopped
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 256
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=64m,mode=0700
+      - /home:rw,nosuid,nodev,size=16m,mode=0700
+    environment:
+      RELEASE_BUILD_WORKER_INPUT_ROOT: ${PARITY_WORKER_INPUT_ROOT_HOST:?required}
+      RELEASE_BUILD_WORKER_OUTPUT_ROOT: ${PARITY_WORKER_OUTPUT_ROOT_HOST:?required}
+      RELEASE_BUILD_WORK_ROOT: ${PARITY_WORKER_WORK_ROOT_HOST:?required}
+      RELEASE_BUILD_WORKER_HMAC_SECRET_FILE: /run/secrets/release-build-worker-hmac
+      RELEASE_BUILD_LAUNCHER_PROOF_FILE: /run/launcher/release-build-proof.json
+      RELEASE_BUILD_LAUNCHER_JOB_IMAGE: ${RELEASE_BUILD_LAUNCHER_JOB_IMAGE:?required}
+      RELEASE_BUILD_LAUNCHER_DOCKER_EXECUTABLE: /usr/local/bin/docker
+      RELEASE_BUILD_LAUNCHER_INSTANCE_LABEL: parity_local_launcher_01
+      RELEASE_BUILD_SUPPLY_PROOF_FILE: /opt/devpilot/security/release-build-supply-proof.json
+      RELEASE_BUILD_COMMAND_PATH: /pnpm:/usr/local/bin:/usr/bin:/bin
+      RELEASE_BUILD_COMMAND_TIMEOUT_MS: "120000"
+      RELEASE_BUILD_CANCEL_GRACE_MS: "5000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - type: bind
+        source: ${PARITY_WORKER_INPUT_ROOT_HOST:?required}
+        target: ${PARITY_WORKER_INPUT_ROOT_HOST:?required}
+      - type: bind
+        source: ${PARITY_WORKER_OUTPUT_ROOT_HOST:?required}
+        target: ${PARITY_WORKER_OUTPUT_ROOT_HOST:?required}
+      - type: bind
+        source: ${PARITY_WORKER_WORK_ROOT_HOST:?required}
+        target: ${PARITY_WORKER_WORK_ROOT_HOST:?required}
+      - type: bind
+        source: ${PARITY_WORKER_PROOF_ROOT_HOST:?required}
+        target: /run/launcher
+    secrets:
+      - source: release-build-worker-hmac
+        target: release-build-worker-hmac
+        mode: 0400
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "const s=require('fs').statSync('/run/launcher/release-build-proof.json');process.exit(s.size>100&&Date.now()-s.mtimeMs<20000?0:1)",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 24
+      start_period: 10s
+
+secrets:
+  release-build-worker-hmac:
+    file: ${PARITY_WORKER_HMAC_SECRET_FILE:?required}

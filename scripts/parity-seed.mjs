@@ -29,6 +29,7 @@ import {
   parityRuntimeConfig,
   requireVerifiedRuntimeIdentity,
 } from "./lib/parity-runtime-config.mjs";
+import { parityComposeFiles } from "./lib/parity-compose-files.mjs";
 import {
   loadC5BuiltImageIds,
   recordC5BuiltImageIds,
@@ -66,6 +67,7 @@ import {
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const composeFile = resolve(root, "docker-compose.devpilot-parity.yml");
+const composeFiles = parityComposeFiles(root, composeFile, process.env);
 const runtime = parityRuntimeConfig();
 const fixtureSource = resolve(root, "fixtures/parity-app");
 const fixtureGitRoot =
@@ -142,7 +144,9 @@ const {
   migrateDeploy,
   repairApiFixtureMount,
   waitApiHealthy,
+  waitDeployTargetHealthy,
   waitMysqlHealthy,
+  waitTargetWorkloadHealthy,
 } = createParitySeedRuntimeOperations({ compose, run, dbName, dbUrl });
 
 const command = process.argv[2] || "up";
@@ -157,9 +161,15 @@ export async function main() {
       build: prepareVerifiedRuntimeImages,
       load: loadC5BuiltImageIds,
       verifyRunning: assertRunningRuntimeProvenance,
+      reusePrebuilt:
+        process.env.PARITY_USE_PREBUILT_RUNTIME_IMAGES === "1",
     });
   }
-  if (command === "fixture") await ensureFixtureRepo();
+  if (command === "build") {
+    console.log(
+      `[parity-seed] built verified runtime images for ${runtime.runtimeId}`,
+    );
+  } else if (command === "fixture") await ensureFixtureRepo();
   else if (command === "up" || command === "seed") {
     // Bring up infra first, migrate BEFORE the api container boots (its
     // onModuleInit queries tables), then bring up the rest and seed.
@@ -173,6 +183,8 @@ export async function main() {
       "target-workload",
     ]);
     await waitMysqlHealthy();
+    await waitDeployTargetHealthy();
+    await waitTargetWorkloadHealthy();
     await migrateDeploy();
     await compose(["up", "-d", "api", "web"]);
     await repairApiFixtureMount();
@@ -266,10 +278,12 @@ async function ensureFixtureRepo() {
   const markerPath = join(fixtureGitRoot, ".parity-pinned-commit.json");
   try {
     const existing = JSON.parse(await readFile(markerPath, "utf8"));
-    if (isCurrentParityFixtureMarker(
-      existing,
-      PARITY_RELEASE_ACTORS.confirmer.email,
-    )) {
+    if (
+      isCurrentParityFixtureMarker(
+        existing,
+        PARITY_RELEASE_ACTORS.confirmer.email,
+      )
+    ) {
       console.log(
         `[parity-seed] fixture repo already materialized at ${fixtureGitRoot} (pinned ${existing.pinnedCommit})`,
       );
@@ -341,6 +355,8 @@ async function reset() {
     "target-workload",
   ]);
   await waitMysqlHealthy();
+  await waitDeployTargetHealthy();
+  await waitTargetWorkloadHealthy();
   await dropCreateDb();
   // Migrate BEFORE the api container boots (its onModuleInit queries tables).
   await migrateDeploy();
@@ -381,7 +397,9 @@ async function seed() {
       environment: process.env,
       hashPassword: (password) => bcrypt.hash(password, 10),
     });
-    console.log(`[parity-seed] release actors ${JSON.stringify(releaseActors)}`);
+    console.log(
+      `[parity-seed] release actors ${JSON.stringify(releaseActors)}`,
+    );
     // The API bootstraps admin@parity.local at startup; make that user a team
     // owner too so the runtime API flow (login as the bootstrap admin) can
     // act on the seeded parity project/order.
@@ -1119,7 +1137,13 @@ function encryptCbcForSeed(plainText) {
 function compose(args, options = {}) {
   return run(
     "docker",
-    ["compose", "-p", runtime.composeProject, "-f", composeFile, ...args],
+    [
+      "compose",
+      "-p",
+      runtime.composeProject,
+      ...composeFiles.flatMap((file) => ["-f", file]),
+      ...args,
+    ],
     {
       ...options,
       env: parityComposeEnvironment(runtime, options.env || process.env),
@@ -1132,6 +1156,7 @@ function run(cmd, args, options = {}) {
     cwd: options.cwd || root,
     env: { ...process.env, ...(options.env || {}) },
     encoding: "utf8",
+    maxBuffer: 512 * 1024 * 1024,
     stdio: ["ignore", "pipe", "pipe"],
   });
   if (options.check === false) return out;

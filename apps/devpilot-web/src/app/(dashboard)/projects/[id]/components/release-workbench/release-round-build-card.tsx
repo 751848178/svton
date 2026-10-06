@@ -43,7 +43,7 @@ export function ReleaseRoundBuildCard(props: Props) {
 
   return (
     <section
-      className="border-b border-border px-4 py-4 xl:pl-5 xl:pr-4"
+      className="px-4 py-4 xl:pl-5 xl:pr-4"
       aria-labelledby="release-round-build-title"
     >
       <div className="flex items-center justify-between gap-2">

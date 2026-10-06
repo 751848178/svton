@@ -48,6 +48,13 @@ try {
   assert.equal(cleanupC5WebBuildOutput(environment).status, "already_absent");
   assert.equal(cleanupC5WebBuildOutput({}).status, "not_requested");
 
+  const compactRuntime = {
+    ...environment,
+    PARITY_RUNTIME_ID: `c5-${"a".repeat(8)}-${"b".repeat(8)}`,
+  };
+  materializeC5WebBuildOutput({ root: cacheRoot }, compactRuntime);
+  assert.equal(cleanupC5WebBuildOutput(compactRuntime).status, "removed");
+
   materializeC5WebBuildOutput({ root: cacheRoot }, environment);
   await writeFile(
     join(environment.PARITY_WEB_DIST_ROOT, "BUILD_ID"),

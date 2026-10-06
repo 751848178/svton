@@ -24,6 +24,7 @@ interface EnvironmentPlainVarsEditorProps {
   onImportEnv: () => void;
   onSave: () => Promise<void>;
   blockedReason?: string;
+  showSaveAction?: boolean;
   t: ProjectsTranslator;
 }
 
@@ -36,6 +37,7 @@ export function EnvironmentPlainVarsEditor({
   onImportEnv,
   onSave,
   blockedReason,
+  showSaveAction = true,
   t,
 }: EnvironmentPlainVarsEditorProps) {
   // 是否存在无效 KEY —— 有则禁用保存并提示,避免静默丢弃(架构师 B1)。
@@ -110,15 +112,17 @@ export function EnvironmentPlainVarsEditor({
         >
           {t('importFromEnv')}
         </Button>
-        <Button
-          type="button"
-          size="sm"
-          onClick={handleSave}
-          disabled={saving || hasInvalidKey || Boolean(blockedReason)}
-          title={hasInvalidKey ? t('envVarsInvalidKeyHint') : blockedReason}
-        >
-          {saving ? t('envVarsSaving') : t('envVarsSave')}
-        </Button>
+        {showSaveAction ? (
+          <Button
+            type="button"
+            size="sm"
+            onClick={handleSave}
+            disabled={saving || hasInvalidKey || Boolean(blockedReason)}
+            title={hasInvalidKey ? t('envVarsInvalidKeyHint') : blockedReason}
+          >
+            {saving ? t('envVarsSaving') : t('envVarsSave')}
+          </Button>
+        ) : null}
       </div>
       {hasInvalidKey ? (
         <p className="text-xs text-destructive">{t('envVarsInvalidKeyHint')}</p>

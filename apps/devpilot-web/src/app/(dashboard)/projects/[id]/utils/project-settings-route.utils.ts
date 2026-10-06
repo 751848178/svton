@@ -18,10 +18,11 @@ export function settingsHref(
     'buildRunId',
     'deploymentRunId',
     'releaseRunId',
+    'analysis',
+    'analysisRunId',
   ]) {
     next.delete(key);
   }
-  if (section !== 'repository') next.delete('analysisRunId');
   if (section !== 'environments') {
     next.delete('environmentId');
     next.delete('env');

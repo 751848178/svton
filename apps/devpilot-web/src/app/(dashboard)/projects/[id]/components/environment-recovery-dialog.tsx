@@ -38,26 +38,31 @@ export function EnvironmentRecoveryDialog({
   const t = useTranslations('projects');
   const { working, error, create } = useRecoveryConfirm(projectId);
   const [directWorking, setDirectWorking] = useState(false);
+  const [directError, setDirectError] = useState('');
   const historical = environment.environmentVersions.filter(
     (version) => version.id !== environment.currentEnvironmentVersionId,
   );
   const defaultId = defaultSourceVersionId || historical[0]?.id || '';
   const [selectedId, setSelectedId] = useState(defaultId);
   const selected = historical.find((version) => version.id === selectedId) || null;
-  const current = environment.environmentVersions.find(
-    (version) => version.id === environment.currentEnvironmentVersionId,
-  ) || null;
+  const current =
+    environment.environmentVersions.find(
+      (version) => version.id === environment.currentEnvironmentVersionId,
+    ) || null;
 
   const handleConfirm = async () => {
     if (!selected) return;
     if (onDirectConfirm) {
       setDirectWorking(true);
+      setDirectError('');
       try {
         await onDirectConfirm(selectedId);
+        onClose();
+      } catch (caught) {
+        setDirectError(caught instanceof Error ? caught.message : String(caught));
       } finally {
         setDirectWorking(false);
       }
-      onClose();
       return;
     }
     const result = await create(environment.id, selectedId);
@@ -102,9 +107,7 @@ export function EnvironmentRecoveryDialog({
                   kind: t(environmentVersionKindKey(version.kind)),
                   date: formatIso(version.effectiveAt),
                 })}
-                {version.id === defaultId
-                  ? t('environmentVersionRecoveryDefaultRecommend')
-                  : ''}
+                {version.id === defaultId ? t('environmentVersionRecoveryDefaultRecommend') : ''}
               </option>
             ))}
           </Select>
@@ -122,12 +125,12 @@ export function EnvironmentRecoveryDialog({
             </dd>
           </div>
         </dl>
-        {error ? (
+        {error || directError ? (
           <p
             className="text-sm text-destructive"
             role="alert"
           >
-            {error}
+            {error || directError}
           </p>
         ) : null}
       </div>

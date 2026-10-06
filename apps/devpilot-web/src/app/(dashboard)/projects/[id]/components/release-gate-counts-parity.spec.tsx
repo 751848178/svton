@@ -9,10 +9,7 @@
 import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type {
-  ReleaseGateCatalog,
-  ReleaseGateCheck,
-} from '../types/release-gate.types';
+import type { ReleaseGateCatalog, ReleaseGateCheck } from '../types/release-gate.types';
 import { buildReleaseGateSummary } from './release-gate-summary.model';
 import { ReleaseStepPreflightPanel } from './release-workbench/release-step-preflight-panel';
 import { ReleaseWorkbenchDecisionCard } from './release-workbench/release-workbench-decision-card';
@@ -27,11 +24,25 @@ vi.mock('next-intl', () => ({
   useTranslations: () => (key: string, values?: Record<string, unknown>) =>
     values ? `${key}:${JSON.stringify(values)}` : key,
 }));
-vi.mock('@svton/ui', () => ({ LoadingState: () => <div>loading</div> }));
+vi.mock('@svton/ui', () => ({
+  LoadingState: () => <div>loading</div>,
+  Drawer: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
+    open ? <aside>{children}</aside> : null,
+}));
 vi.mock('@/components/ui', () => ({
-  Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
-    <button {...props}>{children}</button>
-  ),
+  Button: React.forwardRef<
+    HTMLButtonElement,
+    React.ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean }
+  >(function MockButton({ children, loading: _loading, ...props }, ref) {
+    return (
+      <button
+        ref={ref}
+        {...props}
+      >
+        {children}
+      </button>
+    );
+  }),
   LinkButton: ({ children }: { children: React.ReactNode }) => <a>{children}</a>,
   StatusTag: ({ label }: { label?: string }) => <span>{label}</span>,
   Modal: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -40,8 +51,9 @@ vi.mock('@/components/ui', () => ({
 describe('PX-1 gate count single source (stage decision)', () => {
   beforeEach(() => {
     (globalThis as typeof globalThis & { React: typeof React }).React = React;
-    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
-      .IS_REACT_ACT_ENVIRONMENT = true;
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
   });
 
   it('summary counts and per-group breakdown both follow the staging decision', () => {
@@ -81,29 +93,31 @@ describe('PX-1 gate count single source (stage decision)', () => {
             onReviewGate={vi.fn()}
           />
           <ReleaseStepPreflightPanel
+            projectId="project-1"
             detail={detail}
-            gateCatalog={{
-              catalog,
-              loading: false,
-              error: '',
-              load: vi.fn(),
-              confirmManual: vi.fn(),
-              confirmingGateId: '',
-              confirmationError: '',
-            } as unknown as Parameters<typeof ReleaseStepPreflightPanel>[0]['gateCatalog']}
+            gateCatalog={
+              {
+                catalog,
+                loading: false,
+                error: '',
+                load: vi.fn(),
+                confirmManual: vi.fn(),
+                confirmingGateId: '',
+                confirmationError: '',
+              } as unknown as Parameters<typeof ReleaseStepPreflightPanel>[0]['gateCatalog']
+            }
           />
         </div>,
       ),
     );
-    const counts = container.querySelector('[data-testid="gate-summary-counts"]');
-    expect(counts?.textContent).toContain('"blocked":3');
-    expect(counts?.textContent).toContain('releaseStepStagingTitle');
-    const banner = container.querySelector('[data-testid="release-decision-heading"]');
+    expect(container.textContent).toContain(
+      'releaseWorkbenchStageGateCounts:{"stage":"releaseStepStagingTitle","blocked":3',
+    );
+    const banner = container.querySelector('[data-release-decision]');
     expect(banner?.textContent).toContain('"blocked":3');
     // 双口径回归锚点：任何位置都不再出现 build 决策的「阻断 5」。
     expect(container.textContent).not.toContain('"blocked":5');
-    // ROD-5：组描述不得再渲染 raw ISO 时间戳（本地 YYYY-MM-DD HH:mm 呈现）。
-    expect(container.textContent).toContain('过期，必须重新检查');
+    // ROD-5：证据时间不得渲染 raw ISO 时间戳。
     expect(container.textContent).not.toMatch(/2026-08-17T09:11/);
     await act(async () => root.unmount());
   });
@@ -119,22 +133,24 @@ describe('PX-1 gate count single source (stage decision)', () => {
     await act(async () =>
       root.render(
         <ReleaseStepPreflightPanel
+          projectId="project-1"
           detail={detail}
-          gateCatalog={{
-            catalog,
-            loading: false,
-            error: '',
-            load: vi.fn(),
-            confirmManual: vi.fn(),
-            confirmingGateId: '',
-            confirmationError: '',
-          } as unknown as Parameters<typeof ReleaseStepPreflightPanel>[0]['gateCatalog']}
+          gateCatalog={
+            {
+              catalog,
+              loading: false,
+              error: '',
+              load: vi.fn(),
+              confirmManual: vi.fn(),
+              confirmingGateId: '',
+              confirmationError: '',
+            } as unknown as Parameters<typeof ReleaseStepPreflightPanel>[0]['gateCatalog']
+          }
         />,
       ),
     );
-    // 组行时间空值统一回退 releaseWorkbenchValueEmpty（暂无），不再渲染「检查于 -」。
-    expect(container.textContent).toContain('"time":"releaseWorkbenchValueEmpty"');
-    expect(container.textContent).not.toContain('"time":"-"');
+    expect(container.textContent).toContain('releaseGateMetadataUnavailable');
+    expect(container.textContent).not.toMatch(/2026-08-17T09:11/);
     await act(async () => root.unmount());
   });
 });
@@ -187,12 +203,7 @@ function realCatalog(): ReleaseGateCatalog {
       production: null,
     } as unknown as ReleaseGateCatalog['decisions'],
     targetReadiness: targetReadiness(),
-    capabilities: [
-      capability('M01'),
-      capability('M02'),
-      capability('M03'),
-      capability('M04'),
-    ],
+    capabilities: [capability('M01'), capability('M02'), capability('M03'), capability('M04')],
     checks,
   };
 }

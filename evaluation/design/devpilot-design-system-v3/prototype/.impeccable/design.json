@@ -1,0 +1,218 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-26T15:33:07Z",
+  "title": "Design System: Devpilot Guided Control Plane",
+  "extensions": {
+    "shadows": [
+      {
+        "name": "ambient-overlay",
+        "value": "0 18px 52px rgba(24, 25, 29, .16), 0 2px 8px rgba(24, 25, 29, .07)",
+        "purpose": "Evidence drawers and toasts that float above the workspace."
+      },
+      {
+        "name": "primary-action",
+        "value": "0 4px 10px rgba(79, 94, 232, .18)",
+        "purpose": "Restrained lift beneath primary cobalt actions."
+      },
+      {
+        "name": "search-focus",
+        "value": "0 0 0 3px rgba(79,94,232,.12)",
+        "purpose": "Focus-within ring around the global search control."
+      },
+      {
+        "name": "field-focus",
+        "value": "0 0 0 3px rgba(79,94,232,.1)",
+        "purpose": "Focus ring around production form fields."
+      }
+    ],
+    "focusRings": [
+      {
+        "name": "visible-focus",
+        "value": "3px solid rgba(79, 94, 232, .28)",
+        "offset": "2px",
+        "purpose": "Global keyboard-visible focus treatment."
+      }
+    ],
+    "motion": [
+      {
+        "name": "control-state",
+        "value": "0.16s ease",
+        "purpose": "Button background, border, and lift transitions."
+      },
+      {
+        "name": "navigation-state",
+        "value": "0.18s ease",
+        "purpose": "Global navigation color and background transitions."
+      },
+      {
+        "name": "drawer-enter",
+        "value": "0.32s cubic-bezier(.22,1,.36,1)",
+        "purpose": "Right-edge evidence drawer entrance."
+      },
+      {
+        "name": "toast-enter",
+        "value": "0.26s cubic-bezier(.22,1,.36,1)",
+        "purpose": "Toast entrance from below."
+      },
+      {
+        "name": "running-spin",
+        "value": "0.95s linear infinite",
+        "purpose": "Running-status indicator only."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "0.01ms; 1 iteration",
+        "purpose": "Effectively disables animation and transitions when reduced motion is requested."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "wide-collapse",
+        "value": "1120px"
+      },
+      {
+        "name": "shell-collapse",
+        "value": "900px"
+      },
+      {
+        "name": "mobile-stack",
+        "value": "680px"
+      },
+      {
+        "name": "narrow-stack",
+        "value": "420px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single deliberate action for the current delivery decision.",
+      "html": "<button class=\"ds-button-primary\">配置生产入口</button>",
+      "css": ".ds-button-primary { min-height: 38px; padding: 0 15px; border: 1px solid transparent; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; color: #fff; background: #4f5ee8; box-shadow: 0 4px 10px rgba(79, 94, 232, .18); font-family: \"Avenir Next\", \"PingFang SC\", \"Noto Sans CJK SC\", sans-serif; font-size: 13px; font-weight: 680; transition: background .16s ease, border-color .16s ease, transform .16s ease; } .ds-button-primary:hover { background: #3d49c7; transform: translateY(-1px); } .ds-button-primary:focus-visible { outline: 3px solid rgba(79, 94, 232, .28); outline-offset: 2px; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "A bounded alternative action that stays subordinate to the current task.",
+      "html": "<button class=\"ds-button-secondary\">问 Devpilot</button>",
+      "css": ".ds-button-secondary { min-height: 38px; padding: 0 15px; border: 1px solid #c9cbcf; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; color: #1b1c20; background: #fff; box-shadow: none; font-family: \"Avenir Next\", \"PingFang SC\", \"Noto Sans CJK SC\", sans-serif; font-size: 13px; font-weight: 680; transition: background .16s ease, border-color .16s ease, transform .16s ease; } .ds-button-secondary:hover { border-color: #aeb1b7; background: #faf9f7; transform: translateY(-1px); } .ds-button-secondary:focus-visible { outline: 3px solid rgba(79, 94, 232, .28); outline-offset: 2px; }"
+    },
+    {
+      "name": "Project Destination Tabs",
+      "kind": "nav",
+      "refersTo": "navigation-tab",
+      "description": "Stable project destinations with an underline-only active state.",
+      "html": "<nav class=\"ds-project-tabs\" aria-label=\"项目导航\"><button class=\"ds-project-tab is-active\">项目信息</button><button class=\"ds-project-tab\">发布</button><button class=\"ds-project-tab\">项目配置</button></nav>",
+      "css": ".ds-project-tabs { display: flex; gap: 26px; overflow-x: auto; border-bottom: 1px solid #c9cbcf; font-family: \"Avenir Next\", \"PingFang SC\", \"Noto Sans CJK SC\", sans-serif; } .ds-project-tab { min-height: 44px; flex: none; padding: 0 1px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: #666a73; font-size: 14px; } .ds-project-tab:hover { color: #1b1c20; } .ds-project-tab:focus-visible { outline: 3px solid rgba(79, 94, 232, .28); outline-offset: 2px; } .ds-project-tab.is-active { color: #3d49c7; border-bottom-color: #4f5ee8; font-weight: 680; }"
+    },
+    {
+      "name": "Global Rail Navigation",
+      "kind": "nav",
+      "refersTo": "rail-item",
+      "description": "Compact product navigation on the graphite desktop rail.",
+      "html": "<nav class=\"ds-rail-nav\" aria-label=\"全局导航\"><button class=\"ds-rail-item is-active\">项目</button><button class=\"ds-rail-item\">发布</button><button class=\"ds-rail-item\" disabled>资源</button></nav>",
+      "css": ".ds-rail-nav { width: 192px; padding: 8px; display: grid; gap: 4px; background: #202126; font-family: \"Avenir Next\", \"PingFang SC\", \"Noto Sans CJK SC\", sans-serif; } .ds-rail-item { min-height: 40px; padding: 0 11px; border: 0; border-radius: 8px; display: flex; align-items: center; gap: 11px; color: #aeb0b8; background: transparent; text-align: left; transition: background .18s ease, color .18s ease; } .ds-rail-item:hover:not(:disabled), .ds-rail-item.is-active { background: #2a2b31; color: #fff; } .ds-rail-item:focus-visible { outline: 3px solid rgba(79, 94, 232, .28); outline-offset: 2px; } .ds-rail-item:disabled { opacity: .52; }"
+    },
+    {
+      "name": "Production Form Field",
+      "kind": "input",
+      "refersTo": "field",
+      "description": "Compact labeled field for production configuration values.",
+      "html": "<label class=\"ds-field\"><span>域名</span><input value=\"picshare.acme.dev\" aria-label=\"域名\"></label>",
+      "css": ".ds-field { display: grid; gap: 7px; color: #666a73; font-family: \"Avenir Next\", \"PingFang SC\", \"Noto Sans CJK SC\", sans-serif; font-size: 11px; } .ds-field input { width: 100%; height: 38px; padding: 0 10px; border: 1px solid #c9cbcf; border-radius: 7px; outline: 0; background: #fff; color: #1b1c20; font: inherit; } .ds-field input:focus { border-color: #4f5ee8; box-shadow: 0 0 0 3px rgba(79,94,232,.1); } .ds-field input:focus-visible { outline: 3px solid rgba(79, 94, 232, .28); outline-offset: 2px; }"
+    },
+    {
+      "name": "Evidence Surface",
+      "kind": "card",
+      "refersTo": "surface-card",
+      "description": "A flat bordered container for grouped operational facts.",
+      "html": "<section class=\"ds-surface\"><header><h3>发布输入</h3></header><dl><div><dt>候选版本</dt><dd>图库重构 1.4.0</dd></div><div><dt>目标环境</dt><dd>生产环境</dd></div></dl></section>",
+      "css": ".ds-surface { width: 320px; padding: 20px; border: 1px solid #dedfdf; border-radius: 12px; background: #fff; color: #1b1c20; font-family: \"Avenir Next\", \"PingFang SC\", \"Noto Sans CJK SC\", sans-serif; } .ds-surface header { min-height: 46px; padding-bottom: 14px; border-bottom: 1px solid #dedfdf; } .ds-surface h3 { margin: 0; font-size: 15px; letter-spacing: -.015em; } .ds-surface dl { margin: 0; display: grid; gap: 17px; } .ds-surface dl div { display: grid; gap: 5px; } .ds-surface dt { color: #666a73; font-size: 11px; } .ds-surface dd { margin: 0; font-size: 13px; font-weight: 630; }"
+    },
+    {
+      "name": "Current Task Surface",
+      "kind": "custom",
+      "refersTo": "task-surface",
+      "description": "The signature first-viewport surface for the current delivery blocker or next step.",
+      "html": "<section class=\"ds-current-task\"><div><h3>生产检查发现 1 个阻断项</h3><p class=\"ds-task-meta\">发布 R-1042 · 图库重构 1.4.0</p><p>web 组件缺少生产域名入口。构建和预发结果不会受影响，但当前版本无法对外提供访问。</p><button class=\"ds-task-action\">配置生产入口</button></div><dl><div><dt>候选版本</dt><dd>图库重构 1.4.0</dd></div><div><dt>来源</dt><dd>main · a1b2c3d</dd></div></dl></section>",
+      "css": ".ds-current-task { min-height: 246px; padding: clamp(24px, 3vw, 38px); display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(280px, .65fr); gap: 48px; color: #fff; background: #202126; border-radius: 14px; font-family: \"Avenir Next\", \"PingFang SC\", \"Noto Sans CJK SC\", sans-serif; } .ds-current-task h3 { max-width: 700px; margin: 0 0 8px; font-size: clamp(25px, 3vw, 40px); line-height: 1.08; letter-spacing: -.045em; } .ds-current-task p { max-width: 730px; margin: 0 0 22px; color: #c8c9ce; font-size: 14px; line-height: 1.72; } .ds-current-task .ds-task-meta { margin-bottom: 12px; color: #b8beff; font-size: 11px; font-weight: 680; } .ds-current-task dl { margin: 0; padding-left: 28px; align-self: center; display: grid; gap: 20px; border-left: 1px solid #3c3d44; } .ds-current-task dl div { display: grid; gap: 5px; } .ds-current-task dt { color: #92949d; font-size: 11px; } .ds-current-task dd { margin: 0; color: #fff; font-size: 13px; font-weight: 630; } .ds-task-action { min-height: 38px; padding: 0 15px; border: 1px solid transparent; border-radius: 8px; color: #fff; background: #4f5ee8; font: 680 13px \"Avenir Next\", \"PingFang SC\", sans-serif; transition: background .16s ease, transform .16s ease; } .ds-task-action:hover { background: #3d49c7; transform: translateY(-1px); } .ds-task-action:focus-visible { outline: 3px solid rgba(79, 94, 232, .28); outline-offset: 2px; } @media (max-width: 900px) { .ds-current-task { grid-template-columns: 1fr; gap: 24px; } .ds-current-task dl { padding: 20px 0 0; grid-template-columns: 1fr 1fr; border-left: 0; border-top: 1px solid #3c3d44; } }"
+    },
+    {
+      "name": "Contextual Blocker Row",
+      "kind": "custom",
+      "description": "A compact object-problem-impact row with its repair action attached.",
+      "html": "<div class=\"ds-context-row\"><span class=\"ds-context-mark\" aria-hidden=\"true\">!</span><p>生产环境缺少域名入口，发布 R-1042 无法进入生产。<button>配置生产入口</button></p></div>",
+      "css": ".ds-context-row { min-height: 42px; padding: 10px 0; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #dedfdf; color: #87510a; font-family: \"Avenir Next\", \"PingFang SC\", \"Noto Sans CJK SC\", sans-serif; font-size: 13px; } .ds-context-mark { width: 18px; height: 18px; display: grid; place-items: center; font-weight: 700; } .ds-context-row p { margin: 0; color: #1b1c20; } .ds-context-row button { margin-left: 4px; padding: 0; border: 0; background: transparent; color: #3d49c7; font: inherit; } .ds-context-row button:hover { text-decoration: underline; text-underline-offset: 3px; } .ds-context-row button:focus-visible { outline: 3px solid rgba(79, 94, 232, .28); outline-offset: 2px; }"
+    },
+    {
+      "name": "Operational Data Table",
+      "kind": "custom",
+      "description": "A divided evidence collection with compact headers and row-level actions.",
+      "html": "<div class=\"ds-table-wrap\"><table class=\"ds-data-table\"><thead><tr><th>版本</th><th>来源</th><th>状态</th><th>操作</th></tr></thead><tbody><tr><td>1.4.0</td><td>main · a1b2c3d</td><td>运行中</td><td><button>技术证据</button></td></tr><tr class=\"is-selected\"><td>1.3.2</td><td>release/1.3 · 8f7e6d5</td><td>已通过</td><td><button>切换版本</button></td></tr></tbody></table></div>",
+      "css": ".ds-table-wrap { width: 100%; overflow-x: auto; border: 1px solid #dedfdf; border-radius: 12px; background: #fff; color: #1b1c20; font-family: \"Avenir Next\", \"PingFang SC\", \"Noto Sans CJK SC\", sans-serif; } .ds-data-table { min-width: 720px; width: 100%; border-collapse: collapse; font-size: 12.5px; } .ds-data-table th { height: 40px; padding: 0 14px; color: #666a73; font-size: 11px; font-weight: 650; text-align: left; white-space: nowrap; } .ds-data-table td { height: 58px; padding: 9px 14px; border-top: 1px solid #dedfdf; white-space: nowrap; } .ds-data-table tbody tr { transition: background .14s ease; } .ds-data-table tbody tr:hover, .ds-data-table tbody tr.is-selected { background: #f8f8ff; } .ds-data-table button { padding: 0; border: 0; background: transparent; color: #3d49c7; font: 620 13px \"Avenir Next\", \"PingFang SC\", sans-serif; } .ds-data-table button:hover { text-decoration: underline; text-underline-offset: 3px; } .ds-data-table button:focus-visible { outline: 3px solid rgba(79, 94, 232, .28); outline-offset: 2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Guided Control Plane",
+    "overview": "Devpilot is an operational workspace with a quiet graphite shell and a warm, paper-like work surface. It is precise and dense without feeling compressed: one current delivery decision leads, while tables, rails, and drawers disclose deeper evidence only where it helps an operator act.\n\nThe visual system treats AI as contextual explanation, not as the application's navigation model or source of production truth. Cobalt marks deliberate action, semantic colors stay narrow, and the most important blocker or next step remains attached to the object it affects.",
+    "keyCharacteristics": [
+      "Warm paper workspace framed by a graphite operating shell.",
+      "One dark current-task surface before supporting evidence.",
+      "Dense information expressed through alignment, dividers, and narrow inspection panes.",
+      "Cobalt actions with icon-and-label semantic states.",
+      "Contextual AI and evidence drawers that never imply a production mutation."
+    ],
+    "rules": [
+      {
+        "name": "The Current Decision Rule",
+        "body": "Every screen identifies one decision or task before it expands into records, evidence, or history.",
+        "section": "overview"
+      },
+      {
+        "name": "The Narrow Semantics Rule",
+        "body": "A semantic color must be paired with an icon and a written state; color never carries the outcome alone.",
+        "section": "colors"
+      },
+      {
+        "name": "The Evidence Mono Rule",
+        "body": "Use monospace for machine-verifiable identifiers and comparable numerals, never as a decorative developer aesthetic.",
+        "section": "typography"
+      },
+      {
+        "name": "The Attached Action Rule",
+        "body": "Place repair and evidence actions beside the state they change or explain; do not separate the warning from its destination.",
+        "section": "layout"
+      },
+      {
+        "name": "The Flat-Until-Floating Rule",
+        "body": "Use borders and tonal layering for resting surfaces; use shadow only when an object floats above the work surface or a primary action needs a restrained lift.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Bounded Radius Rule",
+        "body": "Keep operational containers between 10px and 14px, controls between 7px and 8px, and reserve full circles or pills for avatars and continuous progress geometry.",
+        "section": "shapes"
+      }
+    ],
+    "dos": [
+      "Do lead with one current delivery decision and keep its action beside the cause.",
+      "Do use tables, divided lists, narrow rails, and inspection panes for dense operational evidence.",
+      "Do pair every semantic color with an icon and explicit state label.",
+      "Do reserve monospace for versions, durations, commits, manifests, ports, and run IDs.",
+      "Do keep mobile status, cause, evidence access, and primary action equivalent to desktop.",
+      "Do treat finish review, verdict, canonical documentation, and raster provenance as part of shipping."
+    ],
+    "donts": [
+      "Don't turn the product into a KPI-card dashboard or a chat-first navigation surface.",
+      "Don't imply that an AI explanation or proposal changed production state.",
+      "Don't replace collections with a wall of standalone cards.",
+      "Don't use semantic color without a written state and icon.",
+      "Don't add photographic or decorative product imagery where the operational UI has no verified asset need.",
+      "Don't introduce additional shadows, radii, colors, or breakpoints without first finding an implemented source."
+    ]
+  }
+}

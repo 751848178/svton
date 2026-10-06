@@ -72,8 +72,7 @@ export function ReleaseOrderDetailPanel(props: Props) {
         detail={detail}
         builds={builds}
         deployments={deployments}
-        evidence={evidence}
-        gateCatalog={gateCatalog}
+        productionRuns={evidence.evidence?.productionReleaseRuns.items ?? []}
         gateView={gateView}
         navigation={navigation}
         onRefresh={refresh}

@@ -15,14 +15,16 @@ import { useTeamStore } from '@/store/hooks';
 import type { Team } from '@/types/api-registry';
 
 export function useTeams(initialTeams?: Team[]) {
-  const { teams, isLoading, error, createTeam, deleteTeam, fetchTeams } = useTeamStore();
+  const { currentTeam, teams, isLoading, error, createTeam, deleteTeam, fetchTeams } =
+    useTeamStore();
 
   // store 已有数据时用 store；否则回退到 server 下发的 initialTeams（首屏直出）。
   // 当 client 后续发生增删时，store.teams 会更新并自然接管展示。
-  const displayTeams = teams.length > 0 ? teams : initialTeams ?? [];
+  const displayTeams = teams.length > 0 ? teams : (initialTeams ?? []);
 
   return {
     teams: displayTeams,
+    currentTeam,
     loading: isLoading,
     error: error ?? '',
     create: createTeam,

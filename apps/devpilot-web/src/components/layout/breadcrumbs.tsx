@@ -47,9 +47,8 @@ interface BreadcrumbEntry {
 
 /** /projects/:id 下的项目段用项目名替代 raw ID（INFO-3/SET-9）。加载中或失败回退短 ID。 */
 function useProjectBreadcrumbName(projectId: string | null): string | null {
-  const { data } = useSWR(
-    projectId ? `breadcrumb:project:${projectId}` : null,
-    () => apiRequest<{ name?: string }>(`GET:/projects/${projectId}`),
+  const { data } = useSWR(projectId ? `breadcrumb:project:${projectId}` : null, () =>
+    apiRequest<{ name?: string }>(`GET:/projects/${projectId}`),
   );
   return data?.name?.trim() || null;
 }
@@ -84,7 +83,11 @@ export function Breadcrumbs() {
   // hooks 必须先于任何条件 return 调用
   const projectName = useProjectBreadcrumbName(projectSegmentId);
   const onReleaseOrderPage = segments[2] === 'releases';
-  const releaseOrderId = onReleaseOrderPage ? searchParams.get('releaseOrderId')?.trim() || null : null;
+  const pathReleaseOrderId = onReleaseOrderPage ? segments[3]?.trim() || null : null;
+  const queryReleaseOrderId = onReleaseOrderPage
+    ? searchParams.get('releaseOrderId')?.trim() || null
+    : null;
+  const releaseOrderId = pathReleaseOrderId ?? queryReleaseOrderId;
   const releaseOrderName = useReleaseOrderBreadcrumbName(projectSegmentId, releaseOrderId);
 
   // 列表页(单段)不渲染面包屑;二级及以上才渲染
@@ -102,14 +105,14 @@ export function Breadcrumbs() {
     if (segment === projectSegmentId && projectName) {
       return { href, label: projectName };
     }
+    if (segment === pathReleaseOrderId && releaseOrderName) {
+      return { href, label: releaseOrderName };
+    }
     // 动态 ID 段:截断短 ID + title 全文
     if (isLikelyId(segment)) {
       return {
         href,
-        label:
-          segment.length > SHORT_ID_LENGTH
-            ? segment.slice(0, SHORT_ID_LENGTH) + '…'
-            : segment,
+        label: segment.length > SHORT_ID_LENGTH ? segment.slice(0, SHORT_ID_LENGTH) + '…' : segment,
         title: segment,
       };
     }
@@ -120,22 +123,28 @@ export function Breadcrumbs() {
     };
   });
   // 发布单末段（query 驱动，链接到发布详情）。PX-3：显示名下不挂 raw releaseOrderId title。
-  if (onReleaseOrderPage && releaseOrderId && releaseOrderName) {
+  if (onReleaseOrderPage && queryReleaseOrderId && releaseOrderName) {
     entries.push({
-      href: `${pathname}?releaseOrderId=${encodeURIComponent(releaseOrderId)}`,
+      href: `${pathname}?releaseOrderId=${encodeURIComponent(queryReleaseOrderId)}`,
       label: releaseOrderName,
     });
   }
 
   return (
-    <nav aria-label="breadcrumb" className="mb-4">
+    <nav aria-label="breadcrumb">
       <ol className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
         {entries.map((entry, index) => {
           const isLast = index === entries.length - 1;
           return (
-            <li key={entry.href} className="flex items-center gap-1.5">
+            <li
+              key={entry.href}
+              className="flex items-center gap-1.5"
+            >
               {index > 0 && (
-                <span aria-hidden="true" className="text-muted-foreground/50">
+                <span
+                  aria-hidden="true"
+                  className="text-muted-foreground/50"
+                >
                   /
                 </span>
               )}
@@ -151,7 +160,7 @@ export function Breadcrumbs() {
                 <Link
                   href={entry.href}
                   title={entry.title}
-                  className="link transition-colors"
+                  className="link inline-flex min-h-11 items-center transition-colors"
                 >
                   {entry.label}
                 </Link>

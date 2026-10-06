@@ -35,6 +35,10 @@ export class ListAuditEventsQueryDto {
 
   @IsOptional()
   @IsString()
+  deploymentRunId?: string;
+
+  @IsOptional()
+  @IsString()
   backupRunId?: string;
 
   @IsOptional()

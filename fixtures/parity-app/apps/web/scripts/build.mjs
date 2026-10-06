@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, writeFile } from "node:fs/promises";
 
 await mkdir(new URL("../dist", import.meta.url), { recursive: true });
 await writeFile(
@@ -13,4 +13,8 @@ await writeFile(
 </html>
 `,
 );
-console.log("[parity-web] wrote dist/index.html");
+await copyFile(
+  new URL("../src/server.mjs", import.meta.url),
+  new URL("../dist/server.mjs", import.meta.url),
+);
+console.log("[parity-web] wrote dist/index.html and dist/server.mjs");

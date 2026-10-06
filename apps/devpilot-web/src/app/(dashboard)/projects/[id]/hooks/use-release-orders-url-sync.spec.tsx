@@ -38,6 +38,7 @@ describe('release order filters URL sync (REL-1)', () => {
     ).IS_REACT_ACT_ENVIRONMENT = true;
     mocks.params = new URLSearchParams();
     mocks.replace.mockReset();
+    mocks.apiRequest.mockReset().mockResolvedValue({ items: [], total: 0 });
     container = document.createElement('div');
     root = createRoot(container);
   });
@@ -94,6 +95,34 @@ describe('release order filters URL sync (REL-1)', () => {
     expect(readReleaseOrderStatusParam('withdrawn')).toBe('withdrawn');
     expect(readReleaseOrderStatusParam('stageId')).toBeNull();
     expect(readReleaseOrderStatusParam(null)).toBeNull();
+  });
+
+  it('prevents concurrent create calls from issuing duplicate POST requests', async () => {
+    let resolveCreate: (value: unknown) => void = () => undefined;
+    const pending = new Promise((resolve) => {
+      resolveCreate = resolve;
+    });
+    mocks.apiRequest.mockImplementation((endpoint: string) =>
+      endpoint.startsWith('POST:') ? pending : Promise.resolve({ items: [], total: 0 }),
+    );
+    await render();
+
+    let first!: ReturnType<typeof latest.create>;
+    let duplicate!: ReturnType<typeof latest.create>;
+    await act(async () => {
+      first = latest.create({ releaseName: 'Gallery release', releaseVersion: '2.4.1' });
+      duplicate = latest.create({ releaseName: 'Gallery release', releaseVersion: '2.4.1' });
+      await Promise.resolve();
+    });
+    expect(
+      mocks.apiRequest.mock.calls.filter(([endpoint]) => String(endpoint).startsWith('POST:')),
+    ).toHaveLength(1);
+
+    resolveCreate({ id: 'release-1' });
+    await act(async () => {
+      await expect(first).resolves.toEqual({ id: 'release-1' });
+      await expect(duplicate).resolves.toBeNull();
+    });
   });
 
   async function render() {

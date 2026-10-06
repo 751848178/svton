@@ -12,19 +12,26 @@ export type FlowNodeState = 'current' | 'done' | 'waiting' | 'blocked';
 export function FlowNodeIcon({
   state,
   size = 20,
+  tone = 'semantic',
 }: {
   state: FlowNodeState | ReleaseWorkbenchStepState;
   size?: number;
+  /** semantic=按状态着色；inherit=跟随文字色（用于实底箭头段内）。 */
+  tone?: 'semantic' | 'inherit';
 }) {
   // PX-10：步骤条的 'completed' 与链路的 'done' 同为完成态，统一按 done 渲染
   // （实心语义的 CheckCircle），避免完成步骤显示成进行中的开口圆环。
   const normalized = state === 'completed' ? 'done' : state;
   const className = clsx(
     'shrink-0',
-    normalized === 'done' && 'text-emerald-600',
-    normalized === 'current' && 'text-primary',
-    normalized === 'blocked' && 'text-destructive',
-    normalized === 'waiting' && 'text-muted-foreground',
+    tone === 'inherit'
+      ? 'text-current'
+      : clsx(
+          normalized === 'done' && 'text-emerald-600',
+          normalized === 'current' && 'text-primary',
+          normalized === 'blocked' && 'text-destructive',
+          normalized === 'waiting' && 'text-muted-foreground',
+        ),
   );
   if (normalized === 'done')
     return (

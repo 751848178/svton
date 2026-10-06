@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Devpilot V3 · Reference Board</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #17181b;
+        --muted: #656870;
+        --line: #dfe1e6;
+        --paper: #f6f5f2;
+        --surface: #ffffff;
+        --accent: #4f5ee8;
+        --accent-soft: #eceefe;
+        --danger: #d64b42;
+        --success: #16855b;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: Inter, Geist, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+      }
+
+      main { width: min(1480px, calc(100% - 48px)); margin: 0 auto; padding: 48px 0 96px; }
+      header { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(360px, .8fr); gap: 64px; padding: 48px; background: #1c1d21; color: white; border-radius: 18px; }
+      .eyebrow { margin: 0 0 24px; color: #aeb4ff; font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+      h1 { margin: 0; font-size: clamp(44px, 5vw, 74px); line-height: .98; letter-spacing: -.05em; }
+      .lead { margin: 28px 0 0; max-width: 750px; color: #c8c9ce; font-size: 20px; line-height: 1.6; }
+      .mechanism { align-self: end; border-top: 1px solid #3b3d44; padding-top: 22px; }
+      .mechanism strong { display: block; margin-bottom: 10px; font-size: 13px; color: #aeb4ff; }
+      .mechanism p { margin: 0; font-size: 18px; line-height: 1.55; }
+
+      section { margin-top: 72px; }
+      .section-head { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: end; padding-bottom: 18px; border-bottom: 1px solid #cfd1d6; }
+      h2 { margin: 0; font-size: 32px; letter-spacing: -.035em; }
+      .section-head p { margin: 0; color: var(--muted); line-height: 1.6; }
+
+      .reference-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin-top: 24px; }
+      article { overflow: hidden; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+      .shot { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; object-position: center; background: #e8e9ec; border-bottom: 1px solid var(--line); }
+      .shot.contain { object-fit: contain; padding: 18px; }
+      .card-copy { padding: 24px; }
+      .card-title { display: flex; justify-content: space-between; gap: 16px; align-items: baseline; }
+      h3 { margin: 0; font-size: 19px; letter-spacing: -.02em; }
+      .kind { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+      .lessons { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+      .lessons div { border-top: 1px solid var(--line); padding-top: 14px; }
+      .lessons strong { display: block; margin-bottom: 7px; font-size: 12px; color: var(--muted); }
+      .lessons p { margin: 0; font-size: 14px; line-height: 1.55; }
+      .source { display: inline-flex; margin-top: 18px; color: var(--accent); font-size: 13px; text-decoration: none; }
+      .source:hover { text-decoration: underline; }
+
+      .synthesis { display: grid; grid-template-columns: 1.15fr .85fr; gap: 24px; margin-top: 24px; }
+      .thesis-card, .principles { padding: 32px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+      .thesis-card { background: #222329; color: white; }
+      .thesis-card .eyebrow { margin-bottom: 14px; }
+      .thesis-card h3 { max-width: 680px; font-size: 34px; line-height: 1.15; }
+      .thesis-card p { max-width: 720px; color: #c7c9cf; font-size: 17px; line-height: 1.7; }
+      .palette { display: flex; gap: 8px; margin-top: 28px; }
+      .swatch { width: 54px; height: 22px; border: 1px solid rgba(255,255,255,.18); border-radius: 5px; }
+      .principle { display: grid; grid-template-columns: 28px 1fr; gap: 14px; padding: 18px 0; border-top: 1px solid var(--line); }
+      .principle:first-child { padding-top: 0; border-top: 0; }
+      .index { color: var(--accent); font-weight: 700; }
+      .principle strong { display: block; margin-bottom: 6px; }
+      .principle p { margin: 0; color: var(--muted); line-height: 1.55; }
+
+      .anti { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; overflow: hidden; margin-top: 24px; background: var(--line); border: 1px solid var(--line); border-radius: 14px; }
+      .anti div { min-height: 180px; padding: 26px; background: var(--surface); }
+      .anti span { display: inline-block; margin-bottom: 18px; color: var(--danger); font-weight: 700; }
+      .anti h3 { margin-bottom: 10px; }
+      .anti p { margin: 0; color: var(--muted); line-height: 1.6; }
+
+      footer { margin-top: 72px; padding-top: 24px; border-top: 1px solid #cfd1d6; color: var(--muted); font-size: 13px; }
+
+      @media (max-width: 900px) {
+        main { width: min(100% - 28px, 720px); padding-top: 14px; }
+        header, .section-head, .reference-grid, .synthesis { grid-template-columns: 1fr; }
+        header { gap: 36px; padding: 32px 26px; }
+        .anti { grid-template-columns: 1fr; }
+        .lessons { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <p class="eyebrow">Devpilot design system · V3 research</p>
+          <h1>从“AI 写出代码”<br />走到“放心交付”。</h1>
+          <p class="lead">新的设计体系不再模仿传统运维后台，也不把 AI Chat 当作整个产品。它要让第一次发布的人看得懂，让熟练团队扫得快，让生产治理始终可信。</p>
+        </div>
+        <div class="mechanism">
+          <strong>独特机制</strong>
+          <p>Devpilot 把 AI 或人工生成的代码仓库，转化为可配置、可审计、可发布、可恢复的交付对象。</p>
+        </div>
+      </header>
+
+      <section>
+        <div class="section-head">
+          <h2>01 · 成熟工具的精密度</h2>
+          <p>学习密度、层级、导航和状态表达；不复制品牌色、黑白皮肤或既有产品结构。</p>
+        </div>
+        <div class="reference-grid">
+          <article>
+            <img class="shot" src="references/linear-new-ui.png" alt="Linear UI redesign" />
+            <div class="card-copy">
+              <div class="card-title"><h3>Linear</h3><span class="kind">Information hierarchy</span></div>
+              <div class="lessons"><div><strong>借鉴</strong><p>安静的外壳、紧凑导航、跨面板对齐和字体层级。</p></div><div><strong>不借鉴</strong><p>全黑产品气质与 issue tracker 的对象结构。</p></div></div>
+              <a class="source" href="https://linear.app/now/how-we-redesigned-the-linear-ui">查看一手来源 ↗</a>
+            </div>
+          </article>
+          <article>
+            <img class="shot" src="references/vercel-deployments-list.png" alt="Vercel deployments list" />
+            <div class="card-copy">
+              <div class="card-title"><h3>Vercel</h3><span class="kind">Deployment density</span></div>
+              <div class="lessons"><div><strong>借鉴</strong><p>部署列表的高密度扫描，环境、状态、分支和提交同一行可读。</p></div><div><strong>不借鉴</strong><p>纯黑白极简和无审批、证据治理的轻交付模型。</p></div></div>
+              <a class="source" href="https://vercel.com/changelog/redesigned-deployments-list">查看一手来源 ↗</a>
+            </div>
+          </article>
+          <article>
+            <img class="shot contain" src="references/railway-diagnose-failure.png" alt="Railway failed deployment diagnosis" />
+            <div class="card-copy">
+              <div class="card-title"><h3>Railway</h3><span class="kind">Contextual diagnosis</span></div>
+              <div class="lessons"><div><strong>借鉴</strong><p>失败发生在哪里，诊断和修复就出现在哪里；空间上下文不丢失。</p></div><div><strong>不借鉴</strong><p>画布承担所有任务，以及不可审计的“一键 AI 修复”。</p></div></div>
+              <a class="source" href="https://railway.com/changelog/2026-03-20-new-dashboard-layout">查看一手来源 ↗</a>
+            </div>
+          </article>
+          <article>
+            <img class="shot contain" src="references/vercel-deployment-detail.png" alt="Vercel deployment states" />
+            <div class="card-copy">
+              <div class="card-title"><h3>Vercel states</h3><span class="kind">Status grammar</span></div>
+              <div class="lessons"><div><strong>借鉴</strong><p>状态只占很小面积，但通过位置、符号、文字与色彩保持清楚。</p></div><div><strong>不借鉴</strong><p>用胶囊标签覆盖所有领域对象。</p></div></div>
+              <a class="source" href="https://vercel.com/changelog/redesigned-deployments-list">查看一手来源 ↗</a>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-head">
+          <h2>02 · Vibe Coding 的可理解性</h2>
+          <p>学习任务语言、进度反馈与渐进披露；不让 Chat 侵占整个交付控制台。</p>
+        </div>
+        <div class="reference-grid">
+          <article>
+            <img class="shot" src="references/lovable-editor.png" alt="Lovable editor" />
+            <div class="card-copy">
+              <div class="card-title"><h3>Lovable</h3><span class="kind">Plain-language iteration</span></div>
+              <div class="lessons"><div><strong>借鉴</strong><p>用户意图与可见结果并排，下一步使用直接业务语言。</p></div><div><strong>不借鉴</strong><p>把聊天建议当作事实，或隐藏交付、权限和生产风险。</p></div></div>
+              <a class="source" href="https://lovable.dev/use-cases/websites">查看一手来源 ↗</a>
+            </div>
+          </article>
+          <article>
+            <img class="shot contain" src="references/v0-git-panel.png" alt="v0 Git panel" />
+            <div class="card-copy">
+              <div class="card-title"><h3>v0</h3><span class="kind">Repository continuity</span></div>
+              <div class="lessons"><div><strong>借鉴</strong><p>预览、分支、提交和活动历史保留在一个连续工作区。</p></div><div><strong>不借鉴</strong><p>只面向单人创作的窄侧栏，以及把 Publish 等同于完整生产发布。</p></div></div>
+              <a class="source" href="https://vercel.com/blog/introducing-the-new-v0">查看一手来源 ↗</a>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-head"><h2>03 · Devpilot 的合成方向</h2><p>以下是研究结论，不是最终设计规范；后续代表页面必须用真实状态验证。</p></div>
+        <div class="synthesis">
+          <div class="thesis-card">
+            <p class="eyebrow">Recommended axis · guided control plane</p>
+            <h3>安静的控制平面，活跃的任务表面。</h3>
+            <p>全局导航与项目身份保持低噪声；当前交付任务成为唯一视觉主角。页面先说目标、状态、阻断和下一步，再按需展开 Manifest、Provider、Run ID 与原始证据。AI 只负责解释和拟定变更，服务端事实与人工确认拥有最终权威。</p>
+            <div class="palette" aria-label="方向色板">
+              <span class="swatch" style="background:#f6f5f2"></span>
+              <span class="swatch" style="background:#ffffff"></span>
+              <span class="swatch" style="background:#222329"></span>
+              <span class="swatch" style="background:#4f5ee8"></span>
+              <span class="swatch" style="background:#d64b42"></span>
+              <span class="swatch" style="background:#16855b"></span>
+            </div>
+          </div>
+          <div class="principles">
+            <div class="principle"><span class="index">01</span><div><strong>一个页面，一个当前任务</strong><p>辅助信息可以密集，但不能与当前阻断和主操作争夺第一层级。</p></div></div>
+            <div class="principle"><span class="index">02</span><div><strong>解释与证据分层</strong><p>新用户先理解影响和去向，熟练用户一眼进入不可变证据。</p></div></div>
+            <div class="principle"><span class="index">03</span><div><strong>AI 先拟定，用户再确认</strong><p>所有 AI 修复必须显示计划、影响和待审核差异，不能营造自动成功。</p></div></div>
+            <div class="principle"><span class="index">04</span><div><strong>密度来自对齐，不来自缩小</strong><p>通过基线、列结构、分组和固定位置提高扫描效率，不堆小字。</p></div></div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-head"><h2>04 · 明确拒绝</h2><p>这些反模式会让 Devpilot 再次回到“普通后台换皮”。</p></div>
+        <div class="anti">
+          <div><span>×</span><h3>AI 渐变与玻璃拟态</h3><p>紫色光晕、漂浮玻璃和大面积渐变不能证明产品智能，只会削弱状态可信度。</p></div>
+          <div><span>×</span><h3>万能卡片仪表盘</h3><p>每块信息都装进同样的圆角卡片，会抹平任务、阻断、证据和背景之间的关系。</p></div>
+          <div><span>×</span><h3>Chat 接管产品</h3><p>对话是解释与拟定入口，不是导航、配置、审批、审计和恢复的替代品。</p></div>
+        </div>
+      </section>
+
+      <footer>First-party research board · Devpilot V3 · 2026-08-26</footer>
+    </main>
+  </body>
+</html>

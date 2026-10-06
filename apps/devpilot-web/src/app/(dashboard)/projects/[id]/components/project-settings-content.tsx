@@ -1,33 +1,31 @@
 'use client';
 
 import React from 'react';
-import { useTranslations } from 'next-intl';
+import { useSearchParams } from 'next/navigation';
 import type { useProjectDetail } from '../hooks/use-project-detail';
-import { ProjectContextIssue } from './project-context-issue';
+import type { RepositoryAnalysisHook } from '../hooks/use-repository-analysis.hooks';
+import { readSettingsSection } from '../utils/project-route.utils';
+import { RepositorySettingsPanel } from './repository-settings-panel';
 import { EnvironmentSettingsArea } from './settings/environment-settings-area';
 
 type DetailHook = ReturnType<typeof useProjectDetail>;
 
-export function ProjectSettingsContent({ detail }: { detail: DetailHook }) {
-  const t = useTranslations('projects');
+export function ProjectSettingsContent(props: {
+  detail: DetailHook;
+  analysis: RepositoryAnalysisHook;
+  onRepositoryRunCreated: (runId: string) => void;
+}) {
+  const searchParams = useSearchParams();
+  const detail = props.detail;
   const project = detail.project;
   if (!project) return null;
-  const production = project.environments?.find(
-    (environment) => environment.baselineRole === 'production',
-  );
-  const hasProductionEntry = Boolean(
-    production && project.sites?.some((site) => site.environment?.id === production.id),
-  );
-  return (
-    <div className="space-y-6">
-      {!hasProductionEntry ? (
-        <ProjectContextIssue
-          message={t('productionEntryMissing')}
-          actionLabel={t('configureProductionEntry')}
-          href={`/projects/${encodeURIComponent(project.id)}/domains?environmentId=${encodeURIComponent(production?.id ?? '')}`}
-        />
-      ) : null}
-      <EnvironmentSettingsArea detail={detail} />
-    </div>
-  );
+  if (readSettingsSection(searchParams) === 'repository') {
+    return (
+      <RepositorySettingsPanel
+        analysis={props.analysis}
+        onRunCreated={props.onRepositoryRunCreated}
+      />
+    );
+  }
+  return <EnvironmentSettingsArea detail={detail} />;
 }

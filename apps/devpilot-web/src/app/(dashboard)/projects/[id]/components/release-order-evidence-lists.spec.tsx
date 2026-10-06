@@ -32,10 +32,11 @@ describe('release order evidence lists', () => {
         onDeploy={vi.fn()}
       />,
     );
-    // PX-3/ROD-4：行首短 ID（title 全文），构建列 #revision 为主 + BuildRun 短 ID。
+    // PMC072：运行和构建以人读标签为主，机器标识只保留 title / 短 digest。
     expect(html).toContain('title="staging-2"');
     expect(html).toContain('title="staging-1"');
-    expect(html).toContain('BuildRun build-1');
+    expect(html).not.toContain('BuildRun build-1');
+    expect(html).toContain('sha256:exact');
     expect(html).toContain('title="manifest-1 · sha256:exact"');
     expect(html).toContain('aria-current="true"');
     expect(html).toContain('projects.runStatusCompleted');

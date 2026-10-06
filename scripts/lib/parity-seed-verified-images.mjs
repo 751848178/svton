@@ -1,13 +1,21 @@
 const BUILD_COMMANDS = new Set(["up", "reset"]);
+const LOAD_COMMANDS = new Set(["reset-bootstrap"]);
 
 export async function verifiedImagesForSeedCommand(options) {
-  if (![...BUILD_COMMANDS, "reset-bootstrap"].includes(options.command)) {
+  if (options.command === "build") return options.build();
+  const loadPrebuilt =
+    BUILD_COMMANDS.has(options.command) && options.reusePrebuilt === true;
+  if (!BUILD_COMMANDS.has(options.command) && !LOAD_COMMANDS.has(options.command)) {
     return undefined;
   }
-  if (BUILD_COMMANDS.has(options.command)) return options.build();
+  if (BUILD_COMMANDS.has(options.command) && !loadPrebuilt) {
+    return options.build();
+  }
   const imageIds = await options.load(options.manifestPath, options.runtime);
   if (!imageIds) throw verifiedImageError("manifest-image-ids-missing");
-  options.verifyRunning(options.runtime, imageIds);
+  if (LOAD_COMMANDS.has(options.command)) {
+    options.verifyRunning(options.runtime, imageIds);
+  }
   return imageIds;
 }
 

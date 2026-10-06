@@ -5,6 +5,7 @@ import { ProjectDomainsRoute } from './project-domains-route';
 
 vi.mock('next/navigation', () => ({
   useParams: () => ({ id: 'project-1' }),
+  useRouter: () => ({ replace: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
 }));
 vi.mock('next-intl', () => ({ useTranslations: () => (key: string) => key }));
@@ -38,6 +39,26 @@ vi.mock('@/app/(dashboard)/sites/hooks/use-sites', () => ({
   }),
 }));
 vi.mock('../hooks/use-project-detail', () => ({ useProjectDetail: () => detail() }));
+vi.mock('../hooks/use-environment-config-governance', () => ({
+  useEnvironmentConfigGovernance: () => ({
+    current: null,
+    error: '',
+    load: vi.fn(),
+    save: vi.fn(),
+  }),
+}));
+vi.mock('../hooks/use-project-delivery-summary', () => ({
+  useProjectDeliverySummary: () => ({ summary: null, loading: false, error: null }),
+}));
+vi.mock('../hooks/use-repository-analysis.hooks', () => ({
+  useRepositoryAnalysis: () => ({
+    state: { canonicalIdentity: null, connection: null },
+    selectedRun: null,
+    loading: false,
+    error: '',
+    deploymentRuns: [],
+  }),
+}));
 vi.mock('./project-workbench-header', () => ({ ProjectWorkbenchHeader: () => null }));
 vi.mock('./project-context-issue', () => ({ ProjectContextIssue: () => null }));
 vi.mock('./project-domains-table', () => ({ ProjectDomainsTable: () => null }));

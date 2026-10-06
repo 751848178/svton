@@ -24,6 +24,29 @@ vi.mock('@/components/ui', () => ({
   Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
     <button {...props}>{children}</button>
   ),
+  Modal: ({
+    open,
+    title,
+    children,
+    restoreFocusRef,
+  }: {
+    open: boolean;
+    title: string;
+    children: React.ReactNode;
+    restoreFocusRef?: React.RefObject<HTMLElement | null>;
+  }) =>
+    open ? (
+      <section
+        role="dialog"
+        aria-label={title}
+        data-restore-focus={
+          restoreFocusRef?.current?.getAttribute('aria-label') ??
+          restoreFocusRef?.current?.textContent?.trim()
+        }
+      >
+        {children}
+      </section>
+    ) : null,
 }));
 
 function buildCandidate(overrides: Partial<EnvironmentVersionCandidate> = {}) {
@@ -115,18 +138,18 @@ describe('EnvironmentVersionList row actions (SET-1/2/4)', () => {
     return button!;
   }
 
-  it('SET-1: 查看详情 opens an inline detail expansion instead of a silent selection change', async () => {
+  it('SET-1: 查看详情 opens a detail dialog instead of a silent selection change', async () => {
     await renderList();
     await act(async () => {
       actionButton('viewVersionDetails').click();
     });
-    const panelRow = container.querySelector('tbody tr:nth-child(2) td[colspan="6"]');
-    expect(panelRow).not.toBeNull();
-    expect(panelRow!.textContent).toContain('environmentVersionDetailPanelTitle');
-    expect(panelRow!.textContent).toContain('0.0.1');
-    expect(panelRow!.textContent).toContain('首个稳定版');
-    expect(panelRow!.textContent).toContain('master @ 8e7c465d');
-    expect(panelRow!.textContent).toContain('R10');
+    const dialog = container.querySelector('[role="dialog"]');
+    expect(dialog).not.toBeNull();
+    expect(dialog!.textContent).toContain('environmentVersionDetailPanelTitle');
+    expect(dialog!.textContent).toContain('0.0.1');
+    expect(dialog!.textContent).toContain('首个稳定版');
+    expect(dialog!.textContent).toContain('master @ 8e7c465d');
+    expect(dialog!.textContent).toContain('R10');
     expect(onSelect).toHaveBeenCalledTimes(1);
   });
 
@@ -135,11 +158,11 @@ describe('EnvironmentVersionList row actions (SET-1/2/4)', () => {
     await act(async () => {
       actionButton('viewVersionChanges').click();
     });
-    const panelRow = container.querySelector('tbody tr:nth-child(2) td[colspan="6"]');
-    expect(panelRow).not.toBeNull();
-    expect(panelRow!.textContent).toContain('environmentVersionChangesPanelTitle');
-    expect(panelRow!.textContent).toContain('master @ 8e7c465d');
-    expect(panelRow!.textContent).toContain('environmentVersionChangesNoDetail');
+    const dialog = container.querySelector('[role="dialog"]');
+    expect(dialog).not.toBeNull();
+    expect(dialog!.textContent).toContain('environmentVersionChangesPanelTitle');
+    expect(dialog!.textContent).toContain('master @ 8e7c465d');
+    expect(dialog!.textContent).toContain('environmentVersionChangesNoDetail');
   });
 
   it('SET-4: 技术证据 overflow menu item opens the evidence panel with collapsed technical ids', async () => {
@@ -158,13 +181,14 @@ describe('EnvironmentVersionList row actions (SET-1/2/4)', () => {
     await act(async () => {
       menuItem!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
-    const panelRow = container.querySelector('tbody tr:nth-child(2) td[colspan="6"]');
-    expect(panelRow).not.toBeNull();
-    expect(panelRow!.textContent).toContain('environmentVersionEvidencePanelTitle');
-    expect(panelRow!.textContent).toContain('environmentVersionTechnicalIds');
+    const dialog = container.querySelector('[role="dialog"]');
+    expect(dialog).not.toBeNull();
+    expect(dialog!.textContent).toContain('environmentVersionEvidencePanelTitle');
+    expect(dialog!.textContent).toContain('environmentVersionTechnicalIds');
+    expect(dialog!.getAttribute('data-restore-focus')).toBe('releaseOrderMoreActions');
     // 技术证据 ID 在折叠区内保留可追溯，而不是消失或占据主列。
-    expect(panelRow!.textContent).toContain('release-run-1');
-    expect(panelRow!.textContent).toContain('deploy-1');
+    expect(dialog!.textContent).toContain('release-run-1');
+    expect(dialog!.textContent).toContain('deploy-1');
   });
 
   it('clicking the same action twice collapses the panel', async () => {
@@ -172,11 +196,11 @@ describe('EnvironmentVersionList row actions (SET-1/2/4)', () => {
     await act(async () => {
       actionButton('viewVersionDetails').click();
     });
-    expect(container.querySelectorAll('tbody tr')).toHaveLength(2);
+    expect(container.querySelector('[role="dialog"]')).not.toBeNull();
     await act(async () => {
       actionButton('viewVersionDetails').click();
     });
-    expect(container.querySelectorAll('tbody tr')).toHaveLength(1);
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
   });
 
   it('each row expands independently', async () => {
@@ -194,7 +218,7 @@ describe('EnvironmentVersionList row actions (SET-1/2/4)', () => {
     await act(async () => {
       buttons[1].click();
     });
-    const panel = container.querySelector('td[colspan="6"]');
+    const panel = container.querySelector('[role="dialog"]');
     expect(panel!.textContent).toContain('1.4.0');
     expect(panel!.textContent).toContain('图库重构');
   });

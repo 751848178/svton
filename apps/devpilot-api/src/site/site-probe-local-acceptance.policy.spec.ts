@@ -26,6 +26,21 @@ describe("explicit local site-probe acceptance", () => {
     expect(policy.finalUrl("parity.example.test", true)).toBeNull();
   });
 
+  it.each([8, 32])(
+    "accepts the verified runtime nonce form with %i hex characters",
+    (nonceLength) => {
+      const policy = new SiteProbeLocalAcceptancePolicy(
+        config({
+          ...validConfig(),
+          PARITY_RUNTIME_ID: `c5-${"a".repeat(8)}-${"b".repeat(nonceLength)}`,
+        }),
+      );
+      expect(policy.profile("parity.example.test", false)).toBe(
+        "parity-hosts-v1",
+      );
+    },
+  );
+
   it.each([
     ["SITE_PROBE_LOCAL_ACCEPTANCE_PROFILE", "production"],
     ["SITE_PROBE_LOCAL_ACCEPTANCE_HOSTNAME", "other.example.test"],

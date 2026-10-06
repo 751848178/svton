@@ -7,7 +7,9 @@
 import { useEffect, useRef } from 'react';
 import type { ReleaseBuildsController } from '../../hooks/use-release-builds';
 import { useReleaseBuildDetail } from '../../hooks/use-release-build-detail';
+import { useProjectComponentNames } from '../../hooks/use-project-component-names';
 import { ReleaseBuildLogDrawer } from '../release-build-log-drawer';
+import { ReleaseBasicBuildLogDrawer } from './release-basic-build-log-drawer';
 
 interface Props {
   projectId: string;
@@ -15,6 +17,7 @@ interface Props {
   builds: ReleaseBuildsController;
   /** 聚焦的 BuildRun；空表示图层关闭。 */
   buildRunId?: string;
+  basic?: boolean;
   onClose: () => void;
 }
 
@@ -22,6 +25,10 @@ export function ReleaseBuildLogLayer(props: Props) {
   const { builds } = props;
   const items = builds.items.filter((item) => item.releaseOrderId === props.releaseOrderId);
   const summary = items.find((item) => item.id === props.buildRunId) || null;
+  const componentNames = useProjectComponentNames(
+    props.projectId,
+    Boolean(props.buildRunId) && !props.basic,
+  );
   const detail = useReleaseBuildDetail(
     props.projectId,
     props.releaseOrderId,
@@ -42,10 +49,23 @@ export function ReleaseBuildLogLayer(props: Props) {
     onClose();
   }, [buildRunId, builds.loadedSuccessfully, detail.error, detail.notFound, detail.run, onClose]);
 
+  if (props.basic) {
+    return (
+      <ReleaseBasicBuildLogDrawer
+        run={detail.run}
+        requestedBuildRunId={buildRunId}
+        loading={Boolean(buildRunId) && !detail.loaded}
+        error={detail.error}
+        onRetry={detail.retry}
+        onClose={onClose}
+      />
+    );
+  }
   return (
     <ReleaseBuildLogDrawer
       run={detail.run}
       requestedBuildRunId={buildRunId}
+      componentNames={componentNames}
       loading={Boolean(buildRunId) && !detail.loaded}
       error={detail.error}
       onRetry={detail.retry}

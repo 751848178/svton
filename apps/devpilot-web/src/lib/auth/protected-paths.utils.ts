@@ -1,6 +1,5 @@
-const PROTECTED_PREFIXES = [
+const TEAM_REQUIRED_PREFIXES = [
   '/access-policies',
-  '/admin',
   '/applications',
   '/audit-events',
   '/backups',
@@ -24,8 +23,9 @@ const PROTECTED_PREFIXES = [
   '/resources',
   '/servers',
   '/sites',
-  '/teams',
 ];
+
+const PROTECTED_PREFIXES = ['/admin', '/teams', ...TEAM_REQUIRED_PREFIXES];
 
 const AUTH_PATHS = ['/login', '/register'];
 
@@ -35,6 +35,10 @@ function startsWithAny(pathname: string, prefixes: string[]): boolean {
 
 export function isProtectedPath(pathname: string): boolean {
   return startsWithAny(pathname, PROTECTED_PREFIXES);
+}
+
+export function isTeamRequiredPath(pathname: string): boolean {
+  return startsWithAny(pathname, TEAM_REQUIRED_PREFIXES);
 }
 
 export function isAuthPath(pathname: string): boolean {

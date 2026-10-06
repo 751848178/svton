@@ -23,7 +23,6 @@ const EMPTY_TARGET: TargetFieldsValue = {
 export function SettingsEnvTargetCreateDialog(props: {
   open: boolean;
   excludeIds: string[];
-  otherEnvironments: Array<{ id: string; key: string; name: string }>;
   onClose: () => void;
   onConfirm: (serverId: string, input: EnvironmentBindTargetInput) => Promise<boolean>;
 }) {
@@ -109,7 +108,6 @@ export function SettingsEnvTargetCreateDialog(props: {
         </label>
         <SettingsEnvTargetFields
           value={target}
-          otherEnvironments={props.otherEnvironments}
           onChange={setTarget}
         />
       </div>

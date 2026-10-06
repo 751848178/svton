@@ -3,7 +3,10 @@ import { Prisma } from "@prisma/client";
 import { canonicalJson } from "../release-orchestration/utils/release-hash.utils";
 import { GATE_DEFINITION_VERSION } from "./gate-evaluation-persistence.utils";
 import { releaseGateActionIdentity } from "./release-gate-action-identity.policy";
-import { releaseGateCheckpointPolicy } from "./release-gate-checkpoint.policy";
+import {
+  releaseGateCheckpointPolicy,
+  type ReleaseFlowProfile,
+} from "./release-gate-checkpoint.policy";
 import type {
   ReleaseGateCheckpoint,
   ReleaseGateDecisionReference,
@@ -14,6 +17,7 @@ export async function assertGateDecisionCurrent(
   input: {
     teamId: string; projectId: string; releaseOrderId: string; actorId: string;
     checkpoint: ReleaseGateCheckpoint;
+    profile?: ReleaseFlowProfile;
     reference: ReleaseGateDecisionReference;
     assertActionInput?: (value: Record<string, string | null>) => void;
   },
@@ -21,7 +25,7 @@ export async function assertGateDecisionCurrent(
   await tx.$queryRaw(Prisma.sql`
     SELECT id FROM ReleaseGateDecision WHERE id = ${input.reference.id} FOR UPDATE
   `);
-  const policy = releaseGateCheckpointPolicy(input.checkpoint);
+  const policy = releaseGateCheckpointPolicy(input.checkpoint, input.profile);
   const decision = await tx.releaseGateDecision.findFirst({
     where: {
       id: input.reference.id, teamId: input.teamId,
@@ -47,7 +51,7 @@ export async function assertGateDecisionCurrent(
     throw conflict(`${input.checkpoint} 动作身份已漂移`);
   }
   input.assertActionInput?.(snapshot.actionInput);
-  assertRequiredSet(snapshot, input.checkpoint);
+  assertRequiredSet(snapshot, input.checkpoint, input.profile);
   const rows = await tx.gateEvaluation.findMany({
     where: { id: { in: snapshot.evaluations.map((item) => item.evaluationId) } },
   });
@@ -83,8 +87,12 @@ export async function assertGateDecisionCurrent(
   return snapshot;
 }
 
-function assertRequiredSet(snapshot: DecisionSnapshot, checkpoint: ReleaseGateCheckpoint) {
-  const expected = releaseGateCheckpointPolicy(checkpoint).requiredGateIds;
+function assertRequiredSet(
+  snapshot: DecisionSnapshot,
+  checkpoint: ReleaseGateCheckpoint,
+  profile?: ReleaseFlowProfile,
+) {
+  const expected = releaseGateCheckpointPolicy(checkpoint, profile).requiredGateIds;
   if (canonicalJson([...snapshot.requiredGateIds].sort()) !==
     canonicalJson([...expected].sort()) || snapshot.evaluations.length !== expected.length) {
     throw conflict(`${checkpoint} required gate set 不完整或漂移`);

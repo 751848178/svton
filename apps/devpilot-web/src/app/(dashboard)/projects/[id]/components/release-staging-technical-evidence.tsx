@@ -7,7 +7,7 @@
 
 import React from 'react';
 import { useTranslations } from 'next-intl';
-import { shortTechnicalId } from '../utils/release-display.utils';
+import { formatByteSize, shortTechnicalId } from '../utils/release-display.utils';
 
 interface Field {
   key: string;
@@ -26,7 +26,7 @@ export function ReleaseStagingTechnicalEvidence(props: { result: unknown }) {
     push('releaseEvidenceDeploymentUri', record.deploymentUri, true);
   }
   if (typeof record.artifactSizeBytes === 'number') {
-    push('releaseEvidenceArtifactSize', formatBytes(record.artifactSizeBytes));
+    push('releaseEvidenceArtifactSize', formatByteSize(record.artifactSizeBytes));
   }
   if (typeof record.runtimeEnvironmentFileMode === 'string' && record.runtimeEnvironmentFileMode) {
     push('releaseEvidenceFileMode', record.runtimeEnvironmentFileMode, true);
@@ -47,7 +47,10 @@ export function ReleaseStagingTechnicalEvidence(props: { result: unknown }) {
       {fields.length > 0 ? (
         <dl className="mt-2 grid gap-2 text-xs sm:grid-cols-2">
           {fields.map((field) => (
-            <div key={field.key} className="min-w-0">
+            <div
+              key={field.key}
+              className="min-w-0"
+            >
               <dt className="text-muted-foreground">{t(field.key)}</dt>
               <dd className={`mt-0.5 break-all ${field.mono ? 'font-mono' : 'font-medium'}`}>
                 {field.key === 'releaseEvidenceArtifactSize'
@@ -58,7 +61,9 @@ export function ReleaseStagingTechnicalEvidence(props: { result: unknown }) {
           ))}
         </dl>
       ) : (
-        <p className="mt-2 text-xs text-muted-foreground">{t('releaseStagingEvidenceUnavailable')}</p>
+        <p className="mt-2 text-xs text-muted-foreground">
+          {t('releaseStagingEvidenceUnavailable')}
+        </p>
       )}
       <details className="mt-2">
         <summary className="cursor-pointer text-xs font-medium text-primary">
@@ -77,14 +82,6 @@ export function ReleaseStagingTechnicalEvidence(props: { result: unknown }) {
 
 function maybeShort(value: string) {
   return /^c[a-z0-9]{24}$/.test(value) ? shortTechnicalId(value) : value;
-}
-
-function formatBytes(bytes: number) {
-  if (!Number.isFinite(bytes)) return String(bytes);
-  if (bytes >= 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)}GB（${bytes} 字节）`;
-  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)}MB（${bytes} 字节）`;
-  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)}KB（${bytes} 字节）`;
-  return `${bytes} 字节`;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {

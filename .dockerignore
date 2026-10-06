@@ -6,6 +6,7 @@
 **/node_modules
 **/.next
 **/.turbo
+**/target
 .turbo
 out
 coverage
@@ -20,6 +21,7 @@ coverage
 .codegraph
 .skills
 apps/agent-web/public/skills
+evaluation
 
 # Logs & OS noise
 **/*.log

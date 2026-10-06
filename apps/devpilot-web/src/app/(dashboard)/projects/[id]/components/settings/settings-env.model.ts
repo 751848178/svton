@@ -1,9 +1,4 @@
-/**
- * 环境配置区模型
- *
- * 单一职责：settings 环境配置区共享的纯模型——修订草稿类型、路由快照类型、
- * 草稿↔修订转换、以及环境角色/身份标签解析。组件层只能通过这里的函数取值。
- */
+/** 环境配置区共享纯模型；组件层只能通过这里的函数取值。 */
 
 import type {
   EnvironmentConfigResourceReference,
@@ -33,6 +28,7 @@ export type SettingsRouteDraft = {
 };
 
 export type SettingsEnvironmentDraft = {
+  plainVariables: Record<string, string>;
   secrets: EnvironmentConfigSecretReference[];
   policyIds: string[];
   resources: EnvironmentConfigResourceReference[];
@@ -42,6 +38,7 @@ export type SettingsEnvironmentDraft = {
 };
 
 export const EMPTY_SETTINGS_ENVIRONMENT_DRAFT: SettingsEnvironmentDraft = {
+  plainVariables: {},
   secrets: [],
   policyIds: [],
   resources: [],
@@ -61,6 +58,7 @@ export function settingsDraftFromRevision(
 ): SettingsEnvironmentDraft | null {
   if (!revision) return null;
   return {
+    plainVariables: revision.plainVariables ?? {},
     secrets: (revision.secretReferences ?? []).map((item) => ({
       id: item.id,
       targetEnvKey: item.targetEnvKey ?? defaultSecretTargetKey(item.name),
@@ -75,8 +73,10 @@ export function settingsDraftFromRevision(
       entries: routeEntriesFromRevision(revision),
     },
     observability: {
-      profile: revision.observabilitySnapshot?.profile === 'local_acceptance_v1'
-        ? 'local_acceptance_v1' : '',
+      profile:
+        revision.observabilitySnapshot?.profile === 'local_acceptance_v1'
+          ? 'local_acceptance_v1'
+          : '',
     },
     summary: '',
   };
@@ -98,9 +98,7 @@ function resourcesFromRevision(resources: EnvironmentConfigResourceReference[] |
  * entries existed derive one row per legacy domain (path "/", component from a
  * legacy `component:port` proxyTarget when it matches, otherwise honest empty).
  */
-function routeEntriesFromRevision(
-  revision: EnvironmentConfigRevision,
-): SettingsRouteEntryDraft[] {
+function routeEntriesFromRevision(revision: EnvironmentConfigRevision): SettingsRouteEntryDraft[] {
   const entries = revision.routeSnapshot?.entries;
   if (Array.isArray(entries) && entries.length > 0) {
     return entries.map((entry) => ({
@@ -125,13 +123,12 @@ function routeEntriesFromRevision(
   }));
 }
 
-export function toConfigRevisionDraft(
-  draft: SettingsEnvironmentDraft,
-): {
+export function toConfigRevisionDraft(draft: SettingsEnvironmentDraft): {
+  plainVariables: Record<string, string>;
   secretReferences: EnvironmentConfigSecretReference[];
   resourceReferences: EnvironmentConfigResourceReference[];
   routeSnapshot: Record<string, unknown>;
-  observabilitySnapshot: Record<string, unknown>;
+  observabilitySnapshot?: Record<string, unknown>;
   policyReferenceIds: string[];
   changeSummary?: string;
 } {
@@ -145,7 +142,9 @@ export function toConfigRevisionDraft(
       tlsMode: entry.tlsMode,
     }))
     .filter((entry) => entry.domain);
+  const nextObservability = observabilitySnapshot(draft.observability.profile);
   return {
+    plainVariables: draft.plainVariables,
     secretReferences: draft.secrets,
     resourceReferences: draft.resources,
     routeSnapshot: {
@@ -155,7 +154,7 @@ export function toConfigRevisionDraft(
       proxyTarget: draft.route.proxyTarget.trim() || undefined,
       entries,
     },
-    observabilitySnapshot: observabilitySnapshot(draft.observability.profile),
+    observabilitySnapshot: Object.keys(nextObservability).length ? nextObservability : undefined,
     policyReferenceIds: draft.policyIds,
     changeSummary: draft.summary.trim() || undefined,
   };

@@ -1,15 +1,17 @@
 'use client';
 
 import React from 'react';
+import clsx from 'clsx';
 import { useLocale, useTranslations } from 'next-intl';
-import { Button, Modal, StatusTag } from '@/components/ui';
+import { Button, Modal } from '@/components/ui';
 import type {
   LocalizedGateText,
   ReleaseGateCatalog,
   ReleaseGatePhase,
 } from '../types/release-gate.types';
 import { ReleaseGatePhaseSection } from './release-gate-phase-section';
-import { buildReleaseGateSummary, releaseGateStatusTone } from './release-gate-summary.model';
+import { capabilityDotTone, capabilityNameResolver } from './release-gate-catalog-dialog.model';
+import { buildReleaseGateSummary } from './release-gate-summary.model';
 
 const PHASES: ReleaseGatePhase[] = ['commit', 'build', 'deploy', 'promote'];
 
@@ -18,6 +20,8 @@ interface Props {
   dialogId: string;
   open: boolean;
   filterCapabilityIds: readonly string[] | null;
+  /** 复核修 3（追加轮）：能力组概览行可点击切换过滤（受控，状态在面板）。 */
+  onFilterCapabilityChange: (ids: readonly string[] | null) => void;
   confirmingGateId: string;
   confirmationError: string;
   onConfirmManual: (gateId: string, evaluationId: string, reason: string) => Promise<boolean>;
@@ -30,16 +34,24 @@ export function ReleaseGateCatalogDialog(props: Props) {
   const locale = useLocale();
   const summary = buildReleaseGateSummary(props.catalog);
   const localize = (text: LocalizedGateText) => (locale.startsWith('zh') ? text.zh : text.en);
+  const capabilityName = capabilityNameResolver(props.catalog.capabilities, localize);
+  /* 复核修 3（追加轮）：能力组概览可点击切换过滤——受控状态在面板，
+      再点当前组清除过滤回到完整目录。 */
+  const capabilityFilter = props.filterCapabilityIds;
+  const toggleCapabilityFilter = (id: string) => {
+    props.onFilterCapabilityChange(
+      capabilityFilter?.length === 1 && capabilityFilter[0] === id ? null : [id],
+    );
+  };
   const activeCapability =
-    props.filterCapabilityIds && props.filterCapabilityIds.length === 1
-      ? props.catalog.capabilities.find((candidate) => candidate.id === props.filterCapabilityIds?.[0])
+    capabilityFilter && capabilityFilter.length === 1
+      ? props.catalog.capabilities.find((candidate) => candidate.id === capabilityFilter[0])
       : undefined;
-  const filteredChecks = props.filterCapabilityIds
+  /* 组过滤覆盖该能力组全部阶段的检查项——与概览行的 n/m 计数一致
+      （此前仅限当前决策阶段，会出现概览 0/1 点进去 0 项的矛盾）。 */
+  const filteredChecks = capabilityFilter
     ? props.catalog.checks.filter(
-        (check) =>
-          check.phase === props.catalog.decisions.build.phase &&
-          check.capabilityId &&
-          props.filterCapabilityIds?.includes(check.capabilityId),
+        (check) => check.capabilityId && capabilityFilter.includes(check.capabilityId),
       )
     : props.catalog.checks;
   const visiblePhases = PHASES.filter((phase) =>
@@ -61,7 +73,9 @@ export function ReleaseGateCatalogDialog(props: Props) {
       }
       ariaCloseLabel={tc('close')}
       ariaDescriptionId={`${props.dialogId}-description`}
-      width={760}
+      width={960}
+      /* 单层滚动：摘要与 chips 固定，检查列表是弹层内唯一滚动层。 */
+      bodyClassName="flex flex-col overflow-hidden"
       footer={
         // PX-21：只读弹窗仅保留「关闭」，删除功能重复的「取消」。
         <Button
@@ -74,9 +88,12 @@ export function ReleaseGateCatalogDialog(props: Props) {
     >
       <div
         id={props.dialogId}
-        className="space-y-5"
+        className="flex h-full min-h-0 flex-col gap-5"
       >
-        <p id={`${props.dialogId}-description`} className="text-sm text-muted-foreground">
+        <p
+          id={`${props.dialogId}-description`}
+          className="text-sm text-muted-foreground"
+        >
           {activeCapability
             ? t('releaseGateGroupDialogDescription', { name: localize(activeCapability.name) })
             : t('releaseGateCatalogDialogDescription')}
@@ -96,41 +113,54 @@ export function ReleaseGateCatalogDialog(props: Props) {
             </div>
           ))}
         </dl>
-        {/* PX-33：chips 改换行网格，15 组不再横向溢出首屏。 */}
+        {/* 复核修 2：能力组概览改紧凑三列清单（色点+名称+通过数），
+            不再渲染 15 枚大胶囊；完整状态放 title，M 码不再上屏。
+            复核修 3（追加轮）：整行可点击切换该组过滤，再点清除。 */}
         <div
           role="region"
           tabIndex={0}
           aria-label={t('releaseGateCapabilityGroupsLabel')}
-          className="flex flex-wrap gap-2"
+          className="grid gap-x-4 gap-y-1 sm:grid-cols-2 lg:grid-cols-3"
         >
           {summary.capabilities.map((group) => {
-            const capability = props.catalog.capabilities.find((candidate) => candidate.id === group.id)!;
-            const active =
-              !props.filterCapabilityIds || props.filterCapabilityIds.includes(group.id);
+            const capability = props.catalog.capabilities.find(
+              (candidate) => candidate.id === group.id,
+            )!;
+            const active = !capabilityFilter || capabilityFilter.includes(group.id);
+            const selected = capabilityFilter?.length === 1 && capabilityFilter[0] === group.id;
+            const name = localize(capability.name);
+            const statusLabel = t(`releaseGateStatus.${group.status}`);
             return (
-              <div
+              <button
                 key={group.id}
-                aria-pressed={active}
-                className={`flex shrink-0 items-center gap-2 rounded-full border px-2.5 py-1.5 text-xs ${
-                  active ? 'border-primary/40 bg-primary/5' : 'opacity-60'
-                }`}
+                type="button"
+                aria-pressed={selected}
+                title={`${name}：${statusLabel}，${t('releaseGatePassingCount', {
+                  passing: group.passingCount,
+                  total: group.checkCount,
+                })}${selected ? '。再次点击查看全部能力组' : ''}`}
+                onClick={() => toggleCapabilityFilter(group.id)}
+                className={clsx(
+                  'flex min-w-0 cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 text-left text-xs transition-colors',
+                  'hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
+                  active ? 'text-foreground' : 'text-muted-foreground/60',
+                )}
               >
-                <span>
-                  <strong className="font-mono">{group.id}</strong> {localize(capability.name)}
+                <span
+                  aria-hidden="true"
+                  className={`size-1.5 shrink-0 rounded-full ${capabilityDotTone(group.status)} ${
+                    selected ? 'ring-2 ring-primary/30' : ''
+                  }`}
+                />
+                <span
+                  className={clsx('min-w-0 truncate', selected && 'font-medium text-foreground')}
+                >
+                  {name}
                 </span>
-                <span className="flex items-center gap-2">
-                  <StatusTag
-                    status={releaseGateStatusTone(group.status)}
-                    label={t(`releaseGateStatus.${group.status}`)}
-                  />
-                  <span className="text-muted-foreground">
-                    {t('releaseGatePassingCount', {
-                      passing: group.passingCount,
-                      total: group.checkCount,
-                    })}
-                  </span>
+                <span className="ml-auto shrink-0 tabular-nums text-muted-foreground">
+                  {group.passingCount}/{group.checkCount}
                 </span>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -138,7 +168,7 @@ export function ReleaseGateCatalogDialog(props: Props) {
           role="region"
           tabIndex={0}
           aria-label={t('releaseGateCheckListLabel')}
-          className="max-h-[420px] space-y-4 overflow-y-auto pr-1"
+          className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1"
         >
           {visiblePhases.map((phase) => (
             <ReleaseGatePhaseSection
@@ -147,6 +177,7 @@ export function ReleaseGateCatalogDialog(props: Props) {
               checks={filteredChecks.filter((check) => check.phase === phase)}
               localize={localize}
               locale={locale}
+              capabilityName={capabilityName}
               confirmingGateId={props.confirmingGateId}
               confirmationError={props.confirmationError}
               onConfirmManual={props.onConfirmManual}

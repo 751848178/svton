@@ -16,7 +16,7 @@ export interface ProductionReleaseSnapshot {
     revision: number;
     snapshotHash: string;
     resourceSnapshot: unknown;
-    routeSnapshot: unknown;
+    routeSnapshot: ProductionReleaseRouteSnapshot;
     policySnapshot: unknown;
     observabilitySnapshot: unknown;
   };
@@ -38,6 +38,21 @@ export interface ProductionReleaseSnapshot {
   };
 }
 
+export interface ProductionReleaseRouteSnapshot {
+  domains?: string[];
+  dnsProvider?: string | null;
+  tlsRequired?: boolean;
+  proxyTarget?: string | null;
+  entries?: Array<{
+    domain: string;
+    path: string;
+    serviceId?: string | null;
+    component: string;
+    port: number | null;
+    tlsMode: 'none' | 'managed_cert' | 'existing_cert_asset';
+  }>;
+}
+
 export interface ProductionReleasePreview {
   inputHash: string;
   snapshot: ProductionReleaseSnapshot;
@@ -55,6 +70,8 @@ export interface ProductionReleasePreview {
     };
     checks: Array<{
       id: string;
+      title?: { zh: string; en: string };
+      phase?: string;
       status: string;
       reasonCode: string;
       reason: { zh: string; en: string };

@@ -5,8 +5,8 @@
  *
  * Covers AC-A11Y-002..007, AC-A11Y-012 on the components changed by F452:
  * Drawer Tab trap + localized close label, Modal ariaCloseLabel, LoadingState role=status,
- * ErrorBanner role=alert, intake stepper list semantics, env settings tablist + labeled
- * change-summary input, table scope=col/row, plus axe (zero critical/serious violations).
+ * ErrorBanner role=alert, intake stepper list semantics, env settings tablist,
+ * table scope=col/row, plus axe (zero critical/serious violations).
  */
 
 import React, { act, useEffect, useSyncExternalStore } from 'react';
@@ -51,6 +51,22 @@ vi.mock('@/components/ui', () => ({
   ),
   StatusTag: ({ label }: { label: string }) => <span>{label}</span>,
   Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+  Select: (props: React.SelectHTMLAttributes<HTMLSelectElement>) => <select {...props} />,
+  Modal: ({
+    open,
+    children,
+    footer,
+  }: {
+    open: boolean;
+    children: React.ReactNode;
+    footer?: React.ReactNode;
+  }) =>
+    open ? (
+      <div role="dialog">
+        {children}
+        {footer}
+      </div>
+    ) : null,
 }));
 vi.mock('@/components/ui/feedback/feedback', () => ({
   feedback: { success: vi.fn(), error: vi.fn() },
@@ -117,8 +133,9 @@ describe('F452 Drawer focus trap + localized close label', () => {
 
   beforeEach(() => {
     (globalThis as typeof globalThis & { React: typeof React }).React = React;
-    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
-      true;
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -190,8 +207,9 @@ describe('F452 Modal localized close label + LoadingState/ErrorBanner live regio
 
   beforeEach(() => {
     (globalThis as typeof globalThis & { React: typeof React }).React = React;
-    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
-      true;
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -239,8 +257,9 @@ describe('F452 intake stepper semantics', () => {
 
   beforeEach(() => {
     (globalThis as typeof globalThis & { React: typeof React }).React = React;
-    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
-      true;
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -312,7 +331,7 @@ describe('F452 table scope=col/row', () => {
   });
 });
 
-describe('F452 env settings tablist + labeled change-summary input', () => {
+describe('F452 env settings tablist', () => {
   let root: Root;
   let container: HTMLDivElement;
 
@@ -334,6 +353,8 @@ describe('F452 env settings tablist + labeled change-summary input', () => {
         <EnvironmentSettingsDetail
           detail={detailStub()}
           environment={environmentStub()}
+          environments={[environmentStub()]}
+          onEnvironmentSelect={vi.fn()}
         />,
       );
     });
@@ -344,7 +365,7 @@ describe('F452 env settings tablist + labeled change-summary input', () => {
     const tablist = container.querySelector('[role="tablist"]');
     expect(tablist).not.toBeNull();
     const tabs = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
-    expect(tabs.length).toBeGreaterThanOrEqual(5);
+    expect(tabs).toHaveLength(3);
     const selected = tabs.find((tab) => tab.getAttribute('aria-selected') === 'true');
     expect(selected).toBeDefined();
     expect(selected?.getAttribute('aria-current')).toBeNull();
@@ -377,15 +398,6 @@ describe('F452 env settings tablist + labeled change-summary input', () => {
     expect(tabs[tabs.length - 1].getAttribute('aria-selected')).toBe('true');
     expect(document.activeElement).toBe(tabs[tabs.length - 1]);
   });
-
-  it('labels the change-summary input with a programmatic label', async () => {
-    await renderSettings();
-    const input = container.querySelector<HTMLInputElement>('input[placeholder="configChangeSummary"]');
-    expect(input).not.toBeNull();
-    const label = container.querySelector<HTMLLabelElement>(`label[for="${input?.id}"]`);
-    expect(label).not.toBeNull();
-    expect(label?.textContent).toBe('configChangeSummary');
-  });
 });
 
 describe('F452 axe assertions on key components', () => {
@@ -393,8 +405,9 @@ describe('F452 axe assertions on key components', () => {
   let container: HTMLDivElement;
 
   beforeEach(() => {
-    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
-      true;
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -440,8 +453,8 @@ describe('F452 axe assertions on key components', () => {
       expect(tab.getAttribute('aria-controls')).not.toBeNull();
     }
     expect(container.querySelector('[role="tabpanel"]')?.textContent).toContain('current round');
-    const publish = Array.from(container.querySelectorAll('button')).find(
-      (button) => button.textContent?.includes('releaseWorkbenchPublishAction'),
+    const publish = Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('releaseWorkbenchPublishAction'),
     );
     expect(publish).toBeDefined();
   });
@@ -514,7 +527,8 @@ function view(
     number,
     state,
     isCurrent,
-    labelKey: `releaseWorkbenchStep${titleCase(key === 'staging' ? 'deploy' : key)}` as ReleaseWorkbenchStepView['labelKey'],
+    labelKey:
+      `releaseWorkbenchStep${titleCase(key === 'staging' ? 'deploy' : key)}` as ReleaseWorkbenchStepView['labelKey'],
     stateLabelKey:
       state === 'blocked'
         ? 'releaseOrderFailureBlocked'

@@ -1,0 +1,101 @@
+.substeps {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--step-count), minmax(0, 1fr));
+}
+
+.substeps::before {
+  position: absolute;
+  top: 11px;
+  right: calc(50% / var(--step-count));
+  left: calc(50% / var(--step-count));
+  height: 2px;
+  content: '';
+  background: #e5e7eb;
+}
+
+.substep {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  padding: 0 8px;
+  min-height: 50px;
+  color: #6b7280;
+  text-align: left;
+}
+
+.substep:focus-visible {
+  border-radius: 6px;
+  outline: 2px solid rgb(22 119 255 / 35%);
+  outline-offset: 3px;
+}
+
+.substepIcon {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  margin: 0 auto;
+  color: #8b919a;
+  background: #fff;
+  border: 2px solid #d6d9de;
+  border-radius: 999px;
+  place-items: center;
+}
+
+.substepText {
+  display: block;
+  margin-top: 8px;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 18px;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.substepSelected .substepIcon,
+.substepCurrent .substepIcon {
+  color: #fff;
+  background: #1677ff;
+  border-color: #1677ff;
+}
+.substepSelected .substepText,
+.substepCurrent .substepText {
+  color: #1677ff;
+  font-weight: 600;
+}
+.substepDone .substepIcon {
+  color: #1677ff;
+  border-color: #91caff;
+}
+.substepDisabled {
+  color: #b7bbc2;
+  cursor: not-allowed;
+}
+
+@media (max-width: 720px) {
+  .substeps {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .substeps::before {
+    inset: 19px auto 19px 19px;
+    width: 2px;
+    height: auto;
+  }
+  .substep {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 48px;
+    padding: 10px 8px;
+  }
+  .substepIcon {
+    flex: 0 0 auto;
+    margin: 0;
+  }
+  .substepText {
+    margin-top: 0;
+    text-align: left;
+  }
+}

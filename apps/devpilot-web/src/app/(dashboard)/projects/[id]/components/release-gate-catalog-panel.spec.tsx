@@ -184,6 +184,27 @@ describe('ReleaseGateCatalogPanel', () => {
     expect(dialog.textContent).not.toContain(cuid);
   });
 
+  it('toggles the capability filter from the overview rows and back (clickable groups)', async () => {
+    await renderPanel(root);
+    const opener = container.querySelector('button[aria-haspopup="dialog"]') as HTMLButtonElement;
+    await act(async () => opener.click());
+    const dialog = () => container.querySelector('[role="dialog"]')!;
+    // 全量态：51 项、无组过滤。
+    expect(dialog().querySelectorAll('article')).toHaveLength(51);
+    const groupRow = (name: string) =>
+      [...dialog().querySelectorAll<HTMLButtonElement>('button[aria-pressed]')].find((node) =>
+        node.textContent.includes(name),
+      )!;
+    // 点击能力组行 → 过滤为该组（标题带组名，条目数收窄）。
+    await act(async () => groupRow('能力 8').click());
+    expect(dialog().getAttribute('aria-label')).toContain('能力 8');
+    expect(dialog().querySelectorAll('article')).toHaveLength(1);
+    // 再点同一组 → 清除过滤，回到完整目录。
+    expect(groupRow('能力 8').getAttribute('aria-pressed')).toBe('true');
+    await act(async () => groupRow('能力 8').click());
+    expect(dialog().querySelectorAll('article')).toHaveLength(51);
+  });
+
   it('filters the detail dialog when a summary card is clicked and refreshes explicitly', async () => {
     const catalog = releaseGateCatalogFixture();
     catalog.decisions.build.allowed = false;

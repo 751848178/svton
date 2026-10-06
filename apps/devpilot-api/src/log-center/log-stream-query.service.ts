@@ -25,6 +25,7 @@ export class LogStreamQueryService {
     if (query.siteId) where.siteId = query.siteId;
     if (query.managedResourceId)
       where.managedResourceId = query.managedResourceId;
+    if (query.deploymentRunId) where.deploymentRunId = query.deploymentRunId;
 
     return this.prisma.logStream.findMany({
       where,

@@ -1,6 +1,7 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import type { RefObject } from 'react';
 import { ConfirmDialog } from '@/components/ui';
 import type {
   EnvironmentVersionCandidate,
@@ -12,6 +13,7 @@ export function EnvironmentUpgradeDialog(props: {
   candidate: EnvironmentVersionCandidate;
   onClose: () => void;
   onConfirm: () => Promise<unknown>;
+  restoreFocusRef?: RefObject<HTMLElement | null>;
 }) {
   const t = useTranslations('projects');
   return (
@@ -27,6 +29,7 @@ export function EnvironmentUpgradeDialog(props: {
       })}
       consequences={[t('environmentVersionUpgradeDialogConsequence')]}
       confirmLabel={t('environmentVersionUpgradeDialogConfirm')}
+      restoreFocusRef={props.restoreFocusRef}
       onConfirm={async () => {
         const result = await props.onConfirm();
         if (!result) throw new Error('environment version upgrade failed');

@@ -52,6 +52,7 @@ export class AuditEventService {
     if (query.serverId) where.serverId = query.serverId;
     if (query.siteId) where.siteId = query.siteId;
     if (query.managedResourceId) where.managedResourceId = query.managedResourceId;
+    if (query.deploymentRunId) where.deploymentRunId = query.deploymentRunId;
     if (query.backupRunId) where.backupRunId = query.backupRunId;
     if (query.alertEventId) where.alertEventId = query.alertEventId;
     if (query.logStreamId) where.logStreamId = query.logStreamId;

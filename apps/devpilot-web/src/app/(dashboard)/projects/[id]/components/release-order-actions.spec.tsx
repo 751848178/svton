@@ -33,9 +33,12 @@ describe('ReleaseOrderActions overflow', () => {
       ),
     );
     expect(container.textContent).not.toContain('技术证据');
+    expect(container.querySelector('button')?.className).toContain('min-h-11');
     const trigger = container.querySelector('[aria-haspopup="menu"]')!;
+    expect(trigger.className).toContain('min-w-11');
     await act(async () => trigger.dispatchEvent(new MouseEvent('click', { bubbles: true })));
     expect(document.body.textContent).toContain('技术证据');
+    expect(document.querySelector('[role="menuitem"]')?.className).toContain('min-h-11');
     await act(async () =>
       trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true })),
     );

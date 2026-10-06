@@ -62,6 +62,24 @@ assert.equal(existsSync(cache.root), false);
 assert.equal(readFileSync(nextEnvPath, "utf8"), originalNextEnv);
 assert.equal(readFileSync(tsconfigPath, "utf8"), originalTsconfig);
 
+const compactEnvironment = {
+  ...environment,
+  PARITY_RUNTIME_ID: `c5-${"a".repeat(8)}-${"b".repeat(8)}`,
+};
+const compact = prepareC5WebBuildCache(compactEnvironment, workspace);
+cleanupC5WebBuildCache(compact, compactEnvironment);
+
+const alternateGoalEnvironment = {
+  ...environment,
+  PARITY_RUNTIME_ID: `c5-${"e".repeat(8)}-${"f".repeat(8)}`,
+  PARITY_GOAL_ID: "devpilot-mvp-release-flow-closure",
+};
+const alternateGoal = prepareC5WebBuildCache(
+  alternateGoalEnvironment,
+  workspace,
+);
+cleanupC5WebBuildCache(alternateGoal, alternateGoalEnvironment);
+
 assert.throws(
   () =>
     prepareC5WebBuildCache(

@@ -21,6 +21,7 @@ vi.mock('next-intl', () => ({
 
 vi.mock('next/navigation', () => ({
   useParams: () => ({ id: 'project-1' }),
+  useRouter: () => ({ replace: vi.fn() }),
   useSearchParams: () => ({ get: () => null }),
 }));
 
@@ -43,7 +44,27 @@ vi.mock('../hooks/use-project-detail', () => ({
       applications: [{ defaultBranch: 'main' }],
       environments: [{ id: 'env-dev', key: 'dev', name: '开发', status: 'active' }],
     },
+    deploymentRuns: [],
     loadProject: vi.fn(),
+  }),
+}));
+vi.mock('../hooks/use-environment-config-governance', () => ({
+  useEnvironmentConfigGovernance: () => ({
+    current: null,
+    error: '',
+    load: vi.fn(),
+    save: vi.fn(),
+  }),
+}));
+vi.mock('../hooks/use-project-delivery-summary', () => ({
+  useProjectDeliverySummary: () => ({ summary: null, loading: false, error: null }),
+}));
+vi.mock('../hooks/use-repository-analysis.hooks', () => ({
+  useRepositoryAnalysis: () => ({
+    state: { canonicalIdentity: null, connection: null },
+    selectedRun: null,
+    loading: false,
+    error: '',
   }),
 }));
 
@@ -139,37 +160,25 @@ describe('ProjectDomainsTable row actions (DOM-3/DOM-4)', () => {
     return button!;
   }
 
-  it('DOM-3: 预览配置 emits onPlan with the row id and shows a loading label while planning', async () => {
-    const onPlan = vi.fn();
+  it('PMC041: keeps one direct details action and sends the full site to the Drawer owner', async () => {
+    const onOpen = vi.fn();
     await act(async () => {
       root.render(
         <ProjectDomainsTable
           items={[siteFixture]}
+          revision={null}
+          applications={[]}
+          onOpen={onOpen}
           onEdit={vi.fn()}
-          onPlan={onPlan}
           onDelete={vi.fn()}
-          planningSiteId={null}
         />,
       );
     });
     await act(async () => {
-      rowButton('domainActionPreview').click();
+      rowButton('domainActionDetails').click();
     });
-    expect(onPlan).toHaveBeenCalledWith('site-1');
-
-    await act(async () => {
-      root.render(
-        <ProjectDomainsTable
-          items={[siteFixture]}
-          onEdit={vi.fn()}
-          onPlan={onPlan}
-          onDelete={vi.fn()}
-          planningSiteId="site-1"
-        />,
-      );
-    });
-    const loadingButton = rowButton('domainActionPreviewLoading');
-    expect(loadingButton.disabled).toBe(true);
+    expect(onOpen).toHaveBeenCalledWith(siteFixture);
+    expect(container.textContent).not.toContain('domainActionPreview');
   });
 
   it('DOM-3: preview modal shows explicit feedback for loading, data, and empty states', async () => {
@@ -261,6 +270,11 @@ describe('ProjectDomainsRoute delete flow (DOM-4)', () => {
     await act(async () => {
       root.render(<ProjectDomainsRoute />);
     });
+    await act(async () => {
+      [...container.querySelectorAll('button')]
+        .find((item) => item.textContent?.includes('moreActions'))!
+        .click();
+    });
     const deleteButton = [...container.querySelectorAll('button')].find((item) =>
       item.textContent?.includes('domainActionDelete'),
     );
@@ -281,6 +295,11 @@ describe('ProjectDomainsRoute delete flow (DOM-4)', () => {
     });
     await act(async () => {
       [...container.querySelectorAll('button')]
+        .find((item) => item.textContent?.includes('moreActions'))!
+        .click();
+    });
+    await act(async () => {
+      [...container.querySelectorAll('button')]
         .find((item) => item.textContent?.includes('domainActionDelete'))!
         .click();
     });
@@ -297,21 +316,21 @@ describe('ProjectDomainsRoute delete flow (DOM-4)', () => {
     expect(sitesHook.confirmDelete).toHaveBeenCalledTimes(1);
   });
 
-  it('DOM-3: 预览配置 opens the preview modal and requests the sync plan', async () => {
+  it('PMC041: 查看详情 opens the evidence Drawer and requests the real sync plan', async () => {
     await act(async () => {
       root.render(<ProjectDomainsRoute />);
     });
-    const previewButton = [...container.querySelectorAll('button')].find((item) =>
-      item.textContent?.includes('domainActionPreview'),
+    const detailsButton = [...container.querySelectorAll('button')].find((item) =>
+      item.textContent?.includes('domainActionDetails'),
     );
-    expect(previewButton).toBeTruthy();
+    expect(detailsButton).toBeTruthy();
     await act(async () => {
-      (previewButton as HTMLButtonElement).click();
+      (detailsButton as HTMLButtonElement).click();
     });
     expect(sitesHook.handleCreatePlan).toHaveBeenCalledWith('site-1');
     const dialog = document.querySelector('[role="dialog"]');
     expect(dialog).not.toBeNull();
-    expect(dialog!.textContent).toContain('domainConfigPreviewTitle');
+    expect(dialog!.textContent).toContain('domainDetailsTitle');
     expect(dialog!.textContent).toContain('domainConfigPreviewEmpty');
   });
 });

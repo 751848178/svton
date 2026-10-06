@@ -44,7 +44,7 @@ export function DeploymentRunDetails({ run }: { run: DeploymentRun }) {
         {facts.map(([label, value]) => (
           <div
             key={label}
-            className="rounded-md bg-muted/40 p-2"
+            className="rounded-md border bg-background p-3 shadow-sm"
           >
             <dt className="text-xs text-muted-foreground">{label}</dt>
             {/* DEP-10：长 token（服务器名/URI）truncate+title，替代 break-all 折词。 */}

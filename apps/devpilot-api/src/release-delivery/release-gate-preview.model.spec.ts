@@ -28,6 +28,7 @@ describe("buildReleaseGatePreviewDecision", () => {
         requesterActorId: "actor-1",
       },
       now,
+      profile: "governed_v1",
     });
     expect(decision.allowed).toBe(false);
     expect(decision.manualGateIds).toEqual(["D13"]);

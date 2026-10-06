@@ -6,6 +6,7 @@ COPY scripts/lib/parity-route-control-domain.mjs /app/lib/parity-route-control-d
 COPY scripts/lib/parity-route-control-http.mjs /app/lib/parity-route-control-http.mjs
 COPY scripts/lib/parity-route-control-policy.mjs /app/lib/parity-route-control-policy.mjs
 COPY scripts/lib/parity-route-control-state-store.mjs /app/lib/parity-route-control-state-store.mjs
+COPY scripts/lib/parity-route-control-target.mjs /app/lib/parity-route-control-target.mjs
 COPY scripts/lib/parity-route-control-upstream.mjs /app/lib/parity-route-control-upstream.mjs
 RUN install -d -o node -g node -m 0700 /var/lib/route-control
 USER node

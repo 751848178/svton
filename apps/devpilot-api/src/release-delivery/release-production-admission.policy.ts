@@ -1,6 +1,10 @@
 import { UnprocessableEntityException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
-import { releaseGateCheckpointPolicy } from "./release-gate-checkpoint.policy";
+import {
+  ACTIVE_RELEASE_FLOW_PROFILE,
+  releaseGateCheckpointPolicy,
+  type ReleaseFlowProfile,
+} from "./release-gate-checkpoint.policy";
 import { productionMutableEvidenceCurrent } from "./release-production-mutable-admission.policy";
 import type { ReleaseDeploymentInputSnapshot } from "./release-deployment-input.types";
 
@@ -24,8 +28,9 @@ export async function assertProductionAdmissionProof(
   proof: ProductionAdmissionProof,
   expected: { teamId: string; projectId: string; environmentId: string;
     previewInputHash: string; deploymentInputHash: string; workloadInputHash: string },
+  profile: ReleaseFlowProfile = ACTIVE_RELEASE_FLOW_PROFILE,
 ) {
-  const required = releaseGateCheckpointPolicy("production_pre_execution")
+  const required = releaseGateCheckpointPolicy("production_pre_execution", profile)
     .requiredGateIds.filter((id) => id !== "D13");
   const checks = new Map(proof.checks.map((check) => [check.id, check]));
   const now = Date.now();
@@ -58,7 +63,9 @@ export async function assertProductionAdmissionProof(
     }, select: { id: true } });
     if (!dns) blocked();
   }
-  if (!await productionMutableEvidenceCurrent(tx, proof, expected)) blocked();
+  if (!await productionMutableEvidenceCurrent(
+    tx, proof, expected, new Set(required),
+  )) blocked();
 }
 
 function blocked(): never {

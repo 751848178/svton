@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { validRouteDomains } from "./parity-route-control-domain.mjs";
+import { normalizeRouteControlTarget } from "./parity-route-control-target.mjs";
 
 export const EMPTY_ROUTE_STATE = { version: 1, operations: [], current: [] };
 export const ROUTE_CAPABILITIES = { protocol: "site-route-control", version: 1,
@@ -83,9 +84,7 @@ function validateRoute(value) {
     !validRouteDomains(value.domains, value.primaryDomain) ||
     !/^[a-f0-9]{64}$/.test(value.routeHash)) throw new Error("route_invalid");
   if (value.proxyTarget !== null) {
-    const target = new URL(value.proxyTarget);
-    if (!['http:', 'https:'].includes(target.protocol)) throw new Error("invalid_proxy_target");
-    value = { ...value, proxyTarget: target.toString() };
+    value = { ...value, proxyTarget: normalizeRouteControlTarget(value.proxyTarget) };
   }
   if (value.expectedCurrent !== null && !observationValue(value.expectedCurrent))
     throw new Error("expected_current_invalid");

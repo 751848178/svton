@@ -34,12 +34,25 @@ vi.mock('@/components/ui', () => ({
     title?: string;
   }) =>
     open ? (
-      <div data-testid="target-edit-dialog" data-title={title}>
+      <div
+        data-testid="target-edit-dialog"
+        data-title={title}
+      >
         {children}
         {footer}
       </div>
     ) : null,
-  Select: ({ value, onChange, options, placeholder }: { value: string; onChange: (e: { target: { value: string } }) => void; options: Array<{ value: string; label: string }>; placeholder?: string }) => (
+  Select: ({
+    value,
+    onChange,
+    options,
+    placeholder,
+  }: {
+    value: string;
+    onChange: (e: { target: { value: string } }) => void;
+    options: Array<{ value: string; label: string }>;
+    placeholder?: string;
+  }) => (
     <select
       data-testid="provider-select"
       value={value}
@@ -47,7 +60,10 @@ vi.mock('@/components/ui', () => ({
     >
       {placeholder ? <option value="">{placeholder}</option> : null}
       {options.map((option) => (
-        <option key={option.value} value={option.value}>
+        <option
+          key={option.value}
+          value={option.value}
+        >
           {option.label}
         </option>
       ))}
@@ -62,8 +78,21 @@ vi.mock('@/components/ui', () => ({
   ),
 }));
 vi.mock('@svton/ui', () => ({
-  Button: ({ children, onClick, disabled }: { children: React.ReactNode; onClick?: () => unknown; disabled?: boolean }) => (
-    <button onClick={onClick} disabled={disabled}>{children}</button>
+  Button: ({
+    children,
+    onClick,
+    disabled,
+  }: {
+    children: React.ReactNode;
+    onClick?: () => unknown;
+    disabled?: boolean;
+  }) => (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+    >
+      {children}
+    </button>
   ),
 }));
 
@@ -90,15 +119,12 @@ describe('SettingsEnvTargetEditDialog (F445)', () => {
     sharedEnvironmentIds: [],
   };
 
-  it('offers ssh-v1 root editing and shared-scope checkboxes (isolation default)', async () => {
+  it('offers only the provider-specific deployment destination fields', async () => {
     await act(async () =>
       root.render(
         <SettingsEnvTargetEditDialog
           open
           draft={draft}
-          otherEnvironments={[
-            { id: 'env-prod', key: 'production', name: 'Production' },
-          ]}
           onClose={() => undefined}
           onConfirm={mocks.confirm}
         />,
@@ -109,31 +135,20 @@ describe('SettingsEnvTargetEditDialog (F445)', () => {
     expect(html).toContain('envTargetProviderLabel');
     expect(html).toContain('envTargetRootLabel');
     expect(html).toContain('/srv/app');
-    expect(html).toContain('envTargetSharedScopeLabel');
-    expect(html).toContain('envTargetSharedScopeHint');
-    expect(html).toContain('Production');
+    expect(html).not.toContain('envTargetSharedScopeLabel');
   });
 
-  it('sends providerKey/root/sharedEnvironmentIds through the audited bind save', async () => {
+  it('preserves hidden shared scope while saving the basic target fields', async () => {
     await act(async () =>
       root.render(
         <SettingsEnvTargetEditDialog
           open
-          draft={draft}
-          otherEnvironments={[
-            { id: 'env-prod', key: 'production', name: 'Production' },
-          ]}
+          draft={{ ...draft, sharedEnvironmentIds: ['env-prod'] }}
           onClose={() => undefined}
           onConfirm={mocks.confirm}
         />,
       ),
     );
-    const checkbox = container.querySelector(
-      'input[type="checkbox"]',
-    ) as HTMLInputElement;
-    await act(async () => {
-      checkbox.click();
-    });
     await act(async () => {
       const save = [...container.querySelectorAll('button')].find((button) =>
         button.textContent?.includes('envTargetAdjustSave'),
@@ -155,7 +170,6 @@ describe('SettingsEnvTargetEditDialog (F445)', () => {
         <SettingsEnvTargetEditDialog
           open
           draft={{ ...draft, providerKey: 'local-filesystem-v1' }}
-          otherEnvironments={[]}
           onClose={() => undefined}
           onConfirm={mocks.confirm}
         />,
@@ -171,7 +185,6 @@ describe('SettingsEnvTargetEditDialog (F445)', () => {
         <SettingsEnvTargetEditDialog
           open
           draft={{ ...draft, providerKey: '', root: '', targetRef: '' }}
-          otherEnvironments={[]}
           onClose={() => undefined}
           onConfirm={mocks.confirm}
         />,
@@ -181,7 +194,9 @@ describe('SettingsEnvTargetEditDialog (F445)', () => {
     // 受控 select 的空值必须以 placeholder 选项可见，而不是伪装成已选 SSH。
     expect(select.value).toBe('');
     expect(
-      [...select.options].some((option) => option.value === '' && option.textContent === 'envTargetProviderPlaceholder'),
+      [...select.options].some(
+        (option) => option.value === '' && option.textContent === 'envTargetProviderPlaceholder',
+      ),
     ).toBe(true);
     const save = [...container.querySelectorAll('button')].find((button) =>
       button.textContent?.includes('envTargetAdjustSave'),
@@ -190,8 +205,10 @@ describe('SettingsEnvTargetEditDialog (F445)', () => {
     expect(container.textContent).toContain('envTargetProviderRequiredHint');
 
     await act(async () => {
-      const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value')!
-        .set!;
+      const setter = Object.getOwnPropertyDescriptor(
+        window.HTMLSelectElement.prototype,
+        'value',
+      )!.set!;
       setter.call(select, 'ssh-v1');
       select.dispatchEvent(new Event('change', { bubbles: true }));
     });

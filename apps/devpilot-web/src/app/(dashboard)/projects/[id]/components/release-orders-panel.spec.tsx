@@ -21,6 +21,10 @@ vi.mock('@/components/ui', () => ({
 vi.mock('./release-order-detail-panel', () => ({
   ReleaseOrderDetailPanel: () => <div>detail</div>,
 }));
+vi.mock('./release-orders-run-drawers', () => ({
+  ReleaseOrdersBuildRunDrawer: () => null,
+  ReleaseOrdersDeploymentRunDrawer: () => null,
+}));
 vi.mock('./release-order-list-toolbar', () => ({
   ReleaseOrderListToolbar: () => <div>toolbar</div>,
 }));
@@ -56,6 +60,21 @@ describe('ReleaseOrdersPanel', () => {
         />,
       ),
     ).toContain('releaseOrdersFilteredEmpty');
+  });
+
+  it('keeps collection controls without an advanced deployment-history exit', () => {
+    const html = renderToStaticMarkup(
+      <ReleaseOrdersPanel
+        projectId="project-1"
+        orders={orders([])}
+        embedded
+      />,
+    );
+    expect(html).toContain('sm:justify-between');
+    expect(html).toContain('data-project-table-variant="embedded"');
+    expect(html).toContain('toolbar');
+    expect(html).not.toContain('workbenchTabDeployments');
+    expect(html).not.toContain('href="/projects/project-1/deployments"');
   });
 });
 

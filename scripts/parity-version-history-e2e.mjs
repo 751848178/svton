@@ -23,26 +23,37 @@ import {
   historyStepChecks,
 } from "./lib/parity-history-e2e-evidence.mjs";
 import { extractPositiveHistoryContext } from "./lib/parity-history-context.mjs";
-import { browserSecretReference, runHistoryBrowserSession } from "./lib/parity-history-browser-session.mjs";
+import {
+  browserSecretReference,
+  runHistoryBrowserSession,
+} from "./lib/parity-history-browser-session.mjs";
 import { persistHistoryBrowserEvidence } from "./lib/parity-history-browser-evidence-persistence.mjs";
 import { waitForHistoryStackReadiness } from "./lib/parity-history-stack-readiness.mjs";
 import { environmentVersionMarkers } from "./lib/parity-history-environment-version-markers.mjs";
-import {
-  productionGateEvidence,
-} from "./lib/parity-production-gate-evidence.mjs";
+import { productionGateEvidence } from "./lib/parity-production-gate-evidence.mjs";
 import {
   buildProductionRouteExpectation,
   productionRouteEvidence,
 } from "./lib/parity-production-route-evidence.mjs";
 import { productionConfirmResult } from "./lib/parity-negative-history-confirm-result.mjs";
 import { versionRowResult } from "./lib/parity-negative-history-version-row-result.mjs";
-import { HISTORY_CHAIN_RUN_ROOT, historyChainOutputDirectory } from "./lib/parity-history-chain-paths.mjs";
+import {
+  HISTORY_CHAIN_RUN_ROOT,
+  historyChainOutputDirectory,
+} from "./lib/parity-history-chain-paths.mjs";
 import { parityRuntimeConfig } from "./lib/parity-runtime-config.mjs";
 import { POSITIVE_DELIVERY_FIXTURE_IDS } from "./lib/parity-positive-delivery-fixture-ids.mjs";
+import { readParityFixturePinnedCommit } from "./lib/parity-fixture-marker-reader.mjs";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const runtime = parityRuntimeConfig();
-const outDir = historyChainOutputDirectory(process.env, "f456", "/tmp/codex-tool-runs/svton/f456");
-const browserTrustedRoot = await realpath(process.env[HISTORY_CHAIN_RUN_ROOT] || tmpdir());
+const outDir = historyChainOutputDirectory(
+  process.env,
+  "f456",
+  "/tmp/codex-tool-runs/svton/f456",
+);
+const browserTrustedRoot = await realpath(
+  process.env[HISTORY_CHAIN_RUN_ROOT] || tmpdir(),
+);
 const apiBase = runtime.apiBase;
 let teamId;
 let projectId;
@@ -51,11 +62,12 @@ let stagingEnvId;
 let productionEnvId;
 const adminEmail = "admin@parity.local";
 const adminPassword = "ParityDemo123!";
-const pinnedCommit = "2f0ec3246761537123c65ac415a14e503ebbfa38";
+const pinnedCommit = await readParityFixturePinnedCommit();
 const f455EvidenceOriginal = `${historyChainOutputDirectory(process.env, "f455", "/tmp/codex-tool-runs/svton/f455")}/f455-positive-e2e-evidence.json`;
 const cdpDriver = resolve(root, "scripts/lib/parity-history-cdp-driver.mjs");
 const webBase = runtime.webOrigin;
-const parityRouteProviderKey = process.env.DEVPILOT_PARITY_ROUTE_PROVIDER_KEY || null;
+const parityRouteProviderKey =
+  process.env.DEVPILOT_PARITY_ROUTE_PROVIDER_KEY || null;
 let positiveContext;
 const { PrismaClient } = createRequire(
   resolve(root, "apps/devpilot-api/package.json"),
@@ -65,7 +77,8 @@ const prisma = new PrismaClient({
 });
 const evidence = {
   worker: "f456-version-history-e2e",
-  objective: "AC-E2E-016..023 multiple builds / repeat staging / upgrade-rollback E2E",
+  objective:
+    "AC-E2E-016..023 multiple builds / repeat staging / upgrade-rollback E2E",
   stack: {
     web: webBase,
     api: apiBase,
@@ -132,23 +145,35 @@ async function main() {
   await step("base-f455-chain-rerun", async () => {
     const out = runNode(["scripts/parity-positive-e2e.mjs"], "f456-f455-rerun");
     if (out.status !== 0) {
-      throw new Error(`F455 chain rerun failed (${out.status}) — see ${out.logPath}`);
+      throw new Error(
+        `F455 chain rerun failed (${out.status}) — see ${out.logPath}`,
+      );
     }
     const source = await readFile(f455EvidenceOriginal);
     const document = JSON.parse(source.toString("utf8"));
-    const extracted = extractPositiveHistoryContext(document, sha256File(source));
+    const extracted = extractPositiveHistoryContext(
+      document,
+      sha256File(source),
+    );
     positiveContext = extracted.context;
-    ({ teamId, projectId, orderId, stagingEnvId, productionEnvId } = positiveContext);
+    ({ teamId, projectId, orderId, stagingEnvId, productionEnvId } =
+      positiveContext);
     evidence.context = positiveContext;
     const [buildRuns, manifests, stagingDeploys, prodDeploys, envVersions] =
       await Promise.all([
         prisma.buildRun.count({ where: { releaseOrderId: orderId } }),
         prisma.artifactManifest.count({ where: { releaseOrderId: orderId } }),
         prisma.deploymentRun.count({
-          where: { environmentId: stagingEnvId, artifactManifest: { releaseOrderId: orderId } },
+          where: {
+            environmentId: stagingEnvId,
+            artifactManifest: { releaseOrderId: orderId },
+          },
         }),
         prisma.deploymentRun.count({
-          where: { environmentId: productionEnvId, artifactManifest: { releaseOrderId: orderId } },
+          where: {
+            environmentId: productionEnvId,
+            artifactManifest: { releaseOrderId: orderId },
+          },
         }),
         prisma.environmentVersion.count({ where: { projectId } }),
       ]);
@@ -181,12 +206,25 @@ async function main() {
     });
     const stagingVersions = await prisma.environmentVersion.findMany({
       where: { projectId, environmentId: stagingEnvId },
-      select: { id: true, kind: true, previousVersionId: true, artifactManifestId: true, releaseRunId: true, deploymentRunId: true },
+      select: {
+        id: true,
+        kind: true,
+        previousVersionId: true,
+        artifactManifestId: true,
+        releaseRunId: true,
+        deploymentRunId: true,
+      },
       orderBy: { effectiveAt: "asc" },
     });
     const productionVersions = await prisma.environmentVersion.findMany({
       where: { projectId, environmentId: productionEnvId },
-      select: { id: true, kind: true, previousVersionId: true, artifactManifestId: true, releaseRunId: true },
+      select: {
+        id: true,
+        kind: true,
+        previousVersionId: true,
+        artifactManifestId: true,
+        releaseRunId: true,
+      },
       orderBy: { effectiveAt: "asc" },
     });
     const envs = await prisma.projectEnvironment.findMany({
@@ -203,14 +241,31 @@ async function main() {
     };
   });
 
-  const B1 = base.buildRuns.find((run) => run.id === positiveContext.buildRunId);
-  const M1 = base.manifests.find((manifest) => manifest.id === positiveContext.manifestId);
-  if (!B1 || !M1 || base.buildRuns.length !== 1 || base.manifests.length !== 1) {
-    throw new Error(`unexpected base state: builds=${base.buildRuns.length} manifests=${base.manifests.length}`);
+  const B1 = base.buildRuns.find(
+    (run) => run.id === positiveContext.buildRunId,
+  );
+  const M1 = base.manifests.find(
+    (manifest) => manifest.id === positiveContext.manifestId,
+  );
+  if (
+    !B1 ||
+    !M1 ||
+    base.buildRuns.length !== 1 ||
+    base.manifests.length !== 1
+  ) {
+    throw new Error(
+      `unexpected base state: builds=${base.buildRuns.length} manifests=${base.manifests.length}`,
+    );
   }
-  const Vst1 = base.stagingVersions.find((v) => v.id === positiveContext.stagingCurrentVersionId);
-  const Vprod1 = base.productionVersions.find((v) => v.id === positiveContext.productionCurrentVersionId);
-  log(`base state: B1=${B1.id} M1=${M1.id} Vst1=${Vst1?.id} Vprod1=${Vprod1?.id}`);
+  const Vst1 = base.stagingVersions.find(
+    (v) => v.id === positiveContext.stagingCurrentVersionId,
+  );
+  const Vprod1 = base.productionVersions.find(
+    (v) => v.id === positiveContext.productionCurrentVersionId,
+  );
+  log(
+    `base state: B1=${B1.id} M1=${M1.id} Vst1=${Vst1?.id} Vprod1=${Vprod1?.id}`,
+  );
 
   // The reset+seed recreated the bootstrap admin with a NEW user id, so the
   // pre-reset token is invalid (401 用户不存在). Re-login for the chain.
@@ -270,7 +325,9 @@ async function main() {
       "build-2",
     );
     if (run.status !== "succeeded") {
-      throw new Error(`second build failed: ${run.errorCode || run.errorMessage}`);
+      throw new Error(
+        `second build failed: ${run.errorCode || run.errorMessage}`,
+      );
     }
     B2 = run;
     M2 = run.manifest;
@@ -307,12 +364,19 @@ async function main() {
     const row = await prisma.deploymentRun.findUnique({
       where: { id: runId },
       select: {
-        id: true, status: true, environmentId: true, artifactManifestId: true,
-        result: true, commandPlan: true, params: true,
+        id: true,
+        status: true,
+        environmentId: true,
+        artifactManifestId: true,
+        result: true,
+        commandPlan: true,
+        params: true,
       },
     });
     if (row.status !== "completed") {
-      throw new Error(`repeat staging deploy not completed: ${JSON.stringify(row)}`);
+      throw new Error(
+        `repeat staging deploy not completed: ${JSON.stringify(row)}`,
+      );
     }
     D2st = row;
     const [allStagingOnM1, allStaging, buildsAfter] = await Promise.all([
@@ -322,20 +386,31 @@ async function main() {
         orderBy: { createdAt: "asc" },
       }),
       prisma.deploymentRun.findMany({
-        where: { environmentId: stagingEnvId, artifactManifest: { releaseOrderId: orderId } },
+        where: {
+          environmentId: stagingEnvId,
+          artifactManifest: { releaseOrderId: orderId },
+        },
         select: { id: true, status: true, artifactManifestId: true },
         orderBy: { createdAt: "asc" },
       }),
       prisma.buildRun.count({ where: { releaseOrderId: orderId } }),
     ]);
-    D1st = allStagingOnM1.find((run) => run.id === positiveContext.stagingDeploymentRunId);
+    D1st = allStagingOnM1.find(
+      (run) => run.id === positiveContext.stagingDeploymentRunId,
+    );
     const stagingEnv = await prisma.projectEnvironment.findUnique({
       where: { id: stagingEnvId },
       select: { currentEnvironmentVersionId: true },
     });
     const currentVersion = await prisma.environmentVersion.findUnique({
       where: { id: stagingEnv.currentEnvironmentVersionId ?? "" },
-      select: { id: true, kind: true, artifactManifestId: true, previousVersionId: true, deploymentRunId: true },
+      select: {
+        id: true,
+        kind: true,
+        artifactManifestId: true,
+        previousVersionId: true,
+        deploymentRunId: true,
+      },
     });
     Vst2 = currentVersion;
     return {
@@ -345,19 +420,31 @@ async function main() {
       status: D2st.status,
       sameManifestM1: D2st.artifactManifestId === M1.id,
       stagingDeploymentRunsOnM1: allStagingOnM1.map((r) => r.id),
-      completedRunsOnM1: allStagingOnM1.filter((r) => r.status === "completed").length,
-      stagingDeploymentRunsOnOrder: allStaging.map((r) => ({ id: r.id, manifest: r.artifactManifestId })),
+      completedRunsOnM1: allStagingOnM1.filter((r) => r.status === "completed")
+        .length,
+      stagingDeploymentRunsOnOrder: allStaging.map((r) => ({
+        id: r.id,
+        manifest: r.artifactManifestId,
+      })),
       buildRunCountUnchanged: buildsAfter === 2,
       buildRunCount: buildsAfter,
       newStagingCurrent: {
-        id: Vst2?.id, kind: Vst2?.kind, artifactManifestId: Vst2?.artifactManifestId,
-        previousVersionId: Vst2?.previousVersionId, deploymentRunId: Vst2?.deploymentRunId,
+        id: Vst2?.id,
+        kind: Vst2?.kind,
+        artifactManifestId: Vst2?.artifactManifestId,
+        previousVersionId: Vst2?.previousVersionId,
+        deploymentRunId: Vst2?.deploymentRunId,
       },
       expectedManifestId: M1.id,
       artifactVerified: row.result?.artifactVerified === true,
       commandEvidence: {
         commandPlan: row.commandPlan,
-        providerEvidence: pick(row.result, ["checkoutInvoked", "pullInvoked", "buildInvoked", "gitInvoked"]),
+        providerEvidence: pick(row.result, [
+          "checkoutInvoked",
+          "pullInvoked",
+          "buildInvoked",
+          "gitInvoked",
+        ]),
         resultManifestId: row.result?.manifestId,
         resultManifestDigest: row.result?.manifestDigest,
         expectedManifestId: M1.id,
@@ -379,17 +466,31 @@ async function main() {
     const runId = executed.run?.id ?? executed.id ?? executed.deploymentRunId;
     const row = await prisma.deploymentRun.findUnique({
       where: { id: runId },
-      select: { id: true, status: true, environmentId: true, artifactManifestId: true, result: true },
+      select: {
+        id: true,
+        status: true,
+        environmentId: true,
+        artifactManifestId: true,
+        result: true,
+      },
     });
     if (row.status !== "completed") {
       throw new Error(`staging upgrade not completed: ${JSON.stringify(row)}`);
     }
     const version = await prisma.environmentVersion.findUnique({
       where: { deploymentRunId: row.id },
-      select: { id: true, kind: true, artifactManifestId: true, previousVersionId: true, deploymentRunId: true },
+      select: {
+        id: true,
+        kind: true,
+        artifactManifestId: true,
+        previousVersionId: true,
+        deploymentRunId: true,
+      },
     });
     if (version?.kind !== "upgrade") {
-      throw new Error(`staging upgrade did not create an upgrade env version: ${JSON.stringify(version)}`);
+      throw new Error(
+        `staging upgrade did not create an upgrade env version: ${JSON.stringify(version)}`,
+      );
     }
     const stagingEnv = await prisma.projectEnvironment.findUnique({
       where: { id: stagingEnvId },
@@ -404,7 +505,11 @@ async function main() {
       expectedEnvironmentId: stagingEnvId,
       expectedManifestId: M2.id,
       expectedPreviousVersionId: Vst2.id,
-      newEnvironmentVersion: versionRowResult(version, Vst2.id, "previousIsVst2"),
+      newEnvironmentVersion: versionRowResult(
+        version,
+        Vst2.id,
+        "previousIsVst2",
+      ),
       currentMoved: stagingEnv.currentEnvironmentVersionId === version.id,
       artifactVerified: row.result?.artifactVerified === true,
     };
@@ -421,17 +526,31 @@ async function main() {
     const runId = executed.run?.id ?? executed.id ?? executed.deploymentRunId;
     const row = await prisma.deploymentRun.findUnique({
       where: { id: runId },
-      select: { id: true, status: true, environmentId: true, artifactManifestId: true, result: true },
+      select: {
+        id: true,
+        status: true,
+        environmentId: true,
+        artifactManifestId: true,
+        result: true,
+      },
     });
     if (row.status !== "completed") {
       throw new Error(`staging recovery not completed: ${JSON.stringify(row)}`);
     }
     const version = await prisma.environmentVersion.findUnique({
       where: { deploymentRunId: row.id },
-      select: { id: true, kind: true, artifactManifestId: true, previousVersionId: true, deploymentRunId: true },
+      select: {
+        id: true,
+        kind: true,
+        artifactManifestId: true,
+        previousVersionId: true,
+        deploymentRunId: true,
+      },
     });
     if (version?.kind !== "recovery") {
-      throw new Error(`staging recovery did not create a recovery env version: ${JSON.stringify(version)}`);
+      throw new Error(
+        `staging recovery did not create a recovery env version: ${JSON.stringify(version)}`,
+      );
     }
     const stagingEnv = await prisma.projectEnvironment.findUnique({
       where: { id: stagingEnvId },
@@ -448,7 +567,11 @@ async function main() {
       expectedPreviousVersionId: Vst3.id,
       sourceVersionId: Vst2.id,
       restoredManifest: row.artifactManifestId === M1.id,
-      newEnvironmentVersion: versionRowResult(version, Vst3.id, "previousIsVst3"),
+      newEnvironmentVersion: versionRowResult(
+        version,
+        Vst3.id,
+        "previousIsVst3",
+      ),
       currentMoved: stagingEnv.currentEnvironmentVersionId === version.id,
       artifactVerified: row.result?.artifactVerified === true,
     };
@@ -467,7 +590,11 @@ async function main() {
       manifestFrozen: preview.snapshot?.manifest?.id === M2.id,
       manifestDigest: preview.snapshot?.manifest?.digest,
       expectedManifestDigest: M2.digest,
-      snapshot: pick(preview.snapshot, ["environment", "build", "releaseOrder"]),
+      snapshot: pick(preview.snapshot, [
+        "environment",
+        "build",
+        "releaseOrder",
+      ]),
     };
   });
   await step("production-confirm", async () => {
@@ -494,7 +621,11 @@ async function main() {
       "POST",
       `/operation-approvals/${A2}/review`,
       headers,
-      { decision: "approved", reviewComment: "F456 version-history e2e: approve production upgrade (build 2)" },
+      {
+        decision: "approved",
+        reviewComment:
+          "F456 version-history e2e: approve production upgrade (build 2)",
+      },
     );
     return {
       approvalId: A2,
@@ -516,19 +647,35 @@ async function main() {
     const row = await prisma.deploymentRun.findUnique({
       where: { id: runId },
       select: {
-        id: true, status: true, environmentId: true, artifactManifestId: true,
-        releaseRunId: true, result: true, startedAt: true, finishedAt: true,
+        id: true,
+        status: true,
+        environmentId: true,
+        artifactManifestId: true,
+        releaseRunId: true,
+        result: true,
+        startedAt: true,
+        finishedAt: true,
       },
     });
     if (row.status !== "completed") {
-      throw new Error(`production upgrade not completed: ${JSON.stringify(row)}`);
+      throw new Error(
+        `production upgrade not completed: ${JSON.stringify(row)}`,
+      );
     }
     const version = await prisma.environmentVersion.findUnique({
       where: { deploymentRunId: row.id },
-      select: { id: true, kind: true, artifactManifestId: true, previousVersionId: true, deploymentRunId: true },
+      select: {
+        id: true,
+        kind: true,
+        artifactManifestId: true,
+        previousVersionId: true,
+        deploymentRunId: true,
+      },
     });
     if (version?.kind !== "upgrade") {
-      throw new Error(`production upgrade did not create an upgrade env version: ${JSON.stringify(version)}`);
+      throw new Error(
+        `production upgrade did not create an upgrade env version: ${JSON.stringify(version)}`,
+      );
     }
     const productionEnv = await prisma.projectEnvironment.findUnique({
       where: { id: productionEnvId },
@@ -536,7 +683,11 @@ async function main() {
     });
     const releaseRun = await prisma.releaseRun.findUnique({
       where: { id: R2.id },
-      select: { status: true, mode: true, operationApproval: { select: { status: true, consumedAt: true } } },
+      select: {
+        status: true,
+        mode: true,
+        operationApproval: { select: { status: true, consumedAt: true } },
+      },
     });
     const proofs = await collectProductionProof(row, routeSeed, {
       releaseRunId: R2.id,
@@ -554,9 +705,18 @@ async function main() {
       expectedManifestId: M2.id,
       expectedReleaseRunId: R2.id,
       expectedPreviousVersionId: Vprod1.id,
-      newEnvironmentVersion: versionRowResult(version, Vprod1.id, "previousIsVprod1"),
+      newEnvironmentVersion: versionRowResult(
+        version,
+        Vprod1.id,
+        "previousIsVprod1",
+      ),
       currentMoved: productionEnv.currentEnvironmentVersionId === version.id,
-      releaseRun: { status: releaseRun.status, mode: releaseRun.mode, approvalStatus: releaseRun.operationApproval?.status, approvalConsumedAt: releaseRun.operationApproval?.consumedAt },
+      releaseRun: {
+        status: releaseRun.status,
+        mode: releaseRun.mode,
+        approvalStatus: releaseRun.operationApproval?.status,
+        approvalConsumedAt: releaseRun.operationApproval?.consumedAt,
+      },
       workloadReady: row.result?.workloadReady,
       healthProbe: row.result?.healthProbe,
       siteProbe: row.result?.siteProbe,
@@ -587,7 +747,11 @@ async function main() {
       expectedManifestDigest: M1.digest,
       sourceReleaseRunId: preview.sourceReleaseRunId,
       sourceVersionKind: preview.sourceVersionKind,
-      snapshot: pick(preview.snapshot, ["environment", "build", "releaseOrder"]),
+      snapshot: pick(preview.snapshot, [
+        "environment",
+        "build",
+        "releaseOrder",
+      ]),
     };
   });
   await step("production-recovery-confirm", async () => {
@@ -615,7 +779,11 @@ async function main() {
       "POST",
       `/operation-approvals/${A3}/review`,
       headers,
-      { decision: "approved", reviewComment: "F456 version-history e2e: approve production recovery (rollback to Vprod1)" },
+      {
+        decision: "approved",
+        reviewComment:
+          "F456 version-history e2e: approve production recovery (rollback to Vprod1)",
+      },
     );
     return {
       approvalId: A3,
@@ -637,19 +805,35 @@ async function main() {
     const row = await prisma.deploymentRun.findUnique({
       where: { id: runId },
       select: {
-        id: true, status: true, environmentId: true, artifactManifestId: true,
-        releaseRunId: true, result: true, startedAt: true, finishedAt: true,
+        id: true,
+        status: true,
+        environmentId: true,
+        artifactManifestId: true,
+        releaseRunId: true,
+        result: true,
+        startedAt: true,
+        finishedAt: true,
       },
     });
     if (row.status !== "completed") {
-      throw new Error(`production recovery not completed: ${JSON.stringify(row)}`);
+      throw new Error(
+        `production recovery not completed: ${JSON.stringify(row)}`,
+      );
     }
     const version = await prisma.environmentVersion.findUnique({
       where: { deploymentRunId: row.id },
-      select: { id: true, kind: true, artifactManifestId: true, previousVersionId: true, deploymentRunId: true },
+      select: {
+        id: true,
+        kind: true,
+        artifactManifestId: true,
+        previousVersionId: true,
+        deploymentRunId: true,
+      },
     });
     if (version?.kind !== "recovery") {
-      throw new Error(`production recovery did not create a recovery env version: ${JSON.stringify(version)}`);
+      throw new Error(
+        `production recovery did not create a recovery env version: ${JSON.stringify(version)}`,
+      );
     }
     const productionEnv = await prisma.projectEnvironment.findUnique({
       where: { id: productionEnvId },
@@ -657,7 +841,11 @@ async function main() {
     });
     const releaseRun = await prisma.releaseRun.findUnique({
       where: { id: R3.id },
-      select: { status: true, mode: true, operationApproval: { select: { status: true, consumedAt: true } } },
+      select: {
+        status: true,
+        mode: true,
+        operationApproval: { select: { status: true, consumedAt: true } },
+      },
     });
     const proofs = await collectProductionProof(row, routeSeed, {
       releaseRunId: R3.id,
@@ -676,9 +864,18 @@ async function main() {
       expectedManifestId: M1.id,
       expectedReleaseRunId: R3.id,
       expectedPreviousVersionId: Vprod2.id,
-      newEnvironmentVersion: versionRowResult(version, Vprod2.id, "previousIsVprod2"),
+      newEnvironmentVersion: versionRowResult(
+        version,
+        Vprod2.id,
+        "previousIsVprod2",
+      ),
       currentMoved: productionEnv.currentEnvironmentVersionId === version.id,
-      releaseRun: { status: releaseRun.status, mode: releaseRun.mode, approvalStatus: releaseRun.operationApproval?.status, approvalConsumedAt: releaseRun.operationApproval?.consumedAt },
+      releaseRun: {
+        status: releaseRun.status,
+        mode: releaseRun.mode,
+        approvalStatus: releaseRun.operationApproval?.status,
+        approvalConsumedAt: releaseRun.operationApproval?.consumedAt,
+      },
       workloadReady: row.result?.workloadReady,
       healthProbe: row.result?.healthProbe,
       siteProbe: row.result?.siteProbe,
@@ -692,37 +889,60 @@ async function main() {
 
   // ---------------------------------------------- AC-E2E-022 current/history chains
   await step("version-chains", async () => {
-    const [stagingVersions, productionVersions, envs, deploymentRuns, releaseRuns] =
-      await Promise.all([
-        prisma.environmentVersion.findMany({
-          where: { projectId, environmentId: stagingEnvId, releaseOrderId: orderId },
-          select: {
-            id: true, kind: true, previousVersionId: true, artifactManifestId: true,
-            deploymentRunId: true, releaseRunId: true, effectiveAt: true,
-          },
-          orderBy: [{ effectiveAt: "asc" }, { id: "asc" }],
-        }),
-        prisma.environmentVersion.findMany({
-          where: { projectId, environmentId: productionEnvId, releaseOrderId: orderId },
-          select: {
-            id: true, kind: true, previousVersionId: true, artifactManifestId: true,
-            deploymentRunId: true, releaseRunId: true, effectiveAt: true,
-          },
-          orderBy: [{ effectiveAt: "asc" }, { id: "asc" }],
-        }),
-        prisma.projectEnvironment.findMany({
-          where: { projectId },
-          select: { id: true, key: true, currentEnvironmentVersionId: true },
-        }),
-        prisma.deploymentRun.findMany({
-          where: { projectId, status: "completed" },
-          select: { id: true, status: true },
-        }),
-        prisma.releaseRun.findMany({
-          where: { projectId, releaseOrderId: orderId },
-          select: { id: true, mode: true, status: true },
-        }),
-      ]);
+    const [
+      stagingVersions,
+      productionVersions,
+      envs,
+      deploymentRuns,
+      releaseRuns,
+    ] = await Promise.all([
+      prisma.environmentVersion.findMany({
+        where: {
+          projectId,
+          environmentId: stagingEnvId,
+          releaseOrderId: orderId,
+        },
+        select: {
+          id: true,
+          kind: true,
+          previousVersionId: true,
+          artifactManifestId: true,
+          deploymentRunId: true,
+          releaseRunId: true,
+          effectiveAt: true,
+        },
+        orderBy: [{ effectiveAt: "asc" }, { id: "asc" }],
+      }),
+      prisma.environmentVersion.findMany({
+        where: {
+          projectId,
+          environmentId: productionEnvId,
+          releaseOrderId: orderId,
+        },
+        select: {
+          id: true,
+          kind: true,
+          previousVersionId: true,
+          artifactManifestId: true,
+          deploymentRunId: true,
+          releaseRunId: true,
+          effectiveAt: true,
+        },
+        orderBy: [{ effectiveAt: "asc" }, { id: "asc" }],
+      }),
+      prisma.projectEnvironment.findMany({
+        where: { projectId },
+        select: { id: true, key: true, currentEnvironmentVersionId: true },
+      }),
+      prisma.deploymentRun.findMany({
+        where: { projectId, status: "completed" },
+        select: { id: true, status: true },
+      }),
+      prisma.releaseRun.findMany({
+        where: { projectId, releaseOrderId: orderId },
+        select: { id: true, mode: true, status: true },
+      }),
+    ]);
 
     const stagingEnv = envs.find((e) => e.id === stagingEnvId);
     const productionEnv = envs.find((e) => e.id === productionEnvId);
@@ -732,64 +952,120 @@ async function main() {
         return v.previousVersionId === versions[index - 1].id;
       });
     const runCompleted = (versions) =>
-      versions.every((v) => deploymentRuns.some((d) => d.id === v.deploymentRunId && d.status === "completed"));
-    const apiList = await api("GET", `/projects/${projectId}/delivery/environment-versions`, headers);
-    const apiStaging = (apiList.environments || []).find((e) => e.id === stagingEnvId);
-    const apiProduction = (apiList.environments || []).find((e) => e.id === productionEnvId);
+      versions.every((v) =>
+        deploymentRuns.some(
+          (d) => d.id === v.deploymentRunId && d.status === "completed",
+        ),
+      );
+    const apiList = await api(
+      "GET",
+      `/projects/${projectId}/delivery/environment-versions`,
+      headers,
+    );
+    const apiStaging = (apiList.environments || []).find(
+      (e) => e.id === stagingEnvId,
+    );
+    const apiProduction = (apiList.environments || []).find(
+      (e) => e.id === productionEnvId,
+    );
 
     return {
       staging: {
-        chain: stagingVersions.map((v) => ({ id: v.id, kind: v.kind, prev: v.previousVersionId, manifest: v.artifactManifestId })),
+        chain: stagingVersions.map((v) => ({
+          id: v.id,
+          kind: v.kind,
+          prev: v.previousVersionId,
+          manifest: v.artifactManifestId,
+        })),
         chainLinksValid: chainOk(
           stagingVersions,
           POSITIVE_DELIVERY_FIXTURE_IDS.stagingEnvVersionPrevB,
         ),
         everyDeploymentCompleted: runCompleted(stagingVersions),
-        dbCurrentMatchesLatest: stagingEnv?.currentEnvironmentVersionId === stagingVersions[stagingVersions.length - 1]?.id,
-        apiCurrentMatchesDb: apiStaging?.currentEnvironmentVersionId === stagingEnv?.currentEnvironmentVersionId,
+        dbCurrentMatchesLatest:
+          stagingEnv?.currentEnvironmentVersionId ===
+          stagingVersions[stagingVersions.length - 1]?.id,
+        apiCurrentMatchesDb:
+          apiStaging?.currentEnvironmentVersionId ===
+          stagingEnv?.currentEnvironmentVersionId,
         expectedKinds: stagingVersions.map((v) => v.kind),
       },
       production: {
-        chain: productionVersions.map((v) => ({ id: v.id, kind: v.kind, prev: v.previousVersionId, manifest: v.artifactManifestId })),
+        chain: productionVersions.map((v) => ({
+          id: v.id,
+          kind: v.kind,
+          prev: v.previousVersionId,
+          manifest: v.artifactManifestId,
+        })),
         chainLinksValid: chainOk(
           productionVersions,
           POSITIVE_DELIVERY_FIXTURE_IDS.envVersionPrevB,
         ),
         everyDeploymentCompleted: runCompleted(productionVersions),
-        dbCurrentMatchesLatest: productionEnv?.currentEnvironmentVersionId === productionVersions[productionVersions.length - 1]?.id,
-        apiCurrentMatchesDb: apiProduction?.currentEnvironmentVersionId === productionEnv?.currentEnvironmentVersionId,
+        dbCurrentMatchesLatest:
+          productionEnv?.currentEnvironmentVersionId ===
+          productionVersions[productionVersions.length - 1]?.id,
+        apiCurrentMatchesDb:
+          apiProduction?.currentEnvironmentVersionId ===
+          productionEnv?.currentEnvironmentVersionId,
         expectedKinds: productionVersions.map((v) => v.kind),
       },
-      releaseRuns: releaseRuns.map((r) => ({ id: r.id, mode: r.mode, status: r.status })),
+      releaseRuns: releaseRuns.map((r) => ({
+        id: r.id,
+        mode: r.mode,
+        status: r.status,
+      })),
       expectedReleaseRuns: [
         { id: Vprod1.releaseRunId, mode: "standard" },
         { id: R2.id, mode: "standard" },
         { id: R3.id, mode: "recovery" },
       ],
-      stagingRecoverySourcePresent: stagingVersions.some((v) => v.id === Vst2.id && v.kind === "deploy"),
-      productionRecoverySourcePresent: productionVersions.some((v) => v.id === Vprod1.id && v.kind === "upgrade"),
+      stagingRecoverySourcePresent: stagingVersions.some(
+        (v) => v.id === Vst2.id && v.kind === "deploy",
+      ),
+      productionRecoverySourcePresent: productionVersions.some(
+        (v) => v.id === Vprod1.id && v.kind === "upgrade",
+      ),
     };
   });
 
   // ------------------------------------------------------- db-summary + final site
   await step("db-summary", async () => {
-    const [builds, stagingDeploys, prodDeploys, envVersions, approvals, releaseRuns] =
-      await Promise.all([
-        prisma.buildRun.count({ where: { releaseOrderId: orderId } }),
-        prisma.deploymentRun.count({ where: { environmentId: stagingEnvId, artifactManifest: { releaseOrderId: orderId } } }),
-        prisma.deploymentRun.count({ where: { environmentId: productionEnvId, artifactManifest: { releaseOrderId: orderId } } }),
-        prisma.environmentVersion.count({
-          where: { projectId, releaseOrderId: orderId },
-        }),
-        prisma.operationApproval.count({
-          where: {
-            projectId,
-            targetType: "release_run",
-            targetId: { in: [Vprod1.releaseRunId, R2.id, R3.id] },
-          },
-        }),
-        prisma.releaseRun.count({ where: { projectId, releaseOrderId: orderId } }),
-      ]);
+    const [
+      builds,
+      stagingDeploys,
+      prodDeploys,
+      envVersions,
+      approvals,
+      releaseRuns,
+    ] = await Promise.all([
+      prisma.buildRun.count({ where: { releaseOrderId: orderId } }),
+      prisma.deploymentRun.count({
+        where: {
+          environmentId: stagingEnvId,
+          artifactManifest: { releaseOrderId: orderId },
+        },
+      }),
+      prisma.deploymentRun.count({
+        where: {
+          environmentId: productionEnvId,
+          artifactManifest: { releaseOrderId: orderId },
+        },
+      }),
+      prisma.environmentVersion.count({
+        where: { projectId, releaseOrderId: orderId },
+      }),
+      prisma.operationApproval.count({
+        where: {
+          projectId,
+          targetType: "release_run",
+          targetId: { in: [Vprod1.releaseRunId, R2.id, R3.id] },
+        },
+      }),
+      prisma.releaseRun.count({
+        where: { projectId, releaseOrderId: orderId },
+      }),
+    ]);
     return {
       buildRunsOnOrder: builds,
       stagingDeploymentRuns: stagingDeploys,
@@ -808,7 +1084,12 @@ async function main() {
       upgradeReleaseRunId: R2.id,
       recoveryReleaseRunId: R3.id,
       recoveryDeploymentRunId: Vprod3.deploymentRunId,
-      environmentVersionIds: { stagingUpgradeVersionId: Vst3.id, stagingRecoveryVersionId: Vst4.id, productionUpgradeVersionId: Vprod2.id, productionRecoveryVersionId: Vprod3.id },
+      environmentVersionIds: {
+        stagingUpgradeVersionId: Vst3.id,
+        stagingRecoveryVersionId: Vst4.id,
+        productionUpgradeVersionId: Vprod2.id,
+        productionRecoveryVersionId: Vprod3.id,
+      },
     }),
   );
 
@@ -825,7 +1106,8 @@ async function browserPass(ids) {
   const actions = browserActions(ids);
   const logPath = `${outDir}/f456-browser-driver.log`;
   const session = await runHistoryBrowserSession({
-    actions, secrets: { "admin-password": adminPassword },
+    actions,
+    secrets: { "admin-password": adminPassword },
     trustedRoot: browserTrustedRoot,
     driver: cdpDriver,
     width: 1484,
@@ -834,7 +1116,9 @@ async function browserPass(ids) {
     logPath,
   });
   await persistHistoryBrowserEvidence({
-    runRoot: process.env[HISTORY_CHAIN_RUN_ROOT], outputDirectory: outDir, session,
+    runRoot: process.env[HISTORY_CHAIN_RUN_ROOT],
+    outputDirectory: outDir,
+    session,
   });
   const {
     artifacts,
@@ -856,14 +1140,16 @@ async function browserPass(ids) {
   const envVersionsHtml = contents["06-env-versions.html"].toString("utf8");
   const buildLogText = contents["03-build-log-drawer.txt"].toString("utf8");
   const stagingLogText = contents["04-staging-run-log.txt"].toString("utf8");
-  const productionLogText = contents["05-production-recovery-log.txt"].toString("utf8");
+  const productionLogText =
+    contents["05-production-recovery-log.txt"].toString("utf8");
   return {
     driver: cdpDriver,
     driverExit,
     viewport: { width: 1484, height: 1324 },
     log: logPath,
     cdpSchema: cdpEvidence.schema,
-    cdpVersion: cdpEvidence.version, cdpSessionIdentity: cdpEvidence.session,
+    cdpVersion: cdpEvidence.version,
+    cdpSessionIdentity: cdpEvidence.session,
     consoleEvents: cdpEvidence.console,
     httpResponses: cdpEvidence.httpResponses,
     consoleErrors: browserFailures.consoleErrors.slice(0, 10),
@@ -884,20 +1170,26 @@ async function browserPass(ids) {
     },
     stagingStepEvidence: {
       totalStagingDeployments4: /4 次部署/.test(stagingStepText),
-      twoManifestsListed: /R2 · Manifest/.test(stagingStepText) && /R1 · Manifest/.test(stagingStepText),
+      twoManifestsListed:
+        /R2 · Manifest/.test(stagingStepText) &&
+        /R1 · Manifest/.test(stagingStepText),
       manifestOptionListed: /成功 Manifest/.test(stagingStepText),
       productionPrerequisite: /已满足/.test(stagingStepText),
-      note:
-        "UI totals ALL staging DeploymentRuns on the order (F455 deploy + repeat deploy + upgrade + recovery = 4); the AC-E2E-017 two-runs-on-the-SAME-manifest evidence is the staging-deploy-repeat API/DB step (2 DeploymentRuns on M1, build count unchanged).",
+      note: "UI totals ALL staging DeploymentRuns on the order (F455 deploy + repeat deploy + upgrade + recovery = 4); the AC-E2E-017 two-runs-on-the-SAME-manifest evidence is the staging-deploy-repeat API/DB step (2 DeploymentRuns on M1, build count unchanged).",
     },
-    envVersionsEvidence: environmentVersionMarkers({ text: envVersionsText, html: envVersionsHtml, expected: ids.environmentVersionIds }),
+    envVersionsEvidence: environmentVersionMarkers({
+      text: envVersionsText,
+      html: envVersionsHtml,
+      expected: ids.environmentVersionIds,
+    }),
     buildLogDrawer: {
       opened: buildLogText.includes(buildRunId),
       hasBuildRunTitle: /BuildRun #2/.test(buildLogText),
     },
     stagingRunLog: {
       opened: stagingLogText.includes(stagingRunId),
-      manifestShown: stagingLogText.includes("cmsj") || stagingLogText.includes("Manifest"),
+      manifestShown:
+        stagingLogText.includes("cmsj") || stagingLogText.includes("Manifest"),
     },
     productionRunLog: {
       opened: productionLogText.includes(recoveryReleaseRunId),
@@ -919,38 +1211,77 @@ function browserActions(ids) {
     "navigate:" + webBase + "/login?redirect=%2Fteams",
     "wait:1500",
     "setValue:input[type=email]@@@" + adminEmail,
-    "setValue:input[type=password]@@@" + browserSecretReference("admin-password"),
+    "setValue:input[type=password]@@@" +
+      browserSecretReference("admin-password"),
     "click:button[type=submit]",
     "waitText:Parity Team",
     "wait:1500",
     "shot:01-after-login.png",
     "text:01-after-login.txt",
-    "navigate:" + webBase + "/projects/" + projectId + "?releaseOrderId=" + orderId,
+    "navigate:" +
+      webBase +
+      "/projects/" +
+      projectId +
+      "?releaseOrderId=" +
+      orderId,
     "waitText:" + orderId,
     "wait:2500",
     "text:02-release-detail.txt",
     "dom:02-release-detail.html",
     "shot:02-release-detail.png",
-    "navigate:" + webBase + "/projects/" + projectId + "?releaseOrderId=" + orderId + "&step=staging",
+    "navigate:" +
+      webBase +
+      "/projects/" +
+      projectId +
+      "?releaseOrderId=" +
+      orderId +
+      "&step=staging",
     "wait:2500",
     "text:02b-staging-step.txt",
     "shot:02b-staging-step.png",
-    "navigate:" + webBase + "/projects/" + projectId + "?releaseOrderId=" + orderId + "&step=build&buildRunId=" + buildRunId,
+    "navigate:" +
+      webBase +
+      "/projects/" +
+      projectId +
+      "?releaseOrderId=" +
+      orderId +
+      "&step=build&buildRunId=" +
+      buildRunId,
     "waitText:" + buildRunId,
     "wait:1500",
     "text:03-build-log-drawer.txt",
     "shot:03-build-log-drawer.png",
-    "navigate:" + webBase + "/projects/" + projectId + "?releaseOrderId=" + orderId + "&step=staging&deploymentRunId=" + stagingRunId,
+    "navigate:" +
+      webBase +
+      "/projects/" +
+      projectId +
+      "?releaseOrderId=" +
+      orderId +
+      "&step=staging&deploymentRunId=" +
+      stagingRunId,
     "waitText:" + stagingRunId,
     "wait:1500",
     "text:04-staging-run-log.txt",
     "shot:04-staging-run-log.png",
-    "navigate:" + webBase + "/projects/" + projectId + "?releaseOrderId=" + orderId + "&step=production&releaseRunId=" + recoveryReleaseRunId + "&deploymentRunId=" + recoveryDeploymentRunId,
+    "navigate:" +
+      webBase +
+      "/projects/" +
+      projectId +
+      "?releaseOrderId=" +
+      orderId +
+      "&step=production&releaseRunId=" +
+      recoveryReleaseRunId +
+      "&deploymentRunId=" +
+      recoveryDeploymentRunId,
     "waitText:" + recoveryReleaseRunId,
     "wait:1500",
     "text:05-production-recovery-log.txt",
     "shot:05-production-recovery-log.png",
-    "navigate:" + webBase + "/projects/" + projectId + "?view=environment-versions",
+    "navigate:" +
+      webBase +
+      "/projects/" +
+      projectId +
+      "?view=environment-versions",
     "waitText:环境版本",
     "wait:2500",
     "text:06-env-versions.txt",
@@ -982,7 +1313,12 @@ async function productionRouteSeed() {
   const primaryDomain = routeSnapshot.domains?.[0];
   const siteCandidates = primaryDomain
     ? await prisma.site.findMany({
-        where: { teamId, projectId, environmentId: productionEnvId, primaryDomain },
+        where: {
+          teamId,
+          projectId,
+          environmentId: productionEnvId,
+          primaryDomain,
+        },
         select: { id: true },
       })
     : [];
@@ -1016,10 +1352,19 @@ async function collectProductionProof(row, seed, input) {
         },
       },
       select: {
-        id: true, releaseOrderId: true, stage: true, phase: true,
-        requestKey: true, allowed: true, inputHash: true, inputSnapshot: true,
-        blockerGateIds: true, integrityErrors: true, actionRunType: true,
-        actionRunId: true, consumedAt: true,
+        id: true,
+        releaseOrderId: true,
+        stage: true,
+        phase: true,
+        requestKey: true,
+        allowed: true,
+        inputHash: true,
+        inputSnapshot: true,
+        blockerGateIds: true,
+        integrityErrors: true,
+        actionRunType: true,
+        actionRunId: true,
+        consumedAt: true,
       },
     }),
     prisma.siteRouteSwitchRun.findMany({
@@ -1031,17 +1376,29 @@ async function collectProductionProof(row, seed, input) {
         releaseRunId: input.releaseRunId,
       },
       select: {
-        teamId: true, siteId: true, projectId: true, environmentId: true,
-        deploymentRunId: true, releaseRunId: true, targetRef: true,
-        proxyTarget: true, domains: true, status: true, reasonCode: true,
-        result: true, startedAt: true, finishedAt: true,
+        teamId: true,
+        siteId: true,
+        projectId: true,
+        environmentId: true,
+        deploymentRunId: true,
+        releaseRunId: true,
+        targetRef: true,
+        proxyTarget: true,
+        domains: true,
+        status: true,
+        reasonCode: true,
+        result: true,
+        startedAt: true,
+        finishedAt: true,
       },
     }),
     prisma.releaseRun.findUnique({
       where: { id: input.releaseRunId },
       select: {
-        environmentId: true, artifactManifestId: true,
-        configRevisionId: true, routeSnapshot: true,
+        environmentId: true,
+        artifactManifestId: true,
+        configRevisionId: true,
+        routeSnapshot: true,
       },
     }),
     prisma.site.findUnique({
@@ -1113,7 +1470,9 @@ async function api(method, path, headers, body) {
 
 async function httpGet(url, options = {}) {
   const res = await fetch(url);
-  const body = options.raw ? await res.text() : await res.json().catch(() => null);
+  const body = options.raw
+    ? await res.text()
+    : await res.json().catch(() => null);
   return { status: res.status, body };
 }
 
@@ -1143,7 +1502,10 @@ function runNode(args, label) {
     encoding: "utf8",
     timeout: 600000,
   });
-  writeFileSync(logPath, `${result.stdout || ""}\n--- STDERR ---\n${result.stderr || ""}`);
+  writeFileSync(
+    logPath,
+    `${result.stdout || ""}\n--- STDERR ---\n${result.stderr || ""}`,
+  );
   return { status: result.status, logPath };
 }
 

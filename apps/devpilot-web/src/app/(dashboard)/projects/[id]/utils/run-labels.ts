@@ -51,7 +51,7 @@ export function shortSha(sha: string | null | undefined): string | null {
 }
 
 /** 终态运行状态：不会再变化的运行（blocked 可被审批后继续，不算终态）。 */
-const TERMINAL_RUN_STATUSES = new Set(['succeeded', 'failed', 'cancelled', 'canceled']);
+const TERMINAL_RUN_STATUSES = new Set(['completed', 'succeeded', 'failed', 'cancelled', 'canceled']);
 
 export function isTerminalRunStatus(status: string): boolean {
   return TERMINAL_RUN_STATUSES.has(status.toLowerCase());

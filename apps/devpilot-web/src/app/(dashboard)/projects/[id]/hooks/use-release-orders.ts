@@ -53,6 +53,7 @@ export function useReleaseOrders(projectId: string) {
   const [status, setStatusState] = useState<ReleaseOrderListStatus | null>(initialStatus);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
+  const creatingRef = useRef(false);
   const deferredQuery = useDeferredValue(query.trim());
   const endpoint = buildReleaseOrderListEndpoint(projectId, {
     query: deferredQuery,
@@ -107,7 +108,8 @@ export function useReleaseOrders(projectId: string) {
 
   const create = useCallback(
     async (input: CreateReleaseOrderInput) => {
-      if (!projectId) return null;
+      if (!projectId || creatingRef.current) return null;
+      creatingRef.current = true;
       setCreating(true);
       setCreateError('');
       try {
@@ -116,6 +118,7 @@ export function useReleaseOrders(projectId: string) {
         setCreateError(errorMessage(caught));
         return null;
       } finally {
+        creatingRef.current = false;
         setCreating(false);
       }
     },

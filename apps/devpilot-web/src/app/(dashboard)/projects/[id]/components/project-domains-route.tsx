@@ -1,31 +1,35 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { useParams, useSearchParams } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { EmptyState, LoadingState } from '@svton/ui';
-import { Button, ConfirmDialog, ErrorBanner, Select } from '@/components/ui';
-import { AddSiteModal } from '@/app/(dashboard)/sites/components/add-site-modal';
-import { EditSiteModal } from '@/app/(dashboard)/sites/components/edit-site-modal';
+import { LoadingState } from '@svton/ui';
+import { ErrorBanner, Select } from '@/components/ui';
 import { useSites } from '@/app/(dashboard)/sites/hooks/use-sites';
 import { useProjectDetail } from '../hooks/use-project-detail';
-import { selectExistingProjectEnvironments } from '../utils/project-environment-list';
-import { ProjectContextIssue } from './project-context-issue';
-import { ProjectDomainsConfigPreview } from './project-domains-config-preview';
-import { ProjectDomainsTable } from './project-domains-table';
+import { useProjectDeliverySummary } from '../hooks/use-project-delivery-summary';
+import { useRepositoryAnalysis } from '../hooks/use-repository-analysis.hooks';
+import { projectIdentityFromProject } from '../utils/project-workbench-identity.model';
+import { ProjectDomainsEnvironmentSection } from './project-domains-environment-section';
+import { selectProjectDomainEnvironments } from './project-domain-workflow.model';
+import { ProjectDeliveryIssue } from './project-delivery-issue';
 import { ProjectWorkbenchHeader } from './project-workbench-header';
 
 export function ProjectDomainsRoute() {
   const t = useTranslations('projects');
-  const ts = useTranslations('sites');
   const params = useParams();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const projectId = params.id as string;
   const detail = useProjectDetail(projectId);
+  const delivery = useProjectDeliverySummary(projectId);
+  const analysis = useRepositoryAnalysis(projectId);
   const [environmentId, setEnvironmentId] = useState(searchParams.get('environmentId') || '');
-  const [previewSiteId, setPreviewSiteId] = useState<string | null>(null);
   const sites = useSites(projectId, '', '', searchParams.get('new') === 'true');
-  const environments = selectExistingProjectEnvironments(detail.project?.environments);
+  const environments = useMemo(
+    () => selectProjectDomainEnvironments(detail.project?.environments, sites.sites),
+    [detail.project?.environments, sites.sites],
+  );
   const activeEnvironmentId = environments.some((item) => item.id === environmentId)
     ? environmentId
     : environments[0]?.id || '';
@@ -46,47 +50,35 @@ export function ProjectDomainsRoute() {
       />
     );
   const activeEnvironment = environments.find((item) => item.id === activeEnvironmentId);
+  const selectEnvironment = (value: string) => {
+    setEnvironmentId(value);
+    const next = new URLSearchParams(searchParams.toString());
+    next.set('environmentId', value);
+    next.delete('new');
+    router.replace(`?${next.toString()}`, { scroll: false });
+  };
   return (
     <div className="space-y-6">
       <ProjectWorkbenchHeader
-        projectId={projectId}
-        name={project.name}
+        identity={projectIdentityFromProject(project, analysis)}
+        issue={<ProjectDeliveryIssue summary={delivery.summary ?? null} />}
       />
-      {filtered.length === 0 && activeEnvironment?.baselineRole === 'production' ? (
-        <ProjectContextIssue
-          message={t('productionEntryMissing')}
-          actionLabel={t('addDomainEntry')}
-          href={`/projects/${encodeURIComponent(projectId)}/domains?new=true&environmentId=${encodeURIComponent(activeEnvironmentId)}`}
-        />
-      ) : null}
       <section className="space-y-4">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-semibold">{t('domainsPageTitle')}</h2>
-            <p className="mt-1 text-sm text-muted-foreground">{t('domainsPageDescription')}</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Select
-              className="w-auto bg-background"
-              value={activeEnvironmentId}
-              onChange={(event) => setEnvironmentId(event.target.value)}
-            >
-              {environments.map((environment) => (
-                <option
-                  key={environment.id}
-                  value={environment.id}
-                >
-                  {environment.name} ({environment.key})
-                </option>
-              ))}
-            </Select>
-            <Button
-              variant="outline"
-              onClick={() => sites.setShowModal(true)}
-            >
-              + {t('addDomainEntry')}
-            </Button>
-          </div>
+        <div className="flex justify-end">
+          <Select
+            className="w-auto max-w-full bg-background"
+            value={activeEnvironmentId}
+            onChange={(event) => selectEnvironment(event.target.value)}
+          >
+            {environments.map((environment) => (
+              <option
+                key={environment.id}
+                value={environment.id}
+              >
+                {environment.name} ({environment.key})
+              </option>
+            ))}
+          </Select>
         </div>
         {sites.error ? (
           <ErrorBanner
@@ -94,86 +86,17 @@ export function ProjectDomainsRoute() {
             onRetry={sites.reload}
           />
         ) : null}
-        {filtered.length === 0 ? (
-          <EmptyState text={t('domainsEmpty')} />
-        ) : (
-          <ProjectDomainsTable
+        {activeEnvironment ? (
+          <ProjectDomainsEnvironmentSection
+            project={project}
+            environment={activeEnvironment}
             items={filtered}
-            onEdit={sites.setEditTarget}
-            onPlan={(id) => {
-              // DOM-3：预览配置必须打开可见的预览弹层，而非只后台拉取计划。
-              setPreviewSiteId(id);
-              sites.handleCreatePlan(id);
-            }}
-            onDelete={sites.handleDelete}
-            planningSiteId={previewSiteId && sites.planningId === previewSiteId ? previewSiteId : null}
+            runs={detail.deploymentRuns}
+            sites={sites}
+            onProjectReload={detail.loadProject}
           />
-        )}
+        ) : null}
       </section>
-      {sites.showModal ? (
-        <AddSiteModal
-          servers={sites.servers}
-          projects={sites.projects.filter((item) => item.id === projectId)}
-          projectEnvironments={environments.map((item) => ({ ...item, projectId }))}
-          proxyConfigs={sites.proxyConfigs}
-          defaultProjectId={projectId}
-          defaultEnvironmentId={activeEnvironmentId}
-          lockedContext={{
-            projectName: project.name,
-            environmentName: activeEnvironment?.name || activeEnvironmentId,
-          }}
-          onClose={() => sites.setShowModal(false)}
-          onSuccess={() => {
-            sites.setShowModal(false);
-            sites.reload();
-          }}
-        />
-      ) : null}
-      {sites.editTarget ? (
-        <EditSiteModal
-          site={sites.editTarget}
-          servers={sites.servers}
-          projects={sites.projects.filter((item) => item.id === projectId)}
-          projectEnvironments={environments.map((item) => ({ ...item, projectId }))}
-          proxyConfigs={sites.proxyConfigs}
-          lockedContext={{
-            projectId,
-            projectName: project.name,
-            environmentId: sites.editTarget.environment?.id || activeEnvironmentId,
-            environmentName:
-              sites.editTarget.environment?.name || activeEnvironment?.name || activeEnvironmentId,
-          }}
-          onClose={() => sites.setEditTarget(null)}
-          onSuccess={() => {
-            sites.setEditTarget(null);
-            sites.reload();
-          }}
-        />
-      ) : null}
-      {previewSiteId ? (
-        <ProjectDomainsConfigPreview
-          open
-          site={filtered.find((item) => item.id === previewSiteId)}
-          plan={sites.plans[previewSiteId]}
-          loading={sites.planningId === previewSiteId}
-          onClose={() => setPreviewSiteId(null)}
-        />
-      ) : null}
-      <ConfirmDialog
-        open={Boolean(sites.deleteTarget)}
-        onOpenChange={(open) => {
-          if (!open) sites.cancelDelete();
-        }}
-        tone="danger"
-        title={ts('deleteSiteTitle')}
-        description={
-          sites.deleteTarget
-            ? ts('deleteSiteDescription', { name: sites.deleteTarget.name })
-            : undefined
-        }
-        confirmLabel={ts('deleteSiteTitle')}
-        onConfirm={sites.confirmDelete}
-      />
     </div>
   );
 }

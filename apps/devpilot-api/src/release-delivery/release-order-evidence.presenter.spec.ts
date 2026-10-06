@@ -17,8 +17,22 @@ describe("presentReleaseOrderEvidence", () => {
     ]);
     expect(result.productionReleaseRuns.items[0]).toMatchObject({
       id: "release-1",
-      stagingProof: { deploymentRunId: "staging-1" },
-      deploymentRuns: [{ id: "production-1", releaseRunId: "release-1" }],
+      stagingProof: {
+        deploymentRunId: "staging-1",
+        artifactManifestId: "manifest-1",
+        status: "completed",
+        dryRun: false,
+        result: { workloadReady: { status: "passed" } },
+      },
+      deploymentRuns: [
+        {
+          id: "production-1",
+          releaseRunId: "release-1",
+          source: "release_order",
+          targetType: "project_environment",
+          dryRun: false,
+        },
+      ],
       operationApproval: {
         id: "approval-1",
         status: "approved",
@@ -169,6 +183,9 @@ function fixture() {
     releaseRunId: null,
     environmentId: environment.id,
     artifactManifestId: manifest.id,
+    source: "release_order",
+    targetType: "project_environment",
+    dryRun: false,
     status: "completed",
     executorKey: "release-artifact",
     adapterKey: "local-materialize",
@@ -179,7 +196,10 @@ function fixture() {
     startedAt: createdAt,
     finishedAt,
     createdAt,
-    result: undefined as Record<string, unknown> | undefined,
+    result: {
+      workloadReady: { status: "passed" },
+      healthProbe: { status: "passed" },
+    } as Record<string, unknown>,
     projectEnvironment: environment,
     artifactManifest: manifest,
   });

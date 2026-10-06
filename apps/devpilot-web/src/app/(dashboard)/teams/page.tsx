@@ -2,6 +2,7 @@ import { serverRequest } from '@/lib/api-client/server';
 import { redirectOnUnauthorized } from '@/lib/api-client/server-auth-redirect';
 
 import type { Team } from '@/types/api-registry';
+import { toSafeRedirectPath } from '@/lib/auth/redirect-path.utils';
 import { TeamsContent } from './components/TeamsContent';
 
 /** 该页在请求时读取 cookies() 鉴权，必须动态渲染。 */
@@ -16,7 +17,12 @@ export const dynamic = 'force-dynamic';
  * 注意：server 取到空列表时不传 fallback（传 undefined），让客户端 SWR 走正常 loading 流程，
  * 避免空数组被当作「已有数据」而不发起请求。
  */
-export default async function TeamsPage() {
+interface TeamsPageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export default async function TeamsPage({ searchParams }: TeamsPageProps) {
+  const query = await searchParams;
   let initialTeams: Team[] | undefined;
   try {
     const data = await serverRequest<Team[]>('GET:/teams');
@@ -26,5 +32,14 @@ export default async function TeamsPage() {
     console.error('Failed to load teams:', error);
   }
 
-  return <TeamsContent initialTeams={initialTeams} />;
+  const required = query.required === '1';
+  const redirect = Array.isArray(query.redirect) ? query.redirect[0] : query.redirect;
+
+  return (
+    <TeamsContent
+      initialTeams={initialTeams}
+      teamRequired={required}
+      returnTo={toSafeRedirectPath(redirect)}
+    />
+  );
 }

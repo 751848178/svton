@@ -2,6 +2,10 @@ import { BadRequestException } from "@nestjs/common";
 import { normalizeEnvironmentObservabilitySnapshot } from "./environment-observability-snapshot.policy";
 
 describe("normalizeEnvironmentObservabilitySnapshot", () => {
+  it("keeps the persisted empty object as the explicit unconfigured state", () => {
+    expect(normalizeEnvironmentObservabilitySnapshot({})).toEqual({});
+  });
+
   it("accepts only a complete typed provider snapshot", () => {
     expect(normalizeEnvironmentObservabilitySnapshot({
       version: 1,

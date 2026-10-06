@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { DEPLOYMENT_RUN_INCLUDE } from "./deployment-run-include.constants";
 
 /** 精确读取单条 DeploymentRun 详情所需的持久化投影。 */
 @Injectable()
@@ -10,30 +11,7 @@ export class DeploymentRunDetailRepository {
     return this.prisma.deploymentRun.findFirst({
       where: { id, teamId, ...(projectId ? { projectId } : {}) },
       include: {
-        projectEnvironment: {
-          select: { id: true, key: true, name: true, status: true },
-        },
-        application: { select: { id: true, name: true, status: true } },
-        applicationService: {
-          select: {
-            id: true,
-            name: true,
-            kind: true,
-            runtime: true,
-            status: true,
-          },
-        },
-        actor: { select: { id: true, name: true, email: true } },
-        server: { select: { id: true, name: true, host: true } },
-        operationApproval: {
-          select: {
-            id: true,
-            status: true,
-            risk: true,
-            reviewedAt: true,
-            consumedAt: true,
-          },
-        },
+        ...DEPLOYMENT_RUN_INCLUDE,
         releaseRun: {
           select: {
             id: true,
@@ -47,18 +25,6 @@ export class DeploymentRunDetailRepository {
                 consumedAt: true,
               },
             },
-          },
-        },
-        serverExecutionJob: {
-          select: {
-            id: true,
-            status: true,
-            queueMode: true,
-            attempt: true,
-            maxAttempts: true,
-            queuedAt: true,
-            startedAt: true,
-            finishedAt: true,
           },
         },
       },

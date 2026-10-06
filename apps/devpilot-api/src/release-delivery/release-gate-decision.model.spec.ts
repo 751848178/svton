@@ -1,5 +1,9 @@
 import { RELEASE_GATE_DEFINITIONS } from "./release-gate-definition.catalog";
 import { buildReleaseGateDecision } from "./release-gate-decision.model";
+import {
+  releaseFlowProfileFromEnvironment,
+  releaseGateCheckpointPolicy,
+} from "./release-gate-checkpoint.policy";
 import type { PersistedReleaseGateEvaluation } from "./release-gate-decision.types";
 
 describe("release gate checkpoint decision model", () => {
@@ -11,26 +15,34 @@ describe("release gate checkpoint decision model", () => {
   };
 
   it.each([
-    ["build_pre_execution", "build", "commit", 6],
-    ["build_post_execution", "build", "commit", 3],
-    ["staging_pre_execution", "staging", "build", 5],
-    ["production_pre_execution", "production", "deploy", 19],
-    ["production_post_deploy", "production", "promote", 4],
-    ["production_promote", "production", "promote", 7],
-    ["production_promote_pre_route", "production", "promote", 7],
-    ["production_post_route", "production", "promote", 1],
-  ] as const)("selects exact %s gate set", (checkpoint, stage, phase, count) => {
-    const decision = buildReleaseGateDecision({
-      checkpoint,
-      checks: checks(),
-      actionIdentity,
-      now,
-    });
-    expect(decision).toMatchObject({ checkpoint, stage, phase, allowed: true });
-    expect(decision.snapshot).toMatchObject({ version: 4, checkpoint });
-    expect(decision.snapshot.requiredGateIds).toHaveLength(count);
-    expect(decision.snapshot.evaluations).toHaveLength(count);
-  });
+    ["build_pre_execution", "build", "commit", 1],
+    ["build_post_execution", "build", "commit", 0],
+    ["staging_pre_execution", "staging", "build", 2],
+    ["production_pre_execution", "production", "deploy", 3],
+    ["production_post_deploy", "production", "promote", 0],
+    ["production_promote", "production", "promote", 0],
+    ["production_promote_pre_route", "production", "promote", 0],
+    ["production_post_route", "production", "promote", 0],
+  ] as const)(
+    "selects exact %s gate set",
+    (checkpoint, stage, phase, count) => {
+      const decision = buildReleaseGateDecision({
+        checkpoint,
+        checks: checks(),
+        actionIdentity,
+        now,
+      });
+      expect(decision).toMatchObject({
+        checkpoint,
+        stage,
+        phase,
+        allowed: true,
+      });
+      expect(decision.snapshot).toMatchObject({ version: 4, checkpoint });
+      expect(decision.snapshot.requiredGateIds).toHaveLength(count);
+      expect(decision.snapshot.evaluations).toHaveLength(count);
+    },
+  );
 
   it("does not require future build evidence at pre-execution", () => {
     const input = checks();
@@ -56,14 +68,12 @@ describe("release gate checkpoint decision model", () => {
         actionIdentity,
         now,
       }),
-    ).toMatchObject({ allowed: false, blockerGateIds: ["C07", "C09", "C10"] });
+    ).toMatchObject({ allowed: true, blockerGateIds: [] });
   });
 
-  it("fails required unavailable, stale, duplicate, or drifted facts closed", () => {
+  it("fails the required source-resolution fact closed when stale", () => {
     const input = checks();
     input.find((check) => check.id === "C01")!.fresh = false;
-    input.push({ ...input.find((check) => check.id === "C02")! });
-    input.find((check) => check.id === "C03")!.capabilityId = "M15";
     expect(
       buildReleaseGateDecision({
         checkpoint: "build_pre_execution",
@@ -74,17 +84,42 @@ describe("release gate checkpoint decision model", () => {
     ).toMatchObject({
       allowed: false,
       blockerGateIds: ["C01"],
-      integrityErrors: ["C02:duplicate", "C03:definition_drift"],
+      integrityErrors: [],
     });
   });
 
-  it("never accepts generic production deferral", () => {
+  it("retains the complete governed profile for later reactivation", () => {
+    expect(
+      releaseGateCheckpointPolicy("build_pre_execution", "governed_v1")
+        .requiredGateIds,
+    ).toEqual(["C01", "C02", "C03", "C05", "C06", "C08"]);
+    expect(
+      releaseGateCheckpointPolicy("staging_pre_execution", "governed_v1")
+        .requiredGateIds,
+    ).toEqual(["B01", "B02", "B03", "B06", "B09"]);
+  });
+
+  it("keeps the basic profile by default and permits explicit governed recovery", () => {
+    expect(releaseFlowProfileFromEnvironment({})).toBe("basic_v1");
+    expect(
+      releaseFlowProfileFromEnvironment({
+        DEVPILOT_RELEASE_FLOW_PROFILE: "governed_v1",
+      }),
+    ).toBe("governed_v1");
+    expect(() =>
+      releaseFlowProfileFromEnvironment({
+        DEVPILOT_RELEASE_FLOW_PROFILE: "unknown",
+      }),
+    ).toThrow("DEVPILOT_RELEASE_FLOW_PROFILE_INVALID");
+  });
+
+  it("never accepts deferral for a required basic production gate", () => {
     const input = checks();
-    Object.assign(input.find((check) => check.id === "D17")!, {
+    Object.assign(input.find((check) => check.id === "D01")!, {
       status: "unavailable",
       providerKey: null,
       fresh: null,
-      reasonCode: "production_deployment_missing",
+      reasonCode: "environment_target_missing",
     });
     expect(
       buildReleaseGateDecision({
@@ -93,33 +128,7 @@ describe("release gate checkpoint decision model", () => {
         actionIdentity,
         now,
       }),
-    ).toMatchObject({ allowed: false, blockerGateIds: ["D17"] });
-  });
-
-  it("does not let the C03 confirmer execute the same candidate", () => {
-    const input = checks();
-    const c03 = input.find((check) => check.id === "C03")!;
-    c03.status = "manual";
-    c03.persistedStatus = "needs_human";
-    c03.evidenceIdentity = {
-      requiredIndependentApprovals: 1,
-      sourcePolicyRevisionId: "policy-1",
-      sourcePolicySnapshotHash: "policy-hash",
-      sourceCommitSha: "a".repeat(40),
-    };
-    c03.manualApprovals = [approval(c03.evaluationInputHash)];
-    expect(buildReleaseGateDecision({
-      checkpoint: "build_pre_execution",
-      checks: input,
-      actionIdentity: { ...actionIdentity, requesterActorId: "reviewer-1" },
-      now,
-    })).toMatchObject({ allowed: false, manualGateIds: ["C03"] });
-    expect(buildReleaseGateDecision({
-      checkpoint: "build_pre_execution",
-      checks: input,
-      actionIdentity,
-      now,
-    })).toMatchObject({ allowed: true, confirmedManualGateIds: ["C03"] });
+    ).toMatchObject({ allowed: false, blockerGateIds: ["D01"] });
   });
 });
 
@@ -143,20 +152,4 @@ function checks(): PersistedReleaseGateEvaluation[] {
     waiverExpiresAt: null,
     manualApprovals: [],
   }));
-}
-
-function approval(evaluationInputHash: string) {
-  return {
-    id: "approval-1",
-    evaluationInputHash,
-    approvalSubjectHash: "subject-hash",
-    actionInputHash: "action-hash",
-    requesterActorId: "requester-1",
-    reviewerActorId: "reviewer-1",
-    sourcePolicyRevisionId: "policy-1",
-    sourcePolicySnapshotHash: "policy-hash",
-    sourceCommitSha: "a".repeat(40),
-    confirmedAt: "2026-08-05T07:30:00.000Z",
-    expiresAt: "2026-08-06T07:00:00.000Z",
-  };
 }

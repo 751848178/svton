@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { LoadingState } from '@svton/ui';
 import { ErrorBanner } from '@/components/ui';
@@ -11,6 +11,7 @@ import { approvedEnvironmentVersionRun } from '../environment-version-card';
 import { EnvironmentUpgradeDialog } from '../environment-upgrade-dialog';
 import { EnvironmentVersionDetail } from './environment-version-detail';
 import { EnvironmentVersionList } from './environment-version-list';
+import { EnvironmentVersionRecoveryControl } from './environment-version-recovery-control';
 
 export function EnvironmentVersionConfig(props: {
   projectId: string;
@@ -20,9 +21,10 @@ export function EnvironmentVersionConfig(props: {
   const versions = useEnvironmentVersions(props.projectId);
   const [selectedId, setSelectedId] = useState<string>();
   const [switchCandidate, setSwitchCandidate] = useState<EnvironmentVersionCandidate>();
+  const switchRestoreFocusRef = useRef<HTMLButtonElement | null>(null);
   if (versions.loading) return <LoadingState />;
   const environment = versions.environments.find((item) => item.id === props.environment.id);
-  if (versions.error)
+  if (versions.error && !environment)
     return (
       <ErrorBanner
         message={versions.error}
@@ -42,10 +44,26 @@ export function EnvironmentVersionConfig(props: {
     candidates[0];
   return (
     <section className="space-y-5">
-      <div>
-        <h3 className="text-lg font-semibold">{t('versionConfigurationTitle')}</h3>
-        <p className="mt-1 text-sm text-muted-foreground">{t('versionConfigurationDescription')}</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="text-lg font-semibold">{t('versionConfigurationTitle')}</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {t('versionConfigurationDescription')}
+          </p>
+        </div>
+        <EnvironmentVersionRecoveryControl
+          projectId={props.projectId}
+          environment={environment}
+          execute={versions.execute}
+          refresh={versions.load}
+        />
       </div>
+      {versions.error ? (
+        <ErrorBanner
+          message={versions.error}
+          onRetry={versions.load}
+        />
+      ) : null}
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-[minmax(0,1fr)_260px]">
         <EnvironmentVersionList
           environment={environment}
@@ -54,7 +72,10 @@ export function EnvironmentVersionConfig(props: {
           selectedId={selected?.id}
           executing={versions.executing}
           onSelect={(candidate) => setSelectedId(candidate.id)}
-          onSwitch={setSwitchCandidate}
+          onSwitch={(candidate, restoreFocusTarget) => {
+            switchRestoreFocusRef.current = restoreFocusTarget ?? null;
+            setSwitchCandidate(candidate);
+          }}
         />
         <EnvironmentVersionDetail
           candidate={selected}
@@ -66,6 +87,7 @@ export function EnvironmentVersionConfig(props: {
         <EnvironmentUpgradeDialog
           environment={environment}
           candidate={switchCandidate}
+          restoreFocusRef={switchRestoreFocusRef}
           onClose={() => setSwitchCandidate(undefined)}
           onConfirm={async () => {
             const result = await versions.execute(environment.id, {

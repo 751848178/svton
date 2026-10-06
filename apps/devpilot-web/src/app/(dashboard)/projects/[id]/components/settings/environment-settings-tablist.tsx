@@ -1,18 +1,19 @@
 'use client';
 
 import React, { useRef } from 'react';
-import { Cube, Crosshair, Heartbeat, Key, LinkSimple, Lock } from '@phosphor-icons/react';
+import { Crosshair, Database, Key } from '@phosphor-icons/react';
 import { useTranslations } from 'next-intl';
 import type { SettingsEnvTab } from '../../utils/project-route.utils';
 
-const ITEMS: Array<{ key: SettingsEnvTab; labelKey: string }> = [
-  { key: 'versions', labelKey: 'envTabVersions' },
-  { key: 'targets', labelKey: 'envTabTargets' },
-  { key: 'resources', labelKey: 'envTabResources' },
-  { key: 'variables', labelKey: 'envTabVariables' },
-  { key: 'access', labelKey: 'envTabAccess' },
-  { key: 'verification', labelKey: 'envTabVerification' },
-];
+const ITEMS = [
+  { key: 'targets', labelKey: 'envTabTargets', icon: Crosshair },
+  { key: 'resources', labelKey: 'envTabResources', icon: Database },
+  { key: 'variables', labelKey: 'envTabVariables', icon: Key },
+] satisfies Array<{
+  key: SettingsEnvTab;
+  labelKey: string;
+  icon: React.ComponentType<{ size?: number; weight?: 'regular' | 'fill'; className?: string }>;
+}>;
 
 export function EnvironmentSettingsTablist(props: {
   tablistId: string;
@@ -67,9 +68,9 @@ export function EnvironmentSettingsTablist(props: {
         role="tablist"
         aria-orientation="vertical"
         aria-label={t('envTabNavLabel')}
-        className="hidden gap-1 border-r pr-5 lg:flex lg:flex-col"
+        className="hidden gap-1 lg:flex lg:flex-col"
       >
-        {ITEMS.map(({ key, labelKey }, index) => (
+        {ITEMS.map(({ key, labelKey, icon: Icon }, index) => (
           <button
             key={key}
             ref={(node) => {
@@ -85,33 +86,19 @@ export function EnvironmentSettingsTablist(props: {
             onKeyDown={(event) => onKeyDown(event, index)}
             className={
               props.selected === key
-                ? 'flex min-h-11 min-w-40 items-center gap-3 rounded-md border-l-2 border-primary bg-primary/10 px-3 text-left text-sm font-medium text-primary'
-                : 'flex min-h-11 min-w-40 items-center gap-3 rounded-md border-l-2 border-transparent px-3 text-left text-sm text-muted-foreground hover:bg-accent hover:text-foreground'
+                ? 'flex min-h-[39px] min-w-40 items-center gap-2.5 rounded-lg bg-primary/10 px-3 text-left text-xs font-semibold text-primary'
+                : 'flex min-h-[39px] min-w-40 items-center gap-2.5 rounded-lg px-3 text-left text-xs text-foreground hover:bg-muted/50'
             }
           >
-            <TabIcon tab={key} />
+            <Icon
+              size={16}
+              weight={props.selected === key ? 'fill' : 'regular'}
+              className="shrink-0"
+            />
             {t(labelKey)}
           </button>
         ))}
       </div>
     </>
   );
-}
-
-function TabIcon({ tab }: { tab: SettingsEnvTab }) {
-  const props = { size: 18, 'aria-hidden': true } as const;
-  switch (tab) {
-    case 'versions':
-      return <Cube {...props} />;
-    case 'targets':
-      return <Crosshair {...props} />;
-    case 'resources':
-      return <LinkSimple {...props} />;
-    case 'variables':
-      return <Key {...props} />;
-    case 'access':
-      return <Lock {...props} />;
-    case 'verification':
-      return <Heartbeat {...props} />;
-  }
 }

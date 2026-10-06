@@ -46,6 +46,10 @@ export type ReleaseGateDecision = {
   id: string;
   stage: ReleaseGateDecisionStage;
   phase: Exclude<ReleaseGatePhase, 'promote'>;
+  checkpoint?: string;
+  approvalSubjectHash?: string;
+  actionInputHash?: string;
+  requesterActorId?: string;
   allowed: boolean;
   blockerGateIds: string[];
   manualGateIds: string[];
@@ -56,6 +60,22 @@ export type ReleaseGateDecision = {
   integrityErrors: string[];
   inputHash: string;
   decidedAt: string;
+  evaluations?: Array<{
+    gateId: string;
+    evaluationId: string;
+    evaluationInputHash: string;
+    status: ReleaseGateStatus;
+    providerKey: string | null;
+    reasonCode: string;
+    reason: LocalizedGateText;
+    evidenceRef: string | null;
+    checkedAt: string | null;
+    expiresAt: string | null;
+    fresh: boolean | null;
+    waiver: unknown;
+    waiverExpiresAt: string | null;
+    manualApprovals: unknown[];
+  }>;
 };
 
 export type ReleaseDeploymentTargetReadiness = {

@@ -95,11 +95,10 @@ function cardBody(
 ) {
   return (
     <>
+      {/* 复核修 10：角色与健康度轻量化为文字/色点，不再叠两枚胶囊标签。 */}
       <span className="flex items-start justify-between gap-3">
         <span className="font-semibold">{card.name}</span>
-        <span className="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">
-          {roleLabel(card.role, t)}
-        </span>
+        <span className="text-xs text-muted-foreground">{roleLabel(card.role, t)}</span>
       </span>
       <span className="mt-2 block text-sm text-muted-foreground">
         {card.currentVersion
@@ -107,10 +106,14 @@ function cardBody(
           : t('publishEnvironmentNoVersion')}
       </span>
       <span
-        className={`mt-2 inline-block rounded-full px-2 py-1 text-xs ${
-          card.healthy ? 'bg-emerald-500/10 text-emerald-700' : 'bg-amber-500/10 text-amber-700'
+        className={`mt-2 inline-flex items-center gap-1.5 text-xs ${
+          card.healthy ? 'text-emerald-700' : 'text-amber-700'
         }`}
       >
+        <span
+          aria-hidden="true"
+          className={`size-1.5 rounded-full ${card.healthy ? 'bg-emerald-500' : 'bg-amber-500'}`}
+        />
         {card.healthy ? t('publishEnvironmentHealthy') : t('publishEnvironmentUnhealthy')}
       </span>
       {!card.selectable ? (

@@ -1,5 +1,8 @@
 import { RELEASE_GATE_DEFINITIONS } from "./release-gate-definition.catalog";
-import { releaseGateCheckpointPolicy } from "./release-gate-checkpoint.policy";
+import {
+  releaseGateCheckpointPolicy,
+  type ReleaseFlowProfile,
+} from "./release-gate-checkpoint.policy";
 import type { ReleaseGateEvaluation } from "./release-gate-catalog.types";
 import type { ReleaseGateActionIdentity } from "./release-gate-action-identity.policy";
 import type {
@@ -12,8 +15,9 @@ export function buildReleaseGatePreviewDecision(input: {
   checks: ReleaseGateEvaluation[];
   actionIdentity: ReleaseGateActionIdentity;
   now?: Date;
+  profile?: ReleaseFlowProfile;
 }): ReleaseGatePreviewDecision {
-  const policy = releaseGateCheckpointPolicy(input.checkpoint);
+  const policy = releaseGateCheckpointPolicy(input.checkpoint, input.profile);
   const required = new Set(policy.requiredGateIds);
   const definitions = RELEASE_GATE_DEFINITIONS.filter((item) =>
     required.has(item.id),

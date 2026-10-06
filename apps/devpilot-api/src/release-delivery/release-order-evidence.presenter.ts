@@ -14,6 +14,7 @@ import {
 import { presentLegacyPromotionRecovery } from "./production-promotion-legacy-recovery.presenter";
 import { presentPromotionBlocker } from "./production-promotion-blocker.presenter";
 import { presentReleaseAcceptanceMode } from "./release-production-acceptance.presenter";
+import { presentReleaseStagingProof } from "./release-order-evidence-proof.presenter";
 
 export function presentReleaseOrderEvidence(input: ReleaseOrderEvidenceRecord) {
   const buildRuns = input.buildRuns.map((run) => {
@@ -47,23 +48,26 @@ export function presentReleaseOrderEvidence(input: ReleaseOrderEvidenceRecord) {
       acceptanceMode: presentReleaseAcceptanceMode(run),
       legacyPromotionRecovery: presentLegacyPromotionRecovery(
         (run.productionPromotionCommands ?? []).filter(
-          (command) => command.legacyReconcileRequired && command.status === "running",
+          (command) =>
+            command.legacyReconcileRequired && command.status === "running",
         ),
       ),
       promotionBlocker: presentPromotionBlocker(
-        run.status === "awaiting_validation" && run.deploymentRuns.some(
-          (deployment) => deployment.status === "awaiting_validation",
-        ) ? (run.productionPromotionCommands ?? []).filter(
-            (command) => command.status === "blocked" &&
-              command.errorCode === "RELEASE_GATE_BLOCKED",
-          ).slice(0, 1) : [],
+        run.status === "awaiting_validation" &&
+          run.deploymentRuns.some(
+            (deployment) => deployment.status === "awaiting_validation",
+          )
+          ? (run.productionPromotionCommands ?? [])
+              .filter(
+                (command) =>
+                  command.status === "blocked" &&
+                  command.errorCode === "RELEASE_GATE_BLOCKED",
+              )
+              .slice(0, 1)
+          : [],
         run.gateEvaluations ?? [],
       ),
-      stagingProof: {
-        deploymentRunId: run.stagingProof.id,
-        environmentId: run.stagingProof.environmentId,
-        finishedAt: run.stagingProof.finishedAt,
-      },
+      stagingProof: presentReleaseStagingProof(run.stagingProof),
       deploymentRuns,
     };
   });
@@ -113,6 +117,9 @@ function presentDeployment(
     releaseRunId: run.releaseRunId,
     environmentId: run.environmentId,
     artifactManifestId: run.artifactManifestId,
+    source: run.source,
+    targetType: run.targetType,
+    dryRun: run.dryRun,
     status: run.status,
     executorKey: run.executorKey,
     adapterKey: run.adapterKey,

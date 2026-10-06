@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Card } from '@svton/ui';
+import { Button } from '@svton/ui';
 import { Field, Input, Select } from '@/components/ui';
 import type { RepositoryAnalysisHook } from '../hooks/use-repository-analysis.hooks';
 import type { ConnectRepositoryInput } from '../types/repository-analysis.types';
@@ -75,7 +75,7 @@ export function RepositoryConnectCard({
   };
 
   return (
-    <Card className="space-y-4">
+    <section className="space-y-4">
       <div>
         <h2 className="text-base font-semibold">连接只读代码仓库</h2>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -124,19 +124,20 @@ export function RepositoryConnectCard({
         />
       ) : null}
       <Button
+        className="min-h-11 sm:min-h-9"
         onClick={() => void submit()}
         disabled={!repositoryUrl.trim() || analysis.mutating}
       >
         {analysis.mutating ? '正在验证…' : '连接并解析仓库'}
       </Button>
-    </Card>
+    </section>
   );
 }
 
 function ConnectionSnapshot({ analysis }: { analysis: RepositoryAnalysisHook }) {
   const item = analysis.state.connection!;
   return (
-    <div className="rounded-md border bg-muted/30 p-3 text-sm">
+    <div className="border-y py-3 text-sm">
       <div className="flex flex-wrap justify-between gap-2">
         <span className="font-medium">
           {item.status === 'connected' ? '已验证连接' : '连接失败'}

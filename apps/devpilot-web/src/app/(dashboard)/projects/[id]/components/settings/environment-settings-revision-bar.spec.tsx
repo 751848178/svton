@@ -40,11 +40,11 @@ function revision(overrides: Partial<EnvironmentConfigRevision> = {}): Environme
 describe('EnvironmentSettingsRevisionBar (SET-16/SET-17)', () => {
   let container: HTMLDivElement;
   let root: Root;
-  let onSave: ReturnType<typeof vi.fn>;
+  let onReview: ReturnType<typeof vi.fn>;
   beforeEach(() => {
     container = document.createElement('div');
     root = createRoot(container);
-    onSave = vi.fn();
+    onReview = vi.fn();
   });
   afterEach(async () => act(async () => root.unmount()));
 
@@ -52,16 +52,13 @@ describe('EnvironmentSettingsRevisionBar (SET-16/SET-17)', () => {
     return act(async () => {
       root.render(
         <EnvironmentSettingsRevisionBar
-          inputId="summary"
-          summary=""
           revisionCount={1}
           revisions={[revision()]}
           saving={false}
           loading={false}
           invalid={false}
           noChanges={false}
-          onSummaryChange={() => undefined}
-          onSave={onSave}
+          onReview={onReview}
           {...overrides}
         />,
       );
@@ -71,9 +68,10 @@ describe('EnvironmentSettingsRevisionBar (SET-16/SET-17)', () => {
   it('SET-16: disables save with an explicit no-change hint when the draft is clean', async () => {
     await renderBar({ noChanges: true });
     const save = [...container.querySelectorAll('button')].find((b) =>
-      b.textContent?.includes('configCreateRevision'),
+      b.textContent?.includes('configReviewRevision'),
     )!;
     expect(save.disabled).toBe(true);
+    expect(save.className).toContain('min-h-11');
     expect(save.getAttribute('title')).toContain('configRevisionNoChanges');
     expect(container.textContent).toContain('configRevisionNoChanges');
   });
@@ -81,7 +79,7 @@ describe('EnvironmentSettingsRevisionBar (SET-16/SET-17)', () => {
   it('SET-16: keeps save enabled when there are pending changes', async () => {
     await renderBar({ noChanges: false });
     const save = [...container.querySelectorAll('button')].find((b) =>
-      b.textContent?.includes('configCreateRevision'),
+      b.textContent?.includes('configReviewRevision'),
     )!;
     expect(save.disabled).toBe(false);
     expect(container.textContent).not.toContain('configRevisionNoChanges');
@@ -89,12 +87,16 @@ describe('EnvironmentSettingsRevisionBar (SET-16/SET-17)', () => {
 
   it('SET-17: the revision count toggles a revision list with summary and current flag', async () => {
     await renderBar({
-      revisions: [revision(), revision({ id: 'rev-2', revision: 2, current: false, changeSummary: null })],
+      revisions: [
+        revision(),
+        revision({ id: 'rev-2', revision: 2, current: false, changeSummary: null }),
+      ],
     });
     expect(container.querySelector('ul')).toBeNull();
     const countButton = [...container.querySelectorAll('button')].find((b) =>
       b.textContent?.includes('configRevisionHistoryCount'),
     )!;
+    expect(countButton.className).toContain('min-h-11');
     await act(async () => countButton.click());
     const list = container.querySelector('ul')!;
     expect(list).not.toBeNull();

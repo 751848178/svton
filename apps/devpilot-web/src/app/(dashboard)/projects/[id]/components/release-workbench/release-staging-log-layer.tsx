@@ -9,6 +9,8 @@ import type { ReleaseBuildsController } from '../../hooks/use-release-builds';
 import type { ReleaseStagingDeploymentsController } from '../../hooks/use-release-staging-deployments';
 import { stagingBuildForRun } from '../../utils/release-staging-view.model';
 import { ReleaseStagingLogDrawer } from '../release-staging-log-drawer';
+import { ReleaseBasicStagingLogDrawer } from './release-basic-staging-log-drawer';
+import { ReleaseStagingValidationDrawer } from './release-staging-validation-drawer';
 
 interface Props {
   projectId: string;
@@ -16,6 +18,8 @@ interface Props {
   deployments: ReleaseStagingDeploymentsController;
   /** 聚焦的 DeploymentRun；空表示图层关闭。 */
   deploymentRunId?: string;
+  view?: 'logs' | 'validation';
+  basic?: boolean;
   onClose: () => void;
 }
 
@@ -38,10 +42,31 @@ export function ReleaseStagingLogLayer(props: Props) {
       return;
     normalized.current = deploymentRunId;
     onClose();
-  }, [deploymentRunId, deployments.error, deployments.loadedSuccessfully, deployments.loading, onClose, run]);
+  }, [
+    deploymentRunId,
+    deployments.error,
+    deployments.loadedSuccessfully,
+    deployments.loading,
+    onClose,
+    run,
+  ]);
 
+  const Drawer =
+    props.view === 'validation' ? ReleaseStagingValidationDrawer : ReleaseStagingLogDrawer;
+  if (props.basic) {
+    return (
+      <ReleaseBasicStagingLogDrawer
+        run={run}
+        requestedRunId={deploymentRunId}
+        loading={Boolean(deploymentRunId) && deployments.loading}
+        error={deployments.error}
+        onRetry={deployments.load}
+        onClose={onClose}
+      />
+    );
+  }
   return (
-    <ReleaseStagingLogDrawer
+    <Drawer
       projectId={props.projectId}
       run={run}
       build={build}

@@ -81,6 +81,7 @@ export function ReleaseGateCatalogView({
         dialogId={dialogId}
         open={dialogOpen}
         filterCapabilityIds={filterCapabilityIds}
+        onFilterCapabilityChange={setFilterCapabilityIds}
         confirmingGateId={confirmingGateId}
         confirmationError={confirmationError}
         onConfirmManual={confirmManual}

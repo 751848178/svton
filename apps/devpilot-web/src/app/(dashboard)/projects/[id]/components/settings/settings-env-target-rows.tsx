@@ -1,7 +1,7 @@
 import React from 'react';
-import Link from 'next/link';
 import type { useTranslations } from 'next-intl';
 import type { EnvironmentDeploymentTargetBinding } from '../../types';
+import { PROJECT_COMPACT_ACTION_CLASS } from '../project-workbench-surface';
 
 type Translator = ReturnType<typeof useTranslations<'projects'>>;
 
@@ -10,10 +10,8 @@ export function EnvironmentTargetBindingRow(props: {
   isCurrent: boolean;
   currentRoot: string | null;
   targetReady: boolean;
-  serverHref: string;
   t: Translator;
   onAdjust: () => void;
-  onUnbind: () => void;
 }) {
   const { binding, isCurrent, currentRoot, t } = props;
   const path = currentRoot || bindingPath(binding.metadata);
@@ -37,62 +35,28 @@ export function EnvironmentTargetBindingRow(props: {
             {binding.server.host}
           </span>
         </td>
-        <td className="py-2 pr-3 text-xs">
-          {/* SET-10：Provider 枚举走本地化标签，raw key 折叠进 title。 */}
-          {binding.providerKey ? (
-            <span title={binding.providerKey}>
-              {providerLabel(t, binding.providerKey)}
-            </span>
-          ) : (
-            t('envTargetMissingProvider')
-          )}
-        </td>
         <td className="py-2 pr-3 font-mono text-xs text-muted-foreground">
           {path || t('envTargetMissingPath')}
         </td>
         <td className="py-2 pr-3 text-xs">
-          <span className={binding.server.status === 'online' ? 'text-green-700' : 'text-red-600'}>
-            {t(
-              binding.server.status === 'online'
-                ? 'envTargetStatusOnline'
-                : 'envTargetStatusOffline',
-            )}
+          <span className={statusClass(binding, isCurrent, props.targetReady)}>
+            {statusLabel(binding, isCurrent, props.targetReady, t)}
           </span>
         </td>
-        <td className="py-2 pr-3 text-xs">
-          {isCurrent
-            ? t(props.targetReady ? 'envTargetCredentialReady' : 'envTargetCredentialMissing')
-            : t('envTargetCredentialUnchecked')}
-        </td>
         <td className="py-2 text-right text-xs">
-          {binding.server.status !== 'online' ? (
-            <Link
-              href={props.serverHref}
-              className="min-h-11 text-primary hover:underline"
-            >
-              {t('envTargetCheckServer')}
-            </Link>
-          ) : null}
           <button
             type="button"
-            className={`${binding.server.status !== 'online' ? 'ml-3 ' : ''}min-h-11 text-primary hover:underline`}
+            className={`${PROJECT_COMPACT_ACTION_CLASS} text-primary hover:underline`}
             onClick={props.onAdjust}
           >
             {t(issues.length > 0 ? 'envTargetComplete' : 'envTargetAdjust')}
-          </button>
-          <button
-            type="button"
-            className="ml-3 min-h-11 text-red-600 hover:underline"
-            onClick={props.onUnbind}
-          >
-            {t('envUnbindServer')}
           </button>
         </td>
       </tr>
       {issues.length > 0 ? (
         <tr className="border-b bg-amber-500/5">
           <td
-            colSpan={6}
+            colSpan={4}
             className="px-3 py-2 text-xs text-amber-800"
           >
             {t('envTargetIssueSummary', {
@@ -132,34 +96,22 @@ function bindingPath(metadata: Record<string, unknown> | null) {
       : '';
 }
 
-export function EnvironmentTargetSharedScope(props: {
-  bindings: EnvironmentDeploymentTargetBinding[];
-  environmentKeys: Record<string, string>;
-  t: Translator;
-}) {
-  const shared = props.bindings.filter((binding) => binding.sharedEnvironmentIds.length > 0);
-  return (
-    <p className="text-[11px] text-muted-foreground">
-      {shared.length === 0
-        ? props.t('envTargetIsolationDefault')
-        : shared
-            .map((binding) => {
-              const keys = binding.sharedEnvironmentIds
-                .map((id) => props.environmentKeys[id] ?? id)
-                .join(', ');
-              return `${binding.server.name} → ${keys}`;
-            })
-            .join('；')}
-    </p>
-  );
+function statusLabel(
+  binding: EnvironmentDeploymentTargetBinding,
+  isCurrent: boolean,
+  targetReady: boolean,
+  t: Translator,
+) {
+  if (binding.server.status !== 'online') return t('envTargetStatusOffline');
+  if (isCurrent && targetReady) return t('envTargetStatusReady');
+  return t('envTargetStatusAttention');
 }
 
-/** SET-10：部署 Provider key → 本地化标签（与绑定弹窗选项同源）。 */
-function providerLabel(
-  t: (key: string) => string,
-  providerKey: string,
-): string {
-  if (providerKey === 'ssh-v1') return t('envTargetProviderSshV1');
-  if (providerKey === 'local-filesystem-v1') return t('envTargetProviderLocalFilesystemV1');
-  return providerKey;
+function statusClass(
+  binding: EnvironmentDeploymentTargetBinding,
+  isCurrent: boolean,
+  targetReady: boolean,
+) {
+  if (binding.server.status !== 'online') return 'text-red-600';
+  return isCurrent && targetReady ? 'text-green-700' : 'text-amber-700';
 }

@@ -90,7 +90,7 @@ export class CreateEnvironmentConfigRevisionDto {
 
   @IsOptional()
   @IsString()
-  expectedCurrentRevisionId?: string;
+  expectedCurrentRevisionId?: string | null;
 
   @IsOptional()
   @IsString()

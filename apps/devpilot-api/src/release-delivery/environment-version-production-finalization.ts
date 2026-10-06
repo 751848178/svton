@@ -12,6 +12,7 @@ import {
   type FrozenProductionCandidate,
 } from "./production-promotion-candidate.policy";
 import type { ProductionPromotionAwaitingRepository } from "./production-promotion-awaiting.repository";
+import { productionPromotionRequired } from "./release-gate-checkpoint.policy";
 
 export interface EnvironmentVersionFinalizationDependencies {
   completion: EnvironmentVersionCompletionRepository;
@@ -34,6 +35,19 @@ export async function finalizeDeployedEnvironment(
     });
     const reference = gateDecisionReference(postDecision);
     if (!reference) throw new ConflictException("Production 缺少发布后门禁决定");
+    if (!productionPromotionRequired()) {
+      return deps.completion.complete({
+        ...completionIdentity(context),
+        status: "completed",
+        logs,
+        result: {
+          ...deploymentEvidence,
+          releaseFlowProfile: "basic_v1",
+          promotionStatus: "not_required",
+        },
+        gateDecision: reference,
+      });
+    }
     const run = await deps.promotionAwaiting.wait({
       candidate,
       actorId: context.input.actorId,

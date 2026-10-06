@@ -97,7 +97,9 @@ describe("project delivery summary presenter", () => {
     const record = projectDeliverySummaryRecord();
     record.intakeFinalizations[0].teamId = "team-other";
 
-    expect(presentProjectDeliverySummary(record, "actor-1", "ssh-v1").intake).toEqual({
+    expect(
+      presentProjectDeliverySummary(record, "actor-1", "ssh-v1").intake,
+    ).toEqual({
       projectType: null,
       architecture: null,
       componentCount: null,
@@ -108,24 +110,33 @@ describe("project delivery summary presenter", () => {
     const record = projectDeliverySummaryRecord();
     record.environments[0].applicationServices[0].releaseComponentKey = null;
     const result = presentProjectDeliverySummary(record, "actor-1", "ssh-v1");
-    expect(result.checkpoints.find((item) => item.id === "services")).toMatchObject({
+    expect(
+      result.checkpoints.find((item) => item.id === "services"),
+    ).toMatchObject({
       status: "action_required",
       reasonCodes: ["legacy_component_identity_unresolved"],
-      action: { href: "/projects/project-1/settings?section=repository" },
+      action: { href: "/projects/project-1?view=components" },
     });
     expect(result.baselines).toMatchObject({
-      staging: { ready: false }, production: { ready: false },
+      staging: { ready: false },
+      production: { ready: false },
     });
   });
 
   it("uses exact provider readiness and environment settings deep links", () => {
     const record = projectDeliverySummaryRecord();
     record.environments[1].serverBindings[0].metadata = {
-      releaseDeployment: { providerKey: "local-filesystem-v1", targetRef: "local" },
+      releaseDeployment: {
+        providerKey: "local-filesystem-v1",
+        targetRef: "local",
+      },
     };
     const result = presentProjectDeliverySummary(record, "actor-1", "ssh-v1");
-    expect(result.checkpoints.find((item) =>
-      item.id === "targets" && item.scope === "production")).toMatchObject({
+    expect(
+      result.checkpoints.find(
+        (item) => item.id === "targets" && item.scope === "production",
+      ),
+    ).toMatchObject({
       status: "blocked",
       reasonCodes: ["PROVIDER_MISMATCH"],
       action: {
@@ -141,26 +152,33 @@ describe("project delivery summary presenter", () => {
     }> = [
       {
         tab: "variables",
-        mutate: (record) => { record.environments[1].currentConfigRevision = null; },
+        mutate: (record) => {
+          record.environments[1].currentConfigRevision = null;
+        },
       },
       {
         tab: "resources",
         mutate: (record) => {
-          record.environments[1].currentConfigRevision!.resourceReferences = [{
-            id: "missing-resource",
-            kind: "managed_resource",
-            sharedEnvironmentIds: ["env-production"],
-          }];
+          record.environments[1].currentConfigRevision!.resourceReferences = [
+            {
+              id: "missing-resource",
+              kind: "managed_resource",
+              sharedEnvironmentIds: ["env-production"],
+            },
+          ];
         },
       },
       {
         tab: "routes",
-        mutate: (record) => { record.environments[1].applicationServices[0].ports = [4000]; },
+        mutate: (record) => {
+          record.environments[1].applicationServices[0].ports = [4000];
+        },
       },
       {
         tab: "protection",
         mutate: (record) => {
-          record.environments[1].currentConfigRevision!.environmentId = "env-staging";
+          record.environments[1].currentConfigRevision!.environmentId =
+            "env-staging";
         },
       },
     ];
@@ -169,8 +187,11 @@ describe("project delivery summary presenter", () => {
       value.mutate(record);
       const result = presentProjectDeliverySummary(record, "actor-1", "ssh-v1");
       const checkpointId = value.tab === "routes" ? "routes" : "config";
-      expect(result.checkpoints.find((item) =>
-        item.id === checkpointId && item.scope === "production")?.action?.href).toBe(
+      expect(
+        result.checkpoints.find(
+          (item) => item.id === checkpointId && item.scope === "production",
+        )?.action?.href,
+      ).toBe(
         `/projects/project-1/settings?section=environments&env=production&envTab=${value.tab}`,
       );
     }
@@ -184,11 +205,12 @@ describe("project delivery summary presenter", () => {
       kind: "open_release",
       href: "/projects/project-1",
     });
-    expect(result.checkpoints.find((item) => item.id === "release")?.action).toEqual(
-      result.nextAction,
-    );
+    expect(
+      result.checkpoints.find((item) => item.id === "release")?.action,
+    ).toEqual(result.nextAction);
     expect(result.baselines).toMatchObject({
-      staging: { ready: true }, production: { ready: false },
+      staging: { ready: true },
+      production: { ready: false },
     });
   });
 
@@ -196,16 +218,19 @@ describe("project delivery summary presenter", () => {
     const record = projectDeliverySummaryRecord();
     const production = record.environments[1];
     production.currentConfigRevision!.snapshotHash = "0".repeat(64);
-    const entries = (production.currentConfigRevision!.routeSnapshot as any).entries;
+    const entries = (production.currentConfigRevision!.routeSnapshot as any)
+      .entries;
     entries[0].port = 9999;
     const result = presentProjectDeliverySummary(record, "actor-1", "ssh-v1");
-    expect(result.checkpoints.find((item) =>
-      item.id === "config" && item.scope === "production")?.reasonCodes).toEqual([
-      "config_revision_hash_invalid",
-    ]);
-    expect(result.checkpoints.find((item) =>
-      item.id === "routes" && item.scope === "production")?.reasonCodes).toEqual([
-      "route_service_port_invalid",
-    ]);
+    expect(
+      result.checkpoints.find(
+        (item) => item.id === "config" && item.scope === "production",
+      )?.reasonCodes,
+    ).toEqual(["config_revision_hash_invalid"]);
+    expect(
+      result.checkpoints.find(
+        (item) => item.id === "routes" && item.scope === "production",
+      )?.reasonCodes,
+    ).toEqual(["route_service_port_invalid"]);
   });
 });

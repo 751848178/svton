@@ -5,18 +5,9 @@ import { useTranslations } from 'next-intl';
 import { EmptyState } from '@svton/ui';
 import { StatusTag } from '@/components/ui';
 import { PanelGroup } from './panel-group';
+import { getServiceStatusLabelKey } from '../utils/service-status.model';
 import type { useProjectDetail } from '../hooks/use-project-detail';
 type DetailHook = ReturnType<typeof useProjectDetail>;
-
-/** 服务状态值 → 本地化标签 key（避免 StatusTag 回退显示英文原值）。 */
-function getServiceStatusLabelKey(status: string): string {
-  const s = status.toLowerCase();
-  if (s === 'active') return 'serviceStatusActive';
-  if (s === 'inactive') return 'serviceStatusInactive';
-  if (s === 'online') return 'serviceStatusOnline';
-  if (s === 'offline') return 'serviceStatusOffline';
-  return 'serviceStatusUnknown';
-}
 
 export function ApplicationsPanel({ detail }: { detail: DetailHook }) {
   const t = useTranslations('projects');

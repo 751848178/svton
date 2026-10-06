@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { ProjectDeliveryContent } from './project-delivery-content';
 
+vi.mock('next-intl', () => ({ useTranslations: () => (key: string) => key }));
 vi.mock('./release-orders-panel', () => ({ ReleaseOrdersPanel: () => <div>orders-panel</div> }));
 
 describe('ProjectDeliveryContent', () => {

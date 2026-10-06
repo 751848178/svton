@@ -6,6 +6,7 @@ import {
   buildReleaseWorkbenchGateSummary,
   latestReleaseManifest,
   releaseWorkbenchDecisionStep,
+  releaseWorkbenchShowsDecision,
 } from './release-workbench-summary.model';
 
 describe('release workbench summary model', () => {
@@ -107,6 +108,15 @@ describe('release workbench summary model', () => {
         lifecycle: { phase: 'build', failureKind: undefined },
       } as ReleaseOrderDetail),
     ).toBe('staging');
+  });
+
+  it('removes the current-decision alert after independent completion evidence succeeds', () => {
+    expect(
+      releaseWorkbenchShowsDecision({ lifecycle: { status: 'succeeded' } } as ReleaseOrderDetail),
+    ).toBe(false);
+    expect(
+      releaseWorkbenchShowsDecision({ lifecycle: { status: 'failed' } } as ReleaseOrderDetail),
+    ).toBe(true);
   });
 });
 

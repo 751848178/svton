@@ -29,7 +29,7 @@ interface Props {
 export function ReleaseRoundPanel(props: Props) {
   return (
     <aside
-      className="min-w-0 overflow-hidden border-t border-border xl:sticky xl:top-4 xl:border-l xl:border-t-0"
+      className="min-w-0 divide-y divide-border overflow-hidden border-t border-border xl:sticky xl:top-4 xl:border-l xl:border-t-0"
       aria-label="release-round-panel"
     >
       <ReleaseRoundBuildCard

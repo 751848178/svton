@@ -16,6 +16,7 @@ for (const helper of [
   "parity-route-control-http.mjs",
   "parity-route-control-policy.mjs",
   "parity-route-control-state-store.mjs",
+  "parity-route-control-target.mjs",
   "parity-route-control-upstream.mjs",
 ]) {
   assert.match(provider, new RegExp(`\\./lib/${helper}`));

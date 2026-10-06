@@ -5,6 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ReleaseOrderCreateModal } from './release-order-create-modal';
 import { RELEASE_VERSION_INPUT_PATTERN } from '../utils/release-version-display.model';
+import type { ReleaseOrdersHook } from '../hooks/use-release-orders';
 
 vi.mock('next-intl', () => ({ useTranslations: () => (key: string) => key }));
 
@@ -21,19 +22,19 @@ vi.mock('@/components/ui', () => ({
   }) =>
     open ? (
       <div role="dialog">
-        <button type="button" data-testid="modal-shell-close" onClick={onClose}>
+        <button
+          type="button"
+          data-testid="modal-shell-close"
+          onClick={onClose}
+        >
           shell-close
         </button>
         {children}
       </div>
     ) : null,
   Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
-  Textarea: (props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => (
-    <textarea {...props} />
-  ),
-  Button: (props: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
-    <button {...props} />
-  ),
+  Textarea: (props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => <textarea {...props} />,
+  Button: (props: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props} />,
 }));
 
 function buildOrders(overrides: Record<string, unknown> = {}) {
@@ -42,7 +43,7 @@ function buildOrders(overrides: Record<string, unknown> = {}) {
     creating: false,
     createError: '',
     ...overrides,
-  } as never;
+  } as unknown as ReleaseOrdersHook;
 }
 
 describe('ReleaseOrderCreateModal', () => {
@@ -56,10 +57,14 @@ describe('ReleaseOrderCreateModal', () => {
   });
   afterEach(async () => act(async () => root.unmount()));
 
-  function render(orders?: never) {
+  function render(orders?: ReleaseOrdersHook) {
     return act(async () => {
       root.render(
-        <ReleaseOrderCreateModal open onClose={onClose} orders={orders ?? buildOrders()} />,
+        <ReleaseOrderCreateModal
+          open
+          onClose={onClose}
+          orders={orders ?? buildOrders()}
+        />,
       );
     });
   }
@@ -79,8 +84,10 @@ describe('ReleaseOrderCreateModal', () => {
   });
 
   function setInputValue(input: HTMLInputElement, value: string) {
-    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!
-      .set!;
+    const setter = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      'value',
+    )!.set!;
     setter.call(input, value);
     input.dispatchEvent(new Event('input', { bubbles: true }));
   }
@@ -102,7 +109,7 @@ describe('ReleaseOrderCreateModal', () => {
       b.textContent?.includes('createReleaseOrder'),
     );
     expect(submit?.disabled).toBe(true);
-    expect(container.textContent).toContain('releaseNameRequiredHint');
+    expect(container.textContent).toContain('releaseVersionRequiredHint');
   });
 
   it('WIZ-3: a create failure renders the error inside the dialog', async () => {
@@ -111,11 +118,23 @@ describe('ReleaseOrderCreateModal', () => {
     expect(container.textContent).toContain('createReleaseOrderError');
   });
 
+  it('disables the submit action while a create request is in flight', async () => {
+    const orders = buildOrders();
+    await render(orders);
+    const versionInput = container.querySelector<HTMLInputElement>('input')!;
+    await act(async () => setInputValue(versionInput, '2.4.1'));
+    const submit = [...container.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('createReleaseOrder'),
+    )!;
+    expect(submit.disabled).toBe(false);
+
+    await render(buildOrders({ creating: true }));
+    expect(submit.disabled).toBe(true);
+  });
+
   it('WIZ-5: cancel clears the staged inputs before closing', async () => {
     await render();
-    const nameInput = container.querySelector<HTMLInputElement>('input[required]');
     const versionInput = container.querySelector<HTMLInputElement>('input[pattern]');
-    await act(async () => setInputValue(nameInput!, 'walkthrough draft'));
     await act(async () => setInputValue(versionInput!, '99.0.0'));
     const cancelButton = [...container.querySelectorAll('button')].find((b) =>
       b.textContent?.includes('cancel'),
@@ -124,7 +143,22 @@ describe('ReleaseOrderCreateModal', () => {
       cancelButton!.click();
     });
     expect(onClose).toHaveBeenCalledTimes(1);
-    expect(nameInput?.value).toBe('');
     expect(versionInput?.value).toBe('');
+  });
+
+  it('creates the minimum contract by deriving the internal name from the version', async () => {
+    const orders = buildOrders({ create: vi.fn().mockResolvedValue({ id: 'order-1' }) });
+    await render(orders);
+    const versionInput = container.querySelector<HTMLInputElement>('input[pattern]')!;
+    await act(async () => setInputValue(versionInput, '2.4.1'));
+    await act(async () => {
+      container
+        .querySelector('form')!
+        .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    });
+    expect(orders.create).toHaveBeenCalledWith({
+      releaseName: '2.4.1',
+      releaseVersion: '2.4.1',
+    });
   });
 });

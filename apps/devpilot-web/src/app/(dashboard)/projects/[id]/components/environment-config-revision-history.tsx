@@ -28,25 +28,31 @@ export function EnvironmentConfigRevisionHistory({
 
   return (
     <div className="space-y-1">
-      <div className="text-xs font-medium text-muted-foreground">{t('configRevisionHistoryTitle')}</div>
-      <ul className="space-y-1">
+      <div className="text-xs font-medium text-muted-foreground">
+        {t('configRevisionHistoryTitle')}
+      </div>
+      <ul className="divide-y border-y">
         {revisions.slice(0, 20).map((revision) => (
           <li
             key={revision.id}
-            className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded-md border bg-muted/30 px-2 py-1.5 text-[11px]"
+            className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 py-2 text-[11px]"
           >
             <b className="font-medium">R{revision.revision}</b>
             {revision.current ? (
-              <span className="rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700">
+              <span className="rounded bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-700">
                 {t('configRevisionCurrentBadge')}
               </span>
             ) : null}
             <span className="text-muted-foreground">
               {t('configRevisionSource')} · {revision.source}
             </span>
-            <span className="text-muted-foreground">{formatDateTimeMinute(revision.createdAt)}</span>
             <span className="text-muted-foreground">
-              {revision.changeSummary?.trim() ? `· ${revision.changeSummary}` : `· ${t('configRevisionNoSummary')}`}
+              {formatDateTimeMinute(revision.createdAt)}
+            </span>
+            <span className="text-muted-foreground">
+              {revision.changeSummary?.trim()
+                ? `· ${revision.changeSummary}`
+                : `· ${t('configRevisionNoSummary')}`}
             </span>
             <span className="text-muted-foreground">
               · {t('configRevisionCreatedBy')}: {createdByName(revision)}

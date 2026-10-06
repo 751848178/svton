@@ -13,6 +13,7 @@ export function CandidateVersionStatus(props: { active: boolean; blocked: boolea
       <StatusTag
         status="success"
         label={t('environmentVersionDeployedBadge')}
+        className="whitespace-nowrap"
       />
     );
   }
@@ -25,6 +26,7 @@ export function CandidateVersionStatus(props: { active: boolean; blocked: boolea
         <StatusTag
           status="warning"
           label={t('environmentVersionApprovalPendingShort')}
+          className="whitespace-nowrap"
         />
       </span>
     );
@@ -33,6 +35,7 @@ export function CandidateVersionStatus(props: { active: boolean; blocked: boolea
     <StatusTag
       status="default"
       label={t('versionAvailable')}
+      className="whitespace-nowrap"
     />
   );
 }
@@ -46,10 +49,19 @@ export function CurrentEnvironmentVersion({ current }: { current?: EnvironmentVe
     ? identity.canonical
       ? identity.version
       : t('releaseLegacyVersionValue', { version: identity.version })
-    : '—';
-  const name = identity
-    ? identity.name || (identity.canonical ? identity.version : t('releaseLegacyNameFallback'))
-    : '—';
+    : null;
+  const name = identity?.name || null;
+  // 轻量空态：无当前版本时一行「暂无」，不再渲染四列占位卡。
+  if (!current || !version) {
+    return (
+      <div>
+        <h4 className="mb-2 text-sm font-semibold">{t('environmentVersionCurrent')}</h4>
+        <p className="rounded-lg border border-dashed px-5 py-4 text-sm text-muted-foreground">
+          {t('releaseWorkbenchValueEmpty')}
+        </p>
+      </div>
+    );
+  }
   return (
     <div>
       <h4 className="mb-2 text-sm font-semibold">{t('environmentVersionCurrent')}</h4>
@@ -61,16 +73,16 @@ export function CurrentEnvironmentVersion({ current }: { current?: EnvironmentVe
         />
         <VersionFact
           label={t('releaseNameLabel')}
-          value={name}
+          value={name || t('releaseUnnamedVersion')}
         />
         <VersionFact
           label={t('releaseOrderColumnSource')}
-          value={current?.artifactManifest.buildRun.sourceCommitSha.slice(0, 8) ?? '—'}
+          value={current.artifactManifest.buildRun.sourceCommitSha.slice(0, 8)}
           mono
         />
         <VersionFact
           label={t('releaseOrderColumnStatus')}
-          value={current ? t('environmentVersionDeployedBadge') : '—'}
+          value={t('environmentVersionDeployedBadge')}
         />
       </div>
     </div>

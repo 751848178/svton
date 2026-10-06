@@ -1,5 +1,15 @@
-import { chmod, chown, cp, lstat, mkdir, mkdtemp, readdir, rename, rm } from "node:fs/promises";
+import {
+  chmod,
+  chown,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readdir,
+  rename,
+  rm,
+} from "node:fs/promises";
 import { join } from "node:path";
+import { copyDirectoryNoFollow } from "./release-build-broker-workspace";
 import { verifyDependencyStore } from "./release-dependency-store-filesystem";
 
 export async function createBrokerJobLayout(input: {
@@ -18,8 +28,10 @@ export async function createBrokerJobLayout(input: {
   ]);
   if (input.externalOci) {
     await Promise.all([
-      chown(jobRoot, 0, 0), chmod(jobRoot, 0o711),
-      chown(join(jobRoot, "work"), 0, 0), chmod(join(jobRoot, "work"), 0o711),
+      chown(jobRoot, 0, 0),
+      chmod(jobRoot, 0o711),
+      chown(join(jobRoot, "work"), 0, 0),
+      chmod(join(jobRoot, "work"), 0o711),
       chown(join(jobRoot, "raw-artifacts"), input.uid, input.gid),
       chmod(join(jobRoot, "raw-artifacts"), 0o700),
     ]);
@@ -50,14 +62,25 @@ export async function transferBuildWorkspace(input: {
 }
 
 export async function transferDependencyStore(input: {
-  source: string; jobRoot: string; combinationHash: string; storeDigest: string;
+  source: string;
+  jobRoot: string;
+  combinationHash: string;
+  storeDigest: string;
 }) {
   const target = join(input.jobRoot, "dependency-store");
   await verifyDependencyStore(input.source, input);
-  await cp(input.source, target, { recursive: true, force: false,
-    errorOnExist: true, dereference: false });
-  await verifyDependencyStore(target, input);
+  await mkdir(target, { mode: 0o700 });
+  await copyDirectoryNoFollow(input.source, target);
+  await verifyDependencyStore(
+    target,
+    input,
+    { uid: 0, gid: 0 },
+    {
+      writable: true,
+    },
+  );
   await sealSourceTree(target);
+  await verifyDependencyStore(target, input);
   return target;
 }
 
@@ -65,9 +88,13 @@ async function sealSourceTree(root: string) {
   const stat = await lstat(root);
   if (stat.isSymbolicLink()) throw new Error("worker source contains symlink");
   await chown(root, 0, 0);
-  await chmod(root, stat.isDirectory() ? 0o555 : (stat.mode & 0o111) ? 0o555 : 0o444);
+  await chmod(
+    root,
+    stat.isDirectory() ? 0o555 : stat.mode & 0o111 ? 0o555 : 0o444,
+  );
   if (!stat.isDirectory()) return;
-  for (const entry of await readdir(root)) await sealSourceTree(join(root, entry));
+  for (const entry of await readdir(root))
+    await sealSourceTree(join(root, entry));
 }
 
 async function chownTree(root: string, uid: number, gid: number) {

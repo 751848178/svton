@@ -18,6 +18,36 @@ for (const command of ["up", "reset"]) {
   assert.equal(builds, 1);
 }
 
+let buildOnlyRuns = 0;
+assert.equal(
+  await verifiedImagesForSeedCommand({
+    command: "build",
+    build: async () => {
+      buildOnlyRuns += 1;
+      return imageIds;
+    },
+  }),
+  imageIds,
+);
+assert.equal(buildOnlyRuns, 1);
+
+let prebuiltVerified = false;
+assert.equal(
+  await verifiedImagesForSeedCommand({
+    command: "reset",
+    runtime,
+    manifestPath: "/owned/runtime.json",
+    reusePrebuilt: true,
+    build: () => assert.fail("prebuilt reset must not rebuild"),
+    load: async () => imageIds,
+    verifyRunning: () => {
+      prebuiltVerified = true;
+    },
+  }),
+  imageIds,
+);
+assert.equal(prebuiltVerified, false);
+
 let verified;
 const reused = await verifiedImagesForSeedCommand({
   command: "reset-bootstrap",

@@ -1,0 +1,73 @@
+:root { --accent: #2563eb; --accent-dark: #1d4ed8; --accent-soft: #eff6ff; }
+.aligned-workspace { padding-top: 24px; }
+.aligned-project-header { margin: 0 0 24px; padding-top: 12px; }
+.aligned-project-header h1 { font-size: 26px; line-height: 1; letter-spacing: -0.035em; }
+.aligned-project-header .project-identity { display: flex; gap: 8px; align-items: center; }
+.aligned-project-header .project-meta { margin-top: 8px; font-size: 12px; }
+.aligned-header-actions { display: flex; align-items: center; gap: 8px; }
+.aligned-header-actions .button { min-height: 40px; border-radius: 6px; }
+.aligned-project-issue { display: flex; gap: 10px; align-items: center; padding: 12px 14px; margin-bottom: 24px; border: 1px solid #fde68a; border-radius: 8px; background: var(--warning-soft); color: var(--warning); }
+.aligned-project-issue p { margin: 0; font-size: 13px; line-height: 1.7; }
+.aligned-project-issue svg { flex-shrink: 0; }
+.aligned-project-issue .link-button { margin-left: 10px; }
+.aligned-overview { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
+.aligned-overview > *, .aligned-content-tabs [role=tabpanel], .aligned-content-tabs .surface { min-width: 0; }
+.workspace-section-title, .aligned-repository summary { margin: 0; font-size: 15px; font-weight: 600; }
+.aligned-basic-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 40px; margin: 16px 0 0; }
+.aligned-basic-facts > div { min-height: 52px; display: grid; align-content: center; gap: 5px; }
+.aligned-basic-facts dt { color: var(--muted); font-size: 11px; font-weight: 600; }
+.aligned-basic-facts dd { margin: 0; color: var(--ink); font-size: 14px; overflow-wrap: anywhere; }
+.aligned-repository summary { cursor: pointer; display: flex; width: fit-content; align-items: center; gap: 5px; min-height: 44px; list-style: none; }
+.aligned-repository summary::-webkit-details-marker { display: none; }
+.aligned-repository[open] summary svg { transform: rotate(180deg); }
+.aligned-content-tabs > [role=tablist] { display: flex; gap: 28px; border-bottom: 1px solid var(--line); }
+.aligned-content-tabs [role=tab] { display: flex; gap: 8px; align-items: center; padding: 12px 0; min-height: 44px; color: var(--muted); border: 0; border-bottom: 2px solid transparent; background: transparent; font-size: 14px; }
+.aligned-content-tabs [role=tab][aria-selected=true] { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+.aligned-content-tabs [role=tab] > span { padding: 2px 8px; font-size: 12px; border-radius: 20px; background: var(--surface-soft); color: var(--muted); }
+.aligned-content-tabs [role=tabpanel] { padding-top: 16px; outline-offset: 3px; }
+.aligned-content-tabs .surface { border: 0; border-radius: 0; box-shadow: none; }
+.aligned-content-tabs .overview-section { margin-top: 0; }
+.aligned-content-tabs .section-heading { padding: 0 0 16px; }
+.aligned-content-tabs .section-heading > div:first-child { display: none; }
+.aligned-content-tabs .section-heading > div:last-child { width: 100%; }
+.aligned-content-tabs .table-tools { display: flex; width: 100%; gap: 12px; }
+.aligned-content-tabs .table-tools > button:last-child { margin-left: auto; }
+.aligned-content-tabs .data-table th, .aligned-content-tabs .data-table td { font-size: 13px; padding-block: 14px; }
+.aligned-analysis-summary { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 16px; font-size: 13px; }
+.aligned-analysis-summary p { width: 100%; margin: 0; color: var(--muted); font-size: 12px; }
+.directory-page .screen-title h1 { font-size: 26px; }
+.prototype-source-note { margin: -12px 0 20px; color: var(--muted); font-size: 12px; }
+.directory-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 24px; }
+.directory-summary article { padding: 12px 16px; border: 1px solid var(--line); border-radius: 8px; display: grid; gap: 4px; }
+.directory-summary span { color: var(--muted); font-size: 12px; }
+.directory-summary strong { font-size: 18px; font-weight: 600; }
+.directory-list { border: 1px solid var(--line); border-radius: 12px; min-width: 0; }
+.directory-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 16px; border-bottom: 1px solid var(--line); }
+.directory-toolbar label { display: flex; gap: 8px; align-items: center; border: 1px solid var(--line); border-radius: 6px; padding: 0 10px; }
+.directory-toolbar input { width: 240px; border: 0; min-height: 38px; background: transparent; font: inherit; font-size: 13px; }
+.directory-toolbar select { min-height: 38px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: white; font-size: 13px; }
+.directory-toolbar > span { margin-left: auto; color: var(--muted); font-size: 12px; }
+.directory-column-settings { padding: 12px 16px; text-align: right; font-size: 13px; }
+.directory-column-settings summary { cursor: pointer; display: inline-flex; gap: 6px; align-items: center; min-height: 32px; }
+.directory-column-settings > div { display: flex; justify-content: flex-end; gap: 16px; padding-top: 12px; }
+.directory-column-settings label { display: inline-flex; gap: 6px; align-items: center; min-height: 32px; }
+.directory-table { min-width: 900px; }
+.directory-secondary { display: block; margin-top: 4px; color: var(--muted); }
+.directory-empty { padding: 24px; text-align: center; }
+.aligned-workspace button:focus-visible, .aligned-workspace summary:focus-visible, .directory-page button:focus-visible, .directory-page summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+@media (max-width: 680px) {
+  .aligned-project-header { gap: 16px; }
+  .aligned-project-header h1 { font-size: 24px; }
+  .aligned-header-actions { width: 100%; }
+  .aligned-header-actions .button { flex: 1; min-height: 44px; }
+  .aligned-basic-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 20px; }
+  .aligned-basic-facts > div:first-child, .aligned-basic-facts > div:nth-child(3) { grid-column: 1 / -1; }
+  .aligned-content-tabs > [role=tablist] { gap: 20px; }
+  .aligned-content-tabs .table-tools { flex-wrap: wrap; }
+  .aligned-content-tabs .table-tools > button:last-child { margin-left: 0; }
+  .directory-summary { gap: 8px; }
+  .directory-summary article { padding: 12px; }
+  .directory-toolbar label { width: 100%; }
+  .directory-toolbar input { min-width: 0; width: 100%; }
+  .directory-page .data-table-wrap { max-width: 100%; }
+}

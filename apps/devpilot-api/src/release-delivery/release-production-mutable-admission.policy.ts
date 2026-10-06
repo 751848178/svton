@@ -8,6 +8,7 @@ export async function productionMutableEvidenceCurrent(
   tx: Prisma.TransactionClient,
   proof: ProductionAdmissionProof,
   scope: { teamId: string; projectId: string; environmentId: string },
+  requiredGateIds: ReadonlySet<string>,
 ) {
   const frozen = proof.deploymentSnapshot;
   const state = await loadReleaseDeploymentInputState(tx, {
@@ -23,15 +24,20 @@ export async function productionMutableEvidenceCurrent(
   ).snapshot;
   if (rebuilt.inputHash !== frozen.inputHash) return false;
   const byId = new Map(proof.checks.map((check) => [check.id, check]));
-  const connection = identity(byId.get("D08"));
-  if (!await latestRunsCurrent(tx.resourceConnectionRun, connection,
-    ["succeeded", "completed"])) return false;
-  const backup = identity(byId.get("D12"));
-  if (!await latestRunsCurrent(tx.backupRun, backup, ["completed"])) return false;
-  if (!await productionHistoryCurrent(tx, identity(byId.get("D19")), scope)) {
+  if (requiredGateIds.has("D08") && !await latestRunsCurrent(
+    tx.resourceConnectionRun,
+    identity(byId.get("D08")),
+    ["succeeded", "completed"],
+  )) return false;
+  if (requiredGateIds.has("D12") && !await latestRunsCurrent(
+    tx.backupRun, identity(byId.get("D12")), ["completed"],
+  )) return false;
+  if (requiredGateIds.has("D19") && !await productionHistoryCurrent(
+    tx, identity(byId.get("D19")), scope,
+  )) {
     return false;
   }
-  for (const gateId of ["D14", "D15"]) {
+  for (const gateId of ["D14", "D15"].filter((id) => requiredGateIds.has(id))) {
     const evidence = identity(byId.get(gateId));
     if (Object.keys(evidence).length === 0) return false;
     if (!evidence.siteId) continue;

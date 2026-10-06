@@ -1,4 +1,4 @@
-import { assertProductionAdmissionProof,
+import { assertProductionAdmissionProof as assertProof,
   type ProductionAdmissionProof } from "./release-production-admission.policy";
 import { releaseGateCheckpointPolicy } from "./release-gate-checkpoint.policy";
 import { buildReleaseDeploymentInputSnapshot } from "./release-deployment-input-snapshot.utils";
@@ -126,6 +126,14 @@ describe("production admission transaction proof", () => {
   });
 });
 
+function assertProductionAdmissionProof(
+  client: Parameters<typeof assertProof>[0],
+  value: ProductionAdmissionProof,
+  valueExpected: Parameters<typeof assertProof>[2],
+) {
+  return assertProof(client, value, valueExpected, "governed_v1");
+}
+
 function proof(): ProductionAdmissionProof {
   const deploymentSnapshot = snapshot();
   const exactIdentity = { configRevisionId: "config-1",
@@ -138,7 +146,7 @@ function proof(): ProductionAdmissionProof {
     workloadInputHash: "workload-1",
     capacitySnapshotId: "capacity-1",
     dnsProbeReceiptId: "dns-1",
-    checks: releaseGateCheckpointPolicy("production_pre_execution")
+    checks: releaseGateCheckpointPolicy("production_pre_execution", "governed_v1")
       .requiredGateIds.map((id) => ({ id, status: id === "D13" ? "manual" : "checked",
         fresh: true, expiresAt: "2099-01-01T00:00:00.000Z",
         evidenceIdentity: ["D14", "D15"].includes(id) ? exactIdentity

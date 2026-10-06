@@ -87,6 +87,10 @@ export function releaseWorkbenchDecisionStep(detail: ReleaseOrderDetail): Releas
   return detail.lifecycle.failureKind ? detail.lifecycle.phase : detail.resumeStep;
 }
 
+export function releaseWorkbenchShowsDecision(detail: ReleaseOrderDetail): boolean {
+  return detail.lifecycle.status !== 'succeeded';
+}
+
 function gateStage(step: ReleaseOrderStep): ReleaseGateDecisionStage {
   if (step === 'staging') return 'staging';
   if (step === 'production') return 'production';

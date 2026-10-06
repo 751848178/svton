@@ -12,12 +12,14 @@ export interface DetailHook {
 
 export interface WorkbenchProps {
   detail: { counts: { releaseRuns: number } };
+  productionRuns: unknown[];
   navigation: {
     release: 'staging' | 'production';
     step: ReleaseWorkbenchStep;
     selectStep: (step: ReleaseWorkbenchStep) => void;
     selectRelease: (node: 'staging' | 'production') => void;
   };
+  onRefresh: () => Promise<unknown>;
   onBuildLatest: () => void;
 }
 

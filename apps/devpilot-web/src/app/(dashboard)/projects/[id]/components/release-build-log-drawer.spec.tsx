@@ -72,6 +72,60 @@ describe('ReleaseBuildLogDrawer', () => {
     expect(container.textContent).toContain('releaseBuildLogsTruncated');
   });
 
+  it('keeps decision facts on the main layer and folds machine evidence into technical details', async () => {
+    const componentKey = 'cmrwxm1tl000y6enjwoz2k2jq';
+    await act(async () => {
+      root.render(
+        <ReleaseBuildLogDrawer
+          run={build({
+            sourceBranch: 'master',
+            sourceCommitSha: 'a'.repeat(40),
+            sourceRepository: {
+              provider: 'local',
+              identityRevisionId: 'repo-rev-1',
+              identityRevision: 1,
+              branch: 'master',
+              canonicalUrl: 'file:///repos/picshare',
+            },
+            logReference: 'build-log://build-1',
+            manifest: {
+              id: 'manifest-1',
+              digest: `sha256:${'b'.repeat(64)}`,
+              items: [
+                {
+                  componentKey,
+                  artifactType: 'zip',
+                  uri: 'release-artifact://build-1/backend.zip',
+                  digest: `sha256:${'c'.repeat(64)}`,
+                  metadata: { sizeBytes: 1048576 },
+                },
+              ],
+            },
+          })}
+          componentNames={{ [componentKey]: '后端服务' }}
+          onClose={vi.fn()}
+        />,
+      );
+    });
+    const text = container.textContent ?? '';
+    // 主层只保留人做判断的关键事实：分支 @ 短 commit、短 digest、人读制品清单。
+    expect(text).toContain('master @ aaaaaaaaaaaa');
+    expect(text).toContain(`sha256:${'b'.repeat(12)}…`);
+    expect(text).toContain('releaseManifestArtifactList');
+    expect(text).toContain('后端服务');
+    expect(text).toContain('1.0MB（1048576 字节）');
+    // 机器证据默认收起，但仍在 DOM 中可追溯（ID/仓库字段/日志引用/完整 digest/制品原始 URI）。
+    const details = container.querySelector(
+      '[data-testid="release-technical-details"]',
+    ) as HTMLDetailsElement;
+    expect(details).not.toBeNull();
+    expect(details.hasAttribute('open')).toBe(false);
+    expect(details.textContent).toContain('build-log://build-1');
+    expect(details.textContent).toContain('file:///repos/picshare');
+    expect(details.textContent).toContain(`sha256:${'b'.repeat(64)}`);
+    expect(details.textContent).toContain('release-artifact://build-1/backend.zip');
+  });
+
   it('keeps a requested deep link open on detail errors and retries in place', async () => {
     const onRetry = vi.fn();
     await act(async () => {

@@ -54,6 +54,19 @@ export function shortDigest(digest: string | null | undefined): string {
   return digest.length > 19 ? `${digest.slice(0, 19)}…` : digest;
 }
 
+/** PX-32：字节数人性化（≥1MB 转 MB/GB），保留原始字节数便于核对。 */
+export function formatByteSize(bytes: number): string {
+  if (!Number.isFinite(bytes)) return String(bytes);
+  if (bytes >= 1024 * 1024 * 1024) {
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)}GB（${bytes} 字节）`;
+  }
+  if (bytes >= 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(1)}MB（${bytes} 字节）`;
+  }
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)}KB（${bytes} 字节）`;
+  return `${bytes} 字节`;
+}
+
 /** PX-32：构建 errorCode → 中文标题；未知枚举返回 null（调用方回退原文）。 */
 export function buildErrorCodeTitle(code: string | null | undefined): string | null {
   const titles: Record<string, string> = {

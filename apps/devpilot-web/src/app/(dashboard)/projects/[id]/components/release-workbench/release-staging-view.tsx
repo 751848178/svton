@@ -15,7 +15,7 @@ import { ReleaseWorkbenchSteps } from './release-workbench-steps';
 import { buildReleaseWorkbenchStepViews } from './release-workbench-steps.model';
 import { ReleaseRoundPanel } from './release-round-panel';
 import { ReleaseStepPreflightPanel } from './release-step-preflight-panel';
-import { ReleaseStepBuildPanel } from './release-step-build-panel';
+import { ReleaseStepBuildLayer } from './release-step-build-layer';
 import { ReleaseStepDeployPanel } from './release-step-deploy-panel';
 import { latestBuild, latestStagingDeployment } from './release-round.model';
 import { ReleaseBuildLogLayer } from './release-build-log-layer';
@@ -32,6 +32,8 @@ interface Props {
   navigation: ReleaseOrderWorkbenchNavigation;
   publish: WorkbenchPublishState;
   publishTitle?: string;
+  /** 发布禁用原因可修复时的跳转（部署目标设置）。 */
+  publishRepairHref?: string;
   onPublish: () => void;
   onBuildLatest: () => void;
 }
@@ -48,14 +50,18 @@ export function ReleaseStagingView(props: Props) {
         publishing={deployments.deploying}
         publishDisabled={props.publish.disabled}
         publishTitle={props.publishTitle}
+        publishRepairHref={props.publishRepairHref}
       >
         {navigation.step === 'preflight' ? (
           <ReleaseStepPreflightPanel
+            projectId={props.projectId}
             detail={props.detail}
             gateCatalog={props.gateCatalog}
           />
         ) : navigation.step === 'build' ? (
-          <ReleaseStepBuildPanel
+          <ReleaseStepBuildLayer
+            projectId={props.projectId}
+            releaseOrderId={props.releaseOrderId}
             build={latestBuild(builds.items)}
             building={builds.building}
             onOpenLog={navigation.openBuildLog}

@@ -9,6 +9,7 @@ import {
   assertNoActiveReleaseRunForEnvironment,
 } from "./release-run-concurrency.utils";
 import { releaseOperationApprovalSelect } from "./release-operation-approval.select";
+import { productionApprovalData } from "./release-production-approval.model";
 import { assertNoActiveProductionRouteSaga, routeSagaScope,
 } from "../site/production-route-saga.guard";
 import { releaseProductionPolicySnapshot } from "./release-production-policy-snapshot";
@@ -170,24 +171,12 @@ export class ReleaseProductionRepository {
         },
       });
       const approval = await tx.operationApproval.create({
-        data: {
-          teamId: input.teamId,
-          requesterId: input.actorId,
-          projectId: input.projectId,
-          environmentId: snapshot.environment.id,
-          category: "release",
-          action: "project.release_order.deploy_production",
-          targetType: "release_run",
-          targetId: run.id,
-          risk: "high",
-          status: "pending",
-          inputHash: preview.inputHash,
-          summary: `生产发布 ${snapshot.releaseOrder.releaseVersion} / Build #${snapshot.build.revision}`,
-          metadata: {
-            snapshot,
-            immutable: true,
-          } as unknown as Prisma.InputJsonValue,
-        },
+        data: productionApprovalData(
+          input,
+          snapshot,
+          run.id,
+          preview.inputHash,
+        ),
       });
       return tx.releaseRun.update({
         where: { id: run.id },

@@ -34,7 +34,7 @@ import {
   finishEvidence,
   predicate,
 } from "./lib/parity-e2e-evidence.mjs";
-import { POSITIVE_AC_MAPPING } from "./lib/parity-positive-e2e-contract.mjs";
+import { positiveAcMappingFor } from "./lib/parity-positive-e2e-contract.mjs";
 import {
   productionGateEvidence,
   productionGateEvidenceChecks,
@@ -49,15 +49,24 @@ import { requireFirstEnvironmentRevision } from "./lib/parity-environment-revisi
 import { requireEnvironmentTargets } from "./lib/parity-environment-targets.mjs";
 import { createPositiveIntakeFlow } from "./lib/parity-positive-intake-flow.mjs";
 import {
+  exercisePositiveBuildGate,
+  positiveBuildGateChecks,
+  positiveReleaseFlowProfile,
+} from "./lib/parity-positive-build-gate.mjs";
+import { readParityFixturePinnedCommit } from "./lib/parity-fixture-marker-reader.mjs";
+import {
   positiveDeliveryClaimChecks,
   runPositiveDeliveryClaim,
 } from "./lib/parity-positive-delivery-claim-step.mjs";
+import { completePositiveProductionPromotion } from "./lib/parity-positive-production-promotion.mjs";
+import { summarizePositiveGateHistory } from "./lib/parity-positive-gate-history.mjs";
 import { parityRuntimeConfig } from "./lib/parity-runtime-config.mjs";
 import { parityApiError } from "./lib/parity-http-error.mjs";
 import { productionDeploymentFailure } from "./lib/parity-deployment-failure.mjs";
 import { workloadReadyEvidenceChecks } from "./lib/parity-workload-ready-evidence.mjs";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const runtime = parityRuntimeConfig();
+const releaseFlowProfile = positiveReleaseFlowProfile();
 const outDir = historyChainOutputDirectory(
   process.env,
   "f455",
@@ -71,10 +80,14 @@ let stagingEnvId;
 let productionEnvId;
 const adminEmail = "admin@parity.local";
 const adminPassword = "ParityDemo123!";
-const pinnedCommit = "2f0ec3246761537123c65ac415a14e503ebbfa38";
+const reviewerEmail = "parity-reviewer@parity.test";
+const reviewerPassword =
+  process.env.PARITY_REVIEWER_PASSWORD || "ParityReviewer123!";
+const pinnedCommit = await readParityFixturePinnedCommit();
 const PREFIX = "2f0ec324";
 const runState = {};
-const parityRouteProviderKey = process.env.DEVPILOT_PARITY_ROUTE_PROVIDER_KEY || null;
+const parityRouteProviderKey =
+  process.env.DEVPILOT_PARITY_ROUTE_PROVIDER_KEY || null;
 const { PrismaClient } = createRequire(
   resolve(root, "apps/devpilot-api/package.json"),
 )("@prisma/client");
@@ -83,7 +96,10 @@ const prisma = new PrismaClient({
 });
 const evidence = {
   worker: "f455-positive-e2e",
-  objective: "AC-E2E-007..015 positive chain over the parity stack",
+  objective:
+    releaseFlowProfile === "basic_v1"
+      ? "MVP release, real build, staging deploy, and readback chain"
+      : "AC-E2E-007..015 positive chain over the parity stack",
   stack: {
     web: runtime.webOrigin,
     api: apiBase,
@@ -132,7 +148,8 @@ async function main() {
   const token = await login();
   evidence.steps.login = {
     email: adminEmail,
-    source: "docker-compose.devpilot-parity.yml DEVPILOT_BOOTSTRAP_ADMIN_EMAIL/PASSWORD",
+    source:
+      "docker-compose.devpilot-parity.yml DEVPILOT_BOOTSTRAP_ADMIN_EMAIL/PASSWORD",
     ok: true,
   };
   log(`login ok (bootstrap admin ${adminEmail})`);
@@ -164,15 +181,35 @@ async function main() {
     const [staging, production] = await Promise.all([
       prisma.projectEnvironment.findFirst({
         where: { projectId: intakeProjectId, key: "staging", status: "active" },
-      select: { id: true, key: true, baselineRole: true, status: true, currentConfigRevisionId: true },
+        select: {
+          id: true,
+          key: true,
+          baselineRole: true,
+          status: true,
+          currentConfigRevisionId: true,
+        },
       }),
       prisma.projectEnvironment.findFirst({
-        where: { projectId: intakeProjectId, key: "production", status: "active" },
-      select: { id: true, key: true, baselineRole: true, status: true, currentConfigRevisionId: true },
+        where: {
+          projectId: intakeProjectId,
+          key: "production",
+          status: "active",
+        },
+        select: {
+          id: true,
+          key: true,
+          baselineRole: true,
+          status: true,
+          currentConfigRevisionId: true,
+        },
       }),
     ]);
     const all = await prisma.projectEnvironment.findMany({
-      where: { projectId: intakeProjectId, status: "active", baselineRole: { not: null } },
+      where: {
+        projectId: intakeProjectId,
+        status: "active",
+        baselineRole: { not: null },
+      },
       select: { id: true, baselineRole: true },
     });
     const revisions = await prisma.environmentConfigRevision.findMany({
@@ -190,7 +227,11 @@ async function main() {
       exactlyOnePerRole:
         all.filter((e) => e.baselineRole === "staging").length === 1 &&
         all.filter((e) => e.baselineRole === "production").length === 1,
-      revisions: revisions.map((r) => ({ env: r.environmentId, revision: r.revision, id: r.id })),
+      revisions: revisions.map((r) => ({
+        env: r.environmentId,
+        revision: r.revision,
+        id: r.id,
+      })),
       r1Count: revisions.filter((r) => r.revision === 1).length,
     };
   });
@@ -215,6 +256,8 @@ async function main() {
   );
   if (claim.projectId !== projectId)
     throw new Error("delivery fixture claim scope drift");
+  const stagingRouteTarget = positiveRouteTarget(claim, "staging");
+  const productionRouteTarget = positiveRouteTarget(claim, "production");
 
   // ------------------------------------------------------- env configuration
   const stagingRevisionList = await api(
@@ -273,6 +316,8 @@ async function main() {
           {
             id: "parity-resource-0001",
             kind: "resource_instance",
+            componentKey: "web",
+            envBindings: [],
             sharedEnvironmentIds: [stagingEnvId],
             risk: "low",
             impact: "parity target workload (staging)",
@@ -281,6 +326,17 @@ async function main() {
         routeSnapshot: {
           domains: ["staging.parity.example.test"],
           proxyTarget: runtime.targetOrigin,
+          tlsRequired: false,
+          entries: [
+            {
+              domain: "staging.parity.example.test",
+              path: "/",
+              serviceId: stagingRouteTarget.id,
+              component: stagingRouteTarget.name,
+              port: stagingRouteTarget.port,
+              tlsMode: "none",
+            },
+          ],
         },
         policyReferenceIds: [],
         expectedCurrentRevisionId: stagingR1?.id,
@@ -316,6 +372,8 @@ async function main() {
           {
             id: "parity-resource-0001",
             kind: "resource_instance",
+            componentKey: "web",
+            envBindings: [],
             sharedEnvironmentIds: [productionEnvId],
             risk: "low",
             impact: "parity target workload (production)",
@@ -323,17 +381,38 @@ async function main() {
           {
             id: "parity-resource-managed-0001",
             kind: "managed_resource",
+            componentKey: "api",
+            envBindings: [],
             sharedEnvironmentIds: [productionEnvId],
             risk: "low",
-            impact: "parity target workload managed resource (production gate evidence)",
+            impact:
+              "parity target workload managed resource (production gate evidence)",
           },
         ],
         routeSnapshot: {
           // Route-control applies this frozen target. The final public URL is
           // probed independently; proxyTarget never substitutes for DNS/TLS.
           domains: ["parity.example.test"],
-          proxyTarget: "http://parity-target-workload",
+          proxyTarget: runtime.routeProxyTarget,
           tlsRequired: false,
+          entries: [
+            {
+              domain: "parity.example.test",
+              path: "/",
+              serviceId: productionRouteTarget.id,
+              component: productionRouteTarget.name,
+              port: productionRouteTarget.port,
+              tlsMode: "none",
+            },
+          ],
+        },
+        observabilitySnapshot: {
+          version: 1,
+          profile: "local_acceptance_v1",
+          logs: "local-runtime-logs-v1",
+          metrics: "local-health-probe-v1",
+          traces: "not-applicable-single-host-v1",
+          alerts: "not-applicable-local-acceptance-v1",
         },
         policyReferenceIds: [],
         expectedCurrentRevisionId: productionR1?.id,
@@ -363,6 +442,7 @@ async function main() {
       `/projects/${projectId}/delivery/releases`,
       headers,
       {
+        releaseName: "Parity local release 1.0.0",
         releaseVersion: "1.0.0",
         note: `C5 ${runtime.goalId} ${runtime.sourceRevision} ${runtime.runtimeId}`,
       },
@@ -379,10 +459,16 @@ async function main() {
       `/projects/${projectId}/delivery/releases/${orderId}/builds`,
       headers,
     );
-    const dbBuilds = await prisma.buildRun.count({ where: { releaseOrderId: orderId } });
-    const dbManifests = await prisma.artifactManifest.count({
-      where: { releaseOrderId: orderId },
-    });
+    const [dbBuilds, dbManifests, productionEnvironmentVersions] =
+      await Promise.all([
+        prisma.buildRun.count({ where: { releaseOrderId: orderId } }),
+        prisma.artifactManifest.count({ where: { releaseOrderId: orderId } }),
+        prisma.environmentVersion.count({
+          where: { environmentId: productionEnvId },
+        }),
+      ]);
+    runState.productionEnvironmentVersionsBeforeRelease =
+      productionEnvironmentVersions;
     const ok =
       order.releaseVersion === "1.0.0" &&
       (builds.total ?? builds.items?.length ?? 0) === 0 &&
@@ -397,6 +483,38 @@ async function main() {
       dbManifestCount: dbManifests,
       orderId,
     };
+  });
+
+  await step("build-gate-review", async () => {
+    const catalog = await api(
+      "GET",
+      `/projects/${projectId}/delivery/releases/${orderId}/gates`,
+      headers,
+    );
+    return exercisePositiveBuildGate({
+      profile: releaseFlowProfile,
+      catalog,
+      reviewerEmail,
+      confirm: async (gate) => {
+        const reviewerToken = await login(reviewerEmail, reviewerPassword);
+        return api(
+          "POST",
+          `/projects/${projectId}/delivery/releases/${orderId}/gates/C03/evaluations/${gate.evaluationId}/confirm`,
+          {
+            authorization: `Bearer ${reviewerToken}`,
+            "x-team-id": teamId,
+            "content-type": "application/json",
+          },
+          { reason: "Independent review of the exact local parity commit" },
+        );
+      },
+      refresh: () =>
+        api(
+          "GET",
+          `/projects/${projectId}/delivery/releases/${orderId}/gates`,
+          headers,
+        ),
+    });
   });
 
   // --------------------------------------------------------------------- build
@@ -434,7 +552,9 @@ async function main() {
     runState.manifestDigest = manifestDigest;
     const pinned = run.sourceCommitSha === pinnedCommit;
     if (!pinned || !manifestId || !manifestDigest) {
-      throw new Error("build did not produce a manifest bound to the pinned commit");
+      throw new Error(
+        "build did not produce a manifest bound to the pinned commit",
+      );
     }
     const [buildRunCount, manifestCount, manifestRow] = await Promise.all([
       prisma.buildRun.count({ where: { releaseOrderId: orderId } }),
@@ -500,388 +620,485 @@ async function main() {
     };
   });
 
-  // ------------------------------------------------------- production preview
-  let previewInputHash;
-  await step("production-preview", async () => {
-    const preview = await api(
-      "GET",
-      `/projects/${projectId}/delivery/releases/${orderId}/production-preview?manifestId=${manifestId}`,
-      headers,
-    );
-    previewInputHash = preview.inputHash;
-    return {
-      inputHash: preview.inputHash,
-      snapshot: pick(preview.snapshot, ["environment", "manifest", "config", "releaseOrder", "releasePolicy"]),
-      manifestFrozen: preview.snapshot?.manifest?.id === manifestId,
-      configRevisionId: preview.snapshot?.config?.revisionId,
-      expectedConfigRevisionId: productionR2?.revision?.id,
-    };
-  });
-
-  // ---------------------------------------------------------- production confirm
   let releaseRunId;
-  let approvalId;
-  await step("production-confirm", async () => {
-    const confirm = await api(
-      "POST",
-      `/projects/${projectId}/delivery/releases/${orderId}/production-releases`,
-      headers,
-      {
-        manifestId,
-        expectedInputHash: previewInputHash,
-        idempotencyKey: `f455-positive-e2e-production-confirm`,
-      },
-    );
-    releaseRunId = confirm.id;
-    approvalId = confirm.operationApproval?.id;
-    runState.releaseRunId = releaseRunId;
-    runState.approvalId = approvalId;
-    return {
-      releaseRunId,
-      status: confirm.status,
-      awaitingApproval: confirm.status === "awaiting_approval",
-      approvalId,
-      approvalStatus: confirm.operationApproval?.status,
-      verifiedDigest: confirm.verifiedDigest,
-      verifiedDigestMatches: confirm.verifiedDigest === manifestDigest,
-      manifestId: confirm.artifactManifestId,
-      configRevisionId: confirm.configRevisionId,
-      expectedConfigRevisionId: productionR2?.revision?.id,
-    };
-  });
-
-  // ------------------------------------------------------------------ approve
-  await step("approval-list", async () => {
-    const approvals = await api("GET", `/operation-approvals?category=release`, headers);
-    const found = (approvals.items ?? approvals).find((a) => a.id === approvalId);
-    return {
-      id: found?.id,
-      status: found?.status,
-      action: found?.action,
-      targetType: found?.targetType,
-      risk: found?.risk,
-      inputHashMatches: found?.inputHash === previewInputHash,
-    };
-  });
-  await step("approval-review", async () => {
-    const reviewed = await api(
-      "POST",
-      `/operation-approvals/${approvalId}/review`,
-      headers,
-      { decision: "approved", reviewComment: "F455 positive e2e: approve production release 1.0.0" },
-    );
-    return {
-      approvalId,
-      decision: reviewed.decision,
-      status: reviewed.status,
-      reviewerId: reviewed.reviewerId,
-      reviewedAt: reviewed.reviewedAt,
-    };
-  });
-
-  // ---------------------------------------------------------------- production
-  await step("production-execute", async () => {
-    const productionRouteSnapshot = productionR2?.revision?.routeSnapshot || {};
-    const primaryDomain = productionRouteSnapshot.domains?.[0];
-    const siteCandidates = primaryDomain
-      ? await prisma.site.findMany({
-          where: {
-            teamId,
-            projectId,
-            environmentId: productionEnvId,
-            primaryDomain,
-          },
-          select: { id: true },
-        })
-      : [];
-    runState.productionSiteId = siteCandidates[0]?.id;
-    const executed = await api(
-      "POST",
-      `/projects/${projectId}/delivery/environment-versions/${productionEnvId}/actions`,
-      headers,
-      { kind: "upgrade", manifestId, releaseRunId },
-    );
-    const runId = executed.run?.id ?? executed.id ?? executed.deploymentRunId;
-    const row = await prisma.deploymentRun.findUnique({
-      where: { id: runId },
-      select: {
-        id: true,
-        status: true,
-        environmentId: true,
-        artifactManifestId: true,
-        releaseRunId: true,
-        error: true,
-        result: true,
-        startedAt: true,
-        finishedAt: true,
-      },
+  if (releaseFlowProfile === "governed_v1") {
+    // ------------------------------------------------------- production preview
+    let previewInputHash;
+    await step("production-preview", async () => {
+      const preview = await api(
+        "GET",
+        `/projects/${projectId}/delivery/releases/${orderId}/production-preview?manifestId=${manifestId}`,
+        headers,
+      );
+      previewInputHash = preview.inputHash;
+      return {
+        inputHash: preview.inputHash,
+        snapshot: pick(preview.snapshot, [
+          "environment",
+          "manifest",
+          "config",
+          "releaseOrder",
+          "releasePolicy",
+        ]),
+        manifestFrozen: preview.snapshot?.manifest?.id === manifestId,
+        configRevisionId: preview.snapshot?.config?.revisionId,
+        expectedConfigRevisionId: productionR2?.revision?.id,
+      };
     });
-    if (!row || row.status !== "completed") {
-      throw productionDeploymentFailure(row);
-    }
-    const result = row.result || {};
-    const finalGateKey = `final:${releaseRunId}:${runId}`;
-    const expectedRoute = buildProductionRouteExpectation({
-      teamId,
-      projectId,
-      environmentId: productionEnvId,
-      deploymentRunId: runId,
-      releaseRunId,
-      manifestId,
-      configRevisionId: productionR2?.revision?.id,
-      routeSnapshot: productionRouteSnapshot,
-      siteId: siteCandidates[0]?.id,
-      targetRef: runState.productionTargetRef,
-      providerKey: parityRouteProviderKey,
-      receiptVersion: 1,
-      finalSitePort: runtime.ports.routeControl,
+
+    await step("production-preflight-refresh", async () => {
+      const refreshed = await api(
+        "POST",
+        `/projects/${projectId}/delivery/releases/${orderId}/production-preflight-refresh`,
+        headers,
+        { manifestId },
+      );
+      previewInputHash = refreshed.inputHash;
+      return {
+        inputHash: refreshed.inputHash,
+        preApprovalAllowed: refreshed.preflight?.decision?.preApprovalAllowed,
+        blockerGateIds:
+          refreshed.preflight?.decision?.preApprovalBlockerGateIds ?? [],
+        capacitySnapshotId:
+          refreshed.preflight?.admissionProof?.capacitySnapshotId,
+        dnsProbeReceiptId:
+          refreshed.preflight?.admissionProof?.dnsProbeReceiptId,
+        readiness: refreshed.preflight?.readiness,
+      };
     });
-    runState.productionRouteOperationId = expectedRoute.operationId;
-    runState.productionRouteHash = expectedRoute.routeHash;
-    runState.productionDeploymentRunId = runId;
-    runState.productionReleaseRunId = releaseRunId;
-    runState.productionProbeBodySignature = result.siteProbe?.http?.bodySignature;
-    const [productionRunCount, productionGate, routeRuns, releaseEvidence, siteCurrent] = await Promise.all([
-      prisma.deploymentRun.count({
-        where: {
-          environmentId: productionEnvId,
+
+    // ---------------------------------------------------------- production confirm
+    let approvalId;
+    await step("production-confirm", async () => {
+      const confirm = await api(
+        "POST",
+        `/projects/${projectId}/delivery/releases/${orderId}/production-releases`,
+        headers,
+        {
+          manifestId,
+          expectedInputHash: previewInputHash,
+          idempotencyKey: `f455-positive-e2e-production-confirm`,
+        },
+      );
+      releaseRunId = confirm.id;
+      approvalId = confirm.operationApproval?.id;
+      runState.releaseRunId = releaseRunId;
+      runState.approvalId = approvalId;
+      return {
+        releaseRunId,
+        status: confirm.status,
+        awaitingApproval: confirm.status === "awaiting_approval",
+        approvalId,
+        approvalStatus: confirm.operationApproval?.status,
+        verifiedDigest: confirm.verifiedDigest,
+        verifiedDigestMatches: confirm.verifiedDigest === manifestDigest,
+        manifestId: confirm.artifactManifestId,
+        configRevisionId: confirm.configRevisionId,
+        expectedConfigRevisionId: productionR2?.revision?.id,
+      };
+    });
+
+    // ------------------------------------------------------------------ approve
+    await step("approval-list", async () => {
+      const approvals = await api(
+        "GET",
+        `/operation-approvals?category=release`,
+        headers,
+      );
+      const found = (approvals.items ?? approvals).find(
+        (a) => a.id === approvalId,
+      );
+      return {
+        id: found?.id,
+        status: found?.status,
+        action: found?.action,
+        targetType: found?.targetType,
+        risk: found?.risk,
+        inputHashMatches: found?.inputHash === previewInputHash,
+      };
+    });
+    await step("approval-review", async () => {
+      const reviewed = await api(
+        "POST",
+        `/operation-approvals/${approvalId}/review`,
+        headers,
+        {
+          decision: "approved",
+          reviewComment: "F455 positive e2e: approve production release 1.0.0",
+        },
+      );
+      return {
+        approvalId,
+        decision: reviewed.decision,
+        status: reviewed.status,
+        reviewerId: reviewed.reviewerId,
+        reviewedAt: reviewed.reviewedAt,
+      };
+    });
+
+    // ---------------------------------------------------------------- production
+    await step("production-execute", async () => {
+      const productionRouteSnapshot =
+        productionR2?.revision?.routeSnapshot || {};
+      const primaryDomain = productionRouteSnapshot.domains?.[0];
+      const siteCandidates = primaryDomain
+        ? await prisma.site.findMany({
+            where: {
+              teamId,
+              projectId,
+              environmentId: productionEnvId,
+              primaryDomain,
+            },
+            select: { id: true },
+          })
+        : [];
+      runState.productionSiteId = siteCandidates[0]?.id;
+      const executed = await api(
+        "POST",
+        `/projects/${projectId}/delivery/environment-versions/${productionEnvId}/actions`,
+        headers,
+        {
+          idempotencyKey: "f455-positive-e2e-production-execute",
+          kind: "upgrade",
+          manifestId,
           releaseRunId,
-          artifactManifestId: manifestId,
         },
-      }),
-      prisma.releaseGateDecision.findUnique({
-        where: {
-          releaseOrderId_stage_requestKey: {
-            releaseOrderId: orderId,
-            stage: "production",
-            requestKey: finalGateKey,
-          },
-        },
+      );
+      const runId = executed.run?.id ?? executed.id ?? executed.deploymentRunId;
+      let row = await prisma.deploymentRun.findUnique({
+        where: { id: runId },
         select: {
           id: true,
-          releaseOrderId: true,
-          stage: true,
-          phase: true,
-          requestKey: true,
-          allowed: true,
-          inputHash: true,
-          inputSnapshot: true,
-          blockerGateIds: true,
-          integrityErrors: true,
-          actionRunType: true,
-          actionRunId: true,
-          consumedAt: true,
-        },
-      }),
-      prisma.siteRouteSwitchRun.findMany({
-        where: {
-          teamId,
-          projectId,
-          environmentId: productionEnvId,
-          deploymentRunId: runId,
-          releaseRunId,
-        },
-        select: {
-          teamId: true,
-          siteId: true,
-          projectId: true,
-          environmentId: true,
-          deploymentRunId: true,
-          releaseRunId: true,
-          targetRef: true,
-          proxyTarget: true,
-          domains: true,
           status: true,
-          reasonCode: true,
+          environmentId: true,
+          artifactManifestId: true,
+          releaseRunId: true,
+          error: true,
           result: true,
           startedAt: true,
           finishedAt: true,
         },
-      }),
-      prisma.releaseRun.findUnique({
-        where: { id: releaseRunId },
+      });
+      if (!row || row.status !== "awaiting_validation") {
+        throw productionDeploymentFailure(row);
+      }
+      const reviewerToken = await login(reviewerEmail, reviewerPassword);
+      const promotion = await completePositiveProductionPromotion({
+        request: api,
+        headers,
+        reviewerHeaders: {
+          authorization: `Bearer ${reviewerToken}`,
+          "x-team-id": teamId,
+          "content-type": "application/json",
+        },
+        projectId,
+        releaseOrderId: orderId,
+        releaseRunId,
+        environmentId: productionEnvId,
+        deploymentRunId: runId,
+        idempotencyPrefix: "f455-positive-e2e-production-promote",
+        deploymentResult: row.result,
+      });
+      row = await prisma.deploymentRun.findUnique({
+        where: { id: runId },
         select: {
+          id: true,
+          status: true,
           environmentId: true,
           artifactManifestId: true,
-          configRevisionId: true,
-          routeSnapshot: true,
+          releaseRunId: true,
+          error: true,
+          result: true,
+          startedAt: true,
+          finishedAt: true,
         },
-      }),
-      prisma.site.findUnique({
-        where: { id: siteCandidates[0]?.id || "__missing_site__" },
-        select: { id: true, primaryDomain: true, routeSwitch: true },
-      }),
-    ]);
-    return {
-      deploymentRunId: runId,
-      status: row.status,
-      environmentId: row.environmentId,
-      artifactManifestId: row.artifactManifestId,
-      sameManifest: row.artifactManifestId === manifestId,
-      releaseRunId: row.releaseRunId,
-      workloadReady: result.workloadReady,
-      healthProbe: result.healthProbe,
-      siteProbe: result.siteProbe,
-      routeSwitch: result.routeSwitch,
-      providerKey: result.providerKey,
-      artifactVerified: result.artifactVerified,
-      gateDecision: result.gateDecision,
-      productionRunCount,
-      productionGate: productionGateEvidence(productionGate, result.gateDecision, {
-          releaseOrderId: orderId,
-          releaseRunId,
-          deploymentRunId: runId,
-          environmentId: productionEnvId,
-          manifestId,
-        buildRunId,
+      });
+      if (!row || row.status !== "completed")
+        throw productionDeploymentFailure(row);
+      const result = row.result || {};
+      const finalGateKey = `final:${releaseRunId}:${runId}`;
+      const expectedRoute = buildProductionRouteExpectation({
+        teamId,
+        projectId,
+        environmentId: productionEnvId,
+        deploymentRunId: runId,
+        promotion,
+        releaseRunId,
+        manifestId,
         configRevisionId: productionR2?.revision?.id,
-        finalGateKey,
-        deploymentReleaseRunId: row.releaseRunId,
-        deploymentEnvironmentId: row.environmentId,
-        deploymentManifestId: row.artifactManifestId,
-      }),
-      routeEvidence: productionRouteEvidence({
-        expected: expectedRoute,
-        deployment: {
-          releaseRunId: row.releaseRunId,
-          environmentId: row.environmentId,
-          artifactManifestId: row.artifactManifestId,
-          startedAt: row.startedAt,
-          finishedAt: row.finishedAt,
-        },
-        releaseRun: releaseEvidence,
-        siteCandidateCount: siteCandidates.length,
-        siteCurrent,
+        routeSnapshot: productionRouteSnapshot,
+        siteId: siteCandidates[0]?.id,
+        targetRef: runState.productionTargetRef,
+        providerKey: parityRouteProviderKey,
+        receiptVersion: 1,
+        finalSitePort: runtime.ports.routeControl,
+      });
+      runState.productionRouteOperationId = expectedRoute.operationId;
+      runState.productionRouteHash = expectedRoute.routeHash;
+      runState.productionDeploymentRunId = runId;
+      runState.productionReleaseRunId = releaseRunId;
+      runState.productionProbeBodySignature =
+        result.siteProbe?.http?.bodySignature;
+      const [
+        productionRunCount,
+        productionGate,
         routeRuns,
+        releaseEvidence,
+        siteCurrent,
+      ] = await Promise.all([
+        prisma.deploymentRun.count({
+          where: {
+            environmentId: productionEnvId,
+            releaseRunId,
+            artifactManifestId: manifestId,
+          },
+        }),
+        prisma.releaseGateDecision.findUnique({
+          where: {
+            releaseOrderId_stage_requestKey: {
+              releaseOrderId: orderId,
+              stage: "production",
+              requestKey: finalGateKey,
+            },
+          },
+          select: {
+            id: true,
+            releaseOrderId: true,
+            stage: true,
+            phase: true,
+            requestKey: true,
+            allowed: true,
+            inputHash: true,
+            inputSnapshot: true,
+            blockerGateIds: true,
+            integrityErrors: true,
+            actionRunType: true,
+            actionRunId: true,
+            consumedAt: true,
+          },
+        }),
+        prisma.siteRouteSwitchRun.findMany({
+          where: {
+            teamId,
+            projectId,
+            environmentId: productionEnvId,
+            deploymentRunId: runId,
+            releaseRunId,
+          },
+          select: {
+            operationId: true,
+            providerKey: true,
+            teamId: true,
+            siteId: true,
+            projectId: true,
+            environmentId: true,
+            deploymentRunId: true,
+            releaseRunId: true,
+            targetRef: true,
+            proxyTarget: true,
+            domains: true,
+            status: true,
+            reasonCode: true,
+            desiredRoute: true,
+            applyReceipt: true,
+            result: true,
+            startedAt: true,
+            finishedAt: true,
+          },
+        }),
+        prisma.releaseRun.findUnique({
+          where: { id: releaseRunId },
+          select: {
+            environmentId: true,
+            artifactManifestId: true,
+            configRevisionId: true,
+            routeSnapshot: true,
+          },
+        }),
+        prisma.site.findUnique({
+          where: { id: siteCandidates[0]?.id || "__missing_site__" },
+          select: { id: true, primaryDomain: true, routeSwitch: true },
+        }),
+      ]);
+      return {
+        deploymentRunId: runId,
+        status: row.status,
+        environmentId: row.environmentId,
+        artifactManifestId: row.artifactManifestId,
+        sameManifest: row.artifactManifestId === manifestId,
+        releaseRunId: row.releaseRunId,
+        workloadReady: result.workloadReady,
+        healthProbe: result.healthProbe,
         siteProbe: result.siteProbe,
-        deploymentRouteSwitch: result.routeSwitch,
-        capturedAt: new Date().toISOString(),
-      }),
-    };
-  });
-
-  // ---------------------------------------------------- current env version
-  await step("production-current-version", async () => {
-    const versions = await api(
-      "GET",
-      `/projects/${projectId}/delivery/environment-versions`,
-      headers,
-    );
-    const production = (versions.environments || []).find(
-      (e) => e.id === productionEnvId,
-    );
-    const currentVersion = await prisma.environmentVersion.findUnique({
-      where: { id: production?.currentEnvironmentVersionId ?? "" },
-      select: {
-        id: true,
-        environmentId: true,
-        artifactManifestId: true,
-        deploymentRunId: true,
-        releaseRunId: true,
-        artifactManifest: { select: { digest: true } },
-      },
+        routeSwitch: result.routeSwitch,
+        providerKey: result.providerKey,
+        artifactVerified: result.artifactVerified,
+        gateDecision: result.gateDecision,
+        productionRunCount,
+        productionGate: productionGateEvidence(
+          productionGate,
+          result.postDeployGateDecision,
+          {
+            releaseOrderId: orderId,
+            releaseRunId,
+            deploymentRunId: runId,
+            environmentId: productionEnvId,
+            manifestId,
+            buildRunId,
+            configRevisionId: productionR2?.revision?.id,
+            finalGateKey,
+            deploymentReleaseRunId: row.releaseRunId,
+            deploymentEnvironmentId: row.environmentId,
+            deploymentManifestId: row.artifactManifestId,
+          },
+        ),
+        routeEvidence: productionRouteEvidence({
+          expected: expectedRoute,
+          deployment: {
+            releaseRunId: row.releaseRunId,
+            environmentId: row.environmentId,
+            artifactManifestId: row.artifactManifestId,
+            startedAt: row.startedAt,
+            finishedAt: row.finishedAt,
+          },
+          releaseRun: releaseEvidence,
+          siteCandidateCount: siteCandidates.length,
+          siteCurrent,
+          routeRuns,
+          siteProbe: result.siteProbe,
+          deploymentRouteSwitch: result.routeSwitch,
+          capturedAt: new Date().toISOString(),
+        }),
+      };
     });
-    const matches =
-      currentVersion?.artifactManifestId === manifestId &&
-      currentVersion?.artifactManifest?.digest === manifestDigest;
-    return {
-      currentEnvironmentVersionId: production?.currentEnvironmentVersionId,
-      manifestId,
-      manifestDigest,
-      matches,
-      currentVersion: currentVersion
-        ? {
-            id: currentVersion.id,
-            artifactManifestId: currentVersion.artifactManifestId,
-            digest: currentVersion.artifactManifest.digest,
-            deploymentRunId: currentVersion.deploymentRunId,
-            releaseRunId: currentVersion.releaseRunId,
-          }
-        : null,
-      stagingCurrent: (versions.environments || []).find(
-        (e) => e.id === stagingEnvId,
-      )?.currentEnvironmentVersionId,
-    };
-  });
 
-  // ------------------------------------------------------------- release run
-  await step("release-run-final", async () => {
-    const run = await prisma.releaseRun.findUnique({
-      where: { id: releaseRunId },
-      select: {
-        id: true,
-        status: true,
-        mode: true,
-        artifactManifestId: true,
-        verifiedDigest: true,
-        configRevisionId: true,
-        operationApproval: {
-          select: { status: true, consumedAt: true, reviewedAt: true },
+    // ---------------------------------------------------- current env version
+    await step("production-current-version", async () => {
+      const versions = await api(
+        "GET",
+        `/projects/${projectId}/delivery/environment-versions`,
+        headers,
+      );
+      const production = (versions.environments || []).find(
+        (e) => e.id === productionEnvId,
+      );
+      const currentVersion = await prisma.environmentVersion.findUnique({
+        where: { id: production?.currentEnvironmentVersionId ?? "" },
+        select: {
+          id: true,
+          environmentId: true,
+          artifactManifestId: true,
+          deploymentRunId: true,
+          releaseRunId: true,
+          artifactManifest: { select: { digest: true } },
         },
-      },
+      });
+      const matches =
+        currentVersion?.artifactManifestId === manifestId &&
+        currentVersion?.artifactManifest?.digest === manifestDigest;
+      return {
+        currentEnvironmentVersionId: production?.currentEnvironmentVersionId,
+        manifestId,
+        manifestDigest,
+        matches,
+        currentVersion: currentVersion
+          ? {
+              id: currentVersion.id,
+              artifactManifestId: currentVersion.artifactManifestId,
+              digest: currentVersion.artifactManifest.digest,
+              deploymentRunId: currentVersion.deploymentRunId,
+              releaseRunId: currentVersion.releaseRunId,
+            }
+          : null,
+        stagingCurrent: (versions.environments || []).find(
+          (e) => e.id === stagingEnvId,
+        )?.currentEnvironmentVersionId,
+      };
     });
-    return {
-      releaseRunId,
-      status: run?.status,
-      succeeded: run?.status === "succeeded",
-      mode: run?.mode,
-      artifactManifestId: run?.artifactManifestId,
-      verifiedDigestMatches: run?.verifiedDigest === manifestDigest,
-      configRevisionId: run?.configRevisionId,
-      approvalStatus: run?.operationApproval?.status,
-      approvalConsumedAt: run?.operationApproval?.consumedAt,
-    };
-  });
 
-  // ------------------------------------------------------------------ gates
-  await step("gate-decisions", async () => {
-    const rows = await prisma.releaseGateDecision.findMany({
-      where: { releaseOrderId: orderId },
-      select: {
-        id: true,
-        stage: true,
-        allowed: true,
-        blockerGateIds: true,
-        deferredGateIds: true,
-        requestKey: true,
-      },
-      orderBy: [{ createdAt: "desc" }],
-      take: 10,
+    // ------------------------------------------------------------- release run
+    await step("release-run-final", async () => {
+      const run = await prisma.releaseRun.findUnique({
+        where: { id: releaseRunId },
+        select: {
+          id: true,
+          status: true,
+          mode: true,
+          artifactManifestId: true,
+          verifiedDigest: true,
+          configRevisionId: true,
+          operationApproval: {
+            select: { status: true, consumedAt: true, reviewedAt: true },
+          },
+        },
+      });
+      return {
+        releaseRunId,
+        status: run?.status,
+        succeeded: run?.status === "succeeded",
+        mode: run?.mode,
+        artifactManifestId: run?.artifactManifestId,
+        verifiedDigestMatches: run?.verifiedDigest === manifestDigest,
+        configRevisionId: run?.configRevisionId,
+        approvalStatus: run?.operationApproval?.status,
+        approvalConsumedAt: run?.operationApproval?.consumedAt,
+      };
     });
-    return rows.map((r) => ({
-      stage: r.stage,
-      allowed: r.allowed,
-      blockerGateIds: r.blockerGateIds,
-      deferredGateIds: r.deferredGateIds,
-    }));
-  });
 
-  // -------------------------------------------------------------- final site
-  await step("final-site-http", async () => {
-    const route = productionR2?.revision?.routeSnapshot || {};
-    const primaryDomain = route.domains?.[0];
-    const publicFinalUrl = primaryDomain ? `${runtime.localAcceptanceOrigin}/` : null;
-    if (!publicFinalUrl || !runState.productionSiteId) {
-      throw new Error("Production route identity is incomplete");
-    }
-    const res = await httpGet(publicFinalUrl, { raw: true });
-    const body = res.body || "";
-    return {
-      publicFinalUrl,
-      publicSignoffRequired: false,
-      localAcceptanceProfile: "parity-hosts-v1",
-      observedUrl: res.url,
-      status: res.status,
-      ok: res.status >= 200 && res.status < 400,
-      bodySignature: body ? `sha256:${createHash("sha256").update(body).digest("hex")}` : null,
-      titleMarker: /Parity Target Workload/.test(body),
-      routeOperationId: res.routeOperationId,
-      routeSiteId: res.routeSiteId,
-      routeDeploymentRunId: res.routeDeploymentRunId,
-      routeReleaseRunId: res.routeReleaseRunId,
-      routeHash: res.routeHash,
-    };
-  });
+    // ------------------------------------------------------------------ gates
+    await step("gate-decisions", async () => {
+      const rows = await prisma.releaseGateDecision.findMany({
+        where: { releaseOrderId: orderId },
+        select: {
+          id: true,
+          stage: true,
+          phase: true,
+          allowed: true,
+          blockerGateIds: true,
+          manualGateIds: true,
+          confirmedManualGateIds: true,
+          deferredGateIds: true,
+          requestKey: true,
+          inputSnapshot: true,
+          createdAt: true,
+        },
+        orderBy: [{ createdAt: "desc" }],
+        take: 20,
+      });
+      return summarizePositiveGateHistory(rows);
+    });
+
+    // -------------------------------------------------------------- final site
+    await step("final-site-http", async () => {
+      const route = productionR2?.revision?.routeSnapshot || {};
+      const primaryDomain = route.domains?.[0];
+      const publicFinalUrl = primaryDomain
+        ? `${runtime.localAcceptanceOrigin}/`
+        : null;
+      if (!publicFinalUrl || !runState.productionSiteId) {
+        throw new Error("Production route identity is incomplete");
+      }
+      const res = await httpGet(publicFinalUrl, { raw: true });
+      const body = res.body || "";
+      return {
+        publicFinalUrl,
+        publicSignoffRequired: false,
+        localAcceptanceProfile: "parity-hosts-v1",
+        observedUrl: res.url,
+        status: res.status,
+        ok: res.status >= 200 && res.status < 400,
+        bodySignature: body
+          ? `sha256:${createHash("sha256").update(body).digest("hex")}`
+          : null,
+        titleMarker: /Parity Target Workload/.test(body),
+        routeOperationId: res.routeOperationId,
+        routeSiteId: res.routeSiteId,
+        routeDeploymentRunId: res.routeDeploymentRunId,
+        routeReleaseRunId: res.routeReleaseRunId,
+        routeHash: res.routeHash,
+      };
+    });
+  }
 
   // ------------------------------------------------------------ final db summary
   await step("db-summary", async () => {
@@ -903,9 +1120,11 @@ async function main() {
         prisma.environmentVersion.count({
           where: { environmentId: productionEnvId },
         }),
-        prisma.operationApproval.count({
-          where: { projectId, targetId: releaseRunId },
-        }),
+        releaseRunId
+          ? prisma.operationApproval.count({
+              where: { projectId, targetId: releaseRunId },
+            })
+          : Promise.resolve(0),
       ]);
     return {
       buildRunsOnOrder: builds,
@@ -916,7 +1135,7 @@ async function main() {
     };
   });
 
-  finishEvidence(evidence, POSITIVE_AC_MAPPING);
+  finishEvidence(evidence, positiveAcMappingFor(releaseFlowProfile));
   await writeEvidence();
   log("E2E chain PASSED — evidence at " + evidencePath());
 }
@@ -934,14 +1153,25 @@ async function step(name, action) {
 
 const STEP_VERIFY = {
   preflight: (r) => [
-    check("apiHealth", r.apiHealth, true), check("webStatus", r.webStatus, 200),
-    check("targetStatus", r.targetStatus, 200), check("mysqlOk", r.mysqlOk, true),
-    check("tokenIssued", r.tokenIssued, true), check("targetBodyMarker", r.targetBodyMarker, true),
+    check("apiHealth", r.apiHealth, true),
+    check("webStatus", r.webStatus, 200),
+    check("targetStatus", r.targetStatus, 200),
+    check("mysqlOk", r.mysqlOk, true),
+    check("tokenIssued", r.tokenIssued, true),
+    check("targetBodyMarker", r.targetBodyMarker, true),
   ],
   "intake-draft": (r) => [
-    predicate("newProjectId", Boolean(r.project?.id) && r.project.id !== projectId, r.project?.id),
+    predicate(
+      "newProjectId",
+      Boolean(r.project?.id) && r.project.id !== projectId,
+      r.project?.id,
+    ),
     check("onboardingStatus", r.project?.onboardingStatus, "draft"),
-    predicate("notFinalized", !r.project?.onboardingFinalizedAt, r.project?.onboardingFinalizedAt),
+    predicate(
+      "notFinalized",
+      !r.project?.onboardingFinalizedAt,
+      r.project?.onboardingFinalizedAt,
+    ),
   ],
   "intake-connect": (r) => [
     predicate("connectionId", Boolean(r.connectionId), r.connectionId),
@@ -951,9 +1181,15 @@ const STEP_VERIFY = {
     predicate("provider", Boolean(r.provider), r.provider),
   ],
   "intake-analyze": (r) => [
-    predicate("freshRunId", Boolean(r.runId) && r.runId !== "parity-analysis-0001", r.runId),
-    check("status", r.status, "succeeded"), check("commitSha", r.commitSha, pinnedCommit),
-    check("pinned", r.pinned, true), predicate("services", r.services?.length > 0, r.services?.length),
+    predicate(
+      "freshRunId",
+      Boolean(r.runId) && r.runId !== "parity-analysis-0001",
+      r.runId,
+    ),
+    check("status", r.status, "succeeded"),
+    check("commitSha", r.commitSha, pinnedCommit),
+    check("pinned", r.pinned, true),
+    predicate("services", r.services?.length > 0, r.services?.length),
     predicate("packageManager", Boolean(r.packageManager), r.packageManager),
   ],
   "intake-contract": (r) => [
@@ -962,8 +1198,16 @@ const STEP_VERIFY = {
   ],
   "intake-review": (r) => [
     check("expectedRefusal", r.expectedRefusal, false),
-    predicate("reviewSnapshotId", Boolean(r.reviewSnapshotId), r.reviewSnapshotId),
-    predicate("reviewSnapshotHash", /^[a-f0-9]{64}$/.test(r.reviewSnapshotHash || ""), r.reviewSnapshotHash),
+    predicate(
+      "reviewSnapshotId",
+      Boolean(r.reviewSnapshotId),
+      r.reviewSnapshotId,
+    ),
+    predicate(
+      "reviewSnapshotHash",
+      /^[a-f0-9]{64}$/.test(r.reviewSnapshotHash || ""),
+      r.reviewSnapshotHash,
+    ),
   ],
   "intake-finalize": (r) => [
     check("expectedRefusal", r.expectedRefusal, false),
@@ -991,10 +1235,24 @@ const STEP_VERIFY = {
     ),
   ],
   "baselines-verified": (r) => [
-    check("stagingRole", r.staging, "staging"), check("productionRole", r.production, "production"),
-    check("exactlyOnePerRole", r.exactlyOnePerRole, true), check("r1Count", r.r1Count, 2),
-    predicate("stagingCurrentR1", r.revisions.some((x) => x.id === r.stagingCurrentConfigRevisionId && x.revision === 1), r.stagingCurrentConfigRevisionId),
-    predicate("productionCurrentR1", r.revisions.some((x) => x.id === r.productionCurrentConfigRevisionId && x.revision === 1), r.productionCurrentConfigRevisionId),
+    check("stagingRole", r.staging, "staging"),
+    check("productionRole", r.production, "production"),
+    check("exactlyOnePerRole", r.exactlyOnePerRole, true),
+    check("r1Count", r.r1Count, 2),
+    predicate(
+      "stagingCurrentR1",
+      r.revisions.some(
+        (x) => x.id === r.stagingCurrentConfigRevisionId && x.revision === 1,
+      ),
+      r.stagingCurrentConfigRevisionId,
+    ),
+    predicate(
+      "productionCurrentR1",
+      r.revisions.some(
+        (x) => x.id === r.productionCurrentConfigRevisionId && x.revision === 1,
+      ),
+      r.productionCurrentConfigRevisionId,
+    ),
   ],
   "delivery-fixture-claim": (r) =>
     positiveDeliveryClaimChecks(r, {
@@ -1009,26 +1267,44 @@ const STEP_VERIFY = {
   "env-r1-current": (r) => [
     predicate("stagingR1", Boolean(r.stagingR1), r.stagingR1),
     predicate("productionR1", Boolean(r.productionR1), r.productionR1),
-    check("stagingRevision", r.stagingRevisionNumber, 1), check("productionRevision", r.productionRevisionNumber, 1),
+    check("stagingRevision", r.stagingRevisionNumber, 1),
+    check("productionRevision", r.productionRevisionNumber, 1),
   ],
   "env-targets": (r) => [
-    check("stagingMatched", r.stagingMatched, true), check("productionMatched", r.productionMatched, true),
-    predicate("stagingBindings", r.staging?.bindings?.length > 0, r.staging?.bindings?.length),
-    predicate("productionBindings", r.production?.bindings?.length > 0, r.production?.bindings?.length),
+    check("stagingMatched", r.stagingMatched, true),
+    check("productionMatched", r.productionMatched, true),
+    predicate(
+      "stagingBindings",
+      r.staging?.bindings?.length > 0,
+      r.staging?.bindings?.length,
+    ),
+    predicate(
+      "productionBindings",
+      r.production?.bindings?.length > 0,
+      r.production?.bindings?.length,
+    ),
   ],
   "env-save-r2-staging": (r) => environmentR2Checks(r, "staging"),
   "env-save-r2-production": (r) => environmentR2Checks(r, "production"),
   "release-order": (r) => [
-    check("releaseVersion", r.releaseVersion, "1.0.0"), check("buildsTotal", r.buildsTotal, 0),
-    check("dbBuildRunCount", r.dbBuildRunCount, 0), check("dbManifestCount", r.dbManifestCount, 0),
+    check("releaseVersion", r.releaseVersion, "1.0.0"),
+    check("buildsTotal", r.buildsTotal, 0),
+    check("dbBuildRunCount", r.dbBuildRunCount, 0),
+    check("dbManifestCount", r.dbManifestCount, 0),
     check("aggregate", r.ok, true),
   ],
+  "build-gate-review": (r) => positiveBuildGateChecks(r, reviewerEmail),
   build: (r) => [
-    predicate("buildRunId", Boolean(r.buildRunId), r.buildRunId), check("status", r.status, "succeeded"),
-    check("sourceCommitSha", r.sourceCommitSha, pinnedCommit), check("pinnedCommitMatched", r.pinnedCommitMatched, true),
-    predicate("manifestId", Boolean(r.manifestId), r.manifestId), predicate("manifestDigest", Boolean(r.manifestDigest), r.manifestDigest),
-    predicate("manifestItems", r.manifestItems > 0, r.manifestItems), check("manifestBuildRunId", r.manifestBuildRunId, r.buildRunId),
-    check("buildRunCount", r.buildRunCount, 1), check("manifestCount", r.manifestCount, 1),
+    predicate("buildRunId", Boolean(r.buildRunId), r.buildRunId),
+    check("status", r.status, "succeeded"),
+    check("sourceCommitSha", r.sourceCommitSha, pinnedCommit),
+    check("pinnedCommitMatched", r.pinnedCommitMatched, true),
+    predicate("manifestId", Boolean(r.manifestId), r.manifestId),
+    predicate("manifestDigest", Boolean(r.manifestDigest), r.manifestDigest),
+    predicate("manifestItems", r.manifestItems > 0, r.manifestItems),
+    check("manifestBuildRunId", r.manifestBuildRunId, r.buildRunId),
+    check("buildRunCount", r.buildRunCount, 1),
+    check("manifestCount", r.manifestCount, 1),
   ],
   "staging-deploy": (r) => [
     predicate("deploymentRunId", Boolean(r.deploymentRunId), r.deploymentRunId),
@@ -1039,64 +1315,204 @@ const STEP_VERIFY = {
     ...stagingCommandProofChecks(r.commandProof),
   ],
   "production-preview": (r) => [
-    predicate("inputHash", /^[a-f0-9]{64}$/.test(r.inputHash || ""), r.inputHash),
+    predicate(
+      "inputHash",
+      /^[a-f0-9]{64}$/.test(r.inputHash || ""),
+      r.inputHash,
+    ),
     check("manifestFrozen", r.manifestFrozen, true),
     check("configRevisionId", r.configRevisionId, r.expectedConfigRevisionId),
   ],
+  "production-preflight-refresh": (r) => [
+    predicate(
+      "inputHash",
+      /^[a-f0-9]{64}$/.test(r.inputHash || ""),
+      r.inputHash,
+    ),
+    check("preApprovalAllowed", r.preApprovalAllowed, true),
+    predicate(
+      "blockerGateIds",
+      Array.isArray(r.blockerGateIds) && r.blockerGateIds.length === 0,
+      r.blockerGateIds,
+    ),
+    predicate(
+      "capacitySnapshotId",
+      Boolean(r.capacitySnapshotId),
+      r.capacitySnapshotId,
+    ),
+    predicate(
+      "dnsProbeReceiptId",
+      Boolean(r.dnsProbeReceiptId),
+      r.dnsProbeReceiptId,
+    ),
+  ],
   "production-confirm": (r) => [
-    predicate("releaseRunId", Boolean(r.releaseRunId), r.releaseRunId), check("status", r.status, "awaiting_approval"),
-    check("awaitingApproval", r.awaitingApproval, true), predicate("approvalId", Boolean(r.approvalId), r.approvalId),
-    check("approvalStatus", r.approvalStatus, "pending"), check("verifiedDigestMatches", r.verifiedDigestMatches, true),
-    check("manifestId", r.manifestId, runState.manifestId), check("configRevisionId", r.configRevisionId, r.expectedConfigRevisionId),
+    predicate("releaseRunId", Boolean(r.releaseRunId), r.releaseRunId),
+    check("status", r.status, "awaiting_approval"),
+    check("awaitingApproval", r.awaitingApproval, true),
+    predicate("approvalId", Boolean(r.approvalId), r.approvalId),
+    check("approvalStatus", r.approvalStatus, "pending"),
+    check("verifiedDigestMatches", r.verifiedDigestMatches, true),
+    check("manifestId", r.manifestId, runState.manifestId),
+    check("configRevisionId", r.configRevisionId, r.expectedConfigRevisionId),
   ],
   "approval-list": (r) => [
-    check("id", r.id, runState.approvalId), check("status", r.status, "pending"),
-    check("targetType", r.targetType, "release_run"), check("inputHashMatches", r.inputHashMatches, true),
+    check("id", r.id, runState.approvalId),
+    check("status", r.status, "pending"),
+    check("targetType", r.targetType, "release_run"),
+    check("inputHashMatches", r.inputHashMatches, true),
   ],
   "approval-review": (r) => [
-    check("approvalId", r.approvalId, runState.approvalId), check("status", r.status, "approved"),
-    predicate("reviewerId", Boolean(r.reviewerId), r.reviewerId), predicate("reviewedAt", Boolean(r.reviewedAt), r.reviewedAt),
+    check("approvalId", r.approvalId, runState.approvalId),
+    check("status", r.status, "approved"),
+    predicate("reviewerId", Boolean(r.reviewerId), r.reviewerId),
+    predicate("reviewedAt", Boolean(r.reviewedAt), r.reviewedAt),
   ],
   "production-execute": (r) => productionExecutionChecks(r),
   "production-current-version": (r) => [
-    predicate("currentEnvironmentVersionId", Boolean(r.currentEnvironmentVersionId), r.currentEnvironmentVersionId),
-    check("currentPointer", r.currentEnvironmentVersionId, r.currentVersion?.id), check("matches", r.matches, true),
-    check("manifestId", r.currentVersion?.artifactManifestId, runState.manifestId), check("digest", r.currentVersion?.digest, runState.manifestDigest),
-    predicate("deploymentRunId", Boolean(r.currentVersion?.deploymentRunId), r.currentVersion?.deploymentRunId),
-    check("releaseRunId", r.currentVersion?.releaseRunId, runState.releaseRunId),
+    predicate(
+      "currentEnvironmentVersionId",
+      Boolean(r.currentEnvironmentVersionId),
+      r.currentEnvironmentVersionId,
+    ),
+    check(
+      "currentPointer",
+      r.currentEnvironmentVersionId,
+      r.currentVersion?.id,
+    ),
+    check("matches", r.matches, true),
+    check(
+      "manifestId",
+      r.currentVersion?.artifactManifestId,
+      runState.manifestId,
+    ),
+    check("digest", r.currentVersion?.digest, runState.manifestDigest),
+    predicate(
+      "deploymentRunId",
+      Boolean(r.currentVersion?.deploymentRunId),
+      r.currentVersion?.deploymentRunId,
+    ),
+    check(
+      "releaseRunId",
+      r.currentVersion?.releaseRunId,
+      runState.releaseRunId,
+    ),
   ],
   "release-run-final": (r) => [
-    check("releaseRunId", r.releaseRunId, runState.releaseRunId), check("status", r.status, "succeeded"),
-    check("succeeded", r.succeeded, true), check("mode", r.mode, "standard"),
-    check("artifactManifestId", r.artifactManifestId, runState.manifestId), check("verifiedDigestMatches", r.verifiedDigestMatches, true),
-    predicate("configRevisionId", Boolean(r.configRevisionId), r.configRevisionId), check("approvalStatus", r.approvalStatus, "approved"),
-    predicate("approvalConsumedAt", Boolean(r.approvalConsumedAt), r.approvalConsumedAt),
+    check("releaseRunId", r.releaseRunId, runState.releaseRunId),
+    check("status", r.status, "succeeded"),
+    check("succeeded", r.succeeded, true),
+    check("mode", r.mode, "standard"),
+    check("artifactManifestId", r.artifactManifestId, runState.manifestId),
+    check("verifiedDigestMatches", r.verifiedDigestMatches, true),
+    predicate(
+      "configRevisionId",
+      Boolean(r.configRevisionId),
+      r.configRevisionId,
+    ),
+    check("approvalStatus", r.approvalStatus, "approved"),
+    predicate(
+      "approvalConsumedAt",
+      Boolean(r.approvalConsumedAt),
+      r.approvalConsumedAt,
+    ),
   ],
   "gate-decisions": (r) => [
-    predicate("decisions", r.length > 0, r.length),
-    predicate("allAllowed", r.every((x) => x.allowed === true), r.map((x) => x.allowed)),
-    predicate("noBlockers", r.every((x) => (x.blockerGateIds || []).length === 0), r),
+    predicate("decisions", r.decisionCount > 0, r.decisionCount),
+    check("expectedP03BlockedHistory", r.expectedP03BlockedCount, 1),
+    predicate(
+      "expectedC03BlockedHistory",
+      r.expectedC03BlockedCount > 0,
+      r.expectedC03BlockedCount,
+    ),
+    predicate(
+      "expectedStagingBlockedHistory",
+      r.expectedStagingBlockedCount > 0,
+      r.expectedStagingBlockedCount,
+    ),
+    check("unexpectedBlockedHistory", r.unexpectedBlockedCount, 0),
+    predicate(
+      "confirmedP03Decision",
+      r.confirmedP03DecisionCount > 0,
+      r.confirmedP03DecisionCount,
+    ),
+    predicate(
+      "confirmedC03Decision",
+      r.confirmedC03DecisionCount > 0,
+      r.confirmedC03DecisionCount,
+    ),
+    predicate(
+      "recoveredStagingDecision",
+      r.recoveredStagingDecisionCount > 0,
+      r.recoveredStagingDecisionCount,
+    ),
+    check(
+      "allowedDecisionsHaveNoBlockers",
+      r.allowedDecisionsHaveNoBlockers,
+      true,
+    ),
   ],
   "final-site-http": (r) => [
     predicate("publicFinalUrl", Boolean(r.publicFinalUrl), r.publicFinalUrl),
     check("publicSignoffRequired", r.publicSignoffRequired, false),
-    check("localAcceptanceProfile", r.localAcceptanceProfile, "parity-hosts-v1"),
+    check(
+      "localAcceptanceProfile",
+      r.localAcceptanceProfile,
+      "parity-hosts-v1",
+    ),
     check("observedUrl", r.observedUrl, r.publicFinalUrl),
     predicate("status2xx", r.status >= 200 && r.status < 300, r.status),
     check("ok", r.ok, true),
     predicate("bodySignature", Boolean(r.bodySignature), r.bodySignature),
     check("titleMarker", r.titleMarker, true),
-    check("routeOperationId", r.routeOperationId, runState.productionRouteOperationId),
+    check(
+      "routeOperationId",
+      r.routeOperationId,
+      runState.productionRouteOperationId,
+    ),
     check("routeSiteId", r.routeSiteId, runState.productionSiteId),
-    check("routeDeploymentRunId", r.routeDeploymentRunId, runState.productionDeploymentRunId),
-    check("routeReleaseRunId", r.routeReleaseRunId, runState.productionReleaseRunId),
+    check(
+      "routeDeploymentRunId",
+      r.routeDeploymentRunId,
+      runState.productionDeploymentRunId,
+    ),
+    check(
+      "routeReleaseRunId",
+      r.routeReleaseRunId,
+      runState.productionReleaseRunId,
+    ),
     check("routeHash", r.routeHash, runState.productionRouteHash),
-    check("probeBodySignature", r.bodySignature, runState.productionProbeBodySignature),
+    check(
+      "probeBodySignature",
+      r.bodySignature,
+      runState.productionProbeBodySignature,
+    ),
   ],
   "db-summary": (r) => [
-    check("buildRunsOnOrder", r.buildRunsOnOrder, 1), check("stagingDeploymentRuns", r.stagingDeploymentRuns, 1),
-    check("productionDeploymentRuns", r.productionDeploymentRuns, 1), predicate("productionEnvironmentVersions", r.productionEnvironmentVersions > 0, r.productionEnvironmentVersions),
-    check("operationApprovals", r.operationApprovals, 1),
+    check("buildRunsOnOrder", r.buildRunsOnOrder, 1),
+    check("stagingDeploymentRuns", r.stagingDeploymentRuns, 1),
+    check(
+      "productionDeploymentRuns",
+      r.productionDeploymentRuns,
+      releaseFlowProfile === "governed_v1" ? 1 : 0,
+    ),
+    releaseFlowProfile === "governed_v1"
+      ? predicate(
+          "productionEnvironmentVersions",
+          r.productionEnvironmentVersions >
+            runState.productionEnvironmentVersionsBeforeRelease,
+          r.productionEnvironmentVersions,
+        )
+      : check(
+          "productionEnvironmentVersions",
+          r.productionEnvironmentVersions,
+          runState.productionEnvironmentVersionsBeforeRelease,
+        ),
+    check(
+      "operationApprovals",
+      r.operationApprovals,
+      releaseFlowProfile === "governed_v1" ? 1 : 0,
+    ),
   ],
 };
 
@@ -1114,9 +1530,16 @@ function stagingCommandProof(row, expected) {
   return {
     commandPlan: row.commandPlan,
     providerEvidence: pick(result, [
-      "providerActivated", "providerKey", "providerDeploymentId",
-      "providerTargetRef", "checkoutInvoked", "pullInvoked",
-      "buildInvoked", "gitInvoked", "artifactVerified", "immutableInput",
+      "providerActivated",
+      "providerKey",
+      "providerDeploymentId",
+      "providerTargetRef",
+      "checkoutInvoked",
+      "pullInvoked",
+      "buildInvoked",
+      "gitInvoked",
+      "artifactVerified",
+      "immutableInput",
     ]),
     artifactContract: {
       expected,
@@ -1141,9 +1564,15 @@ function stagingCommandProofChecks(proof = {}) {
   const expected = artifact.expected || {};
   return [
     check("commandPlanVersion", plan.version, 1),
-    predicate("commandPlanStepsExact", jsonEqual(plan.steps, STAGING_COMMAND_STEPS), plan.steps),
-    check("commandPlanCheckout", plan.checkout, false), check("commandPlanPull", plan.pull, false),
-    check("commandPlanBuild", plan.build, false), predicate("commandPlanFetch", falseOrAbsent(plan.fetch), plan.fetch),
+    predicate(
+      "commandPlanStepsExact",
+      jsonEqual(plan.steps, STAGING_COMMAND_STEPS),
+      plan.steps,
+    ),
+    check("commandPlanCheckout", plan.checkout, false),
+    check("commandPlanPull", plan.pull, false),
+    check("commandPlanBuild", plan.build, false),
+    predicate("commandPlanFetch", falseOrAbsent(plan.fetch), plan.fetch),
     predicate("commandPlanGit", falseOrAbsent(plan.git), plan.git),
     check("providerCheckoutInvoked", provider.checkoutInvoked, false),
     check("providerPullInvoked", provider.pullInvoked, false),
@@ -1154,14 +1583,30 @@ function stagingCommandProofChecks(proof = {}) {
     check("immutableInput", provider.immutableInput, true),
     check("rowManifestId", artifact.rowManifestId, expected.manifestId),
     check("resultManifestId", artifact.resultManifestId, expected.manifestId),
-    check("resultManifestDigest", artifact.resultManifestDigest, expected.manifestDigest),
+    check(
+      "resultManifestDigest",
+      artifact.resultManifestDigest,
+      expected.manifestDigest,
+    ),
     check("paramsManifestId", artifact.paramsManifestId, expected.manifestId),
-    check("paramsManifestDigest", artifact.paramsManifestDigest, expected.manifestDigest),
+    check(
+      "paramsManifestDigest",
+      artifact.paramsManifestDigest,
+      expected.manifestDigest,
+    ),
     check("paramsBuildRunId", artifact.paramsBuildRunId, expected.buildRunId),
     check("providerKey", provider.providerKey, artifact.adapterKey),
     check("paramsProviderKey", artifact.paramsProviderKey, artifact.adapterKey),
-    check("providerDeploymentId", provider.providerDeploymentId, artifact.deploymentRunId),
-    check("providerTargetRef", provider.providerTargetRef, artifact.paramsTargetRef),
+    check(
+      "providerDeploymentId",
+      provider.providerDeploymentId,
+      artifact.deploymentRunId,
+    ),
+    check(
+      "providerTargetRef",
+      provider.providerTargetRef,
+      artifact.paramsTargetRef,
+    ),
   ];
 }
 
@@ -1180,14 +1625,42 @@ function environmentR2Checks(result, role) {
     ? ["parity-resource-0001", "parity-resource-managed-0001"]
     : ["parity-resource-0001"];
   return [
-    check("revision", result.revision, 2), predicate("id", Boolean(result.id), result.id),
-    predicate("snapshotHash", /^[a-f0-9]{64}$/.test(result.snapshotHash || ""), result.snapshotHash),
-    check("cas", result.cas, true), check("currentPointer", result.current, result.id),
-    predicate("plainVariables", jsonEqual(snapshot.plainVariables, expectedVariables), snapshot.plainVariables),
-    predicate("secretReferences", jsonEqual(ids(snapshot.secretReferences), ["parity-secret-0001"]), ids(snapshot.secretReferences)),
-    predicate("resourceReferences", jsonEqual(ids(snapshot.resourceReferences), expectedResources.sort()), ids(snapshot.resourceReferences)),
-    predicate("domains", jsonEqual(snapshot.routeSnapshot?.domains, [`${production ? "" : "staging."}parity.example.test`]), snapshot.routeSnapshot?.domains),
-    check("proxyTarget", snapshot.routeSnapshot?.proxyTarget, production ? "http://parity-target-workload" : runtime.targetOrigin),
+    check("revision", result.revision, 2),
+    predicate("id", Boolean(result.id), result.id),
+    predicate(
+      "snapshotHash",
+      /^[a-f0-9]{64}$/.test(result.snapshotHash || ""),
+      result.snapshotHash,
+    ),
+    check("cas", result.cas, true),
+    check("currentPointer", result.current, result.id),
+    predicate(
+      "plainVariables",
+      jsonEqual(snapshot.plainVariables, expectedVariables),
+      snapshot.plainVariables,
+    ),
+    predicate(
+      "secretReferences",
+      jsonEqual(ids(snapshot.secretReferences), ["parity-secret-0001"]),
+      ids(snapshot.secretReferences),
+    ),
+    predicate(
+      "resourceReferences",
+      jsonEqual(ids(snapshot.resourceReferences), expectedResources.sort()),
+      ids(snapshot.resourceReferences),
+    ),
+    predicate(
+      "domains",
+      jsonEqual(snapshot.routeSnapshot?.domains, [
+        `${production ? "" : "staging."}parity.example.test`,
+      ]),
+      snapshot.routeSnapshot?.domains,
+    ),
+    check(
+      "proxyTarget",
+      snapshot.routeSnapshot?.proxyTarget,
+      production ? runtime.routeProxyTarget : runtime.targetOrigin,
+    ),
     check("tlsRequired", snapshot.routeSnapshot?.tlsRequired, false),
   ];
 }
@@ -1261,13 +1734,22 @@ function selfTestStagingCommandProof() {
     manifestDigest: "sha256:artifact",
     buildRunId: "build-1",
   };
-  assertProofChecksPass(stagingCommandProofChecks(stagingCommandProof(row, expected)));
+  assertProofChecksPass(
+    stagingCommandProofChecks(stagingCommandProof(row, expected)),
+  );
   for (const command of ["npm run build", "pnpm build", "git -C repo fetch"]) {
     const mutated = structuredClone(row);
     mutated.commandPlan.steps.push(command);
-    const checks = stagingCommandProofChecks(stagingCommandProof(mutated, expected));
-    if (checks.find((item) => item.name === "commandPlanStepsExact")?.pass !== false) {
-      throw new Error(`command plan fixture escaped exact allowlist: ${command}`);
+    const checks = stagingCommandProofChecks(
+      stagingCommandProof(mutated, expected),
+    );
+    if (
+      checks.find((item) => item.name === "commandPlanStepsExact")?.pass !==
+      false
+    ) {
+      throw new Error(
+        `command plan fixture escaped exact allowlist: ${command}`,
+      );
     }
   }
 }
@@ -1275,15 +1757,35 @@ function selfTestStagingCommandProof() {
 function assertProofChecksPass(checks) {
   const failed = checks.filter((item) => item.pass !== true);
   if (failed.length > 0) {
-    throw new Error(`valid command proof rejected: ${failed.map((item) => item.name).join(", ")}`);
+    throw new Error(
+      `valid command proof rejected: ${failed.map((item) => item.name).join(", ")}`,
+    );
   }
 }
 
-async function login() {
+function positiveRouteTarget(claim, role) {
+  const contract = claim.applicationContracts?.find(
+    (item) => item.component === "web",
+  );
+  const service = contract?.[role];
+  const port = Array.isArray(service?.ports) ? service.ports[0] : undefined;
+  if (
+    !service?.id ||
+    !service?.name ||
+    !Number.isInteger(port) ||
+    port < 1 ||
+    port > 65_535
+  ) {
+    throw new Error(`positive route target missing: ${role}`);
+  }
+  return { id: service.id, name: service.name, port };
+}
+
+async function login(email = adminEmail, password = adminPassword) {
   const res = await fetch(`${apiBase}/auth/login`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ email: adminEmail, password: adminPassword }),
+    body: JSON.stringify({ email, password }),
   });
   const body = await res.json();
   if (!res.ok || !body.data?.accessToken) {
@@ -1322,7 +1824,9 @@ async function apiExpect(method, path, headers, body) {
 
 async function httpGet(url, options = {}) {
   const res = await fetch(url);
-  const body = options.raw ? await res.text() : await res.json().catch(() => null);
+  const body = options.raw
+    ? await res.text()
+    : await res.json().catch(() => null);
   return {
     status: res.status,
     body,

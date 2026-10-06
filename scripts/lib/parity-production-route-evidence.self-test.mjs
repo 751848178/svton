@@ -7,6 +7,8 @@ import {
 
 const proof = validProof();
 assert.deepEqual(failed(proof), []);
+assert.equal(proof.expected.entries[0].tlsMode, "managed_cert");
+assert.equal(proof.expected.proxyTarget, "@parity/web:80");
 
 for (const [label, mutate] of [
   ["wrong configured final URL", (value) => {
@@ -46,7 +48,11 @@ for (const [label, mutate] of [
 function validProof() {
   const routeSnapshot = {
     domains: ["production.example.test"],
-    proxyTarget: "http://target-workload",
+    proxyTarget: "http://legacy-target-workload",
+    entries: [{
+      domain: "production.example.test", path: "/", serviceId: "web-1",
+      component: "@parity/web", port: 80, tlsMode: "managed_cert",
+    }],
     tlsRequired: true,
   };
   const expected = buildProductionRouteExpectation({
@@ -89,9 +95,11 @@ function validProof() {
     releaseRunId: expected.releaseRunId,
     primaryDomain: expected.primaryDomain,
     domains: expected.domains,
+    entries: expected.entries,
     proxyTarget: expected.proxyTarget,
     targetRef: expected.targetRef,
     routeHash: expected.routeHash,
+    expectedCurrent: null,
     providerKey: expected.providerKey,
     status: "switched",
     reasonCode: "site_route_switched",
@@ -138,6 +146,8 @@ function validProof() {
       routeSwitch: structuredClone(routeSwitch),
     },
     routeRuns: [{
+      operationId: expected.operationId,
+      providerKey: expected.providerKey,
       teamId: expected.teamId,
       siteId: expected.siteId,
       projectId: expected.projectId,
@@ -147,8 +157,26 @@ function validProof() {
       targetRef: expected.targetRef,
       proxyTarget: expected.proxyTarget,
       domains: expected.domains,
-      status: "switched",
+      status: "committed",
       reasonCode: "site_route_switched",
+      desiredRoute: {
+        version: 1,
+        operationId: expected.operationId,
+        teamId: expected.teamId,
+        projectId: expected.projectId,
+        environmentId: expected.environmentId,
+        siteId: expected.siteId,
+        deploymentRunId: expected.deploymentRunId,
+        releaseRunId: expected.releaseRunId,
+        primaryDomain: expected.primaryDomain,
+        domains: expected.domains,
+        entries: expected.entries,
+        proxyTarget: expected.proxyTarget,
+        targetRef: expected.targetRef,
+        routeHash: expected.routeHash,
+        expectedCurrent: null,
+      },
+      applyReceipt: receiptValue,
       result: { routeSwitch, siteProbe },
       startedAt: observedAt,
       finishedAt: observedAt,
@@ -160,7 +188,7 @@ function validProof() {
 }
 
 function route(value) {
-  return value.routeRuns[0].result.routeSwitch;
+  return value.deploymentRouteSwitch;
 }
 
 function receipt(value) {

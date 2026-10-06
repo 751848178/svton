@@ -20,6 +20,7 @@ import {
 } from "./deployment-run-status";
 import { DeploymentLogStreamBootstrapService } from "./deployment-log-stream-bootstrap.service";
 import { DEPLOYMENT_RUN_INCLUDE } from "./deployment-run-include.constants";
+import { listDeploymentRuns } from "./deployment-run-list.repository";
 import { ServerCommandStep, ServerExecutorService } from "../server-executor";
 import {
   CreateDeploymentRunDto,
@@ -154,47 +155,7 @@ export class DeploymentService {
   ) {}
 
   async listRuns(teamId: string, query: ListDeploymentRunsQueryDto) {
-    const where: Prisma.DeploymentRunWhereInput = { teamId };
-
-    if (query.projectId) {
-      where.projectId = query.projectId;
-    }
-    if (query.releaseOrderId) {
-      // 归属双链（数据事实）：
-      //  1) DeploymentRun.artifactManifestId → ArtifactManifest.releaseOrderId
-      //     ——当前库中唯一可靠链（29 个遗留 ReleasePlan 的 releaseOrderId 均为 NULL）。
-      //  2) releaseStageAttempts → ReleaseStage → ReleasePlan.releaseOrderId
-      //     ——发布编排回填后的前瞻链。
-      where.OR = [
-        { artifactManifest: { releaseOrderId: query.releaseOrderId } },
-        {
-          releaseStageAttempts: {
-            some: {
-              releaseStage: { releasePlan: { releaseOrderId: query.releaseOrderId } },
-            },
-          },
-        },
-      ];
-    }
-    if (query.applicationId) {
-      where.applicationId = query.applicationId;
-    }
-    if (query.applicationServiceId) {
-      where.applicationServiceId = query.applicationServiceId;
-    }
-    if (query.status) {
-      where.status = query.status;
-    }
-    if (query.source) {
-      where.source = query.source;
-    }
-
-    return this.prisma.deploymentRun.findMany({
-      where,
-      orderBy: { startedAt: "desc" },
-      take: 30,
-      include: DEPLOYMENT_RUN_INCLUDE,
-    });
+    return listDeploymentRuns(this.prisma, teamId, query);
   }
 
   async resolveRunCreateAccessScope(
@@ -1786,7 +1747,7 @@ export class DeploymentService {
         error: execution.error,
         finishedAt: new Date(),
       },
-        include: DEPLOYMENT_RUN_INCLUDE,
+      include: DEPLOYMENT_RUN_INCLUDE,
     });
 
     await this.auditEventService.create({

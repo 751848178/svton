@@ -53,7 +53,9 @@ export class SiteProbeLocalAcceptancePolicy {
       this.value("SITE_PROBE_LOCAL_ACCEPTANCE_HOSTNAME") !== HOSTNAME ||
       this.value("PARITY_GOAL_ID") !== GOAL ||
       this.value("PARITY_REQUIRE_VERIFIED_RUNTIME") !== "1" ||
-      !/^c5-[0-9a-f]{8}-[0-9a-f]{32}$/.test(this.value("PARITY_RUNTIME_ID")) ||
+      !/^c5-[0-9a-f]{8}-(?:[0-9a-f]{8}|[0-9a-f]{32})$/.test(
+        this.value("PARITY_RUNTIME_ID"),
+      ) ||
       !/^[0-9a-f]{40}$/.test(this.value("PARITY_SOURCE_REVISION"))
     ) {
       return null;

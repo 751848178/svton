@@ -13,7 +13,7 @@ vi.mock('@/components/ui', () => ({
 }));
 
 describe('ReleaseOrderListRow compact table contract', () => {
-  it('makes version and ID actionable and keeps operations in their own cell', () => {
+  it('uses the version as the only detail entry and keeps operations in their own cell', () => {
     const html = renderToStaticMarkup(
       <table>
         <tbody>
@@ -26,11 +26,14 @@ describe('ReleaseOrderListRow compact table contract', () => {
     );
     expect(html).toContain('1.4.0');
     expect(html).toContain('图库重构');
-    expect(html).toContain('order-1');
-    expect(html).toContain('master @ a1b2c3d4');
-    expect(html).toContain('releaseOrderActionBuild');
-    expect(html).toContain('releaseOrderActionDeployment');
-    expect(html).toContain('releaseOrderMoreActions');
+    expect(html).not.toContain('order-1');
+    expect(html).toContain('master');
+    expect(html).not.toContain('a1b2c3d4');
+    expect(html).not.toContain('releaseOrderActionBuild');
+    expect(html).not.toContain('releaseOrderActionDeployment');
+    expect((html.match(/<button/g) ?? []).length).toBe(2);
+    expect(html).toContain('min-h-11');
+    expect(html).toContain('viewReleaseOrder');
     expect(html).not.toContain('<article');
   });
 
@@ -50,6 +53,24 @@ describe('ReleaseOrderListRow compact table contract', () => {
     );
     expect(html).toContain('releaseLegacyNameFallback');
     expect(html).toContain('releaseLegacyVersionValue');
+  });
+
+  it('shows the authoritative lifecycle phase instead of the latest retry step', () => {
+    const release = item();
+    release.lifecycle.phase = 'production';
+    release.lastExecution.step = 'build';
+    const html = renderToStaticMarkup(
+      <table>
+        <tbody>
+          <ReleaseOrderListRow
+            item={release}
+            onOpen={vi.fn()}
+          />
+        </tbody>
+      </table>,
+    );
+    expect(html).toContain('releaseWorkbenchStepDeploy');
+    expect(html).not.toContain('releaseWorkbenchStepBuild');
   });
 });
 

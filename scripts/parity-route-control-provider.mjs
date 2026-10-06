@@ -6,8 +6,11 @@ import { currentReadback, mutateRouteControlState, operationReadback,
   ROUTE_CAPABILITIES } from "./lib/parity-route-control-policy.mjs";
 import { createRouteControlStateStore } from "./lib/parity-route-control-state-store.mjs";
 import { routeControlUpstreamUrl } from "./lib/parity-route-control-upstream.mjs";
+import { parseRouteControlUpstreamMap, resolveRouteControlUpstream,
+} from "./lib/parity-route-control-target.mjs";
 
-export function createRouteControlServer({ token, stateFile, fetchImpl = fetch }) {
+export function createRouteControlServer({ token, stateFile, fetchImpl = fetch,
+  upstreamMap = {} }) {
   if (typeof token !== "string" || token.length < 32)
     throw new Error("ROUTE_CONTROL_TOKEN must contain at least 32 characters");
   const store = createRouteControlStateStore(stateFile);
@@ -19,7 +22,9 @@ export function createRouteControlServer({ token, stateFile, fetchImpl = fetch }
         return routeControlJson(response, health.status === "ok" ? 200 : 503, health);
       }
       const dataRoute = await resolveDataRoute(store, request, url);
-      if (dataRoute) return await proxyRoute(response, dataRoute, dataRoute.path, fetchImpl);
+      if (dataRoute) return await proxyRoute(
+        response, dataRoute, dataRoute.path, fetchImpl, upstreamMap,
+      );
       if (!authorized(request.headers.authorization, token))
         return routeControlJson(response, 401, { error: "unauthorized" });
       if (request.method === "GET" && url.pathname === "/v1/capabilities")
@@ -68,9 +73,10 @@ async function resolveDataRoute(store, request, url) {
   });
 }
 
-async function proxyRoute(response, current, path, fetchImpl) {
+async function proxyRoute(response, current, path, fetchImpl, upstreamMap) {
   if (!current.route.proxyTarget) throw new Error("proxy_target_unavailable");
-  const upstream = routeControlUpstreamUrl(current.route.proxyTarget, path);
+  const target = resolveRouteControlUpstream(current.route.proxyTarget, upstreamMap);
+  const upstream = routeControlUpstreamUrl(target, path);
   let result;
   try { result = await fetchImpl(upstream, { redirect: "manual" }); }
   catch { throw Object.assign(new Error("route_upstream_unavailable"), { statusCode: 502 }); }
@@ -91,7 +97,8 @@ async function proxyRoute(response, current, path, fetchImpl) {
 if (import.meta.url === `file://${process.argv[1]}`) {
   const port = Number(process.env.PORT || 8080);
   const server = createRouteControlServer({ token: process.env.ROUTE_CONTROL_TOKEN,
-    stateFile: process.env.ROUTE_CONTROL_STATE_FILE });
+    stateFile: process.env.ROUTE_CONTROL_STATE_FILE,
+    upstreamMap: parseRouteControlUpstreamMap(process.env.ROUTE_CONTROL_UPSTREAM_MAP) });
   await server.routeControlReady;
   server.listen(port, "0.0.0.0", () =>
     process.stdout.write(`route-control acceptance provider listening on ${port}\n`));

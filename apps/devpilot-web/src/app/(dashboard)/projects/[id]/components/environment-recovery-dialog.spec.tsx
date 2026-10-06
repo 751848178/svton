@@ -21,7 +21,10 @@ vi.mock('@/components/ui', () => ({
       {children}
     </label>
   ),
-  Select: ({ children, ...props }: React.SelectHTMLAttributes<HTMLSelectElement> & {
+  Select: ({
+    children,
+    ...props
+  }: React.SelectHTMLAttributes<HTMLSelectElement> & {
     children?: React.ReactNode;
   }) => <select {...props}>{children}</select>,
 }));
@@ -67,8 +70,9 @@ describe('EnvironmentRecoveryDialog', () => {
 
   beforeEach(() => {
     (globalThis as typeof globalThis & { React: typeof React }).React = React;
-    (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT =
-      true;
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
     container = document.createElement('div');
     root = createRoot(container);
     mocks.create.mockReset();
@@ -135,6 +139,16 @@ describe('EnvironmentRecoveryDialog', () => {
     expect(mocks.create).not.toHaveBeenCalled();
   });
 
+  it('keeps the Staging dialog open and shows the real failure when execution rejects', async () => {
+    mocks.onDirectConfirm.mockRejectedValueOnce(new Error('deployment failed'));
+    await renderDirect('version-history');
+    await act(async () => {
+      confirmButton().click();
+    });
+    expect(mocks.onClose).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('deployment failed');
+  });
+
   async function render(sourceVersionId: string) {
     await act(async () =>
       root.render(
@@ -176,10 +190,7 @@ function environment(): EnvironmentVersionEnvironment {
     baselineRole: 'production',
     currentEnvironmentVersionId: 'version-current',
     targetReadiness: readyTarget('environment-prod', 'production'),
-    environmentVersions: [
-      version('version-current'),
-      version('version-history'),
-    ],
+    environmentVersions: [version('version-current'), version('version-history')],
   };
 }
 

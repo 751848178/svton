@@ -5,19 +5,16 @@ import { apiRequest } from '@/lib/api-client';
 import { useAuthStore, useTeamStore } from '@/store/hooks';
 import type { ProductionReleasePreview, ProductionReleaseRun } from '../types/release-order.types';
 import { scopedRequestIdentity, useScopedRequestGuard } from './use-scoped-request-guard';
+import { executeBasicProductionRelease } from './execute-basic-production-release';
+import {
+  failedProductionState as failedState,
+  inactiveProductionState as inactiveState,
+  loadingProductionState as loadingState,
+  type ProductionState,
+} from './production-release-state.model';
 
 /** ROD-2：区分后台预览加载失败（load）与用户操作失败（action），只有后者渲染失败 alert。 */
-export type ProductionErrorKind = 'load' | 'action' | null;
-
-interface ProductionState {
-  scope: string;
-  preview: ProductionReleasePreview | null;
-  loading: boolean;
-  confirming: boolean;
-  refreshing: boolean;
-  error: string;
-  errorKind: ProductionErrorKind;
-}
+export type { ProductionErrorKind } from './production-release-state.model';
 
 export function useProductionReleases(
   projectId: string,
@@ -25,6 +22,7 @@ export function useProductionReleases(
   manifestId: string,
   onChanged: () => Promise<unknown>,
   enabled = true,
+  deployImmediately = false,
 ) {
   const actorId = useAuthStore().user?.id || '';
   const teamId = useTeamStore().currentTeam?.id || '';
@@ -98,6 +96,9 @@ export function useProductionReleases(
         setState(failedState(scope, 'releaseProductionRunScopeMismatch', 'action'));
         return null;
       }
+      if (deployImmediately) {
+        await executeBasicProductionRelease(projectId, manifestId, run);
+      }
       await onChanged();
       return isCurrent(request) ? run : null;
     } catch (caught) {
@@ -111,7 +112,7 @@ export function useProductionReleases(
         );
       }
     }
-  }, [active, begin, isCurrent, manifestId, onChanged, projectId, releaseOrderId, scope, state]);
+  }, [active, begin, deployImmediately, isCurrent, manifestId, onChanged, projectId, releaseOrderId, scope, state]);
 
   const refreshPreflight = useCallback(async () => {
     const preview = state.scope === scope ? state.preview : null;
@@ -174,30 +175,6 @@ function ownsPreview(
     preview.snapshot.releaseOrder.id === releaseOrderId &&
     preview.snapshot.manifest.id === manifestId
   );
-}
-
-function loadingState(scope: string): ProductionState {
-  return {
-    scope,
-    preview: null,
-    loading: true,
-    confirming: false,
-    refreshing: false,
-    error: '',
-    errorKind: null,
-  };
-}
-
-function inactiveState(scope: string): ProductionState {
-  return { ...loadingState(scope), loading: false };
-}
-
-function failedState(
-  scope: string,
-  error: string,
-  errorKind: Exclude<ProductionErrorKind, null>,
-): ProductionState {
-  return { ...loadingState(scope), loading: false, error, errorKind };
 }
 
 function message(error: unknown) {

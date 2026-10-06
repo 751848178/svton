@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { formatDateTime } from '@/lib/format-date';
 import type {
@@ -15,13 +15,11 @@ import {
   CandidateVersionStatus,
   CurrentEnvironmentVersion,
 } from './environment-version-list-facts';
-import { VersionRowPanel, type VersionPanelKind } from './environment-version-row-panels';
+import { EnvironmentVersionRowDialog } from './environment-version-row-dialog';
+import type { VersionPanelKind } from './environment-version-row-panels';
+import { environmentVersionSwitchReasonKey } from './environment-version-switch-reason.model';
 
-/**
- * 已有版本表（SET-1/SET-2/SET-4/SET-14）：
- * - 行内「详情/变更/技术证据」操作展开对应面板，保证点击有可见反馈；
- * - 版本号与名称合并为一列、发布证据列在 2xl 以下隐藏，1280px 不再叠印。
- */
+/** SET-1/2/4/14：行操作展开详情；窄屏隐藏证据列，避免表格叠印。 */
 export function EnvironmentVersionList(props: {
   environment: EnvironmentVersionEnvironment;
   current?: EnvironmentVersionItem;
@@ -29,11 +27,20 @@ export function EnvironmentVersionList(props: {
   selectedId?: string;
   executing: boolean;
   onSelect: (candidate: EnvironmentVersionCandidate) => void;
-  onSwitch: (candidate: EnvironmentVersionCandidate) => void;
+  onSwitch: (
+    candidate: EnvironmentVersionCandidate,
+    restoreFocusTarget?: HTMLButtonElement,
+  ) => void;
 }) {
   const t = useTranslations('projects');
   const [expanded, setExpanded] = useState<{ id: string; panel: VersionPanelKind } | null>(null);
-  const toggleExpand = (item: EnvironmentVersionCandidate, panel: VersionPanelKind) => {
+  const restoreFocusRef = useRef<HTMLButtonElement | null>(null);
+  const toggleExpand = (
+    item: EnvironmentVersionCandidate,
+    panel: VersionPanelKind,
+    restoreFocusTarget?: HTMLButtonElement,
+  ) => {
+    if (restoreFocusTarget) restoreFocusRef.current = restoreFocusTarget;
     const alreadyOpen = expanded?.id === item.id && expanded.panel === panel;
     setExpanded(alreadyOpen ? null : { id: item.id, panel });
     props.onSelect(item);
@@ -47,43 +54,29 @@ export function EnvironmentVersionList(props: {
           <table className="w-full min-w-[640px] table-fixed text-left text-sm">
             <thead className="border-b bg-muted/40 text-xs text-muted-foreground">
               <tr>
-                <th className="w-[24%] px-3 py-3 font-medium">{t('releaseVersionLabel')}</th>
-                <th className="w-[24%] px-3 py-3 font-medium">{t('releaseOrderColumnSource')}</th>
+                <th className="w-[16%] px-3 py-3 font-medium">{t('releaseVersionLabel')}</th>
+                <th className="w-[18%] px-3 py-3 font-medium">{t('releaseOrderColumnSource')}</th>
                 <th className="hidden w-[13%] px-3 py-3 font-medium 2xl:table-cell">
                   {t('environmentVersionEvidenceSummary')}
                 </th>
-                <th className="w-[15%] px-3 py-3 font-medium">{t('environmentVersionCreatedAt')}</th>
-                <th className="w-[10%] px-3 py-3 font-medium">{t('releaseOrderColumnStatus')}</th>
-                <th className="w-[27%] px-3 py-3 text-right font-medium">
+                <th className="w-[22%] px-3 py-3 font-medium">
+                  {t('environmentVersionCreatedAt')}
+                </th>
+                <th className="w-[16%] px-3 py-3 font-medium">{t('releaseOrderColumnStatus')}</th>
+                <th className="w-[28%] px-3 py-3 text-right font-medium">
                   {t('releaseOrderColumnActions')}
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {props.candidates.map((item) => (
-                <React.Fragment key={item.id}>
-                  <CandidateRow
-                    {...props}
-                    item={item}
-                    expandedPanel={
-                      expanded && expanded.id === item.id ? expanded.panel : null
-                    }
-                    onExpand={(panel) => toggleExpand(item, panel)}
-                  />
-                  {expanded?.id === item.id ? (
-                    <tr>
-                      <td
-                        colSpan={6}
-                        className="px-3 pb-4 pt-0"
-                      >
-                        <VersionRowPanel
-                          item={item}
-                          panel={expanded.panel}
-                        />
-                      </td>
-                    </tr>
-                  ) : null}
-                </React.Fragment>
+                <CandidateRow
+                  key={item.id}
+                  {...props}
+                  item={item}
+                  expandedPanel={expanded && expanded.id === item.id ? expanded.panel : null}
+                  onExpand={(panel, trigger) => toggleExpand(item, panel, trigger)}
+                />
               ))}
             </tbody>
           </table>
@@ -94,6 +87,12 @@ export function EnvironmentVersionList(props: {
           ) : null}
         </div>
       </div>
+      <EnvironmentVersionRowDialog
+        item={props.candidates.find((item) => item.id === expanded?.id)}
+        panel={expanded?.panel}
+        onClose={() => setExpanded(null)}
+        restoreFocusRef={restoreFocusRef}
+      />
     </div>
   );
 }
@@ -102,7 +101,7 @@ function CandidateRow(
   props: Parameters<typeof EnvironmentVersionList>[0] & {
     item: EnvironmentVersionCandidate;
     expandedPanel: VersionPanelKind | null;
-    onExpand: (panel: VersionPanelKind) => void;
+    onExpand: (panel: VersionPanelKind, restoreFocusTarget?: HTMLButtonElement) => void;
   },
 ) {
   const t = useTranslations('projects');
@@ -120,30 +119,36 @@ function CandidateRow(
     {
       key: 'detail',
       label: t('viewVersionDetails'),
-      onSelect: () => props.onExpand('detail'),
+      onSelect: (trigger) => props.onExpand('detail', trigger),
     },
     {
       key: 'changes',
       label: t('viewVersionChanges'),
-      onSelect: () => props.onExpand('changes'),
+      onSelect: (trigger) => props.onExpand('changes', trigger),
     },
-    { key: 'switch', label: t('switchToVersion'), onSelect: () => props.onSwitch(item), disabled },
+    {
+      key: 'switch',
+      label: t('switchToVersion'),
+      onSelect: (trigger) => props.onSwitch(item, trigger),
+      disabled,
+    },
     {
       key: 'evidence',
       label: t('releaseOrderActionEvidence'),
-      onSelect: () => props.onExpand('evidence'),
+      onSelect: (trigger) => props.onExpand('evidence', trigger),
     },
   ];
   const selected = props.selectedId === item.id;
   const version = identity.canonical
     ? identity.version
     : t('releaseLegacyVersionValue', { version: identity.version });
-  const name = identity.name || (identity.canonical ? identity.version : t('releaseLegacyNameFallback'));
+  const name =
+    identity.name || (identity.canonical ? identity.version : t('releaseLegacyNameFallback'));
   return (
     <tr className={selected ? 'bg-primary/5' : 'hover:bg-muted/20'}>
       <td className="max-w-0 px-3 py-3">
         <p className="truncate font-semibold text-primary">{version}</p>
-        <p className="truncate text-xs text-muted-foreground">{name}</p>
+        {identity.name ? <p className="truncate text-xs text-muted-foreground">{name}</p> : null}
       </td>
       <td className="max-w-0 px-3 py-3">
         <p
@@ -172,25 +177,21 @@ function CandidateRow(
         <ReleaseOrderActions
           actions={actions}
           moreLabel={t('releaseOrderMoreActions')}
+          directCount={2}
         />
         {/* SET-3：切换禁用必须给出原因，不再让用户猜测。 */}
         {disabled ? (
           <p className="mt-1 text-[11px] text-muted-foreground">
-            {t(switchDisabledReasonKey({ active, blocked, readiness: environment.targetReadiness.matchState }))}
+            {t(
+              environmentVersionSwitchReasonKey({
+                active,
+                blocked,
+                readiness: environment.targetReadiness.matchState,
+              }),
+            )}
           </p>
         ) : null}
       </td>
     </tr>
   );
-}
-
-function switchDisabledReasonKey(input: {
-  active: boolean;
-  blocked: boolean;
-  readiness: string;
-}): string {
-  if (input.active) return 'envVersionSwitchDisabledActive';
-  if (input.blocked) return 'envVersionSwitchDisabledApproval';
-  if (input.readiness !== 'ready') return 'envVersionSwitchDisabledReadiness';
-  return 'envVersionSwitchDisabledExecuting';
 }

@@ -3,20 +3,26 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { DotsThree } from '@phosphor-icons/react';
+import {
+  PROJECT_COMPACT_ACTION_CLASS,
+  PROJECT_COMPACT_ICON_ACTION_CLASS,
+} from './project-workbench-surface';
 
 export interface ReleaseTableAction {
   key: string;
   label: string;
-  onSelect: () => void;
+  onSelect: (restoreFocusTarget?: HTMLButtonElement) => void;
   disabled?: boolean;
 }
 
 export function ReleaseOrderActions({
   actions,
   moreLabel,
+  directCount = 3,
 }: {
   actions: ReleaseTableAction[];
   moreLabel: string;
+  directCount?: number;
 }) {
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState({ top: 0, right: 0 });
@@ -25,8 +31,8 @@ export function ReleaseOrderActions({
   const closeTimer = useRef<number | undefined>(undefined);
   const focusOnOpen = useRef<'first' | 'last' | null>(null);
   const restoreTriggerFocus = useRef(false);
-  const direct = actions.slice(0, 3);
-  const overflow = actions.slice(3);
+  const direct = actions.slice(0, directCount);
+  const overflow = actions.slice(directCount);
   const openMenu = () => {
     if (closeTimer.current) window.clearTimeout(closeTimer.current);
     const rect = triggerRef.current?.getBoundingClientRect();
@@ -97,9 +103,9 @@ export function ReleaseOrderActions({
         <button
           key={action.key}
           type="button"
-          onClick={action.onSelect}
+          onClick={(event) => action.onSelect(event.currentTarget)}
           disabled={action.disabled}
-          className="text-xs font-medium text-primary hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
+          className={`${PROJECT_COMPACT_ACTION_CLASS} text-xs font-medium text-primary hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline`}
         >
           {action.label}
         </button>
@@ -131,7 +137,7 @@ export function ReleaseOrderActions({
               if (event.detail === 0) focusOnOpen.current = 'first';
               openMenu();
             }}
-            className="inline-flex min-h-9 min-w-9 items-center justify-center rounded text-xs font-medium text-primary hover:underline"
+            className={`${PROJECT_COMPACT_ICON_ACTION_CLASS} text-xs font-medium text-primary hover:underline`}
           >
             <DotsThree
               size={18}
@@ -162,10 +168,11 @@ export function ReleaseOrderActions({
                       role="menuitem"
                       disabled={action.disabled}
                       onClick={() => {
+                        const restoreFocusTarget = triggerRef.current?.querySelector('button');
                         setOpen(false);
-                        action.onSelect();
+                        action.onSelect(restoreFocusTarget ?? undefined);
                       }}
-                      className="block w-full rounded px-3 py-2 text-left text-xs hover:bg-accent disabled:cursor-not-allowed disabled:text-muted-foreground"
+                      className="block min-h-11 w-full rounded px-3 py-2 text-left text-xs hover:bg-accent disabled:cursor-not-allowed disabled:text-muted-foreground"
                     >
                       {action.label}
                     </button>

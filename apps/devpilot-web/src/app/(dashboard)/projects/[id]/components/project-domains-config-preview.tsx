@@ -79,7 +79,7 @@ function PlanFacts({ plan }: { plan: SiteSyncPlan }) {
           <summary className="min-h-9 cursor-pointer px-3 py-2 text-xs font-medium">
             {t('domainConfigPreviewNginx')}
           </summary>
-          <pre className="max-h-72 overflow-auto border-t px-3 py-2 font-mono text-[11px] leading-relaxed">
+          <pre className="border-t px-3 py-2 font-mono text-[11px] leading-relaxed">
             {plan.nginxConfig}
           </pre>
         </details>

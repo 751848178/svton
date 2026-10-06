@@ -7,7 +7,7 @@
  */
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, type RefObject } from 'react';
 import { useTranslations } from 'next-intl';
 import { Modal } from '@svton/ui';
 import { Checkbox } from '@/components/ui';
@@ -32,6 +32,7 @@ interface EnvironmentEnvCopyDialogProps {
   copying: boolean;
   onCopied: () => void;
   t: ProjectsTranslator;
+  restoreFocusRef?: RefObject<HTMLElement | null>;
 }
 
 export function EnvironmentEnvCopyDialog({
@@ -45,6 +46,7 @@ export function EnvironmentEnvCopyDialog({
   copying,
   onCopied,
   t,
+  restoreFocusRef,
 }: EnvironmentEnvCopyDialogProps) {
   const tc = useTranslations('common');
   const [selected, setSelected] = useState<string[]>([]);
@@ -52,9 +54,10 @@ export function EnvironmentEnvCopyDialog({
   const [error, setError] = useState<string | null>(null);
 
   const targets = useMemo(
-    () => environments
-      .filter((env) => env.id !== sourceEnvironment.id && env.status !== 'archived')
-      .sort((a, b) => a.key.localeCompare(b.key)),
+    () =>
+      environments
+        .filter((env) => env.id !== sourceEnvironment.id && env.status !== 'archived')
+        .sort((a, b) => a.key.localeCompare(b.key)),
     [environments, sourceEnvironment.id],
   );
 
@@ -100,6 +103,7 @@ export function EnvironmentEnvCopyDialog({
       onClose={onClose}
       title={t('envVarsCopyTitle')}
       width={620}
+      restoreFocusRef={restoreFocusRef}
       footer={
         <div className="flex justify-end gap-2">
           <button
@@ -180,8 +184,6 @@ function summarize(outcome: unknown, t: ProjectsTranslator): string {
   if (failed.length === 0) {
     return t('envVarsCopyDone', { ok: ok, total: results.length });
   }
-  const reasons = failed
-    .map((item) => `${item.key ?? '?'}: ${item.error ?? '?'}`)
-    .join('; ');
+  const reasons = failed.map((item) => `${item.key ?? '?'}: ${item.error ?? '?'}`).join('; ');
   return `${t('envVarsCopyPartial', { ok: ok, total: results.length })} ${reasons}`;
 }

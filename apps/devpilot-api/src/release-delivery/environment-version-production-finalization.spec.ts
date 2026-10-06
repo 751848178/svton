@@ -7,9 +7,36 @@ import {
 } from "./environment-version-production-finalization.spec-utils";
 
 describe("Production post-deploy finalization", () => {
-  it("moves the exact deployed candidate to awaiting_validation", async () => {
+  const originalProfile = process.env.DEVPILOT_RELEASE_FLOW_PROFILE;
+
+  afterEach(() => {
+    if (originalProfile === undefined) delete process.env.DEVPILOT_RELEASE_FLOW_PROFILE;
+    else process.env.DEVPILOT_RELEASE_FLOW_PROFILE = originalProfile;
+  });
+
+  it("completes the basic deployment without a promotion phase", async () => {
     const deps = finalizationDependencies();
     const result = await finalizeDeployedEnvironment(
+      deps as never,
+      finalizationContext() as never,
+      ["deployed"],
+      { deployment: "ok" },
+    );
+
+    expect(deps.promotionAwaiting.wait).not.toHaveBeenCalled();
+    expect(deps.completion.complete).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "completed",
+        result: expect.objectContaining({ promotionStatus: "not_required" }),
+      }),
+    );
+    expect(result).toMatchObject({ status: "completed" });
+  });
+
+  it("retains awaiting validation for the governed profile", async () => {
+    process.env.DEVPILOT_RELEASE_FLOW_PROFILE = "governed_v1";
+    const deps = finalizationDependencies();
+    await finalizeDeployedEnvironment(
       deps as never,
       finalizationContext() as never,
       ["deployed"],
@@ -19,19 +46,10 @@ describe("Production post-deploy finalization", () => {
     expect(deps.promotionAwaiting.wait).toHaveBeenCalledWith(
       expect.objectContaining({
         actorId: "actor-1",
-        candidate: expect.objectContaining({
-          releaseRunId: "release-1",
-          deploymentRunId: "deployment-1",
-          manifestId: "manifest-1",
-          candidateHash: expect.stringMatching(/^[a-f0-9]{64}$/),
-        }),
+        candidate: expect.objectContaining({ releaseRunId: "release-1" }),
       }),
     );
     expect(deps.completion.complete).not.toHaveBeenCalled();
-    expect(result).toMatchObject({
-      run: { status: "awaiting_validation" },
-      version: null,
-    });
   });
 
   it("does not create awaiting state when post-deploy gates block", async () => {

@@ -98,6 +98,9 @@ export interface ReleaseEvidenceDeploymentRun {
   releaseRunId: string | null;
   environmentId: string | null;
   artifactManifestId: string | null;
+  source: string;
+  targetType: string;
+  dryRun: boolean;
   status: ReleaseExecutionStatus;
   executorKey: string;
   adapterKey: string;
@@ -167,6 +170,10 @@ export interface ReleaseEvidenceProductionRun {
   stagingProof: {
     deploymentRunId: string;
     environmentId: string;
+    artifactManifestId: string;
+    status: ReleaseExecutionStatus;
+    dryRun: boolean;
+    result: unknown;
     finishedAt: string | null;
   } | null;
   deploymentRuns: ReleaseEvidenceDeploymentRun[];

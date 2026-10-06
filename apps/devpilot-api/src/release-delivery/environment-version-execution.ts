@@ -27,6 +27,7 @@ import type { ReleaseProductionDnsProbeService } from "./release-production-dns-
 import { collectEnvironmentVersionPreflightEvidence } from "./environment-version-preflight-evidence";
 import { assertEnvironmentVersionApprovedWorkload } from "./environment-version-approved-workload";
 import { workloadReadinessConfigured } from "./release-workload-readiness.policy";
+import { productionPromotionRequired } from "./release-gate-checkpoint.policy";
 interface Dependencies {
   repository: EnvironmentVersionRepository;
   policy: EnvironmentVersionPolicyService;
@@ -71,7 +72,7 @@ export async function executeEnvironmentVersion(
     requestHash,
   });
   if (replay) return { run: replay, version: replay.environmentVersion ?? null };
-  if (environment.baselineRole === "production") {
+  if (environment.baselineRole === "production" && productionPromotionRequired()) {
     await deps.routeSagaGuard.assertClear(input);
     await deps.routeSwitch.verifyProductionCapability();
   }
@@ -184,8 +185,7 @@ export async function executeEnvironmentVersion(
   if (run.idempotentReplay) return { run, version: run.environmentVersion ?? null };
   return deps.run({
     input,
-    environment:
-      environment as EnvironmentVersionExecutionContext["environment"],
+    environment: environment as EnvironmentVersionExecutionContext["environment"],
     manifest,
     bundle,
     selection,

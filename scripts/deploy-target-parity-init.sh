@@ -23,6 +23,13 @@ fi
 
 # 2. conf.d + runtime dirs owned by the deploy user.
 mkdir -p /etc/nginx/conf.d /run/nginx /var/lib/nginx/logs /var/log/nginx
+cat > /etc/nginx/conf.d/devpilot-health.conf <<'HEALTH'
+server {
+    listen 127.0.0.1:18080;
+    server_name localhost;
+    location = /devpilot-health { return 204; }
+}
+HEALTH
 chown -R "$PUID:$PGID" /etc/nginx/conf.d /run/nginx /var/lib/nginx /var/log/nginx
 
 # 3. Passwordless sudo for the nginx binary only.

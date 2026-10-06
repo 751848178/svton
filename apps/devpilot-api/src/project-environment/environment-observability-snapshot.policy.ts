@@ -28,6 +28,7 @@ export function normalizeEnvironmentObservabilitySnapshot(
     throw new BadRequestException("可观测性快照必须是对象");
   }
   const input = value as Record<string, unknown>;
+  if (Object.keys(input).length === 0) return {};
   const profile = String(input.profile) as ObservabilityProfile;
   const expected = OBSERVABILITY_PROVIDER_REFS[profile];
   if (input.version !== 1 || !expected) {

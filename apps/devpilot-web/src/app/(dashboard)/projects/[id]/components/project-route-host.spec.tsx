@@ -4,7 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ProjectRouteHost } from './project-route-host';
 
 const mocks = vi.hoisted(() => ({
-  replace: vi.fn(), searchParams: new URLSearchParams() }));
+  replace: vi.fn(),
+  searchParams: new URLSearchParams(),
+}));
 vi.mock('next/navigation', () => ({
   useParams: () => ({ id: 'project-1' }),
   useRouter: () => ({ replace: mocks.replace }),
@@ -20,14 +22,14 @@ vi.mock('@/components/ui', () => ({
   PageHeader: () => <div>page-header</div>,
 }));
 vi.mock('../hooks/use-project-detail', () => ({ useProjectDetail: () => detail() }));
+vi.mock('../hooks/use-project-delivery-summary', () => ({
+  useProjectDeliverySummary: () => ({ summary: null }),
+}));
 vi.mock('../hooks/use-repository-analysis.hooks', () => ({
   useRepositoryAnalysis: () => analysis(),
 }));
 vi.mock('./project-delivery-route', () => ({
   ProjectDeliveryRoute: () => <div>delivery-route</div>,
-}));
-vi.mock('./project-information-panel', () => ({
-  ProjectInformationPanel: () => <div>information-panel</div>,
 }));
 vi.mock('./project-settings-content', () => ({
   ProjectSettingsContent: () => <div>settings-panel</div>,
@@ -45,11 +47,10 @@ describe('ProjectRouteHost top-level information architecture', () => {
     mocks.replace.mockReset();
   });
 
-  it('opens project information by default', () => {
+  it('opens the merged project overview by default', () => {
     const html = renderToStaticMarkup(<ProjectRouteHost mode="delivery" />);
-    expect(html).toContain('workbench-header');
-    expect(html).toContain('information-panel');
-    expect(html).not.toContain('delivery-route');
+    expect(html).toContain('delivery-route');
+    expect(html).not.toContain('settings-panel');
   });
 
   it('EV-1: an unsupported view shows the redirect placeholder instead of silently falling back', () => {
@@ -72,6 +73,13 @@ describe('ProjectRouteHost top-level information architecture', () => {
     const html = renderToStaticMarkup(<ProjectRouteHost mode="delivery" />);
     expect(html).toContain('loading');
     expect(html).not.toContain('delivery-route');
+  });
+
+  it.each(['environments', 'components'])('renders the current %s overview mode', (view) => {
+    mocks.searchParams = new URLSearchParams(`view=${view}`);
+    const html = renderToStaticMarkup(<ProjectRouteHost mode="delivery" />);
+    expect(html).toContain('delivery-route');
+    expect(html).not.toContain('loading');
   });
 
   it('renders project configuration as a peer top-level area', () => {

@@ -81,4 +81,15 @@ export type CreateEnvironmentConfigRevisionResult = {
     currentConfigRevisionId: string;
   };
   revision: EnvironmentConfigRevision;
+  auditEvent: {
+    id: string;
+    action: string;
+    targetType: string;
+    targetId: string | null;
+    risk: string;
+    status: string;
+    summary: string | null;
+    occurredAt: string;
+    actor?: { id: string; name?: string | null; email: string } | null;
+  };
 };

@@ -86,19 +86,19 @@ describe('F453 responsive structural patterns (AC-UI-019..021)', () => {
     expect(html).toContain('directoryLatestRelease');
   });
 
-  it('workbench steps bar stacks below 820px', () => {
+  it('workbench steps bar shrinks on narrow viewports without stacking cards', () => {
+    // 复核修 3：步骤条改中线连接的单行步骤（无外层卡片）；窄屏靠收缩而非换行堆叠。
     const source = readSource(
       'src/app/(dashboard)/projects/[id]/components/release-workbench/release-workbench-steps.tsx',
     );
-    expect(source).toContain('max-[820px]:flex-col');
-    expect(source).toContain('max-[820px]:w-full');
-    expect(source).toContain('max-[820px]:self-center');
-    expect(source).toContain('max-[820px]:rotate-90');
+    expect(source).toContain('flex min-w-0 items-center');
+    expect(source).toContain('shrink-0');
+    expect(source).toContain('whitespace-nowrap');
+    expect(source).toContain('min-w-4 flex-1');
   });
 
   it('evidence tables scroll inside wrappers, not the page', () => {
-    // PX-5：发布详情两张历史表改用 ReleaseScrollTable（overflow-x-auto + 右缘渐隐提示），
-    // 且去掉固定 min-width（操作列不再被裁出抽屉视口）。
+    // 历史表即使保留可读列宽，也必须由 ReleaseScrollTable 承担局部横向滚动。
     const wrappedBySharedScroll = [
       'src/app/(dashboard)/projects/[id]/components/release-build-history-table.tsx',
       'src/app/(dashboard)/projects/[id]/components/release-staging-evidence-list.tsx',
@@ -106,7 +106,6 @@ describe('F453 responsive structural patterns (AC-UI-019..021)', () => {
     for (const file of wrappedBySharedScroll) {
       const source = readSource(file);
       expect(source).toContain('<ReleaseScrollTable>');
-      expect(source).not.toMatch(/min-w-\[\d+px\]/);
     }
     const scrollWrapper = readSource(
       'src/app/(dashboard)/projects/[id]/components/release-workbench/release-scroll-table.tsx',

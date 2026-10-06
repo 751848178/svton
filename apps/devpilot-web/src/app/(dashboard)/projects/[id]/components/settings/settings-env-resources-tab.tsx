@@ -17,9 +17,8 @@ import type {
   EnvironmentConfigResourceReference,
   EnvironmentConfigRevision,
 } from '../../types/environment-config-revision.types';
-import { EnvironmentConfigResourceEditor } from '../environment-config-resource-editor';
 import { EnvironmentResourceBindingTable } from '../environment-resource-binding-table';
-import { ResourceCountChips } from '../environment-resource-count-chips';
+import { SettingsResourceBindingModal } from './settings-resource-binding-modal';
 import { SubtabShell } from './settings-subtab-shell';
 
 type DetailHook = ReturnType<typeof useProjectDetail>;
@@ -48,9 +47,20 @@ export function EnvResourcesTab({
       helper={t('envTabHelperResources')}
       moduleHref={`/resource-instances?projectId=${encodeURIComponent(projectId)}`}
       moduleLabel={t('envModuleLinkResources')}
+      actions={
+        <SettingsResourceBindingModal
+          project={project}
+          environment={environment}
+          value={resources}
+          onChange={onResourcesChange}
+          currentReferences={revision?.resourceReferences ?? []}
+        />
+      }
     >
-      <div className="space-y-3">
-        <ResourceCountChips environment={environment} t={t} />
+      <div
+        className="space-y-3 border-y py-3"
+        data-settings-data-surface="true"
+      >
         {revision ? (
           <p className="text-[11px] text-muted-foreground">
             {t('envResourceFrozenRevision', {
@@ -64,18 +74,8 @@ export function EnvResourcesTab({
           environment={environment}
           resources={revision?.resourceReferences ?? []}
         />
-        <EnvironmentConfigResourceEditor
-          project={project}
-          environment={environment}
-          value={resources}
-          onChange={onResourcesChange}
-          currentReferences={revision?.resourceReferences ?? []}
-        />
-        <p className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+        <p className="border-t pt-3 text-xs leading-5 text-muted-foreground">
           {t('envResourceCalloutOwnership')}
-        </p>
-        <p className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-          {t('envResourceCalloutFrozen')}
         </p>
       </div>
     </SubtabShell>

@@ -5,6 +5,17 @@ import {
 } from "./environment-version-production-finalization.spec-utils";
 
 describe("Production awaiting-state failure boundary", () => {
+  const originalProfile = process.env.DEVPILOT_RELEASE_FLOW_PROFILE;
+
+  beforeEach(() => {
+    process.env.DEVPILOT_RELEASE_FLOW_PROFILE = "governed_v1";
+  });
+
+  afterAll(() => {
+    if (originalProfile === undefined) delete process.env.DEVPILOT_RELEASE_FLOW_PROFILE;
+    else process.env.DEVPILOT_RELEASE_FLOW_PROFILE = originalProfile;
+  });
+
   it("never advances a version or route pointer when awaiting persistence fails", async () => {
     const deps = finalizationDependencies();
     deps.promotionAwaiting.wait.mockRejectedValue(

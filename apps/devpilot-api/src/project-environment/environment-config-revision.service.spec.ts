@@ -1,4 +1,8 @@
-import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from "@nestjs/common";
 import { EnvironmentConfigRevisionService } from "./environment-config-revision.service";
 
 function txClient() {
@@ -45,10 +49,7 @@ function prismaMock(tx: ReturnType<typeof txClient>) {
 }
 
 function revisionService(tx: ReturnType<typeof txClient>) {
-  return new EnvironmentConfigRevisionService(
-    prismaMock(tx),
-    {} as never,
-  );
+  return new EnvironmentConfigRevisionService(prismaMock(tx), {} as never);
 }
 
 describe("EnvironmentConfigRevisionService.updateIdentity (AC-SET-014/015)", () => {
@@ -78,19 +79,26 @@ describe("EnvironmentConfigRevisionService.updateIdentity (AC-SET-014/015)", () 
       reason: "演示对齐改名",
     });
 
-    const createData = tx.environmentConfigRevision.create.mock.calls[0][0].data;
+    const createData =
+      tx.environmentConfigRevision.create.mock.calls[0][0].data;
     expect(createData.revision).toBe(4);
     expect(createData.displayName).toBe("预发");
     expect(createData.displayDescription).toBe("预发验证环境");
     expect(createData.snapshotHash).toBe("sha256:abc");
     expect(createData.plainVariables).toEqual({ A: "1" });
-    expect(createData.routeSnapshot).toEqual({ domains: ["staging.example.com"] });
+    expect(createData.routeSnapshot).toEqual({
+      domains: ["staging.example.com"],
+    });
 
     const envUpdate = tx.projectEnvironment.update.mock.calls[0][0];
     expect(envUpdate).toEqual(
       expect.objectContaining({
         where: { id: "env-1" },
-        data: { name: "预发", description: "预发验证环境", currentConfigRevisionId: "rev-4" },
+        data: {
+          name: "预发",
+          description: "预发验证环境",
+          currentConfigRevisionId: "rev-4",
+        },
       }),
     );
 
@@ -131,8 +139,11 @@ describe("EnvironmentConfigRevisionService.updateIdentity (AC-SET-014/015)", () 
       },
     });
     const service = revisionService(tx);
-    await service.updateIdentity("team-1", "user-1", "env-1", { description: "预发验证环境" });
-    const createData = tx.environmentConfigRevision.create.mock.calls[0][0].data;
+    await service.updateIdentity("team-1", "user-1", "env-1", {
+      description: "预发验证环境",
+    });
+    const createData =
+      tx.environmentConfigRevision.create.mock.calls[0][0].data;
     expect(createData.displayName).toBe("Staging");
     expect(createData.displayDescription).toBe("预发验证环境");
   });
@@ -180,10 +191,16 @@ describe("EnvironmentConfigRevisionService.create (F446 AC-SET-026/030)", () => 
   const RESOLVED = {
     plainVariables: {},
     secretReferences: [],
-    resourceReferences: [{
-      kind: "managed_resource", id: "resource-1", name: "redis-prod",
-      sharedEnvironmentIds: ["env-1"], risk: "high", impact: "prod",
-    }],
+    resourceReferences: [
+      {
+        kind: "managed_resource",
+        id: "resource-1",
+        name: "redis-prod",
+        sharedEnvironmentIds: ["env-1"],
+        risk: "high",
+        impact: "prod",
+      },
+    ],
     routeSnapshot: {},
     policyReferences: [],
   };
@@ -207,17 +224,35 @@ describe("EnvironmentConfigRevisionService.create (F446 AC-SET-026/030)", () => 
 
   it("rejects a stale create with a ConflictException and appends nothing (revision CAS intact)", async () => {
     const { tx } = txClientWith();
-    const service = new EnvironmentConfigRevisionService(
-      prismaMock(tx),
-      { resolve: jest.fn() } as never,
-    );
+    const service = new EnvironmentConfigRevisionService(prismaMock(tx), {
+      resolve: jest.fn(),
+    } as never);
     await expect(
       service.create("team-1", "user-1", "env-1", {
-        resourceReferences: [{
-          kind: "managed_resource", id: "resource-1",
-          sharedEnvironmentIds: ["env-1"], risk: "high", impact: "prod",
-        }],
+        resourceReferences: [
+          {
+            kind: "managed_resource",
+            id: "resource-1",
+            sharedEnvironmentIds: ["env-1"],
+            risk: "high",
+            impact: "prod",
+          },
+        ],
         expectedCurrentRevisionId: "rev-2",
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(tx.environmentConfigRevision.create).not.toHaveBeenCalled();
+    expect(tx.auditEvent.create).not.toHaveBeenCalled();
+  });
+
+  it("treats an expected null current revision as a first-write CAS boundary", async () => {
+    const { tx } = txClientWith();
+    const service = new EnvironmentConfigRevisionService(prismaMock(tx), {
+      resolve: jest.fn(),
+    } as never);
+    await expect(
+      service.create("team-1", "user-1", "env-1", {
+        expectedCurrentRevisionId: null,
       }),
     ).rejects.toBeInstanceOf(ConflictException);
     expect(tx.environmentConfigRevision.create).not.toHaveBeenCalled();
@@ -226,20 +261,24 @@ describe("EnvironmentConfigRevisionService.create (F446 AC-SET-026/030)", () => 
 
   it("enforces the production anti-share rule at the revision write path", async () => {
     const { tx } = txClientWith();
-    const service = new EnvironmentConfigRevisionService(
-      prismaMock(tx),
-      {
-        resolve: jest.fn().mockRejectedValue(
+    const service = new EnvironmentConfigRevisionService(prismaMock(tx), {
+      resolve: jest
+        .fn()
+        .mockRejectedValue(
           new BadRequestException("Production 环境禁止与非生产环境共享资源"),
         ),
-      } as never,
-    );
+    } as never);
     await expect(
       service.create("team-1", "user-1", "env-1", {
-        resourceReferences: [{
-          kind: "managed_resource", id: "resource-1",
-          sharedEnvironmentIds: ["env-1", "env-2"], risk: "high", impact: "prod",
-        }],
+        resourceReferences: [
+          {
+            kind: "managed_resource",
+            id: "resource-1",
+            sharedEnvironmentIds: ["env-1", "env-2"],
+            risk: "high",
+            impact: "prod",
+          },
+        ],
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(tx.environmentConfigRevision.create).not.toHaveBeenCalled();
@@ -261,17 +300,38 @@ describe("EnvironmentConfigRevisionService.create (F446 AC-SET-026/030)", () => 
       currentConfigRevisionId: null,
       currentConfigRevision: null,
     });
-    const service = new EnvironmentConfigRevisionService(
-      prismaMock(tx),
-      { resolve } as never,
-    );
+    const service = new EnvironmentConfigRevisionService(prismaMock(tx), {
+      resolve,
+    } as never);
     await service.create("team-1", "user-1", "env-1", {
-      resourceReferences: [{
-        kind: "managed_resource", id: "resource-1",
-        sharedEnvironmentIds: ["env-1"], risk: "high", impact: "prod",
-      }],
+      resourceReferences: [
+        {
+          kind: "managed_resource",
+          id: "resource-1",
+          sharedEnvironmentIds: ["env-1"],
+          risk: "high",
+          impact: "prod",
+        },
+      ],
     });
-    expect(resolve.mock.calls[0][1]).toMatchObject({ id: "env-1", baselineRole: "production" });
+    expect(resolve.mock.calls[0][1]).toMatchObject({
+      id: "env-1",
+      baselineRole: "production",
+    });
+  });
+
+  it("does not return a committed result when the same-transaction audit write fails", async () => {
+    const { tx } = txClientWith();
+    tx.auditEvent.create.mockRejectedValue(new Error("audit unavailable"));
+    const service = new EnvironmentConfigRevisionService(prismaMock(tx), {
+      resolve: jest.fn().mockResolvedValue(RESOLVED),
+    } as never);
+    await expect(
+      service.create("team-1", "user-1", "env-1", {
+        changeSummary: "update resource binding",
+      }),
+    ).rejects.toThrow("audit unavailable");
+    expect(tx.auditEvent.create).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -286,6 +346,17 @@ describe("EnvironmentConfigRevisionService.create changeSummary (F447 AC-SET-039
 
   it("persists the change summary on the revision row and returns it in the select", async () => {
     const tx = txClient();
+    tx.auditEvent.create.mockResolvedValue({
+      id: "audit-4",
+      action: "project_environment.config_revision.create",
+      targetType: "environment_config_revision",
+      targetId: "rev-4",
+      risk: "medium",
+      status: "completed",
+      summary: "导入 DATABASE_URL 与 API 域名",
+      occurredAt: new Date("2026-08-28T00:00:00.000Z"),
+      actor: { id: "user-1", name: "Operator", email: "operator@example.com" },
+    });
     tx.projectEnvironment.findUniqueOrThrow.mockResolvedValue({
       id: "env-1",
       teamId: "team-1",
@@ -298,17 +369,28 @@ describe("EnvironmentConfigRevisionService.create changeSummary (F447 AC-SET-039
       currentConfigRevisionId: "rev-3",
       currentConfigRevision: null,
     });
-    const service = new EnvironmentConfigRevisionService(
-      prismaMock(tx),
-      { resolve: jest.fn().mockResolvedValue(RESOLVED) } as never,
-    );
+    const service = new EnvironmentConfigRevisionService(prismaMock(tx), {
+      resolve: jest.fn().mockResolvedValue(RESOLVED),
+    } as never);
     const result = await service.create("team-1", "user-1", "env-1", {
       changeSummary: "  导入 DATABASE_URL 与 API 域名  ",
     });
 
-    const createData = tx.environmentConfigRevision.create.mock.calls[0][0].data;
+    const createData =
+      tx.environmentConfigRevision.create.mock.calls[0][0].data;
     expect(createData.changeSummary).toBe("导入 DATABASE_URL 与 API 域名");
     expect(result.revision.changeSummary).toBe("导入 DATABASE_URL 与 API 域名");
+    expect(result.auditEvent).toMatchObject({
+      id: "audit-4",
+      targetId: "rev-4",
+      status: "completed",
+    });
+    expect(tx.auditEvent.create.mock.calls[0][0].select).toEqual(
+      expect.objectContaining({
+        id: true,
+        occurredAt: true,
+      }),
+    );
   });
 
   it("persists null changeSummary when omitted", async () => {
@@ -325,12 +407,13 @@ describe("EnvironmentConfigRevisionService.create changeSummary (F447 AC-SET-039
       currentConfigRevisionId: null,
       currentConfigRevision: null,
     });
-    const service = new EnvironmentConfigRevisionService(
-      prismaMock(tx),
-      { resolve: jest.fn().mockResolvedValue(RESOLVED) } as never,
-    );
+    const service = new EnvironmentConfigRevisionService(prismaMock(tx), {
+      resolve: jest.fn().mockResolvedValue(RESOLVED),
+    } as never);
     await service.create("team-1", "user-1", "env-1", {});
-    expect(tx.environmentConfigRevision.create.mock.calls[0][0].data.changeSummary).toBeNull();
+    expect(
+      tx.environmentConfigRevision.create.mock.calls[0][0].data.changeSummary,
+    ).toBeNull();
   });
 });
 
@@ -359,7 +442,8 @@ describe("EnvironmentConfigRevisionService.updateIdentity changeSummary (F447 AC
       name: "预发",
       reason: "演示对齐改名",
     });
-    const createData = tx.environmentConfigRevision.create.mock.calls[0][0].data;
+    const createData =
+      tx.environmentConfigRevision.create.mock.calls[0][0].data;
     expect(createData.changeSummary).toBe("演示对齐改名");
   });
 });
@@ -374,16 +458,16 @@ describe("EnvironmentConfigRevisionService.copyToEnvironments (F447 AC-SET-036)"
   };
 
   function serviceWith(tx: ReturnType<typeof txClient>) {
-    return new EnvironmentConfigRevisionService(
-      prismaMock(tx),
-      { resolve: jest.fn().mockResolvedValue(RESOLVED) } as never,
-    );
+    return new EnvironmentConfigRevisionService(prismaMock(tx), {
+      resolve: jest.fn().mockResolvedValue(RESOLVED),
+    } as never);
   }
 
   it("writes a revision per target environment through the same CAS/audit path", async () => {
     const tx = txClient();
     tx.projectEnvironment.findFirst.mockResolvedValue({
-      id: "env-source", projectId: "project-1",
+      id: "env-source",
+      projectId: "project-1",
     });
     tx.projectEnvironment.findMany.mockResolvedValue([
       { id: "env-staging", key: "staging", currentConfigRevisionId: "stg-3" },
@@ -391,34 +475,50 @@ describe("EnvironmentConfigRevisionService.copyToEnvironments (F447 AC-SET-036)"
     ]);
     tx.environmentConfigRevision.findFirst.mockResolvedValue({ revision: 3 });
     tx.environmentConfigRevision.create.mockImplementation(({ data }) => ({
-      ...data, id: `rev-${data.revision}`, createdAt: new Date(), createdBy: null,
+      ...data,
+      id: `rev-${data.revision}`,
+      createdAt: new Date(),
+      createdBy: null,
     }));
-    tx.projectEnvironment.findUniqueOrThrow.mockImplementation(({ where }: { where: { id: string } }) =>
-      Promise.resolve({
-        id: where.id,
-        teamId: "team-1", projectId: "project-1", key: "staging",
-        name: "Staging", description: null, baselineRole: "staging",
-        config: null,
-        currentConfigRevisionId: where.id === "env-preview" ? "prv-1" : "stg-3",
-        currentConfigRevision: null,
-      }),
+    tx.projectEnvironment.findUniqueOrThrow.mockImplementation(
+      ({ where }: { where: { id: string } }) =>
+        Promise.resolve({
+          id: where.id,
+          teamId: "team-1",
+          projectId: "project-1",
+          key: "staging",
+          name: "Staging",
+          description: null,
+          baselineRole: "staging",
+          config: null,
+          currentConfigRevisionId:
+            where.id === "env-preview" ? "prv-1" : "stg-3",
+          currentConfigRevision: null,
+        }),
     );
     const service = serviceWith(tx);
 
-    const result = await service.copyToEnvironments("team-1", "user-1", "env-source", {
-      targets: [
-        { environmentId: "env-staging", expectedCurrentRevisionId: "stg-3" },
-        { environmentId: "env-preview" },
-      ],
-      plainVariables: RESOLVED.plainVariables,
-      secretReferenceIds: ["secret-1"],
-      changeSummary: "从 staging 复用变量与密钥引用",
-    });
+    const result = await service.copyToEnvironments(
+      "team-1",
+      "user-1",
+      "env-source",
+      {
+        targets: [
+          { environmentId: "env-staging", expectedCurrentRevisionId: "stg-3" },
+          { environmentId: "env-preview" },
+        ],
+        plainVariables: RESOLVED.plainVariables,
+        secretReferenceIds: ["secret-1"],
+        changeSummary: "从 staging 复用变量与密钥引用",
+      },
+    );
 
     expect(tx.environmentConfigRevision.create).toHaveBeenCalledTimes(2);
     const firstCreate = tx.environmentConfigRevision.create.mock.calls[0][0];
     expect(firstCreate.data.environmentId).toBe("env-staging");
-    expect(firstCreate.data.changeSummary).toBe("从 staging 复用变量与密钥引用");
+    expect(firstCreate.data.changeSummary).toBe(
+      "从 staging 复用变量与密钥引用",
+    );
     expect(firstCreate.data.plainVariables).toEqual(RESOLVED.plainVariables);
     const secondCreate = tx.environmentConfigRevision.create.mock.calls[1][0];
     expect(secondCreate.data.environmentId).toBe("env-preview");
@@ -426,16 +526,19 @@ describe("EnvironmentConfigRevisionService.copyToEnvironments (F447 AC-SET-036)"
     expect(firstCreate.data.createdById).toBe("user-1");
     expect(tx.projectEnvironment.update).toHaveBeenCalledTimes(2);
     expect(tx.auditEvent.create).toHaveBeenCalledTimes(2);
-    expect(result.results.map((item) => [item.environmentId, item.ok])).toEqual([
-      ["env-staging", true],
-      ["env-preview", true],
-    ]);
+    expect(result.results.map((item) => [item.environmentId, item.ok])).toEqual(
+      [
+        ["env-staging", true],
+        ["env-preview", true],
+      ],
+    );
   });
 
   it("reports a stale target CAS as a per-env conflict without aborting the others", async () => {
     const tx = txClient();
     tx.projectEnvironment.findFirst.mockResolvedValue({
-      id: "env-source", projectId: "project-1",
+      id: "env-source",
+      projectId: "project-1",
     });
     tx.projectEnvironment.findMany.mockResolvedValue([
       { id: "env-staging", key: "staging", currentConfigRevisionId: "stg-3" },
@@ -443,28 +546,51 @@ describe("EnvironmentConfigRevisionService.copyToEnvironments (F447 AC-SET-036)"
     ]);
     tx.environmentConfigRevision.findFirst.mockResolvedValue({ revision: 3 });
     tx.environmentConfigRevision.create.mockImplementation(({ data }) => ({
-      ...data, id: `rev-${data.revision}`, createdAt: new Date(), createdBy: null,
+      ...data,
+      id: `rev-${data.revision}`,
+      createdAt: new Date(),
+      createdBy: null,
     }));
     const service = serviceWith(tx);
     // Second target sees a stale CAS inside its own create call.
     tx.projectEnvironment.findUniqueOrThrow
       .mockResolvedValueOnce({
         id: "env-staging",
-        teamId: "team-1", projectId: "project-1", key: "staging",
-        name: "Staging", description: null, baselineRole: "staging",
-        config: null, currentConfigRevisionId: "stg-3", currentConfigRevision: null,
+        teamId: "team-1",
+        projectId: "project-1",
+        key: "staging",
+        name: "Staging",
+        description: null,
+        baselineRole: "staging",
+        config: null,
+        currentConfigRevisionId: "stg-3",
+        currentConfigRevision: null,
       })
       .mockResolvedValueOnce({
         id: "env-preview",
-        teamId: "team-1", projectId: "project-1", key: "preview",
-        name: "Preview", description: null, baselineRole: "preview",
-        config: null, currentConfigRevisionId: "prv-2", currentConfigRevision: null,
+        teamId: "team-1",
+        projectId: "project-1",
+        key: "preview",
+        name: "Preview",
+        description: null,
+        baselineRole: "preview",
+        config: null,
+        currentConfigRevisionId: "prv-2",
+        currentConfigRevision: null,
       });
 
-    const result = await service.copyToEnvironments("team-1", "user-1", "env-source", {
-      targets: [{ environmentId: "env-staging" }, { environmentId: "env-preview" }],
-      plainVariables: RESOLVED.plainVariables,
-    });
+    const result = await service.copyToEnvironments(
+      "team-1",
+      "user-1",
+      "env-source",
+      {
+        targets: [
+          { environmentId: "env-staging" },
+          { environmentId: "env-preview" },
+        ],
+        plainVariables: RESOLVED.plainVariables,
+      },
+    );
 
     expect(result.results[0].ok).toBe(true);
     expect(result.results[1].ok).toBe(false);
@@ -476,7 +602,8 @@ describe("EnvironmentConfigRevisionService.copyToEnvironments (F447 AC-SET-036)"
   it("rejects a target environment outside the source project", async () => {
     const tx = txClient();
     tx.projectEnvironment.findFirst.mockResolvedValue({
-      id: "env-source", projectId: "project-1",
+      id: "env-source",
+      projectId: "project-1",
     });
     tx.projectEnvironment.findMany.mockResolvedValue([
       { id: "env-staging", key: "staging", currentConfigRevisionId: null },
@@ -498,11 +625,13 @@ describe("EnvironmentConfigRevisionService.copyToEnvironments (F447 AC-SET-036)"
   it("rejects an empty target list", async () => {
     const tx = txClient();
     tx.projectEnvironment.findFirst.mockResolvedValue({
-      id: "env-source", projectId: "project-1",
+      id: "env-source",
+      projectId: "project-1",
     });
     await expect(
       serviceWith(tx).copyToEnvironments("team-1", "user-1", "env-source", {
-        targets: [], plainVariables: { A: "1" },
+        targets: [],
+        plainVariables: { A: "1" },
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
@@ -515,7 +644,13 @@ describe("EnvironmentConfigRevisionService per-entry route model (F448 AC-SET-04
     tlsRequired: true,
     proxyTarget: "web:3000",
     entries: [
-      { domain: "demo.f437.example", path: "/", component: "web", port: 3000, tlsMode: "managed_cert" },
+      {
+        domain: "demo.f437.example",
+        path: "/",
+        component: "web",
+        port: 3000,
+        tlsMode: "managed_cert",
+      },
     ],
   };
 
@@ -538,18 +673,21 @@ describe("EnvironmentConfigRevisionService per-entry route model (F448 AC-SET-04
 
   it("persists the structured entries through the revision write path", async () => {
     const tx = txWithEntries();
-    const service = new EnvironmentConfigRevisionService(
-      prismaMock(tx),
-      { resolve: jest.fn().mockResolvedValue({
-        plainVariables: {}, secretReferences: [], resourceReferences: [],
-        routeSnapshot: ENTRIES, policyReferences: [],
-      }) } as never,
-    );
+    const service = new EnvironmentConfigRevisionService(prismaMock(tx), {
+      resolve: jest.fn().mockResolvedValue({
+        plainVariables: {},
+        secretReferences: [],
+        resourceReferences: [],
+        routeSnapshot: ENTRIES,
+        policyReferences: [],
+      }),
+    } as never);
     const result = await service.create("team-1", "user-1", "env-1", {
       routeSnapshot: ENTRIES,
       changeSummary: "添加 web 入口",
     });
-    const createData = tx.environmentConfigRevision.create.mock.calls[0][0].data;
+    const createData =
+      tx.environmentConfigRevision.create.mock.calls[0][0].data;
     expect(createData.routeSnapshot).toEqual(ENTRIES);
     expect(createData.revision).toBe(4);
     expect(result.revision.routeSnapshot).toEqual(ENTRIES);
@@ -571,10 +709,9 @@ describe("EnvironmentConfigRevisionService per-entry route model (F448 AC-SET-04
       currentConfigRevisionId: "rev-4",
       currentConfigRevision: null,
     });
-    const service = new EnvironmentConfigRevisionService(
-      prismaMock(tx),
-      { resolve: jest.fn() } as never,
-    );
+    const service = new EnvironmentConfigRevisionService(prismaMock(tx), {
+      resolve: jest.fn(),
+    } as never);
     await expect(
       service.create("team-1", "user-1", "env-1", {
         routeSnapshot: ENTRIES,
@@ -630,49 +767,90 @@ describe("EnvironmentConfigRevisionService history immutability (F448 AC-SET-047
       .mockResolvedValueOnce({ revision: 3 })
       .mockResolvedValueOnce({ revision: 4 });
     tx.environmentConfigRevision.create.mockImplementation(({ data }) => ({
-      ...data, id: `rev-${data.revision}`, createdAt: new Date(), createdBy: null,
+      ...data,
+      id: `rev-${data.revision}`,
+      createdAt: new Date(),
+      createdBy: null,
     }));
     const first = {
       domains: ["demo.f437.example"],
-      dnsProvider: null, tlsRequired: true, proxyTarget: "web:3000",
+      dnsProvider: null,
+      tlsRequired: true,
+      proxyTarget: "web:3000",
       entries: [
-        { domain: "demo.f437.example", path: "/", component: "web", port: 3000, tlsMode: "managed_cert" },
+        {
+          domain: "demo.f437.example",
+          path: "/",
+          component: "web",
+          port: 3000,
+          tlsMode: "managed_cert",
+        },
       ],
     };
     const second = {
       domains: ["demo.f437.example", "media.demo.f437.example"],
-      dnsProvider: null, tlsRequired: true, proxyTarget: "web:3000",
+      dnsProvider: null,
+      tlsRequired: true,
+      proxyTarget: "web:3000",
       entries: [
-        { domain: "demo.f437.example", path: "/", component: "web", port: 3000, tlsMode: "managed_cert" },
-        { domain: "media.demo.f437.example", path: "/v1", component: "api", port: 8080, tlsMode: "managed_cert" },
+        {
+          domain: "demo.f437.example",
+          path: "/",
+          component: "web",
+          port: 3000,
+          tlsMode: "managed_cert",
+        },
+        {
+          domain: "media.demo.f437.example",
+          path: "/v1",
+          component: "api",
+          port: 8080,
+          tlsMode: "managed_cert",
+        },
       ],
     };
-    const resolve = jest.fn()
+    const resolve = jest
+      .fn()
       .mockResolvedValueOnce({
-        plainVariables: {}, secretReferences: [], resourceReferences: [],
-        routeSnapshot: first, policyReferences: [],
+        plainVariables: {},
+        secretReferences: [],
+        resourceReferences: [],
+        routeSnapshot: first,
+        policyReferences: [],
       })
       .mockResolvedValueOnce({
-        plainVariables: {}, secretReferences: [], resourceReferences: [],
-        routeSnapshot: second, policyReferences: [],
+        plainVariables: {},
+        secretReferences: [],
+        resourceReferences: [],
+        routeSnapshot: second,
+        policyReferences: [],
       });
-    const service = new EnvironmentConfigRevisionService(prismaMock(tx), { resolve } as never);
+    const service = new EnvironmentConfigRevisionService(prismaMock(tx), {
+      resolve,
+    } as never);
 
     const firstOutcome = await service.create("team-1", "user-1", "env-1", {
-      routeSnapshot: first, expectedCurrentRevisionId: "rev-3",
+      routeSnapshot: first,
+      expectedCurrentRevisionId: "rev-3",
     });
     const secondOutcome = await service.create("team-1", "user-1", "env-1", {
-      routeSnapshot: second, expectedCurrentRevisionId: "rev-4",
+      routeSnapshot: second,
+      expectedCurrentRevisionId: "rev-4",
     });
 
     expect(firstOutcome.revision.revision).toBe(4);
     expect(secondOutcome.revision.revision).toBe(5);
-    const creates = tx.environmentConfigRevision.create.mock.calls.map((call) => call[0].data);
+    const creates = tx.environmentConfigRevision.create.mock.calls.map(
+      (call) => call[0].data,
+    );
     expect(creates).toHaveLength(2);
     expect(creates[0].routeSnapshot).toEqual(first);
     expect(creates[1].routeSnapshot).toEqual(second);
     // The historical row keeps its exact snapshot: append-only writes, no update.
-    const revisionClient = tx.environmentConfigRevision as unknown as Record<string, unknown>;
+    const revisionClient = tx.environmentConfigRevision as unknown as Record<
+      string,
+      unknown
+    >;
     expect(revisionClient.update).toBeUndefined();
     expect(revisionClient.upsert).toBeUndefined();
     expect(revisionClient.updateMany).toBeUndefined();
@@ -685,7 +863,8 @@ describe("EnvironmentConfigRevisionService history immutability (F448 AC-SET-047
     // A third stale write against the now-superseded revision still conflicts.
     await expect(
       service.create("team-1", "user-1", "env-1", {
-        routeSnapshot: first, expectedCurrentRevisionId: "rev-3",
+        routeSnapshot: first,
+        expectedCurrentRevisionId: "rev-3",
       }),
     ).rejects.toBeInstanceOf(ConflictException);
   });
@@ -709,7 +888,13 @@ describe("EnvironmentConfigRevisionService history immutability (F448 AC-SET-047
           domains: ["demo.f437.example"],
           proxyTarget: "web:3000",
           entries: [
-            { domain: "demo.f437.example", path: "/", component: "web", port: 3000, tlsMode: "managed_cert" },
+            {
+              domain: "demo.f437.example",
+              path: "/",
+              component: "web",
+              port: 3000,
+              tlsMode: "managed_cert",
+            },
           ],
         },
         policyReferences: [],
@@ -719,12 +904,19 @@ describe("EnvironmentConfigRevisionService history immutability (F448 AC-SET-047
     await service.updateIdentity("team-1", "user-1", "env-1", {
       name: "Production 改名",
     });
-    const createData = tx.environmentConfigRevision.create.mock.calls[0][0].data;
+    const createData =
+      tx.environmentConfigRevision.create.mock.calls[0][0].data;
     expect(createData.routeSnapshot).toEqual({
       domains: ["demo.f437.example"],
       proxyTarget: "web:3000",
       entries: [
-        { domain: "demo.f437.example", path: "/", component: "web", port: 3000, tlsMode: "managed_cert" },
+        {
+          domain: "demo.f437.example",
+          path: "/",
+          component: "web",
+          port: 3000,
+          tlsMode: "managed_cert",
+        },
       ],
     });
     expect(createData.snapshotHash).toBe("sha256:abc");

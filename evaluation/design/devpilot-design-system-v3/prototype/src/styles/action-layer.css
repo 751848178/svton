@@ -1,0 +1,42 @@
+.operation-layer { position: fixed; z-index: 70; inset: 0px; padding: 24px; display: flex; background: rgba(25, 26, 30, 0.3); animation: 0.18s ease 0s 1 normal none running fade-in; }
+.operation-layer.drawer-mode { padding: 0px; justify-content: flex-end; }
+.operation-layer.dialog-mode { align-items: center; justify-content: center; }
+.operation-panel { max-height: min(760px, -48px + 100vh); display: grid; grid-template-rows: auto minmax(0px, 1fr) auto; overflow: hidden; background: var(--surface); box-shadow: var(--shadow); }
+.operation-dialog { width: min(500px, 100%); border-radius: var(--radius); animation: 0.24s cubic-bezier(0.22, 1, 0.36, 1) 0s 1 normal none running dialog-in; }
+.operation-drawer { width: min(520px, 100vw); min-height: 100%; max-height: 100vh; animation: 0.32s cubic-bezier(0.22, 1, 0.36, 1) 0s 1 normal none running drawer-in; }
+.operation-panel > header { min-height: 82px; padding: 18px 22px; display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; border-bottom: 1px solid var(--line); }
+.operation-panel h2 { margin: 0px 0px 5px; font-size: 19px; letter-spacing: -0.025em; }
+.operation-panel header p { max-width: 420px; margin: 0px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.operation-body { min-height: 0px; padding: 22px; overflow-y: auto; }
+.operation-panel > footer { min-height: 70px; padding: 14px 22px; display: flex; align-items: center; justify-content: flex-end; gap: 8px; border-top: 1px solid var(--line); background: var(--surface); }
+.operation-form { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 12px; }
+.operation-form label { display: grid; gap: 7px; color: var(--muted); font-size: 11px; }
+.operation-form input, .operation-form select { width: 100%; height: 40px; padding: 0px 11px; border: 1px solid var(--line-strong); border-radius: var(--control-radius); outline: 0px; background: var(--surface); color: var(--ink); }
+.operation-form input:focus, .operation-form select:focus { border-color: var(--accent); box-shadow: rgba(79, 94, 232, 0.1) 0px 0px 0px 3px; }
+.operation-callout, .confirmation-summary { margin-top: 20px; padding: 16px; border: 1px solid rgb(216, 219, 248); border-radius: var(--control-radius); background: var(--surface); color: var(--accent-dark); font-size: 12px; line-height: 1.6; }
+.confirmation-summary { margin-top: 0px; }
+.confirmation-summary strong { color: var(--ink); font-size: 13px; }
+.confirmation-summary p { margin: 7px 0px 0px; color: var(--muted); }
+.choice-list, .operation-list { display: grid; }
+.choice-list button { min-height: 66px; padding: 0px 14px; border: 1px solid var(--line); border-bottom: 0px; display: grid; grid-template-columns: 24px 1fr; align-items: center; gap: 10px; background: var(--surface); text-align: left; }
+.choice-list button:first-child { border-radius: var(--control-radius) var(--control-radius) 0 0; }
+.choice-list button:last-child { border-bottom: 1px solid var(--line); border-radius: 0 0 var(--control-radius) var(--control-radius); }
+.choice-list button.selected { color: var(--accent-dark); background: var(--accent-soft); }
+.choice-list span:last-child { display: grid; gap: 4px; }
+.choice-list strong { font-size: 13px; }
+.choice-list small { color: var(--muted); font-size: 11px; }
+.operation-list div { min-height: 54px; display: flex; align-items: center; gap: 11px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+.operation-list div:last-child { border-bottom: 0px; }
+.operation-list svg { color: var(--accent-dark); }
+.log-view { margin: 0px; padding: 18px; overflow-x: auto; border-radius: var(--control-radius); background: var(--shell); color: var(--accent-soft); font: 11px / 1.8 SFMono-Regular, monospace; }
+@keyframes dialog-in {
+  0% { opacity: 0.6; transform: translateY(12px) scale(0.985); }
+}
+@media (max-width: 680px) {
+  .operation-layer { padding: 12px; }
+  .operation-layer.drawer-mode { padding: 0px; }
+  .operation-dialog { max-height: calc(-24px + 100vh); }
+  .operation-drawer { width: 100vw; }
+  .operation-panel > header, .operation-body, .operation-panel > footer { padding-inline: 18px; }
+  .operation-form { grid-template-columns: 1fr; }
+}

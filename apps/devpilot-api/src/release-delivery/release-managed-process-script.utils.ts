@@ -6,7 +6,10 @@ import {
   buildManagedLifecycleCleanupScript,
   buildManagedLifecycleStartScript,
 } from "./release-managed-lifecycle-script.utils";
-import { buildReleaseProcessGroupStopScript } from "./release-managed-process-stop-script.utils";
+import {
+  buildReleaseProcessGroupRunningCheck,
+  buildReleaseProcessGroupStopScript,
+} from "./release-managed-process-stop-script.utils";
 import { buildReleaseWorkloadCommandInvocation } from "./release-workload-command-policy";
 import {
   quoteReleaseShell,
@@ -23,6 +26,7 @@ export function buildManagedReleaseWorkloadStartScript(
     paths,
     managedStartBody(service, paths),
     managedStopBody(service, paths),
+    managedPreviousStopRecovery(),
   );
 }
 
@@ -35,9 +39,24 @@ pid_file=${quoteReleaseShell(releaseWorkloadPath(paths, service, "pid"))}
 test -s "$pid_file"
 pid="$(cat "$pid_file")"
 case "$pid" in ''|*[!0-9]*) exit 1;; esac
-kill -0 "-$pid"
+${buildReleaseProcessGroupRunningCheck("pid")}
+release_process_group_is_running
 printf 'PROCESS_STATUS=running\n'
 `;
+}
+
+function managedPreviousStopRecovery() {
+  return `release_previous_process_stop() {
+  previous_pid_file="$previous_base.pid"
+  [ -s "$previous_pid_file" ] || return 1
+  previous_pid="$(cat "$previous_pid_file")"
+  ${buildReleaseProcessGroupStopScript("previous_pid", "return 1")}
+  rm -f "$previous_pid_file"
+}
+if ! release_previous_process_stop; then
+  rm -f "$restore_file"
+  exit 1
+fi`;
 }
 
 export function buildManagedReleaseWorkloadCleanupScript(
@@ -70,7 +89,8 @@ nohup setsid ${buildReleaseWorkloadCommandInvocation(service.startCommand)} >>"$
 pid=$!
 printf '%s\n' "$pid" > "$pid_file"
 sleep 1
-kill -0 "-$pid"`;
+${buildReleaseProcessGroupRunningCheck("pid")}
+release_process_group_is_running`;
 }
 
 function managedStopBody(

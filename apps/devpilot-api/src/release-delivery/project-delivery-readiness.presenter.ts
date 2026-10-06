@@ -1,14 +1,19 @@
 import type { ProjectDeliverySummaryRecord } from "./project-delivery-summary.select";
 import type {
-  ProjectDeliveryAction,
   ProjectDeliveryBaselineRole,
   ProjectDeliveryCheckpoint,
 } from "./project-delivery-summary.types";
 import {
+  projectDeliveryAction as action,
+  projectDeliveryCheckpoint as checkpoint,
+  projectDeliveryEnvironmentAction as environmentAction,
+  projectDeliveryPolicyCheckpoint as policyCheckpoint,
+  type ProjectDeliveryBaseline as Baseline,
+} from "./project-delivery-checkpoint.presenter";
+import {
   resolveProjectDeliveryConfigReadiness,
   resolveProjectDeliveryRouteReadiness,
   resolveProjectDeliveryTargetReadiness,
-  type EnvironmentSettingsTab,
 } from "./project-delivery-environment-readiness.policy";
 import { resolveProjectDeliveryServiceParity } from "./project-delivery-service-parity.policy";
 import {
@@ -23,8 +28,9 @@ export function projectDeliveryReadiness(
 ) {
   const baselines = (["staging", "production"] as const).map((role) => ({
     role,
-    environment: project.environments.find((item) =>
-      item.status === "active" && item.baselineRole === role),
+    environment: project.environments.find(
+      (item) => item.status === "active" && item.baselineRole === role,
+    ),
   }));
   const checkpoints: ProjectDeliveryCheckpoint[] = [
     checkpoint(
@@ -32,7 +38,7 @@ export function projectDeliveryReadiness(
       "project",
       intakeReady,
       "repository_intake_incomplete",
-      action(project.id, "review_repository", "/settings?section=repository"),
+      action(project.id, "review_repository", "/repository-analysis"),
     ),
     baselineTopology(project.id, baselines),
     serviceParity(project.id, baselines),
@@ -45,7 +51,8 @@ export function projectDeliveryReadiness(
   ];
   return {
     checkpoints,
-    nextAction: checkpoints.find((item) => item.status !== "ready")?.action ?? null,
+    nextAction:
+      checkpoints.find((item) => item.status !== "ready")?.action ?? null,
   };
 }
 
@@ -59,9 +66,10 @@ function baselineTopology(
     "project",
     exact,
     "governed_baselines_incomplete",
-    action(projectId, "repair_baselines", "/settings?section=repository"),
+    action(projectId, "repair_baselines", "/repository-analysis"),
     baselines.flatMap(({ environment }) =>
-      environment ? [`environment:${environment.id}`] : []),
+      environment ? [`environment:${environment.id}`] : [],
+    ),
   );
 }
 
@@ -72,7 +80,7 @@ function serviceParity(projectId: string, baselines: Baseline[]) {
     "project",
     parity.ready,
     parity.reasonCode,
-    action(projectId, "configure_services", "/settings?section=repository"),
+    action(projectId, "configure_services", "?view=components"),
     parity.evidenceRefs,
   );
 }
@@ -82,16 +90,26 @@ function environmentConfig(
   role: ProjectDeliveryBaselineRole,
   environment: Baseline["environment"],
 ) {
-  if (!environment) return checkpoint(
+  if (!environment)
+    return checkpoint(
+      "config",
+      role,
+      false,
+      "governed_baselines_incomplete",
+      null,
+    );
+  const readiness = resolveProjectDeliveryConfigReadiness(project, environment);
+  return policyCheckpoint(
     "config",
     role,
-    false,
-    "governed_baselines_incomplete",
-    null,
+    readiness,
+    environmentAction(
+      project.id,
+      environment,
+      "configure_environment",
+      readiness.tab,
+    ),
   );
-  const readiness = resolveProjectDeliveryConfigReadiness(project, environment);
-  return policyCheckpoint("config", role, readiness, environmentAction(
-    project.id, environment, "configure_environment", readiness.tab));
 }
 
 function environmentTarget(
@@ -100,10 +118,24 @@ function environmentTarget(
   environment: Baseline["environment"],
   providerKey: string,
 ) {
-  if (!environment) return checkpoint("targets", role, false, "governed_baselines_incomplete", null);
-  const readiness = resolveProjectDeliveryTargetReadiness(environment, providerKey);
-  return policyCheckpoint("targets", role, readiness, environmentAction(
-    projectId, environment, "bind_target", "targets"));
+  if (!environment)
+    return checkpoint(
+      "targets",
+      role,
+      false,
+      "governed_baselines_incomplete",
+      null,
+    );
+  const readiness = resolveProjectDeliveryTargetReadiness(
+    environment,
+    providerKey,
+  );
+  return policyCheckpoint(
+    "targets",
+    role,
+    readiness,
+    environmentAction(projectId, environment, "bind_target", "targets"),
+  );
 }
 
 function environmentRoute(
@@ -111,73 +143,42 @@ function environmentRoute(
   role: ProjectDeliveryBaselineRole,
   environment: Baseline["environment"],
 ) {
-  if (!environment) return checkpoint("routes", role, false, "governed_baselines_incomplete", null);
+  if (!environment)
+    return checkpoint(
+      "routes",
+      role,
+      false,
+      "governed_baselines_incomplete",
+      null,
+    );
   const readiness = resolveProjectDeliveryRouteReadiness(environment);
-  return policyCheckpoint("routes", role, readiness, environmentAction(
-    projectId, environment, "configure_routes", "routes"));
+  return policyCheckpoint(
+    "routes",
+    role,
+    readiness,
+    environmentAction(projectId, environment, "configure_routes", "routes"),
+  );
 }
 
 function release(project: ProjectDeliverySummaryRecord, baselines: Baseline[]) {
   const ready = baselines.every(({ environment }) =>
-    Boolean(environment && exactCurrentEnvironmentVersion(project, environment)));
-  const digestUnverified = baselines.some(({ environment }) =>
-    environment && currentEnvironmentVersionFailureReason(environment) ===
-      "current_version_digest_unverified");
+    Boolean(
+      environment && exactCurrentEnvironmentVersion(project, environment),
+    ),
+  );
+  const digestUnverified = baselines.some(
+    ({ environment }) =>
+      environment &&
+      currentEnvironmentVersionFailureReason(environment) ===
+        "current_version_digest_unverified",
+  );
   return checkpoint(
     "release",
     "project",
     ready,
-    digestUnverified ? "current_version_digest_unverified" : "release_action_required",
+    digestUnverified
+      ? "current_version_digest_unverified"
+      : "release_action_required",
     action(project.id, "open_release", ""),
   );
 }
-
-function checkpoint(
-  id: ProjectDeliveryCheckpoint["id"],
-  scope: ProjectDeliveryCheckpoint["scope"],
-  ready: boolean,
-  reasonCode: string,
-  next: ProjectDeliveryAction | null,
-  evidenceRefs: string[] = [],
-): ProjectDeliveryCheckpoint {
-  return {
-    id,
-    scope,
-    status: ready ? "ready" : "action_required",
-    reasonCodes: ready ? [] : [reasonCode],
-    evidenceRefs,
-    action: ready ? null : next,
-  };
-}
-
-function action(projectId: string, kind: string, suffix: string) {
-  return { kind, href: `/projects/${projectId}${suffix}` };
-}
-
-function environmentAction(
-  projectId: string,
-  environment: NonNullable<Baseline["environment"]>,
-  kind: string,
-  tab: EnvironmentSettingsTab,
-) {
-  return action(
-    projectId,
-    kind,
-    `/settings?section=environments&env=${encodeURIComponent(environment.key)}&envTab=${tab}`,
-  );
-}
-
-function policyCheckpoint(
-  id: ProjectDeliveryCheckpoint["id"],
-  scope: ProjectDeliveryBaselineRole,
-  readiness: { ready: boolean; blocked?: boolean; reasonCode: string; evidenceRefs: string[] },
-  next: ProjectDeliveryAction,
-) {
-  const value = checkpoint(id, scope, readiness.ready, readiness.reasonCode, next, readiness.evidenceRefs);
-  return { ...value, status: readiness.ready ? "ready" as const : readiness.blocked ? "blocked" as const : "action_required" as const };
-}
-
-type Baseline = {
-  role: ProjectDeliveryBaselineRole;
-  environment: ProjectDeliverySummaryRecord["environments"][number] | undefined;
-};

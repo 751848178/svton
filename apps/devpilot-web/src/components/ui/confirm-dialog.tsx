@@ -15,6 +15,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import type { RefObject } from 'react';
 import { Button, cn } from '@svton/ui';
 import { Modal } from './modal';
 
@@ -31,6 +32,7 @@ export interface ConfirmDialogProps {
   confirmLabel?: string;
   cancelLabel?: string;
   onConfirm: () => void | Promise<void>;
+  restoreFocusRef?: RefObject<HTMLElement | null>;
 }
 
 export function ConfirmDialog(props: ConfirmDialogProps): JSX.Element {
@@ -99,6 +101,7 @@ export function ConfirmDialog(props: ConfirmDialogProps): JSX.Element {
       onClose={close}
       title={title}
       width={440}
+      restoreFocusRef={props.restoreFocusRef}
       footer={
         <>
           <Button variant="secondary" onClick={close} disabled={submitting}>

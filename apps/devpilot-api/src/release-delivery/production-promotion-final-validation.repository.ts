@@ -63,11 +63,13 @@ export async function assertProductionPromotionCurrent(
   };
   await assertGateDecisionCurrent(tx, {
     ...scope, checkpoint: "production_promote_pre_route",
+    profile: "governed_v1",
     reference: input.preDecision,
     assertActionInput: (action) => assertAction(action, input, false),
   });
   const post = await assertGateDecisionCurrent(tx, {
     ...scope, checkpoint: "production_post_route",
+    profile: "governed_v1",
     reference: input.postDecision,
     assertActionInput: (action) => assertAction(action, input, true),
   });

@@ -2,6 +2,8 @@
 
 > 稳定参考文档,只在需要对标某竞品时按需读。
 
+> 2026-09-20：以下早期“缺口”是历史判断，不代表当前仍缺失。当前 Pipewright 研究与建木对照见[研究归档](../research/2026-09-20-pipewright/README.md)，对应[改进规划](../plans/2026-09-20-pipewright-improvements.md)和[技术方案](../plans/2026-09-20-pipewright-technical-design.md)。已核验的当前代码优先于历史缺口列表。
+
 ### 5.1 1Panel
 
 1Panel 更像完整 VPS 控制面板,覆盖网站、SSL、运行时、数据库、容器、文件、监控、防火墙、进程、SSH、终端、计划任务、WAF、日志审计、备份恢复。官方 Overview 也把网站部署、应用市场、集中服务器管理、安全、备份恢复列为核心能力。Source: https://1panel.pro/docs/v2/

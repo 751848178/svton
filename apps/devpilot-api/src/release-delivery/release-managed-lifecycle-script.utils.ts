@@ -13,6 +13,7 @@ export function buildManagedLifecycleStartScript(
   paths: ReleaseWorkloadPaths,
   startBody: string,
   stopBody: string,
+  previousStopRecovery = "",
 ) {
   const startFile = releaseWorkloadPath(paths, service, "start");
   const stopFile = releaseWorkloadPath(paths, service, "stop");
@@ -23,7 +24,7 @@ chmod 700 ${quoteReleaseShell(`${paths.releaseRoot}/.devpilot/workloads`)}
 printf '%s\n' ${quoteReleaseShell(`set -eu\nrm -f ${quoteReleaseShell(stoppedFile)}\n${startBody}`)} > ${quoteReleaseShell(startFile)}
 printf '%s\n' ${quoteReleaseShell(`set -eu\n[ ! -e ${quoteReleaseShell(stoppedFile)} ] || exit 0\n${stopBody}\n: > ${quoteReleaseShell(stoppedFile)}\nchmod 600 ${quoteReleaseShell(stoppedFile)}`)} > ${quoteReleaseShell(stopFile)}
 chmod 700 ${quoteReleaseShell(startFile)} ${quoteReleaseShell(stopFile)}
-${stopPrevious(service, paths)}
+${stopPrevious(service, paths, previousStopRecovery)}
 ${quoteReleaseShell(startFile)}
 `;
 }
@@ -55,6 +56,7 @@ fi
 function stopPrevious(
   service: ReleaseStagingWorkload,
   paths: ReleaseWorkloadPaths,
+  previousStopRecovery: string,
 ) {
   const environmentRoot = releaseEnvironmentRoot(paths);
   const restoreFile = releaseWorkloadPath(paths, service, "restore");
@@ -67,7 +69,9 @@ if [ -n "$previous" ]; then
   if [ -e "$previous_base.start" ] || [ -e "$previous_base.stop" ]; then
     [ -x "$previous_base.start" ] && [ -x "$previous_base.stop" ] || exit 1
     printf '%s\n' "$previous_base.start" > "$restore_file"
-    "$previous_base.stop" || { rm -f "$restore_file"; exit 1; }
+    if ! "$previous_base.stop"; then
+      ${previousStopRecovery || 'rm -f "$restore_file"; exit 1'}
+    fi
   fi
 fi`;
 }

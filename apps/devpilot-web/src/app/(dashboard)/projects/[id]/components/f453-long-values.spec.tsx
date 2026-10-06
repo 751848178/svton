@@ -13,7 +13,7 @@ vi.mock('next-intl', () => ({
 }));
 
 describe('F453 long-value access (AC-UI-022)', () => {
-  it('keeps the full release identifier available in the compact table', () => {
+  it('keeps internal release identifiers out of the MVP table', () => {
     const id = 'release-order-very-long-id-abcdefghijklmnop';
     const html = renderToStaticMarkup(
       <ReleaseOrderListRow
@@ -21,8 +21,8 @@ describe('F453 long-value access (AC-UI-022)', () => {
         onOpen={() => {}}
       />,
     );
-    expect(html).toContain('class="mt-0.5 block max-w-44 truncate');
-    expect(html).toContain(`title="${id}"`);
+    expect(html).not.toContain(id);
+    expect(html).not.toContain('releaseOrderShortId');
   });
 });
 

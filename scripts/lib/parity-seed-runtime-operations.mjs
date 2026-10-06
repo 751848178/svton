@@ -75,6 +75,8 @@ export function createParitySeedRuntimeOperations({
     migrateDeploy,
     repairApiFixtureMount,
     waitApiHealthy: () => waitHealthy("api", 90),
+    waitDeployTargetHealthy: () => waitHealthy("deploy-target", 90),
     waitMysqlHealthy: () => waitHealthy("mysql", 60),
+    waitTargetWorkloadHealthy: () => waitHealthy("target-workload", 60),
   };
 }

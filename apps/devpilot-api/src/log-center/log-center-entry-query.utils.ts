@@ -64,6 +64,8 @@ export function buildLogEntryWhere(
   if (query.siteId) where.siteId = query.siteId;
   if (query.managedResourceId)
     where.managedResourceId = query.managedResourceId;
+  if ('deploymentRunId' in query && query.deploymentRunId)
+    where.deploymentRunId = query.deploymentRunId;
   if ("q" in query && query.q) {
     where.message = { contains: query.q };
   }

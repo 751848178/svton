@@ -97,6 +97,8 @@ export interface ReleaseStagingDeploymentItem {
   dryRun: boolean;
   branch: string | null;
   commitSha: string | null;
+  params?: unknown;
+  commandPlan?: unknown;
   logs: unknown;
   result: unknown;
   error: string | null;

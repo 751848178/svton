@@ -1,12 +1,10 @@
 import React, { useEffect, useRef } from 'react';
-import type { CSSProperties } from 'react';
 import type { SelectOption, SelectOptionFilter } from './types';
 import { useSelectCombobox } from './useSelectCombobox';
+import { SelectComboboxTrigger } from './SelectComboboxTrigger';
 import { SelectPanel } from './SelectPanel';
-import { SelectTags } from './SelectTags';
-import { cn } from '../../lib/utils';
+import { selectPanelPlacement } from './selectPanelPlacement';
 import { Portal } from '../Portal';
-import { ChevronDownIcon } from '../../icons';
 
 interface SelectComboboxProps {
   'aria-label'?: string;
@@ -102,43 +100,7 @@ export function SelectCombobox(props: SelectComboboxProps) {
     if (el.value !== next) el.value = next;
   });
 
-  const triggerStyle = cn(
-    'w-full rounded-md border border-input bg-background outline-none transition-colors focus-within:ring-2 focus-within:ring-ring disabled:cursor-not-allowed disabled:opacity-60',
-    size === 'sm' ? 'min-h-9 px-2 py-1 text-xs' : 'min-h-11 px-3 py-2 text-sm',
-    invalid && 'border-destructive focus-within:ring-destructive/40',
-  );
-
-  const triggerRect = triggerRef.current?.getBoundingClientRect();
-  const triggerWidth = triggerRect && triggerRect.width > 0 ? triggerRect.width : '100%';
-  const panelTop =
-    (triggerRect?.bottom ?? 0) + (typeof window !== 'undefined' ? window.scrollY : 0) + 4;
-  const panelLeft =
-    (triggerRect?.left ?? 0) + (typeof window !== 'undefined' ? window.scrollX : 0);
-  // antd 语义：match=true 面板等宽触发器（选项省略）；false 时面板自适应内容，但不窄于触发器、不溢出视口
-  const panelStyle: CSSProperties = popupMatchSelectWidth
-    ? { top: panelTop, left: panelLeft, width: triggerWidth }
-    : {
-        top: panelTop,
-        left: panelLeft,
-        minWidth: triggerWidth,
-        width: 'max-content',
-        maxWidth:
-          typeof window !== 'undefined'
-            ? Math.max(triggerRect?.width ?? 0, window.innerWidth - (triggerRect?.left ?? 0) - 16)
-            : undefined,
-      };
-
-  const spinner = (
-    <span className="size-4 shrink-0 animate-spin rounded-full border-2 border-muted-foreground/20 border-t-primary" />
-  );
-
-  const inputPlaceholder = multiple
-    ? model.selectedItems.length === 0
-      ? (placeholder ?? '')
-      : ''
-    : model.search.length === 0
-      ? (model.selectedItems[0]?.label ?? placeholder ?? '')
-      : '';
+  const panelPlacement = selectPanelPlacement(triggerRef, popupMatchSelectWidth);
 
   const panel = (
     <SelectPanel
@@ -152,14 +114,14 @@ export function SelectCombobox(props: SelectComboboxProps) {
       onActivate={model.commit}
       onHover={model.setActiveIndex}
       panelRef={model.panelRef}
-      style={panelStyle}
+      style={panelPlacement.style}
       value={{ isSelected: model.isSelected }}
     />
   );
 
 
   return (
-    <div ref={triggerRef} className={cn('relative w-full', className)} data-svton-select-combobox="">
+    <>
       {mirrorProps && (
         <select
           {...(mirrorProps as Record<string, unknown>)}
@@ -187,81 +149,21 @@ export function SelectCombobox(props: SelectComboboxProps) {
           ))}
         </select>
       )}
-      {model.canSearch ? (
-        <div
-          onClick={model.openWithInput}
-          onKeyDown={model.handleKeyDown}
-          aria-invalid={invalid || undefined}
-          className={cn(triggerStyle, 'flex items-center gap-2')}
-        >
-          {multiple && (
-            <SelectTags
-              items={model.selectedItems}
-              disabled={disabled}
-              clearable={clearable}
-              onRemove={model.removeValue}
-              onClearAll={model.clearAll}
-            />
-          )}
-          <input
-            ref={model.inputRef}
-            role="combobox"
-            id={id}
-            aria-expanded={model.open}
-            aria-controls={model.open ? model.id : undefined}
-            aria-haspopup="listbox"
-            aria-activedescendant={model.activeDescendant}
-            aria-autocomplete="list"
-            aria-disabled={disabled || undefined}
-            aria-label={ariaLabel}
-            value={model.search}
-            onChange={model.handleInputChange}
-            onFocus={model.openWithInput}
-            placeholder={inputPlaceholder}
-            disabled={disabled}
-            className={cn(
-              'min-w-0 flex-1 bg-transparent outline-none',
-              size === 'sm' ? 'text-xs' : 'text-sm',
-              'placeholder:text-muted-foreground',
-            )}
-          />
-          {loading && spinner}
-          <ChevronDownIcon size={16} aria-hidden="true" className="shrink-0 text-muted-foreground" />
-        </div>
-      ) : (
-        <div
-          id={id}
-          tabIndex={disabled ? -1 : 0}
-          role="combobox"
-          aria-expanded={model.open}
-          aria-controls={model.open ? model.id : undefined}
-          aria-haspopup="listbox"
-          aria-activedescendant={model.activeDescendant}
-          aria-disabled={disabled || undefined}
-          aria-invalid={invalid || undefined}
-          aria-label={ariaLabel}
-          onClick={model.toggleOpen}
-          onKeyDown={model.handleKeyDown}
-          className={cn(triggerStyle, 'flex cursor-pointer items-center gap-2 text-left')}
-        >
-          {multiple ? (
-            <SelectTags
-              items={model.selectedItems}
-              disabled={disabled}
-              clearable={clearable}
-              onRemove={model.removeValue}
-              onClearAll={model.clearAll}
-            />
-          ) : model.selectedItems[0] ? (
-            <span className="flex-1 truncate">{model.selectedItems[0].label}</span>
-          ) : (
-            <span className="flex-1 truncate text-muted-foreground">{placeholder}</span>
-          )}
-          {loading && spinner}
-          <ChevronDownIcon size={16} aria-hidden="true" className="shrink-0 text-muted-foreground" />
-        </div>
-      )}
-      {model.open && <Portal>{panel}</Portal>}
-    </div>
+      <SelectComboboxTrigger
+        model={model}
+        triggerRef={triggerRef}
+        id={id}
+        ariaLabel={ariaLabel}
+        className={className}
+        invalid={invalid}
+        disabled={disabled}
+        placeholder={placeholder}
+        multiple={multiple}
+        clearable={clearable}
+        loading={loading}
+        size={size}
+      />
+      {model.open && <Portal container={panelPlacement.container}>{panel}</Portal>}
+    </>
   );
 }

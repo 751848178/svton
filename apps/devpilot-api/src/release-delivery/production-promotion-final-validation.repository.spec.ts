@@ -137,7 +137,9 @@ function decisionSnapshot(checkpoint: "production_promote_pre_route" | "producti
   actionInput: Record<string, string>, identity: {
     approvalSubjectHash: string; actionInputHash: string;
   }) {
-  const gateIds = [...releaseGateCheckpointPolicy(checkpoint).requiredGateIds];
+  const gateIds = [
+    ...releaseGateCheckpointPolicy(checkpoint, "governed_v1").requiredGateIds,
+  ];
   return { inputSnapshot: { version: 4, checkpoint,
     requesterActorId: "actor-2",
     approvalSubjectHash: identity.approvalSubjectHash,
