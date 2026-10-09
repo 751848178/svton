@@ -42,8 +42,9 @@ test('configured Agent inventory deduplicates roles, isolates partial failures a
   app = await NestFactory.create(AppModule, { logger: false });
   await app.listen(0, '127.0.0.1');
   const base = await app.getUrl();
+  const authenticatedFetch = await fixture.authenticatedFetch(base);
   const headers = { 'Content-Type': 'application/json', 'x-shipkit-local': '1', Origin: 'http://127.0.0.1:8769' };
-    const inventoryResponse = await fetch(`${base}/api/agents`);
+    const inventoryResponse = await authenticatedFetch(`${base}/api/agents`);
     const inventoryText = await inventoryResponse.text();
     assert.equal(inventoryResponse.status, 200);
     assert.equal(calls.length, 0, 'inventory must not automatically probe configured Agents');
@@ -58,11 +59,11 @@ test('configured Agent inventory deduplicates roles, isolates partial failures a
     assert.deepEqual([...shared.usages].sort(), ['builder', 'runtime']);
     assert.equal(shared.bindings.length, 5);
     assert.equal(shared.bindings.filter(binding => binding.selected).length, 2);
-    assert.equal((await fetch(`${base}/api/agents/${shared.id}/checks`, { method: 'POST' })).status, 403);
-    assert.equal((await fetch(`${base}/api/agents/not-configured/checks`, { method: 'POST', headers })).status, 404);
-    assert.equal((await fetch(`${base}/api/agents/${shared.id}/checks`, { method: 'POST', headers, body: JSON.stringify({ url: 'http://unconfigured.invalid' }) })).status, 400);
+    assert.equal((await authenticatedFetch(`${base}/api/agents/${shared.id}/checks`, { method: 'POST' })).status, 403);
+    assert.equal((await authenticatedFetch(`${base}/api/agents/not-configured/checks`, { method: 'POST', headers })).status, 404);
+    assert.equal((await authenticatedFetch(`${base}/api/agents/${shared.id}/checks`, { method: 'POST', headers, body: JSON.stringify({ url: 'http://unconfigured.invalid' }) })).status, 400);
     assert.equal(calls.length, 0, 'invalid resource IDs or supplied URLs must not produce outbound checks');
-    const response = await fetch(`${base}/api/agents/${shared.id}/checks`, { method: 'POST', headers });
+    const response = await authenticatedFetch(`${base}/api/agents/${shared.id}/checks`, { method: 'POST', headers });
     const checkedText = await response.text();
     assert.equal(response.status, 201);
     assert(!checkedText.includes(secret));
@@ -75,7 +76,7 @@ test('configured Agent inventory deduplicates roles, isolates partial failures a
     assert.equal(calls.length, 5);
     assert(calls.every(url => url === '/api/status'));
     const offline = inventory.items.find(item => item.endpoint.endsWith(':1'))!;
-    const unavailable = await fetch(`${base}/api/agents/${offline.id}/checks`, { method: 'POST', headers }).then(response => response.json()) as AgentResourceChecks;
+    const unavailable = await authenticatedFetch(`${base}/api/agents/${offline.id}/checks`, { method: 'POST', headers }).then(response => response.json()) as AgentResourceChecks;
     assert.equal(unavailable.status, 'failed');
     assert.match(unavailable.checks[0]!.error!, /连接不可达/);
     assert.equal(await fixture.db.task.count(), 0);

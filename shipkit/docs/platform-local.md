@@ -27,6 +27,18 @@ pnpm shipkit:start
 
 这两个 submit 任务只在当前 macOS 登录会话内托管，未安装登录启动配置，电脑重启或重新登录后不会据此自动启动；届时仍可使用上面的标准启动命令。
 
+## 账号初始化
+
+启动前先安装依赖、构建 `@svton/authz`、生成 Prisma client 并执行迁移，再运行：
+
+```bash
+pnpm --filter @svton/shipkit-api auth:admin --username admin
+```
+
+命令在终端隐藏输入并确认密码，没有默认账号或密码；也用于重设密码并撤销该账号的旧会话。未初始化时所有业务 API 拒绝访问。部署外部 HTTPS 页面时设置精确的 `SHIPKIT_PUBLIC_ORIGIN=https://实际域名`，API 保持回环监听。登录后本 MVP 允许全部业务操作，svton 授权扩展点保留。退出、过期和账号停用会使服务端会话失效。
+
+Linux 长期托管、数据目录和停服备份恢复见 [platform-operations.md](platform-operations.md)。
+
 ## 使用
 
 1. 注册项目，填写名称、本机绝对项目目录、绝对 Shipkit 配置文件路径。目录需要有效的 schemaVersion 2 `ship.yaml`。可以补服务器显示名和服务入口；这些字段不会改写 target/env 身份。
@@ -42,10 +54,14 @@ pnpm shipkit:start
 
 ## 接入边界
 
-前端同源 `/api` 代理到 127.0.0.1:8770。写入要求本机来源、JSON 和本机标头；无任意 shell 接口。固定本机 Actor/Workspace 与策略接口为以后接入认证预留边界，本版没有登录或权限管理页面。
+前端同源 `/api` 代理到 127.0.0.1:8770。业务 API 要求服务端登录会话；写入额外校验明确配置的页面来源、JSON 和操作标头。身份从会话取得，工作空间由服务端确定，操作审计使用真实用户。svton Authorizer 本轮对已登录用户开放全部操作；没有业务权限配置页面。
 
 平台发布要求 runtime 的 group-baseline 和 jobs operation/events/cursor/cancel 能力；builder 同样要求四项 jobs 安全能力。旧 Agent 会被拒绝，需人工升级已安装组件；平台不会自动升级服务器。原 CLI/JSON 入口继续可用。
 
-本次使用独立 Docker Agent、仓库和临时测试项目完成验收；项目列表中的验收项目引用隔离目录，不能代替注册实际项目。动态云供应商通过既有腾讯云 provider 接入，SDK 模拟验证了租约、保留、取消及释放失败边界；本次未创建收费云资源，真实新建/销毁实例验收仍需单独授权。未更改 TWGG 生产服务或已安装 Agent。
+最初本机验收使用独立 Docker Agent、仓库和临时测试项目完成验收；项目列表中的验收项目引用隔离目录，不能代替注册实际项目。动态云供应商通过既有腾讯云 provider 接入，SDK 模拟验证了租约、保留、取消及释放失败边界；早期本机验收没有创建收费云资源。后续经授权的 TWGG 已提交版本真实云构建、发布、资源销毁与服务检查已完成；本轮加固不重新发布或回滚业务。
 
 架构见 [platform-architecture.md](platform-architecture.md)，数据库/API 见 [platform-api.md](platform-api.md)，证据见 [platform-acceptance.md](audits/2026-10-08/platform-acceptance.md)。
+
+## 隔离 API 验收脚本
+
+原有 `platform-e2e-*.mjs` 现在使用真实会话。先在隔离数据库预置测试账号，通过 `SHIPKIT_TEST_CREDENTIALS_FILE` 指定 0600 私密 JSON 文件（仅 `username`、`password` 字段），并用 `SHIPKIT_TEST_API` 指定本机隔离 `/api` 地址。脚本不支持匿名后门，不打印密码或会话；不要使用生产账号和生产发布目标。隐私审计同样使用该测试凭据文件。

@@ -1,0 +1,24 @@
+[Unit]
+Description=Shipkit local control platform
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+[Service]
+Type=simple
+# Replace account, directories and executable paths for the selected host.
+User=SHIPKIT_USER
+Group=SHIPKIT_GROUP
+WorkingDirectory=/ABSOLUTE/CODE/DIRECTORY
+EnvironmentFile=/ABSOLUTE/PRIVATE/platform.env
+ExecStart=/ABSOLUTE/NODE /ABSOLUTE/CODE/DIRECTORY/shipkit/scripts/platform-start.mjs --production --reuse-build
+Restart=on-failure
+RestartSec=5
+KillMode=control-group
+TimeoutStopSec=60
+UMask=0077
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

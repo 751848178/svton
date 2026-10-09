@@ -1,0 +1,28 @@
+.auth-screen { display: grid; place-items: center; min-height: 100dvh; padding: 40px 24px; background: var(--canvas); }
+.auth-card { width: min(100%, 420px); padding: 32px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.auth-brand { width: fit-content; margin-bottom: 30px; }
+.auth-heading { margin-bottom: 24px; }
+.auth-icon { display: grid; place-items: center; width: 40px; height: 40px; margin-bottom: 14px; border-radius: 10px; color: var(--green); background: var(--green-soft); }
+.auth-heading h1 { font-size: 25px; }
+.auth-heading p { margin-top: 8px; color: var(--muted); font-size: 13px; }
+.auth-form { display: grid; gap: 18px; }
+.auth-form label { display: grid; gap: 7px; color: var(--ink); font-size: 13px; font-weight: 550; }
+.auth-form input { width: 100%; min-width: 0; height: 44px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--ink); font-size: 16px; }
+.auth-form input:focus { border-color: var(--green); }
+.auth-submit { width: 100%; min-height: 44px; margin-top: 6px; }
+.auth-help { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; line-height: 1.7; }
+.auth-notice { margin-bottom: 18px; padding: 10px 12px; border-radius: 7px; color: var(--green); background: var(--green-soft); font-size: 13px; }
+.auth-card .error-message { margin: 0 0 18px; overflow-wrap: anywhere; }
+.auth-retry { margin-bottom: 18px; }
+.auth-loading { display: flex; align-items: center; gap: 10px; color: var(--muted); }
+.auth-connection .auth-brand { margin-bottom: 24px; }
+.user-controls { display: flex; align-items: center; gap: 10px; width: 100%; min-width: 0; }
+.sidebar-footer .user-controls > .server-avatar { display: grid; margin-top: 0; }
+.user-identity { flex: 1; min-width: 0; }
+.user-identity strong, .user-identity > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-identity strong { font-size: 13px; font-weight: 600; }
+.user-identity > span { margin-top: 2px; color: var(--muted); font-size: 12px; }
+.user-logout { display: grid; place-items: center; gap: 2px; flex-shrink: 0; min-width: 44px; min-height: 44px; padding: 5px; border: 0; border-radius: 6px; color: var(--muted); background: transparent; }
+.user-logout:hover { color: var(--green); background: var(--green-soft); }
+.user-logout span { font-size: 11px; }
+@media (max-width: 740px) { .auth-screen { padding: 24px 20px; } .auth-card { padding: 26px 24px; } .auth-heading h1 { font-size: 24px; } }

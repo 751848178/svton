@@ -1,6 +1,7 @@
 // Read-only audit of isolated fixture API evidence; never prints secret values.
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { testSessionCookie } from '../../../shipkit/scripts/platform-test-session.mjs';
 
 const fixturePath = process.argv[2] ?? '/tmp/codex-tool-runs/svton/platform-fixture.json';
 const reportPath = process.argv[3] ?? '/tmp/codex-tool-runs/svton/platform-api-secret-audit.json';
@@ -30,7 +31,7 @@ let eventPages = 0;
 const unexpectedStatus = [];
 function scan(text) { for (const secret of candidates) if (text.includes(secret)) secretMatches++; }
 async function read(route) {
-  const response = await fetch(`${base}${route}`);
+  const response = await fetch(`${base}${route}`, { headers: { cookie: await testSessionCookie(base) } });
   const text = await response.text();
   responseCount++; scan(text);
   if (!response.ok) unexpectedStatus.push({ route, status: response.status });

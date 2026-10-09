@@ -6,7 +6,7 @@
 
 SQLite fits one local control plane: transactions and a unique nullable active-scope gate serialize project/environment writes across processes. JSON payloads use explicit serialized String columns because Prisma 5 SQLite does not support Json/enums. Schema and migration are source files; the isolated client is generated locally and ignored by Git. Logs live as private files with DB cursors and indices, not unbounded DB rows.
 
-Request actor/workspace are server-derived `local-controller`/`local`; body values never choose identity. A policy provider owns authorization calls. Every resource belongs to a workspace; creator/actor and request ID appear in audit. Login and RBAC are deferred without binding identity to business execution. Write routes require loopback Host, trusted local Origin when present, JSON and `x-shipkit-local: 1`; UI uses same-origin proxy. Private config remains a file reference and is never returned verbatim.
+Request actor/workspace are server-derived signed-in user/`local`; body values never choose identity. A policy provider owns authorization calls. Every resource belongs to a workspace; creator/actor and request ID appear in audit. Server sessions implement login, expiry and revocation; Node scrypt hashes administrator-provisioned passwords. The svton authorizer grants all authenticated operations for MVP while preserving subject/action/workspace inputs for future policy. Write routes require loopback Host, explicitly configured page Origin when present, JSON and `x-shipkit-local: 1`; UI uses same-origin proxy. Private config remains a file reference and is never returned verbatim.
 
 ## Stable API contract (raw JSON)
 

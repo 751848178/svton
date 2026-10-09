@@ -15,7 +15,9 @@ pnpm --filter @svton/shipkit-api start
 
 Defaults: API `http://127.0.0.1:8770`; SQLite and archived logs in `apps/shipkit-api/.data`. For a shared platform directory, set `SHIPKIT_DATA_DIR` to an absolute path and `DATABASE_URL=file:/absolute/path/platform.db` consistently for migration and startup. `PORT` changes the API port. The migration wrapper creates the parent directory and a private empty SQLite file before Prisma migrate deploy. The database enables WAL and initializes the `local` workspace and `local-controller` actor.
 
-The formal Next application uses its own same-origin `/api` proxy. Mutations require JSON, `x-shipkit-local: 1`, a loopback Host and, when supplied, a trusted local Origin. Identity is server-derived; request bodies cannot select actors or workspaces. Every read checks workspace ownership; execution, cancellation, cleanup and metadata changes have explicit policy actions.
+Login and session endpoints are `POST /api/auth/login`, `GET /api/auth/session` and idempotent `POST /api/auth/logout`. Login/session return `{user:{id,username,displayName},expiresAt}` without a token. Opaque tokens use HttpOnly, SameSite=Strict cookies (Secure on HTTPS); SQLite stores only their hashes. All business endpoints require a valid server session. `GET /api/health` is a public loopback readiness signal. Admin accounts are provisioned through a hidden-input local CLI; no public registration. `@svton/authz` grants all authenticated workspace operations for MVP.
+
+The formal Next application uses its own same-origin `/api` proxy. Mutations require JSON, `x-shipkit-local: 1`, a loopback Host and, when supplied, the explicitly configured page Origin. Identity is server-derived; request bodies cannot select actors or workspaces. Every read checks workspace ownership; execution, cancellation, cleanup and metadata changes have explicit policy actions.
 
 ## HTTP contract
 
@@ -47,7 +49,7 @@ The checked-in Prisma schema and SQL migration define Workspace, Actor, Project,
 | Model | Responsibility |
 | --- | --- |
 | Workspace | Local resource scope, replaceable by an authenticated workspace context. |
-| Actor | Stable execution/audit identity; fixed local controller for this MVP. |
+| Actor | Stable execution/audit identity; signed-in users plus preserved historical local controller. |
 | Project | Validated directory/config references, deployment identity and workspace ownership. |
 | Target | Display metadata keyed by unchanged configured environment identity. |
 | Service | Display name and entry URL keyed by unchanged service identity. |

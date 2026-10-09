@@ -1,9 +1,13 @@
 import type { ApiDefinition } from '@svton/api-client';
 import type { Checks, HistoryView, LiveProject, Logs, Plan, PlanRequest, Project, ProjectPatch, ProjectRegistration, Task, TaskDetail, TaskEvent } from './contracts';
 import type { AgentResourceChecks, AgentResourceList } from './agent-contracts';
+import type { AuthSession, LoginInput } from '@/auth/contracts';
 
 declare module '@svton/api-client' {
   interface GlobalApiRegistry {
+    'POST:/auth/login': ApiDefinition<LoginInput, AuthSession>;
+    'GET:/auth/session': ApiDefinition<Record<string, never>, AuthSession>;
+    'POST:/auth/logout': ApiDefinition<Record<string, never>, { ok: true }>;
     'GET:/agents': ApiDefinition<Record<string, never>, AgentResourceList>;
     'POST:/agents/:id/checks': ApiDefinition<{ id: string }, AgentResourceChecks>;
     'GET:/projects': ApiDefinition<Record<string, never>, { items: Project[] }>;

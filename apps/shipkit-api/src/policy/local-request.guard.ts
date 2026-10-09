@@ -1,12 +1,15 @@
-import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable, Inject } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type { LocalRequest } from './request-context.js';
+import { AuthService } from '../auth/auth.service.js';
+import { AuthSettings } from '../auth/settings.js';
 
 const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]']);
 
 @Injectable()
 export class LocalRequestGuard implements CanActivate {
-  canActivate(context: ExecutionContext): boolean {
+  constructor(@Inject(AuthService) private readonly auth: AuthService, @Inject(AuthSettings) private readonly settings: AuthSettings) {}
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<LocalRequest>();
     const host = request.get('host') ?? '';
     if (!/^(?:127\.0\.0\.1|localhost|\[::1\])(?::[0-9]{1,5})?$/i.test(host)) throw new ForbiddenException('仅接受有效本机 Host');
@@ -21,13 +24,17 @@ export class LocalRequestGuard implements CanActivate {
       if (origin) {
         let url: URL;
         try { url = new URL(origin); } catch { throw new ForbiddenException('无效操作来源'); }
-        const allowedPorts = new Set(['8769', '8770', process.env.PORT ?? '8770']);
-        if (url.protocol !== 'http:' || !LOOPBACK.has(url.hostname) || !allowedPorts.has(url.port) || url.origin !== origin) {
-          throw new ForbiddenException('操作来源必须为本机 Shipkit 页面');
+        if (url.origin !== origin || !this.settings.origins.has(origin)) {
+          throw new ForbiddenException('操作来源必须为已配置的 Shipkit 页面');
         }
       }
     }
-    request.localContext = { actorId: 'local-controller', workspaceId: 'local', requestId: randomUUID(), source: 'loopback' };
+    request.localContext = { actorId: '', workspaceId: 'local', requestId: randomUUID(), source: 'loopback' };
+    const route = `${request.method} ${request.path}`;
+    if (['GET /api/health', 'POST /api/auth/login', 'POST /api/auth/logout'].includes(route)) return true;
+    request.authentication = await this.auth.authenticate(request);
+    request.localContext = { ...request.localContext, actorId: request.authentication.view.user.id,
+      sessionId: request.authentication.sessionHash, source: 'session' };
     return true;
   }
 }

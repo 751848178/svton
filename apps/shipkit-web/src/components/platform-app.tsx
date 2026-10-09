@@ -11,8 +11,13 @@ import { SettingsPage } from './settings-page';
 import { HistoryPage } from './history-page';
 import { ReleaseWorkspace } from './release-workspace';
 import { AgentResourcesPage } from './agent-resources-page';
+import { AuthGate } from '@/auth/auth-gate';
+import type { AuthenticatedProps } from '@/auth/contracts';
 
 export function PlatformApp() {
+  return <AuthGate>{auth => <AuthenticatedPlatformApp {...auth} />}</AuthGate>;
+}
+export function AuthenticatedPlatformApp(auth: AuthenticatedProps) {
   const { location, navigate } = useNavigation();
   const projectScope = location.view !== 'agents' && location.view !== 'projects';
   const projectQuery = useApi(projectScope && location.projectId ? 'GET:/projects/:id' : null, { id: location.projectId });
@@ -34,5 +39,5 @@ export function PlatformApp() {
   else if (location.view === 'settings') content = <SettingsPage project={project} live={live} onBack={onOverview} onRefresh={refresh} />;
   else if (location.view === 'history') content = <HistoryPage project={project} onBack={onOverview} onNew={onNew} onTask={onTask} />;
   else content = <ReleaseWorkspace key={`${project.id}:${location.taskId || 'new'}`} project={project} live={live} location={location} detail={task.data} taskLoading={task.isLoading} taskError={task.error} navigate={navigate} refresh={refresh} />;
-  return <WorkspaceShell view={location.view} busy={busy} navigate={navigate}>{content}</WorkspaceShell>;
+  return <WorkspaceShell view={location.view} busy={busy} navigate={navigate} {...auth}>{content}</WorkspaceShell>;
 }

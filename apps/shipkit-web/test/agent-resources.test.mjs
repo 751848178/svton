@@ -35,14 +35,15 @@ test('global resource navigation drops project/task context and restores project
 
 test('Agent global page disables project status and historical task requests even with stale location IDs', () => {
   const calls = [];
-  const { PlatformApp } = load('components/platform-app.tsx', name => {
+  const { AuthenticatedPlatformApp } = load('components/platform-app.tsx', name => {
     if (name === '@/hooks/use-navigation') return { useNavigation: () => ({ location: { view: 'agents', projectId: 'stale', taskId: 'stale', step: 4 }, navigate() {} }) };
     if (name === '@/hooks/use-api') return { useApi: (...args) => { calls.push(args); return {}; } };
     if (name === '@/lib/presentation') return presentation;
+    if (name === '@/auth/auth-gate') return { AuthGate: () => null };
     if (name.startsWith('./')) return new Proxy({}, { get: () => () => createElement('div') });
     return nativeRequire(name);
   });
-  renderToStaticMarkup(createElement(PlatformApp));
+  renderToStaticMarkup(createElement(AuthenticatedPlatformApp, { user: { id: 'user', username: 'tester', displayName: '测试用户' }, onLogout() {} }));
   assert.equal(calls.length, 3);
   assert(calls.every(([route]) => route === null));
   assert.equal(calls[1][2], 0);
@@ -52,6 +53,7 @@ test('resource navigation has its own category, correct active item and case-ins
   const { WorkspaceShell } = load('components/workspace-shell.tsx', name => {
     if (name === 'react') return { useState: initial => [initial === '' ? 'agent' : initial, () => {}] };
     if (name === '@svton/ui') return { Drawer: () => null };
+    if (name === '@/auth/user-controls') return { UserControls: () => null };
     return nativeRequire(name);
   });
   const html = renderToStaticMarkup(createElement(WorkspaceShell, { view: 'agents', busy: false, navigate() {} }));

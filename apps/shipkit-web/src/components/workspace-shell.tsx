@@ -3,8 +3,10 @@ import { useState } from 'react';
 import { Drawer } from '@svton/ui';
 import { LayoutGrid, Menu, Search, Server, X } from 'lucide-react';
 import type { Location, View } from '@/hooks/use-navigation';
+import type { AuthenticatedProps } from '@/auth/contracts';
+import { UserControls } from '@/auth/user-controls';
 
-interface Props {
+interface Props extends AuthenticatedProps {
   busy: boolean;
   view: View;
   navigate: (next: Partial<Location>) => void;
@@ -35,7 +37,7 @@ export function WorkspaceShell(props: Props) {
       })}</div></div>)}
       {!items.length && <p className="nav-empty">没有匹配的菜单</p>}
     </nav>
-    <footer className="sidebar-footer"><span className="server-avatar"><Server size={18} aria-hidden="true" /></span><div><strong>本机控制端</strong><span>Shipkit · 本机主体</span></div></footer>
+    <footer className="sidebar-footer"><UserControls user={props.user} onLogout={props.onLogout} /></footer>
   </aside>;
   return <div className="app-layout">
     {sidebar(false)}

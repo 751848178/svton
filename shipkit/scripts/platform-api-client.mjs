@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
+import { testSessionCookie } from './platform-test-session.mjs';
 export const apiRoot = process.env.SHIPKIT_TEST_API ?? 'http://127.0.0.1:8770/api';
+export async function apiHeaders() { return { 'x-shipkit-local': '1', cookie: await testSessionCookie(apiRoot) }; }
 export async function call(method, route, body, expected) {
   const response = await fetch(`${apiRoot}${route}`, { method,
-    headers: { 'x-shipkit-local': '1', ...(body ? { 'content-type': 'application/json' } : {}) },
+    headers: { ...await apiHeaders(), ...(body ? { 'content-type': 'application/json' } : {}) },
     body: body ? JSON.stringify(body) : undefined });
   const value = await response.json();
   if (expected) { assert.equal(response.status, expected, JSON.stringify(value).slice(0, 500)); return value; }

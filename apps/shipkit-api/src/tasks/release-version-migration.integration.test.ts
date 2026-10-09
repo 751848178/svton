@@ -30,7 +30,11 @@ test('version migration preserves original identities, foreign keys and project-
   try {
     await execute('2026100801_initial');
     db = new DatabaseService();
-    await db.onModuleInit();
+    // This phase intentionally uses the original Actor shape, before auth exists.
+    await db.$connect();
+    await db.$executeRawUnsafe('PRAGMA foreign_keys=ON');
+    await db.$executeRawUnsafe('INSERT INTO Workspace (id,name) VALUES (?,?)', 'local', 'Original workspace');
+    await db.$executeRawUnsafe('INSERT INTO Actor (id,kind,name) VALUES (?,?,?)', 'local-controller', 'local', 'Original controller');
     for (const projectId of ['project-a', 'project-b']) {
       await db.$executeRawUnsafe('INSERT INTO Project (id,workspaceId,name,rootPath,configPath,targetKey,projectIdentity,createdByActorId,updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
         projectId, 'local', projectId, `${directory}/${projectId}`, '/fixture.yaml', 'test', projectId, 'local-controller', Date.now());
@@ -50,7 +54,7 @@ test('version migration preserves original identities, foreign keys and project-
     // Fail after every DDL/backfill statement, immediately before COMMIT.
     await execute('2026100802_release_versions', true);
     db = new DatabaseService();
-    await db.onModuleInit();
+    await db.$connect();
     for (const table of ['Project', 'Plan', 'Task']) {
       const columns = await db.$queryRawUnsafe<Array<{ name: string }>>(`PRAGMA table_info("${table}")`);
       assert(!columns.some(({ name }) => ['lastVersion', 'version'].includes(name)), 'Failed migration must roll back every new column');
@@ -67,8 +71,14 @@ test('version migration preserves original identities, foreign keys and project-
     assert.equal(resolved.status, 0, 'Confirmed rolled-back isolated migration can be resolved and retried');
     await execute('2026100802_release_versions');
     await execute('2026100802_release_versions');
+    await execute('2026100901_auth_sessions');
+    await execute('2026100901_auth_sessions');
     db = new DatabaseService();
     await db.onModuleInit();
+    const originalActor = await db.actor.findUniqueOrThrow({ where: { id: 'local-controller' } });
+    assert.equal(originalActor.kind, 'local'); assert.equal(originalActor.name, 'Original controller');
+    assert.equal(originalActor.username, null); assert.equal(originalActor.passwordHash, null); assert.equal(originalActor.disabled, false);
+    assert.equal(await db.authSession.count(), 0);
     const tasks = await db.task.findMany({ orderBy: [{ projectId: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }] });
     assert.deepEqual(tasks.map(({ id, version }) => [id, version]), [
       ['task-z', '0.0.1'], ['task-a', '0.0.2'], ['task-b', '0.0.3'], ['task-other', '0.0.1'],

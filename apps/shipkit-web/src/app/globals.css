@@ -10,5 +10,6 @@
 @import '../styles/platform.css';
 @import '../styles/release-evidence.css';
 @import '../styles/agent-resources.css';
+@import '../styles/auth.css';
 @tailwind components;
 @tailwind utilities;

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { readFixture } from './platform-e2e-fixture.mjs';
-import { apiRoot, call, finishTask } from './platform-api-client.mjs';
+import { apiRoot, apiHeaders, call, finishTask } from './platform-api-client.mjs';
 
 const fixture = await readFixture();
 const evidence = [];
@@ -28,7 +28,7 @@ await record('registration reads real Git, config and Agent facts', async () => 
   assert.equal(status.live.services.length, 2); assert.equal(JSON.stringify(status).includes(fixture.token), false);
 });
 await record('first deployment requires all services', async () => {
-  const response = await fetch(`${apiRoot}/projects/${project.id}/plans`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-shipkit-local': '1' }, body: JSON.stringify({ kind: 'release', services: ['api'] }) });
+  const response = await fetch(`${apiRoot}/projects/${project.id}/plans`, { method: 'POST', headers: { ...await apiHeaders(), 'content-type': 'application/json' }, body: JSON.stringify({ kind: 'release', services: ['api'] }) });
   assert.ok([400, 409].includes(response.status));
 });
 await record('full build, registry push, deploy, health and archive succeed', async () => {

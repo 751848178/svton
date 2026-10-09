@@ -16,10 +16,22 @@ model Actor {
   id String @id
   kind String
   name String
+  username String? @unique
+  passwordHash String?
+  disabled Boolean @default(false)
+  sessions AuthSession[]
   createdProjects Project[]
   plans Plan[]
   tasks Task[]
   audits Audit[]
+}
+model AuthSession {
+  id String @id
+  actorId String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  actor Actor @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  @@index([actorId])
 }
 model Project {
   id String @id @default(cuid())

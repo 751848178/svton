@@ -41,7 +41,9 @@
     "init:dev": "turbo run dev --filter=@svton/devpilot-web --filter=@svton/devpilot-api",
     "init:web": "pnpm --filter @svton/devpilot-web dev",
     "init:api": "pnpm --filter @svton/devpilot-api dev",
-    "init:build": "turbo run build --filter=@svton/devpilot-web --filter=@svton/devpilot-api"
+    "init:build": "turbo run build --filter=@svton/devpilot-web --filter=@svton/devpilot-api",
+    "shipkit:ops": "python3 shipkit/ops/platform_ops.py",
+    "shipkit:ops:test": "PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s shipkit/ops -p 'test_*.py'"
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.8",

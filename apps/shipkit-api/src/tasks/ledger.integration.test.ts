@@ -13,16 +13,19 @@ import { LocalPolicyService } from '../policy/local-policy.service.js';
 import { ProjectService } from '../projects/project.service.js';
 import { TaskService } from './task.service.js';
 import type { ExecutionHooks } from '../executor/executor.port.js';
-
-const context = { actorId: 'local-controller', workspaceId: 'local', requestId: 'integration', source: 'loopback' as const };
+import { randomBytes } from 'node:crypto';
 
 test('SQLite migrations, foreign keys, concurrent gate, durable event/log cursors and cancellation', async () => {
   const fixture = await databaseFixture();
   const { db } = fixture;
   try {
+    const actor = await fixture.seedAccount('ledger-operator', randomBytes(24).toString('base64url'));
+    const sessionId = randomBytes(32).toString('hex');
+    await db.authSession.create({ data: { id: sessionId, actorId: actor.id, expiresAt: new Date(Date.now() + 60000) } });
+    const context = { actorId: actor.id, workspaceId: 'local', requestId: 'integration', source: 'session' as const, sessionId };
     const projects = new ProjectRepository(db);
     const project = await projects.register({
-      workspace: { connect: { id: 'local' } }, createdBy: { connect: { id: 'local-controller' } },
+      workspace: { connect: { id: 'local' } }, createdBy: { connect: { id: actor.id } },
       name: 'Isolated', rootPath: fixture.directory, configPath: '/private/fixture.yaml', targetKey: 'local-test',
       projectIdentity: 'local:ledger-test', targets: { create: [{ targetKey: 'local-test' }, { targetKey: 'other' }] },
       services: { create: [{ serviceKey: 'api' }] },
@@ -75,7 +78,7 @@ test('SQLite migrations, foreign keys, concurrent gate, durable event/log cursor
     await assert.rejects(tasks.create(project.id, expired.id, undefined, context), /过期/);
     const nextTask = await tasks.create(project.id, plan.id, 'next', context);
     assert.equal(nextTask.created, true);
-    assert.equal(await db.audit.count({ where: { actorId: 'local-controller', workspaceId: 'local' } }), 4);
+    assert.equal(await db.audit.count({ where: { actorId: actor.id, workspaceId: 'local' } }), 4);
     const failedExecutor = {
       executeTask: async (_input: unknown, _plan: unknown, hooks: { executionId?: string; emit(event: unknown): Promise<void> }) => {
         assert.equal(hooks.executionId, nextTask.task.id);
