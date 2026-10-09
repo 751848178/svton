@@ -1,0 +1,75 @@
+{
+  "app": "mvp1acbfa8c57-first",
+  "startedAt": "2026-10-07T18:36:54.017Z",
+  "checks": [
+    {
+      "label": "independent first deployment starts empty and external sentinel exists",
+      "passed": true,
+      "at": "2026-10-07T18:36:54.181Z"
+    },
+    {
+      "label": "runtime verification starts with both first-deployment containers active",
+      "passed": true,
+      "at": "2026-10-07T18:37:03.938Z"
+    },
+    {
+      "label": "API and Agent acknowledge cooperative cancellation with first-deployment recovery",
+      "passed": true,
+      "at": "2026-10-07T18:37:09.004Z"
+    },
+    {
+      "label": "cancelled first deployment leaves no current release or group containers",
+      "passed": true,
+      "at": "2026-10-07T18:37:09.069Z"
+    },
+    {
+      "label": "external network, volume and existing durable sentinel survive cancellation",
+      "passed": true,
+      "at": "2026-10-07T18:37:09.151Z"
+    }
+  ],
+  "status": "passed",
+  "projectRoot": "/var/folders/n8/1wb9jjpn1q97txnkq8v00rj00000gn/T/shipkit-first-cancel-tukPMr/project",
+  "projectId": "cmuyg8sic00ilwxe5pchfp25k",
+  "taskId": "cmuyg8sk600ivwxe5uzr02zhs",
+  "agentJobId": "20727362-e58f-4854-b740-99c0a5351927",
+  "verifyObservedAt": "2026-10-07T18:37:03.900Z",
+  "cancelRequestedAt": "2026-10-07T18:37:03.942Z",
+  "outcome": {
+    "taskStatus": "cancelled",
+    "recoveryState": "succeeded",
+    "agentStatus": "cancelled",
+    "cancellationOutcome": "cancelled",
+    "recovery": {
+      "attempted": true,
+      "succeeded": true,
+      "verification": "skipped",
+      "cleaned": [
+        "api",
+        "web"
+      ],
+      "pending": [],
+      "probed": 0,
+      "probesFailed": 0,
+      "probesSkipped": 0,
+      "detail": "cleaned=[api,web]; abandoned=[-]; probes: 0 passed / 0 failed / 0 skipped(not verified)",
+      "target": null
+    }
+  },
+  "noPreviousRemovalLogged": [
+    "api",
+    "web"
+  ],
+  "currentReleaseId": null,
+  "remainingGroupContainers": {
+    "api": "",
+    "web": ""
+  },
+  "externalData": {
+    "network": "mvp1acbfa8c57-net",
+    "volume": "mvp1acbfa8c57-data",
+    "sentinel": "durable-sentinel",
+    "firstDeploymentMount": "read-only"
+  },
+  "finishedAt": "2026-10-07T18:37:09.151Z"
+}

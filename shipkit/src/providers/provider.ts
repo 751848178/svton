@@ -25,7 +25,7 @@ export interface BuilderProvider {
    */
   ensure(log: ProviderLog, taskBudgetMs?: number): Promise<BuilderHandle>;
   /** Release the builder machine (no-op for bound static machines). */
-  release(): Promise<void>;
+  release(expectedLeaseRef?: string): Promise<void>;
   status(): Promise<BuilderProviderStatus>;
   /**
    * Run one build/push task under an exclusive lease: the machine cannot be destroyed or

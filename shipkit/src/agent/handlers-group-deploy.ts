@@ -23,6 +23,7 @@ import { mergeCombination } from './group-merge.js';
 import { pullServiceImage, switchService, verifyExternalBindings, verifyService } from './group-activation.js';
 import { recoverServices, type RecoveryOutcome } from './group-recovery.js';
 import type { JobContext } from './jobs.js';
+import { JobCancelled, type JobControl } from './job-control.js';
 
 type Log = JobContext['log'];
 
@@ -47,14 +48,18 @@ export function describeRecovery(outcome: RecoveryOutcome, switchedCount: number
   return 'BUT verification failed — inspect the machine';
 }
 
-export async function runGroupDeploy(appsRoot: string, req: GroupDeployRequest, log: Log): Promise<GroupDeployResult> {
+export async function runGroupDeploy(appsRoot: string, req: GroupDeployRequest, log: Log, control?: JobControl): Promise<GroupDeployResult> {
   const spec = validateProjectSpec(req.spec);
   if (spec.name !== req.app) throw new Error(`spec.name '${spec.name}' must equal the group name '${req.app}'`);
   const store = new GroupStore(appsRoot);
   const identity = { app: req.app, project: req.project, env: req.env };
   const result = await withDeploySlot(() => withAppLock(req.app, async () => {
+    control?.checkpoint();
+    control?.phase('prepare');
     const appDir = store.appDir(req.app);
     await store.assertLayout(req.app);
+    const before = await store.loadState(req.app);
+    if (req.baseReleaseId !== undefined && req.baseReleaseId !== before.current) throw new Error('release plan is stale: current baseline changed; refresh and retry');
     // pre-flight ownership of EVERY service project: a foreign same-named
     // project must be refused before this release writes anything
     let hasContainers = false;
@@ -65,7 +70,7 @@ export async function runGroupDeploy(appsRoot: string, req: GroupDeployRequest, 
     await assertProjectBinding(appDir, identity, hasContainers);
     await store.claimLayout(req.app);
 
-    const before = await store.loadState(req.app);
+    control?.checkpoint();
     const current: GroupRelease | null = before.current ? await store.loadRelease(req.app, before.current) : null;
     const { combination, changedServices } = mergeCombination({ group: req.app, specs: spec.services, changed: req.changed, current });
     const inheritedServices = Object.keys(combination).filter((s) => !changedServices.includes(s));
@@ -81,39 +86,53 @@ export async function runGroupDeploy(appsRoot: string, req: GroupDeployRequest, 
     try {
       await verifyExternalBindings(spec.services, changedServices, log);
       for (const name of changedServices) {
+        control?.checkpoint();
+        control?.phase('pull', name);
         const entry = combination[name];
         if (!entry) throw new Error(`internal: combination entry for '${name}' missing after merge`);
         await pullServiceImage(entry.imageRef, log, pullCtx?.env);
+        control?.checkpoint();
       }
       const switched: string[] = [];
       const fail = async (reason: string, cause?: unknown): Promise<never> => {
+        control?.enterRecovery();
         const outcome = await recoverServices({ appsRoot, group: req.app, identity, previousCombination: current?.services ?? null, changedSoFar: switched, log, env: pullCtx?.env,
           bindingRefusal: cause instanceof ProjectBindingRefusal ? cause.message : undefined });
+        const recovery: GroupRecoveryResult = { attempted: true, ...outcome, target: current ? switched.map((s) => current.services[s]?.imageRef ?? '').filter(Boolean).join(', ') || null : null };
+        if (cause instanceof JobCancelled && outcome.succeeded) throw new JobCancelled(reason, recovery);
         throw new GroupDeployFailure(
           `${reason}; recovery of changed services [${switched.join(', ')}] ${current ? 'to the previous combination ' : '(first deploy: verified removal) '}${outcome.succeeded ? 'succeeded ' + describeRecovery(outcome, switched.length) : `FAILED (${outcome.detail}) — inspect the machine`}`,
-          { attempted: true, ...outcome, target: current ? switched.map((s) => current.services[s]?.imageRef ?? '').filter(Boolean).join(', ') || null : null },
+          recovery,
         );
       };
       try {
         for (const name of changedServices) {
+          control?.checkpoint();
+          control?.phase('activate', name);
           const entry = combination[name];
           if (!entry) throw new Error(`internal: combination entry for '${name}' missing after merge`);
           await switchService({
             appsRoot, group: req.app, service: name, entry, identity, log, env: pullCtx?.env,
             onBeforeUp: () => { switched.push(name); },
           });
+          control?.checkpoint();
         }
         const changedRefs: Record<string, string> = {};
         let skipped = false;
         for (const name of changedServices) {
+          control?.checkpoint();
+          control?.phase('verify', name);
           const entry = combination[name];
           if (!entry) throw new Error(`internal: combination entry for '${name}' missing after merge`);
           changedRefs[name] = entry.imageRef;
-          const v = await verifyService({ appsRoot, group: req.app, service: name, entry, log });
+          const v = await verifyService({ appsRoot, group: req.app, service: name, entry, log, checkpoint: () => control?.checkpoint() });
+          control?.verified?.(name, !v.ok ? 'failed' : v.skipped ? 'skipped' : 'succeeded');
+          control?.checkpoint();
           if (!v.ok) await fail(`health check failed for changed service '${name}'`);
           if (v.skipped) skipped = true;
         }
         try {
+          control?.enterCommit();
           // Health polling yields after activation. Never commit a release to
           // a project/environment whose binding changed while probes ran.
           const { cleanupError } = await store.shift(req.app, release.id, 'deploy',
@@ -132,7 +151,7 @@ export async function runGroupDeploy(appsRoot: string, req: GroupDeployRequest, 
           verification: skipped ? ('skipped' as const) : ('passed' as const),
         };
       } catch (e) {
-        if (e instanceof GroupDeployFailure) throw e;
+        if (e instanceof GroupDeployFailure || (e instanceof JobCancelled && e.recovery)) throw e;
         throw await fail(`deploy of [${changedServices.join(', ')}] failed: ${(e as Error).message}`, e);
       }
     } finally {

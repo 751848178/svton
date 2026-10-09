@@ -37,7 +37,7 @@ export const Popover = React.forwardRef<HTMLSpanElement, PopoverProps>(function 
   const [internalVisible, setInternalVisible] = useState(false);
   const visible = controlledVisible ?? internalVisible;
 
-  const { position, triggerRef, floatingRef } = useFloatingPosition(visible, placement);
+  const { position, triggerRef, floatingRef, setFloatingRef } = useFloatingPosition(visible, placement);
 
   const setTriggerRef = useCallback(
     (node: HTMLSpanElement | null) => {
@@ -118,7 +118,7 @@ export const Popover = React.forwardRef<HTMLSpanElement, PopoverProps>(function 
       {visible && (
         <Portal>
           <div
-            ref={floatingRef}
+            ref={setFloatingRef}
             className={cn(
               'absolute z-[1000] rounded-lg border border-border bg-popover p-3 text-popover-foreground shadow-lg',
               className,

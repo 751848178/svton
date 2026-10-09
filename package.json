@@ -25,6 +25,8 @@
     "url": "https://github.com/svton/svton/issues"
   },
   "scripts": {
+    "shipkit:dev": "node shipkit/scripts/platform-start.mjs",
+    "shipkit:start": "node shipkit/scripts/platform-start.mjs --production",
     "dev": "turbo run dev",
     "build": "turbo run build",
     "lint": "turbo run lint",

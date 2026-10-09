@@ -28,6 +28,7 @@ export interface GroupServiceChange {
 }
 
 export interface GroupDeployRequest {
+  operationId?: string;
   schemaVersion: 2;
   /** release group name (ProjectSpec.name) */
   app: string;
@@ -35,9 +36,12 @@ export interface GroupDeployRequest {
   env: string;
   spec: ProjectSpec;
   changed: Record<string, GroupServiceChange>;
+  /** Optional planning baseline; null explicitly requires a first deployment. */
+  baseReleaseId?: string | null;
 }
 
 export interface GroupRollbackRequest {
+  operationId?: string;
   app: string;
   project: string;
   env: string;
@@ -45,6 +49,8 @@ export interface GroupRollbackRequest {
   services?: string[];
   /** state.current the plan was based on — a stale plan is rejected */
   baseReleaseId?: string;
+  /** Historical change to undo: restore selected services from this release's parent. */
+  targetReleaseId?: string;
 }
 
 export interface GroupRecoveryResult {
@@ -81,4 +87,23 @@ export interface GroupStateView {
   current: string | null;
   updatedAt?: string;
   services: Record<string, { imageRef: string; hasEnv: boolean; spec: unknown }>;
+}
+
+export interface GroupHistoryRelease {
+  releaseId: string;
+  parentReleaseId: string | null;
+  changedServices: string[];
+  createdAt: string;
+  event: 'deploy' | 'rollback';
+  rollbackAvailable: boolean;
+  reason?: string;
+  targetSnapshotId: string | null;
+  services: Record<string, { imageRef: string; hasEnv: boolean; source?: GroupServiceSource }>;
+  restoreServices: Record<string, { imageRef: string; hasEnv: boolean; source?: GroupServiceSource }>;
+}
+export interface GroupHistoryView {
+  schemaVersion: 2;
+  app: string;
+  current: string | null;
+  items: GroupHistoryRelease[];
 }

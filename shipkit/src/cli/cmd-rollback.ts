@@ -25,6 +25,7 @@ export async function cmdRollback(argv: string[]): Promise<number> {
       services: { type: 'string' },
       /** conflict check: the release id a plan was based on (from `ship release --plan`) */
       'base-release': { type: 'string' },
+      'target-release': { type: 'string' },
     },
     allowPositionals: true,
   });
@@ -41,13 +42,13 @@ export async function cmdRollback(argv: string[]): Promise<number> {
     const services = parseServicesArg(args.values.services);
     const project = await resolveProjectId(process.cwd(), config, args.values['from-dir']);
     const result = await runGroupRollbackCli({
-      config, app, project, services, baseReleaseId: args.values['base-release'], targetName: args.values.to,
+      config, app, project, services, baseReleaseId: args.values['base-release'], targetReleaseId: args.values['target-release'], targetName: args.values.to, logger: em.log,
     });
     em.payload({ ...result, target: name });
     if (!em.json) em.log.info('group rollback complete', { group: result.app, changed: result.changedServices, releaseId: result.releaseId, target: name });
     return 0;
   }
-  if (args.values.services !== undefined || args.values['base-release'] !== undefined) {
+  if (args.values.services !== undefined || args.values['base-release'] !== undefined || args.values['target-release'] !== undefined) {
     throw new CliError('--services/--base-release rollback applies to multi-service groups (schemaVersion: 2 ship.yaml with this group name)');
   }
 

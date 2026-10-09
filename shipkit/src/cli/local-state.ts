@@ -22,7 +22,7 @@ export interface LastBuildRecord {
 }
 
 function shipDir(): string {
-  return path.join(process.env.HOME ?? '.', '.ship');
+  return process.env.SHIPKIT_STATE_DIR ?? path.join(process.env.HOME ?? '.', '.ship');
 }
 
 /** identity-scoped file name — same app under different projects never share */

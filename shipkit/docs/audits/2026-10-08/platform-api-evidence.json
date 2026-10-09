@@ -1,0 +1,42 @@
+{
+  "projectId": "cmuyf2cnj0001t9youq0vgf0l",
+  "firstTaskId": "cmuyf7bb30047t9yov7sg80wg",
+  "partialTaskId": "cmuyf7jjp00hbt9yo0ksemgdm",
+  "evidence": [
+    {
+      "label": "registration reads real Git, config and Agent facts",
+      "passed": true,
+      "at": "2026-10-07T18:07:45.614Z"
+    },
+    {
+      "label": "first deployment requires all services",
+      "passed": true,
+      "at": "2026-10-07T18:07:45.631Z"
+    },
+    {
+      "label": "full build, registry push, deploy, health and archive succeed",
+      "passed": true,
+      "at": "2026-10-07T18:07:56.298Z"
+    },
+    {
+      "label": "partial release inherits unselected service",
+      "passed": true,
+      "at": "2026-10-07T18:08:02.931Z"
+    },
+    {
+      "label": "repeated explicit release creates a distinct durable round",
+      "passed": true,
+      "at": "2026-10-07T18:08:09.569Z"
+    },
+    {
+      "label": "historical service rollback restores selected change parent",
+      "passed": true,
+      "at": "2026-10-07T18:08:12.174Z"
+    },
+    {
+      "label": "durable history includes every round and selected service logs",
+      "passed": true,
+      "at": "2026-10-07T18:08:12.181Z"
+    }
+  ]
+}

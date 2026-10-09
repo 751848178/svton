@@ -5,7 +5,7 @@
 import test from 'node:test';
 import { mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -47,6 +47,8 @@ mock.module('../shared/exec.js', {
 const { runGroupDeploy } = await import('./handlers-group-deploy.js');
 const { runGroupRollback } = await import('./handlers-group-rollback.js');
 const { GroupStore } = await import('./group-store.js');
+const { groupHistory } = await import('./group-history.js');
+const { jobControl, JobCancelled } = await import('./job-control.js');
 
 const log = (..._l: unknown[]) => undefined;
 const digest = (s: string) => `reg/ns/${s}@sha256:${s.repeat(64).slice(0, 64)}`;
@@ -184,4 +186,120 @@ test('rollback activation failure recovers the services switched so far to the p
   const state = await store.loadState('twgg');
   const cur = await store.loadRelease('twgg', state.current ?? '');
   assert.equal(cur.services.admin?.imageRef, digest('a2'), 'state unchanged — rollback did not commit');
+});
+
+
+test('historical target restores its parent and preserves newer unselected services', async (t) => {
+  const { appsRoot, cleanup } = await root(); t.after(cleanup);
+  await deploySeq(appsRoot, [
+    { backend: { imageRef: digest('b1') }, admin: { imageRef: digest('a1') }, mobile: { imageRef: digest('m1') } },
+    { backend: { imageRef: digest('b2') } },
+    { backend: { imageRef: digest('b3') }, admin: { imageRef: digest('a3') } },
+  ]);
+  const store = new GroupStore(appsRoot); const before = await store.loadState('twgg');
+  const target = before.history[1]!.releaseId;
+  const result = await runGroupRollback(appsRoot, { app: 'twgg', project: 'p', env: 'prod', services: ['backend'], baseReleaseId: before.current!, targetReleaseId: target }, log);
+  const current = await store.loadRelease('twgg', result.releaseId);
+  assert.equal(current.services.backend?.imageRef, digest('b1'));
+  assert.equal(current.services.admin?.imageRef, digest('a3'));
+  assert.equal(current.services.mobile?.imageRef, digest('m1'));
+  assert.equal(current.parent, before.current);
+});
+
+test('historical rollback rejects missing baseline, orphan targets, unrelated services and expired parent', async (t) => {
+  const { appsRoot, cleanup } = await root(); t.after(cleanup);
+  await deploySeq(appsRoot, [
+    { backend: { imageRef: digest('b1') }, admin: { imageRef: digest('a1') }, mobile: { imageRef: digest('m1') } },
+    { backend: { imageRef: digest('b2') } },
+  ]);
+  const store = new GroupStore(appsRoot); const state = await store.loadState('twgg');
+  const req = { app: 'twgg', project: 'p', env: 'prod', targetReleaseId: state.current!, services: ['backend'] };
+  await assert.rejects(runGroupRollback(appsRoot, req, log), /requires baseReleaseId/);
+  const full = { ...req, baseReleaseId: state.current! };
+  await assert.rejects(runGroupRollback(appsRoot, { ...full, targetReleaseId: 'orphan-id' }, log), /outside the committed history/);
+  await assert.rejects(runGroupRollback(appsRoot, { ...full, services: ['mobile'] }, log), /was not changed by target/);
+  const snapshot = await store.loadRelease('twgg', state.current!);
+  await rm(path.join(appsRoot, 'twgg', 'releases', snapshot.parent!), { recursive: true, force: true });
+  const history = await groupHistory(store, { app: 'twgg', project: 'p', env: 'prod' });
+  assert.equal(history.items[0]?.rollbackAvailable, false);
+  assert.match(history.items[0]?.reason ?? '', /缺失/);
+  await assert.rejects(runGroupRollback(appsRoot, full, log), /manifest is unreadable/);
+});
+
+test('group deployment baseline null and stale IDs refuse without switching', async (t) => {
+  const { appsRoot, cleanup } = await root(); t.after(cleanup);
+  await deploySeq(appsRoot, [{ backend: { imageRef: digest('b1') }, admin: { imageRef: digest('a1') }, mobile: { imageRef: digest('m1') } }]);
+  FX.compose = [];
+  const req = { schemaVersion: 2 as const, app: 'twgg', project: 'p', env: 'prod', spec: SPEC, changed: { backend: { imageRef: digest('b2') } } };
+  await assert.rejects(runGroupDeploy(appsRoot, { ...req, baseReleaseId: null }, log), /plan is stale/);
+  await assert.rejects(runGroupDeploy(appsRoot, { ...req, baseReleaseId: 'stale-id' }, log), /plan is stale/);
+  assert.equal(FX.compose.length, 0);
+});
+
+test('cooperative cancellation after a service switches recovers exactly that service without commit', async (t) => {
+  const { appsRoot, cleanup } = await root(); t.after(cleanup);
+  await deploySeq(appsRoot, [{ backend: { imageRef: digest('b1') }, admin: { imageRef: digest('a1') }, mobile: { imageRef: digest('m1') } }]);
+  const store = new GroupStore(appsRoot); const before = await store.loadState('twgg');
+  FX.compose = [];
+  const job = { id: 'test', type: 'group-deploy' as const, status: 'running' as const, createdAt: '', updatedAt: '', cancellable: true, cancellation: undefined as import('../shared/job-protocol.js').JobCancellation | undefined };
+  const control = jobControl(job, (event) => {
+    if (event.phase === 'activate') job.cancellation = { requestedAt: new Date().toISOString(), outcome: 'requested' };
+  });
+  await assert.rejects(runGroupDeploy(appsRoot, { schemaVersion: 2, app: 'twgg', project: 'p', env: 'prod', spec: SPEC, changed: { backend: { imageRef: digest('b2') }, admin: { imageRef: digest('a2') } } }, log, control), (error: unknown) => {
+    assert.ok(error instanceof JobCancelled);
+    assert.equal((error.recovery as { succeeded: boolean }).succeeded, true);
+    return true;
+  });
+  assert.equal((await store.loadState('twgg')).current, before.current);
+  assert.equal(upsFor('ship_twgg_backend').length, 2, 'switch plus restore');
+  assert.equal(upsFor('ship_twgg_admin').length, 0, 'not reached before cancellation');
+  assert.equal(upsFor('ship_twgg_mobile').length, 0, 'unselected stays untouched');
+});
+
+
+test('first deployment cancellation removes only started projects without deleting external volumes', async (t) => {
+  const { appsRoot, cleanup } = await root(); t.after(cleanup);
+  const job = { id: 'test', type: 'group-deploy' as const, status: 'running' as const, createdAt: '', updatedAt: '', cancellable: true, cancellation: undefined as import('../shared/job-protocol.js').JobCancellation | undefined };
+  const control = jobControl(job, (event) => {
+    if (event.phase === 'activate') job.cancellation = { requestedAt: new Date().toISOString(), outcome: 'requested' };
+  });
+  await assert.rejects(runGroupDeploy(appsRoot, { schemaVersion: 2, app: 'twgg', project: 'p', env: 'prod', spec: SPEC, changed: { backend: { imageRef: digest('b1') }, admin: { imageRef: digest('a1') }, mobile: { imageRef: digest('m1') } }, baseReleaseId: null }, log, control), JobCancelled);
+  assert.equal((await new GroupStore(appsRoot).loadState('twgg')).current, null);
+  const downs = FX.compose.filter((entry) => entry.args.includes('down'));
+  assert.equal(downs.length, 1); assert.equal(downs[0]?.project, 'ship_twgg_backend');
+  assert.equal(downs[0]?.args.includes('-v'), false);
+});
+
+test('cancellation with failed recovery reports failure and preserves current metadata', async (t) => {
+  const { appsRoot, cleanup } = await root(); t.after(cleanup);
+  await deploySeq(appsRoot, [{ backend: { imageRef: digest('b1') }, admin: { imageRef: digest('a1') }, mobile: { imageRef: digest('m1') } }]);
+  const store = new GroupStore(appsRoot); const before = await store.loadState('twgg');
+  FX.failUpFor = digest('b1');
+  const job = { id: 'test', type: 'group-deploy' as const, status: 'running' as const, createdAt: '', updatedAt: '', cancellable: true, cancellation: undefined as import('../shared/job-protocol.js').JobCancellation | undefined };
+  const control = jobControl(job, (event) => {
+    if (event.phase === 'activate') job.cancellation = { requestedAt: new Date().toISOString(), outcome: 'requested' };
+  });
+  await assert.rejects(runGroupDeploy(appsRoot, { schemaVersion: 2, app: 'twgg', project: 'p', env: 'prod', spec: SPEC, changed: { backend: { imageRef: digest('b2') } } }, log, control), (error: unknown) => {
+    assert.ok(!(error instanceof JobCancelled), 'must not claim cancellation succeeded');
+    assert.equal((error as { recovery: { succeeded: boolean } }).recovery.succeeded, false);
+    return true;
+  });
+  assert.equal((await store.loadState('twgg')).current, before.current);
+});
+
+test('history refuses missing env snapshots and never includes env content', async (t) => {
+  const { appsRoot, cleanup } = await root(); t.after(cleanup);
+  await runGroupDeploy(appsRoot, { schemaVersion: 2, app: 'twgg', project: 'p', env: 'prod', spec: SPEC, changed: { backend: { imageRef: digest('b1'), envFileContent: 'PRIVATE_TOKEN=secret-value' }, admin: { imageRef: digest('a1') }, mobile: { imageRef: digest('m1') } } }, log);
+  await runGroupDeploy(appsRoot, { schemaVersion: 2, app: 'twgg', project: 'p', env: 'prod', spec: SPEC, changed: { backend: { imageRef: digest('b2'), keepEnv: true } } }, log);
+  const store = new GroupStore(appsRoot);
+  const history = await groupHistory(store, { app: 'twgg', project: 'p', env: 'prod' });
+  assert.equal(history.items[0]?.rollbackAvailable, true);
+  assert.equal(JSON.stringify(history).includes('secret-value'), false);
+  const currentManifest = path.join(appsRoot, 'twgg', 'releases', history.current!, 'manifest.json');
+  const manifest = JSON.parse(await readFile(currentManifest, 'utf8'));
+  manifest.services.backend.source = { type: 'git', repo: 'https://user:secret-value@example.test/repo?token=secret-value', token: 'secret-value' };
+  await writeFile(currentManifest, JSON.stringify(manifest));
+  assert.equal(JSON.stringify(await groupHistory(store, { app: 'twgg', project: 'p', env: 'prod' })).includes('secret-value'), false);
+  await rm(path.join(appsRoot, 'twgg', 'releases', history.items[0]!.targetSnapshotId!, 'env', 'backend'));
+  assert.equal((await groupHistory(store, { app: 'twgg', project: 'p', env: 'prod' })).items[0]?.rollbackAvailable, false);
 });

@@ -1,5 +1,7 @@
 # shipkit — 轻量构建/推送/部署工具链
 
+**本机控制平台 MVP：** [启动与使用](docs/platform-local.md) · [架构与接口](docs/platform-architecture.md) · [隔离验收证据](docs/audits/2026-10-08/platform-acceptance.md)。在仓库根目录运行 `pnpm shipkit:start`，打开 `http://127.0.0.1:8769`；项目、任务、历史和日志保存到 SQLite/私密文件，不依赖浏览器内存。
+
 **使用文档：** [图文使用手册](docs/user-guide.md) · [浏览器阅读版](docs/user-guide.html)。新用户从这里开始；覆盖安装、配置、发布、回滚、清理与动态构建机，注明当前真实环境验收边界。
 
 **多服务发布：** [多服务与选择性发布](docs/multi-service.md)——一份 ship.yaml 描述一个发布组（schemaVersion: 2），`--services` 选择性发布、`--plan` 只读计划、完整组合快照与按服务回滚；v1 单应用用法不变，示例见 [examples/demo-multi](examples/demo-multi/)。

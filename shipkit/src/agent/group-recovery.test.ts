@@ -9,6 +9,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { existsSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import type { Job, JobEvent } from '../shared/job-protocol.js';
 
 const realExec = await import('../shared/exec.js');
 const FX = {
@@ -77,6 +78,8 @@ const { GroupStore } = await import('./group-store.js');
 const { recoverServices } = await import('./group-recovery.js');
 const { JobStore } = await import('./jobs.js');
 const { recoveryExitCode } = await import('../cli/job-report.js');
+const { jobControl } = await import('./job-control.js');
+const { runGroupRollback } = await import('./handlers-group-rollback.js');
 
 const log = (..._l: unknown[]) => undefined;
 const digest = (s: string) => `reg/ns/${s}@sha256:${s.repeat(64).slice(0, 64)}`;
@@ -97,6 +100,33 @@ const downs = () => FX.compose.filter((c) => c.args.includes('down'));
 const catchFailure = (p: Promise<unknown>) => p.then(() => { throw new Error('expected failure'); }, (e: unknown) => e as InstanceType<typeof GroupDeployFailure>);
 
 test.beforeEach(() => { FX.containers = []; FX.compose = []; FX.failUpFor = null; FX.onPull = null; FX.onUpFail = null; FX.onDown = null; FX.onOwnership = null; FXH.healthy = true; FXH.urls = []; });
+
+for (const operation of ['deploy', 'rollback'] as const) {
+  for (const healthy of [true, false]) {
+    test(`${operation} reports each actual probe outcome before commit or failure recovery`, async (t) => {
+      const { appsRoot, cleanup } = await root(); t.after(cleanup);
+      if (operation === 'rollback') {
+        await runGroupDeploy(appsRoot, req({ backend: { imageRef: digest('b1') }, admin: { imageRef: digest('a1') } }), log);
+        await runGroupDeploy(appsRoot, req({ backend: { imageRef: digest('b2') }, admin: { imageRef: digest('a2') } }), log);
+      }
+      FXH.healthy = healthy;
+      const events: Array<Omit<JobEvent, 'seq' | 'ts'>> = [];
+      const job: Job = { id: 'probe-test', type: operation === 'deploy' ? 'group-deploy' : 'group-rollback', status: 'running', createdAt: '', updatedAt: '' };
+      const control = jobControl(job, (event) => events.push(event));
+      const running = operation === 'deploy'
+        ? runGroupDeploy(appsRoot, req({ backend: { imageRef: digest('b3') }, admin: { imageRef: digest('a3') } }), log, control)
+        : runGroupRollback(appsRoot, { app: 'twgg', project: 'proj-x', env: 'prod' }, log, control);
+      if (healthy) assert.equal((await running).verification, 'skipped');
+      else await assert.rejects(running, GroupDeployFailure);
+      assert.deepEqual(events.filter((event) => event.event === 'probe').map((event) => [event.service, event.detail]), [
+        ['backend', 'skipped'], ['admin', healthy ? 'succeeded' : 'failed'],
+      ]);
+      const lastProbe = events.reduce((last, event, index) => event.event === 'probe' ? index : last, -1);
+      const boundary = events.findIndex((event) => event.phase === (healthy ? 'commit' : 'recover'));
+      assert.ok(lastProbe < boundary, 'outcomes precede commit/recovery transitions');
+    });
+  }
+}
 
 async function bindingFor(appsRoot: string) {
   const groupDir = path.join(appsRoot, 'twgg');
@@ -297,7 +327,7 @@ test('S04: mixed probes never report overall re-verified — one probed + one pr
   // Verify its JSON survives a restart instead of testing only an Error field.
   const workRoot = path.join(path.dirname(appsRoot), 'work');
   const jobs = new JobStore(workRoot);
-  const job = jobs.create('deploy', async () => { throw err; });
+  const job = await jobs.create('deploy', async () => { throw err; });
   const deadline = Date.now() + 2000;
   while (jobs.activeCount() && Date.now() < deadline) await new Promise((r) => setTimeout(r, 5));
   assert.equal(jobs.activeCount(), 0, 'failed job is persisted within the test deadline');

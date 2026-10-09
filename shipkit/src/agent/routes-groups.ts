@@ -11,6 +11,8 @@ import { GroupStore } from './group-store.js';
 import { assertProjectBindingForRead } from './project-binding.js';
 import { runGroupDeploy } from './handlers-group-deploy.js';
 import { runGroupRollback } from './handlers-group-rollback.js';
+import { groupHistory } from './group-history.js';
+import { validGroupReleaseId } from './group-snapshots.js';
 import { requireDocker } from './route-guards.js';
 import type { Route, RouteDeps } from './route-types.js';
 
@@ -50,6 +52,7 @@ function parseDeployRequest(ctxJson: unknown): GroupDeployRequest {
       }
     }
   }
+  if (req.baseReleaseId !== undefined && req.baseReleaseId !== null && !validGroupReleaseId(req.baseReleaseId)) throw new HttpFail(400, 'bad_request', 'baseReleaseId must be a release id or null');
   validateProjectSpec(req.spec);
   return req as unknown as GroupDeployRequest;
 }
@@ -68,6 +71,8 @@ function parseRollbackRequest(ctxJson: unknown): GroupRollbackRequest {
   if (req.baseReleaseId !== undefined && (typeof req.baseReleaseId !== 'string' || !/^[a-z0-9-]{6,40}$/.test(req.baseReleaseId))) {
     throw new HttpFail(400, 'bad_request', 'baseReleaseId must be a release id string');
   }
+  if (req.targetReleaseId !== undefined && !validGroupReleaseId(req.targetReleaseId)) throw new HttpFail(400, 'bad_request', 'targetReleaseId must be a release id');
+  if (req.targetReleaseId && !req.baseReleaseId) throw new HttpFail(400, 'bad_request', 'historical rollback requires baseReleaseId');
   return req as unknown as GroupRollbackRequest;
 }
 
@@ -75,6 +80,13 @@ export function groupRoutes(d: RouteDeps): Route[] {
   const store = () => new GroupStore(path.join(d.workRoot, 'apps'));
   const requireDockerNow = requireDocker(d.dockerOk);
   return [
+    { method: 'GET', re: /^\/api\/group-history$/, roles: ['runtime'], handler: async (ctx) => {
+      const app = ctx.query.get('app') ?? '';
+      const project = ctx.query.get('project') ?? '';
+      const env = ctx.query.get('env') ?? '';
+      if (!APP_NAME_RE.test(app) || !validProjectIdentity(project) || !validEnvironmentIdentity(env)) throw new HttpFail(400, 'bad_request', 'valid app/project/env identity required');
+      return { status: 200, body: await groupHistory(store(), { app, project, env }) };
+    } },
     // read-only current combination for release planning; verifies the caller's
     // identity against the group binding but never mutates anything
     { method: 'GET', re: /^\/api\/group-state$/, roles: ['runtime'], handler: async (ctx) => {
@@ -103,14 +115,14 @@ export function groupRoutes(d: RouteDeps): Route[] {
     { method: 'POST', re: /^\/api\/deploy-group$/, roles: ['runtime'], handler: async (ctx) => {
       const req = parseDeployRequest(ctx.json);
       await requireDockerNow();
-      const job = d.jobs.create('group-deploy', (jctx) => runGroupDeploy(path.join(d.workRoot, 'apps'), req, jctx.log));
+      const job = await d.jobs.create('group-deploy', (jctx) => runGroupDeploy(path.join(d.workRoot, 'apps'), req, jctx.log, jctx), true, { operationId: req.operationId, request: req });
       return { status: 202, body: { jobId: job.id } };
     } },
 
     { method: 'POST', re: /^\/api\/rollback-group$/, roles: ['runtime'], handler: async (ctx) => {
       const req = parseRollbackRequest(ctx.json);
       await requireDockerNow();
-      const job = d.jobs.create('group-rollback', (jctx) => runGroupRollback(path.join(d.workRoot, 'apps'), req, jctx.log));
+      const job = await d.jobs.create('group-rollback', (jctx) => runGroupRollback(path.join(d.workRoot, 'apps'), req, jctx.log, jctx), true, { operationId: req.operationId, request: req });
       return { status: 202, body: { jobId: job.id } };
     } },
   ];

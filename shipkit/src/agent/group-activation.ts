@@ -123,7 +123,8 @@ export async function switchService(o: ServiceActivation): Promise<void> {
 }
 
 /** declared-health probe for one changed service */
-export async function verifyService(o: { appsRoot: string; group: string; service: string; entry: GroupServiceEntry; log: Log }): Promise<{ ok: boolean; skipped?: string }> {
+export async function verifyService(o: { appsRoot: string; group: string; service: string; entry: GroupServiceEntry; log: Log; checkpoint?: () => void }): Promise<{ ok: boolean; skipped?: string }> {
+  o.checkpoint?.();
   const spec = o.entry.spec;
   let hostPort = serviceExplicitHostPort(spec);
   if (!hostPort && spec.healthcheck?.path) {
@@ -140,6 +141,6 @@ export async function verifyService(o: { appsRoot: string; group: string; servic
     return { ok: true, skipped: `service ${o.service}: no healthcheck/port resolvable` };
   }
   const url = `http://127.0.0.1:${hostPort}${spec.healthcheck.path}`;
-  const outcome = await waitHealthy({ url, timeoutMs: (spec.healthcheck.timeoutSeconds ?? 120) * 1000, log: o.log });
+  const outcome = await waitHealthy({ url, timeoutMs: (spec.healthcheck.timeoutSeconds ?? 120) * 1000, log: o.log, checkpoint: o.checkpoint });
   return outcome.healthy ? { ok: true } : { ok: false };
 }

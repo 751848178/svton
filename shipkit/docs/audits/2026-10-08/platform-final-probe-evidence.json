@@ -1,0 +1,36 @@
+{
+  "taskId": "cmuyghcu000049ikyyu79tdqd",
+  "passed": true,
+  "status": "succeeded",
+  "stages": [
+    {
+      "stage": "verify",
+      "service": "api",
+      "status": "succeeded"
+    },
+    {
+      "stage": "verify",
+      "service": null,
+      "status": "succeeded"
+    }
+  ],
+  "probes": [
+    {
+      "type": "remote-event",
+      "stageKey": "verify",
+      "serviceKey": "api",
+      "detail": {
+        "jobId": "e24ac5fe-17fa-4813-8fc6-783599a815c4",
+        "phase": "verify",
+        "event": "probe",
+        "service": "api",
+        "detail": "succeeded",
+        "seq": 6,
+        "ts": "2026-10-07T18:43:40.013Z"
+      },
+      "seq": 60,
+      "createdAt": "2026-10-07T18:43:40.073Z"
+    }
+  ],
+  "verifiedAt": "2026-10-07T18:43:40.403Z"
+}

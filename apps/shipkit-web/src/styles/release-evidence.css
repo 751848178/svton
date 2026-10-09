@@ -1,0 +1,47 @@
+.image-reference { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; color: #526459; font-size: 12px; }
+.image-reference > .inline-block { flex: 0 1 auto; min-width: 0; }
+.image-reference-prefix { flex-shrink: 0; white-space: nowrap; }
+.image-reference-trigger { display: block; width: 100%; max-width: 100%; min-width: 0; padding: 3px 0; border: 0; background: transparent; color: inherit; text-align: left; cursor: help; }
+.image-reference-trigger:hover { color: var(--ink); }
+.image-reference-preview { display: block; min-width: 0; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+div[role="tooltip"].image-reference-tooltip { max-width: min(460px, calc(100vw - 48px)); white-space: normal; overflow-wrap: anywhere; word-break: break-all; line-height: 1.6; }
+.image-reference-tooltip code { white-space: inherit; overflow-wrap: anywhere; }
+.image-copy-control { position: relative; flex-shrink: 0; }
+.image-copy-button.button { padding: 5px; min-width: 32px; min-height: 32px; }
+.image-copy-feedback.error { position: absolute; z-index: 1001; top: calc(100% + 5px); right: 0; width: max-content; max-width: 220px; padding: 7px 9px; border: 1px solid #e1a59f; border-radius: 6px; background: #fff2f0; color: #943d31; line-height: 1.5; }
+.image-copy-control .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.rollback-list { grid-template-columns: minmax(0, 1fr); }
+.rollback-option { min-width: 0; }
+.rollback-option > div { flex: 1; min-width: 0; }
+.rollback-option label { display: block; cursor: pointer; }
+.rollback-option .image-reference { margin-top: 5px; }
+.service-table:not(.history-table) { table-layout: fixed; }
+.deployment-services .service-cell { width: 22%; }
+.deployment-services th:nth-last-child(2) { width: 130px; }
+.deployment-services th:last-child { width: 120px; }
+.service-table.selectable th:first-child { width: 45px; }
+.service-table.selectable th:nth-child(2) { width: 23%; }
+.archived-images { margin-bottom: 22px; }
+.archived-images .change-row { grid-template-columns: 80px minmax(0, 1fr) auto; }
+.context-row { display: contents; }
+.technical-identifiers { margin-top: 18px; font-size: 12px; }
+.technical-identifiers summary { cursor: pointer; color: var(--muted); }
+.runtime-history > summary { cursor: pointer; list-style: none; justify-content: flex-start; gap: 10px; }
+.runtime-history > summary::-webkit-details-marker { display: none; }
+.runtime-history > summary > svg { color: var(--muted); }
+.runtime-history[open] > summary > svg { transform: rotate(90deg); }
+.runtime-history:not([open]) > summary { border-bottom: 0; }
+.runtime-history .panel-body { padding-bottom: 15px; }
+.runtime-history td { overflow-wrap: anywhere; }
+.breadcrumbs a[aria-disabled=true] { cursor: not-allowed; }
+@media (max-width: 740px) {
+  div[role="tooltip"].image-reference-tooltip { left: 12px !important; right: 12px; width: auto; max-width: none; }
+  .image-reference-trigger, .image-copy-button.button { min-height: 44px; }
+  .image-copy-button.button { min-width: 44px; }
+  .deployment-services .service-cell { width: auto; }
+  .archived-images .change-row { grid-template-columns: 64px minmax(0, 1fr); }
+  .archived-images .change-row > .tag { grid-column: 2; }
+  .history-table td[data-label]::before { content: attr(data-label); display: block; color: var(--muted); font-size: 10px; }
+  .context-grid { grid-template-columns: 120px minmax(0, 1fr); }
+  .breadcrumbs { flex-wrap: wrap; }
+}

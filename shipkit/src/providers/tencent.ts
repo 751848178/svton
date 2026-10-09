@@ -126,7 +126,7 @@ export class TencentBuilderProvider implements BuilderProvider {
     }
   }
 
-  async release(): Promise<void> {
+  async release(expectedLeaseRef?: string): Promise<void> {
     const creds = requireCreds();
     const file = stateFileFor(this.cfg, creds.secretId);
     // S06: a user cancel while ensure() is still provisioning must not wait on
@@ -150,6 +150,7 @@ export class TencentBuilderProvider implements BuilderProvider {
     await withLock(file, async () => {
       const st = await readState(file);
       if (!st) return;
+      if (expectedLeaseRef && st.instanceId !== expectedLeaseRef) throw new Error('Builder lease changed; refusing to release another task instance');
       if (leaseHeldByOther(st, this.leaseToken ?? undefined)) throw new Error(`builder is BUSY (lease pid ${st.lease?.pid}) — refusing to release a working machine`);
       const client = await mkCvmClient(creds.secretId, creds.secretKey, st.region);
       await terminateBuilder(client, st.instanceId);

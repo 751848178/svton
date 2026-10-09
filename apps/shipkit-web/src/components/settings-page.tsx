@@ -1,0 +1,40 @@
+'use client';
+import { useEffect, useState } from 'react';
+import { Box, Check, Server } from 'lucide-react';
+import type { LiveProject, Project } from '@/lib/contracts';
+import { request } from '@/lib/api';
+import { diagnosticLabel, serverLabel, verificationLevel } from '@/lib/presentation';
+import { ErrorMessage, PageHead, Status } from './primitives';
+import { ProjectMetadataForm } from './project-metadata-form';
+import { ProjectBreadcrumbs } from './project-breadcrumbs';
+import { currentProjectChecks, type ScopedChecks } from '@/lib/project-check-scope';
+
+export function SettingsPage({ project, live, onBack, onRefresh }: { project: Project; live: LiveProject; onBack: () => void; onRefresh: () => void }) {
+  const [result, setResult] = useState<ScopedChecks | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<{ scope: string; value: unknown } | null>(null);
+  const scope = JSON.stringify([project.id, project.configPath, project.targetKey || live.targetKey]);
+  useEffect(() => { setResult(null); setError(null); }, [scope]);
+  const check = async () => {
+    setBusy(true); setError(null);
+    try { setResult({ scope, value: await request('POST:/projects/:id/checks', { id: project.id }) }); onRefresh(); }
+    catch (failure) { setError({ scope, value: failure }); }
+    finally { setBusy(false); }
+  };
+  const checks = currentProjectChecks(result, scope, live.targetKey);
+  const current = checks?.live || live;
+  return <>
+    <ProjectBreadcrumbs project={project} current="连接与配置" />
+    <PageHead title="连接与配置" description={`${project.name} · 当前部署目标 ${current.targetKey}`} onBack={onBack} backLabel="返回项目详情">
+      <button className="button primary" onClick={check} disabled={busy}><Check size={16} aria-hidden="true" />{busy ? '正在检查…' : '检查配置'}</button>
+    </PageHead><ErrorMessage error={error?.scope === scope ? error.value : null} />
+    <section className="panel"><div className="panel-head"><div><h2>当前项目的连接</h2><p className="subtle">配置文件定义了 {current.targets.length} 个可选部署目标；本页检查当前选中的 {current.targetKey}，一次发布写入一个目标。</p></div></div><div className="settings-list">
+      <div className="setting-row"><div className="service-name"><Server size={18} aria-hidden="true" /><div><strong>部署目标 · {current.targetKey}</strong><p className="service-copy">{serverLabel(project, current)} · Agent {current.runtime.check.version || '版本不可用'}</p><p className="checks-detail">Agent 连接地址：<span className="mono">{current.runtime.url}</span></p><p className="checks-detail">连接地址可使用本机转发或 SSH 隧道，地址主机名不代表实际服务器 IP。</p>{current.runtime.check.error && <p className="checks-detail">{current.runtime.check.error}</p>}</div></div><Status value={current.runtime.check.ok ? 'succeeded' : 'failed'} label={current.runtime.check.ok ? `连接已确认 · Docker ${current.runtime.check.docker ? '可用' : '不可用'}` : '连接检查失败'} /></div>
+      <div className="setting-row"><div className="service-name"><Box size={18} aria-hidden="true" /><div><strong>镜像仓库</strong><p className="service-copy">{[current.registry.host, current.registry.namespace].filter(Boolean).join(' / ') || '未配置'}</p><p className="checks-detail">实际构建、推送与运行端拉取的结果随发布记录保存。</p></div></div><Status value={null} label={current.registry.configured ? '已配置 · 尚未验证推拉' : '未配置'} /></div>
+      <div className="setting-row"><div className="service-name"><Server size={18} aria-hidden="true" /><div><strong>{current.builder.mode === 'dynamic' ? '动态构建机' : '现有构建机'}</strong><p className="service-copy">{current.builder.mode === 'dynamic' ? '发布时按需创建；任务中记录资源释放结果' : current.builder.url || '地址不可用'}</p></div></div><Status value={current.builder.check ? current.builder.check.ok ? 'succeeded' : 'failed' : null} label={current.builder.check ? current.builder.check.ok ? `连接已确认 · Agent ${current.builder.check.version || '版本未知'}` : '连接检查失败' : '按需创建 · 尚未检查'} /></div>
+      {checks?.checks.map(item => <div className="setting-row" key={item.name}><div><strong>{diagnosticLabel(item.name)}</strong><p className="checks-detail">{typeof item.detail === 'string' ? item.detail : JSON.stringify(item.detail)}</p><p className="checks-detail">验证级别：{verificationLevel(item.level)}</p></div><Status value={['configuration-only', 'not-provisioned', 'declared-constraints'].includes(item.level) ? null : item.ok ? 'succeeded' : 'failed'} label={item.level === 'configuration-only' ? '仅配置确认' : item.level === 'not-provisioned' ? '尚未创建' : item.level === 'declared-constraints' ? '已声明 · 待执行验证' : undefined} /></div>)}
+    </div></section>
+    <div className="recent-panel"><ProjectMetadataForm project={project} live={current} onSaved={onRefresh} /></div>
+    <section className="panel recent-panel"><div className="panel-head"><h2>连接信息来源</h2></div><dl className="context-list"><dt>项目目录</dt><dd className="mono">{project.rootPath}</dd><dt>配置路径</dt><dd className="mono">{project.configPath}</dd></dl><div className="panel-body subtle">部署目标、Agent 地址、构建机规格和镜像仓库从此项目的本机配置文件读取。修改连接参数需编辑该文件后重新检查；下方表单只保存平台显示信息及已配置目标的选择。</div></section>
+  </>;
+}

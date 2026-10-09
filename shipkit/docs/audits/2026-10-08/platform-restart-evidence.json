@@ -1,0 +1,14 @@
+{
+  "taskId": "cmuyfwsys0004yrh1mzp0apwf",
+  "projectId": "cmuyf2cnj0001t9youq0vgf0l",
+  "removedMappings": 1,
+  "preparedAt": "2026-10-07T18:27:41.563Z",
+  "passed": true,
+  "labels": [
+    "active Agent survives controller restart",
+    "missing runtime mapping discovered by operation ID",
+    "both Agent roles retained correctly",
+    "terminal logs and prior platform history survive"
+  ],
+  "verifiedAt": "2026-10-07T18:28:07.626Z"
+}

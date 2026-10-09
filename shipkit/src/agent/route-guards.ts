@@ -2,6 +2,7 @@
 // caller-capability checks (M2-03: the caller's EFFECTIVE role decides, the
 // machine role only adds a machine-capability constraint).
 
+import { JOB_OPERATION_CAPABILITY, JOB_EVENTS_CAPABILITY, JOB_LOG_CURSOR_CAPABILITY, JOB_CANCELLATION_CAPABILITY, GROUP_HISTORY_CAPABILITY } from '../shared/job-protocol.js';
 import type { AgentRole } from '../shared/types.js';
 import { HttpFail } from './http-fail.js';
 import { DEPLOYMENT_ENV_CAPABILITY, DEPLOYMENT_IDENTITY_CAPABILITY, MULTI_SERVICE_CAPABILITY } from '../shared/deployment-identity.js';
@@ -34,7 +35,9 @@ export function assertMachineCan(role: AgentRole, capability: 'builder' | 'runti
 
 /** capabilities advertised by /api/status for the authenticated caller (M2-04) */
 export function capabilitiesFor(role: AgentRole): string[] {
-  if (role === 'builder') return ['build', 'push', MULTI_SERVICE_CAPABILITY];
-  if (role === 'runtime') return ['deploy', 'rollback', 'gc', DEPLOYMENT_IDENTITY_CAPABILITY, DEPLOYMENT_ENV_CAPABILITY, MULTI_SERVICE_CAPABILITY];
-  return ['build', 'push', 'deploy', 'rollback', 'gc', DEPLOYMENT_IDENTITY_CAPABILITY, DEPLOYMENT_ENV_CAPABILITY, MULTI_SERVICE_CAPABILITY];
+  const jobs = [JOB_EVENTS_CAPABILITY, JOB_LOG_CURSOR_CAPABILITY, JOB_CANCELLATION_CAPABILITY, JOB_OPERATION_CAPABILITY];
+  const groups = [GROUP_HISTORY_CAPABILITY, 'group-target-rollback-v1', 'group-baseline-v1'];
+  if (role === 'builder') return ['build', 'push', MULTI_SERVICE_CAPABILITY, ...jobs];
+  if (role === 'runtime') return ['deploy', 'rollback', 'gc', DEPLOYMENT_IDENTITY_CAPABILITY, DEPLOYMENT_ENV_CAPABILITY, MULTI_SERVICE_CAPABILITY, ...jobs, ...groups];
+  return ['build', 'push', 'deploy', 'rollback', 'gc', DEPLOYMENT_IDENTITY_CAPABILITY, DEPLOYMENT_ENV_CAPABILITY, MULTI_SERVICE_CAPABILITY, ...jobs, ...groups];
 }

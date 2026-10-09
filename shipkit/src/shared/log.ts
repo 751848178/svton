@@ -2,11 +2,25 @@
 // Emits to stderr by default so stdout stays reserved for machine-readable payloads.
 
 export type LogLevel = 'info' | 'warn' | 'error';
+import type { Job } from './types.js';
+
+export interface PipelineJobObservation {
+  handle: { url: string; token: string; caFile?: string };
+  jobId: string;
+  label: string;
+  job?: Job;
+  final?: boolean;
+}
 
 export interface Logger {
   info(msg: string, meta?: Record<string, unknown>): void;
   warn(msg: string, meta?: Record<string, unknown>): void;
   error(msg: string, meta?: Record<string, unknown>): void;
+  /** Awaited observer: archive and checkpoint remote work before lease release. */
+  observeJob?(observation: PipelineJobObservation): Promise<void>;
+  checkpoint?(): Promise<void>;
+  stage?(stage: string, status: string, detail?: Record<string, unknown>): Promise<void>;
+  operationId?(stage: string, service: string | undefined, handle: { url: string; token: string; caFile?: string }): Promise<string | undefined>;
 }
 
 export function createLogger(json: boolean, write: (line: string) => void = console.error): Logger {

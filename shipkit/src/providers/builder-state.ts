@@ -36,7 +36,7 @@ export interface BuilderState {
 }
 
 export function buildersRoot(): string {
-  return path.join(process.env.HOME ?? '.', '.ship', 'builders');
+  return path.join(process.env.SHIPKIT_STATE_DIR ?? path.join(process.env.HOME ?? '.', '.ship'), 'builders');
 }
 
 export function stateFileFor(cfg: TencentCvmConfig, secretId: string): string {

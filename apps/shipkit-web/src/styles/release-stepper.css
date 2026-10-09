@@ -1,0 +1,28 @@
+.stepper.devpilot-steps { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); overflow: hidden; border-radius: 10px; margin-bottom: 24px; }
+.devpilot-steps .step-item { display: block; position: relative; min-height: 66px; padding: 0; color: #68726b; background: #ecefea; text-align: left; clip-path: polygon(0 0,calc(100% - 18px) 0,100% 50%,calc(100% - 18px) 100%,0 100%,18px 50%); }
+.devpilot-steps .step-item:first-child { clip-path: polygon(0 0,calc(100% - 18px) 0,100% 50%,calc(100% - 18px) 100%,0 100%); }
+.devpilot-steps .step-item:last-child { clip-path: polygon(0 0,100% 0,100% 100%,0 100%,18px 50%); }
+.devpilot-steps .step-item + .step-item { margin-left: -1px; }
+.devpilot-steps .step-item::after { content: none; }
+.devpilot-steps .step-item.is-active { color: #fff; background: var(--green); }
+.devpilot-steps .step-item.is-complete { color: var(--green); background: #e2eee5; }
+.devpilot-steps .step-link { display: block; width: 100%; min-height: 66px; padding: 12px 22px 12px 34px; border: 0; color: inherit; background: transparent; text-align: left; }
+.devpilot-steps .step-item:first-child .step-link { padding-left: 20px; }
+.devpilot-steps .step-link:not(:disabled):hover { background: #1763460d; }
+.devpilot-steps .is-active .step-link:not(:disabled):hover { background: #104d3540; }
+.devpilot-steps .step-link:focus-visible { outline: 3px solid var(--green); outline-offset: -5px; }
+.devpilot-steps .is-active .step-link:focus-visible { outline-color: #e1f0e6; }
+.devpilot-steps .step-link:disabled { opacity: 1; cursor: not-allowed; }
+.devpilot-steps .step-label { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 650; }
+.devpilot-steps .step-description { display: block; margin-top: 3px; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.devpilot-steps .is-active .step-description { color: #e1f0e6; }
+@media (max-width:740px) {
+  .stepper.devpilot-steps { margin-bottom: 19px; }
+  .devpilot-steps .step-item { min-height: 48px; padding: 0; clip-path: polygon(0 0,calc(100% - 12px) 0,100% 50%,calc(100% - 12px) 100%,0 100%,12px 50%); }
+  .devpilot-steps .step-item:first-child { clip-path: polygon(0 0,calc(100% - 12px) 0,100% 50%,calc(100% - 12px) 100%,0 100%); }
+  .devpilot-steps .step-item:last-child { clip-path: polygon(0 0,100% 0,100% 100%,0 100%,12px 50%); }
+  .devpilot-steps .step-link { min-height: 48px; padding: 14px 6px 14px 15px; }
+  .devpilot-steps .step-item:first-child .step-link { padding-left: 10px; }
+  .devpilot-steps .step-label { font-size: 12px; }
+  .devpilot-steps .step-description { display: none; }
+}

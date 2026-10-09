@@ -21,23 +21,17 @@ import { pullServiceImage, switchService, verifyService } from './group-activati
 import { recoverServices } from './group-recovery.js';
 import { GroupDeployFailure, describeRecovery } from './handlers-group-deploy.js';
 import type { JobContext } from './jobs.js';
+import { JobCancelled, type JobControl } from './job-control.js';
+import { rollbackSelection } from './group-rollback-selection.js';
 
 type Log = JobContext['log'];
 
-interface HistoryEntry { releaseId: string; parentId: string | null; changedServices: string[] }
-
-/** newest history release whose changed set covers `services` (and has a parent) */
-function findRestoreSource(history: HistoryEntry[], services: string[]): string | null {
-  for (const h of history) {
-    if (h.parentId && services.every((s) => h.changedServices.includes(s))) return h.parentId;
-  }
-  return null;
-}
-
-export async function runGroupRollback(appsRoot: string, req: GroupRollbackRequest, log: Log): Promise<GroupDeployResult> {
+export async function runGroupRollback(appsRoot: string, req: GroupRollbackRequest, log: Log, control?: JobControl): Promise<GroupDeployResult> {
   const store = new GroupStore(appsRoot);
   const identity = { app: req.app, project: req.project, env: req.env };
   const result = await withDeploySlot(() => withAppLock(req.app, async () => {
+    control?.checkpoint();
+    control?.phase('prepare');
     const appDir = store.appDir(req.app);
     await store.assertLayout(req.app);
     const state = await store.loadState(req.app);
@@ -51,25 +45,8 @@ export async function runGroupRollback(appsRoot: string, req: GroupRollbackReque
     }
     await assertProjectBinding(appDir, identity, true);
 
-    const services = req.services ?? current.changedServices;
-    if (services.length === 0) throw new Error(`current release '${current.id}' records no changed services — nothing to roll back`);
-    let restoreFromId: string | null = null;
-    if (!req.services) {
-      restoreFromId = current.parent;
-      if (!restoreFromId) throw new Error(`current release '${current.id}' is the first deployment — no previous combination to restore`);
-    } else {
-      const withParents: HistoryEntry[] = [];
-      for (const h of [{ releaseId: current.id, parentId: current.parent, changedServices: current.changedServices },
-        ...state.history.map((h) => ({ releaseId: h.releaseId, parentId: null as string | null, changedServices: h.changedServices }))]) {
-        const rel = h.releaseId === current.id ? current : await store.loadRelease(req.app, h.releaseId).catch(() => null);
-        withParents.push({ ...h, parentId: h.parentId ?? rel?.parent ?? null });
-      }
-      restoreFromId = findRestoreSource(withParents, services);
-      if (!restoreFromId) {
-        throw new Error(`no history snapshot contains ALL of [${services.join(', ')}] in one release's changed set — cannot resolve a restore source; use --services with an exact set that was released together`);
-      }
-    }
-    const restoreFrom = await store.loadRelease(req.app, restoreFromId);
+    const { services, restoreFrom } = await rollbackSelection(store, req, state, current);
+    control?.checkpoint();
     const combination = { ...current.services };
     const changedRefs: Record<string, string> = {};
     for (const name of services) {
@@ -91,28 +68,39 @@ export async function runGroupRollback(appsRoot: string, req: GroupRollbackReque
     const pullCtx = await pullAuthCtx(firstTarget, log, await resolvePullCreds(path.dirname(appsRoot))).catch(() => null);
     try {
       for (const name of services) {
+        control?.checkpoint();
+        control?.phase('pull', name);
         const entry = combination[name];
         if (!entry) throw new Error(`internal: rollback combination entry for '${name}' missing`);
         await pullServiceImage(entry.imageRef, log, pullCtx?.env);
+        control?.checkpoint();
       }
       const switched: string[] = [];
       try {
         for (const name of services) {
+          control?.checkpoint();
+          control?.phase('activate', name);
           const entry = combination[name];
           if (!entry) throw new Error(`internal: rollback combination entry for '${name}' missing`);
           await switchService({
             appsRoot, group: req.app, service: name, entry, identity, log, env: pullCtx?.env,
             onBeforeUp: () => { switched.push(name); },
           });
+          control?.checkpoint();
         }
         let skipped = false;
         for (const name of services) {
+          control?.checkpoint();
+          control?.phase('verify', name);
           const entry = combination[name];
           if (!entry) throw new Error(`internal: rollback combination entry for '${name}' missing`);
-          const v = await verifyService({ appsRoot, group: req.app, service: name, entry, log });
+          const v = await verifyService({ appsRoot, group: req.app, service: name, entry, log, checkpoint: () => control?.checkpoint() });
+          control?.verified?.(name, !v.ok ? 'failed' : v.skipped ? 'skipped' : 'succeeded');
+          control?.checkpoint();
           if (!v.ok) throw new Error(`health check failed for restored service '${name}'`);
           if (v.skipped) skipped = true;
         }
+        control?.enterCommit();
         const { cleanupError } = await store.shift(req.app, release.id, 'rollback',
           () => assertProjectBinding(appDir, identity, false, false));
         if (cleanupError) log(`release snapshot cleanup failed after successful state commit: ${cleanupError}`);
@@ -122,11 +110,14 @@ export async function runGroupRollback(appsRoot: string, req: GroupRollbackReque
           changedRefs, verification: skipped ? ('skipped' as const) : ('passed' as const),
         };
       } catch (e) {
+        control?.enterRecovery();
         const outcome = await recoverServices({ appsRoot, group: req.app, identity, previousCombination: current.services, changedSoFar: switched, log, env: pullCtx?.env,
           bindingRefusal: e instanceof ProjectBindingRefusal ? e.message : undefined });
+        const recovery = { attempted: true as const, ...outcome, target: switched.map((s) => current.services[s]?.imageRef ?? '').filter(Boolean).join(', ') || null };
+        if (e instanceof JobCancelled && outcome.succeeded) throw new JobCancelled(e.message, recovery);
         throw new GroupDeployFailure(
           `rollback of [${services.join(', ')}] failed: ${(e as Error).message}; recovery to the pre-rollback combination ${outcome.succeeded ? 'succeeded ' + describeRecovery(outcome, switched.length) : `FAILED (${outcome.detail}) — inspect the machine`}`,
-          { attempted: true, ...outcome, target: switched.map((s) => current.services[s]?.imageRef ?? '').filter(Boolean).join(', ') || null },
+          recovery,
         );
       }
     } finally {

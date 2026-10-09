@@ -1,0 +1,69 @@
+{
+  "spaceId": 46,
+  "passed": true,
+  "desktop": {
+    "url": "http://127.0.0.1:8769/?view=release&project=cmuyf2cnj0001t9youq0vgf0l&task=cmuyghcu000049ikyyu79tdqd&step=3",
+    "count": "6 / 6",
+    "stages": [
+      {
+        "key": "provision",
+        "text": "创建构建机按构建方式准备执行环境完成"
+      },
+      {
+        "key": "build",
+        "text": "构建镜像api完成"
+      },
+      {
+        "key": "push",
+        "text": "推送镜像api完成"
+      },
+      {
+        "key": "cleanup",
+        "text": "释放构建机归档日志后释放临时构建资源已跳过"
+      },
+      {
+        "key": "deploy",
+        "text": "部署服务运行端更新选中的服务完成"
+      },
+      {
+        "key": "verify",
+        "text": "健康检查api完成"
+      }
+    ],
+    "sidebar": 256,
+    "selectCount": 0
+  },
+  "mobile": {
+    "url": "http://127.0.0.1:8769/?view=release&project=cmuyf2cnj0001t9youq0vgf0l&task=cmuyghcu000049ikyyu79tdqd&step=3",
+    "width": 390,
+    "scroll": 390,
+    "count": "6 / 6"
+  },
+  "checked": [
+    "manual plan and start boundary",
+    "new persisted round on repeat",
+    "historical parent rollback confirmed and succeeded",
+    "stage/service archived logs",
+    "custom Select ArrowDown/Enter",
+    "Drawer Esc closes after transition",
+    "mobile no horizontal overflow",
+    "reload preserves taskId",
+    "metadata saves and reloads with target local unchanged",
+    "manual result step",
+    "title back and sidebar navigation",
+    "configured constraints not presented as execution verification",
+    "default directory when Git unavailable",
+    "native links target blank with noopener",
+    "menu search filters navigation"
+  ],
+  "at": "2026-10-07T18:48:08.476Z",
+  "clipboard": {
+    "status": "readback-unverified",
+    "reason": "Human took control of Ego task space; browser automation stopped without retry",
+    "commandParametersReviewed": [
+      "services api",
+      "to local",
+      "from-dir"
+    ]
+  }
+}

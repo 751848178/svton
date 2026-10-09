@@ -33,13 +33,15 @@ export const Tooltip = React.forwardRef<HTMLSpanElement, TooltipProps>(function 
   const timerRef = useRef<number>(undefined);
   const id = useId();
   const visibleAt = open ? id : undefined;
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
 
-  const { position, triggerRef, floatingRef } = useFloatingPosition(open, placement);
+  const { position, triggerRef, setFloatingRef } = useFloatingPosition(open, placement, 8, 'fixed');
   const { state } = useTransitionState(open, 150);
 
   const setTriggerRef = useCallback(
     (node: HTMLSpanElement | null) => {
-      (triggerRef as React.MutableRefObject<HTMLSpanElement | null>).current = node;
+      triggerRef.current = node;
+      setPortalContainer(node?.closest<HTMLElement>('[data-svton-modal-layer]') ?? null);
       if (typeof ref === 'function') {
         ref(node);
       } else if (ref) {
@@ -95,13 +97,13 @@ export const Tooltip = React.forwardRef<HTMLSpanElement, TooltipProps>(function 
         {withDescribedBy(children, visibleAt)}
       </span>
       {state !== 'closed' && (
-        <Portal>
+        <Portal container={portalContainer}>
           <div
-            ref={floatingRef}
+            ref={setFloatingRef}
             id={id}
             role="tooltip"
             className={cn(
-              'absolute z-[1000] max-w-xs rounded-md border border-border px-2.5 py-1.5 text-xs text-tooltip-foreground bg-tooltip pointer-events-none whitespace-nowrap shadow-lg',
+              'fixed z-[1000] max-w-[min(20rem,calc(100vw-16px))] rounded-md border border-border px-2.5 py-1.5 text-xs text-tooltip-foreground bg-tooltip pointer-events-none whitespace-normal break-words shadow-lg',
               anim,
               className,
             )}

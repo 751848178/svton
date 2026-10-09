@@ -7,6 +7,7 @@
 import path from 'node:path';
 import type { Logger } from '../shared/log.js';
 import { api } from '../shared/http.js';
+import { JOB_OPERATION_CAPABILITY, JOB_EVENTS_CAPABILITY, JOB_LOG_CURSOR_CAPABILITY, JOB_CANCELLATION_CAPABILITY } from '../shared/job-protocol.js';
 import { publicGitRepoUrl } from '../shared/git-url.js';
 import type { BuildResult, PushResult, ShipConfig, BuildSource } from '../shared/types.js';
 import type { ProjectSpec } from '../shared/spec-v2.js';
@@ -21,6 +22,14 @@ import { waitAndReport } from './job-report.js';
 import { assertBuilderGroupCapability } from './deployment-protocol.js';
 import { withBuilderLease, type BuilderReleaseOutcome } from './builder-lease.js';
 import { resolveSelection } from './service-selection.js';
+
+async function requireManagedBuilder(handle: BuilderHandle): Promise<void> {
+  const status = await api<{ auth?: { capabilities?: string[] } }>(handle.url, handle.token, 'GET', '/api/status', undefined, 15_000, handle);
+  const capabilities = status?.auth?.capabilities;
+  const required = ['build', 'push', JOB_OPERATION_CAPABILITY, JOB_EVENTS_CAPABILITY, JOB_LOG_CURSOR_CAPABILITY, JOB_CANCELLATION_CAPABILITY];
+  const missing = required.filter((capability) => !Array.isArray(capabilities) || !capabilities.includes(capability));
+  if (missing.length) throw new CliError(`构建机缺少平台安全协议 ${missing.join(', ')} — 请升级构建机镜像/安装包并使用 builder 凭据；本次未上传源码、未构建、未推送`);
+}
 
 /** per-service provenance: git keeps repo/ref/sha; from-dir keeps a content
  *  digest of the exact uploaded tree — no fabricated git identity (R10) */
@@ -70,6 +79,8 @@ export async function runMultiBuildPipeline(o: {
   /** phase 1: every group service builds for linux/amd64 */
   platform?: string;
   timeoutMs: number;
+  expectedSourceDigest?: string;
+  managedCancellation?: boolean;
 }): Promise<GroupBuildManifest> {
   const log = o.logger;
   const platform = o.platform ?? 'linux/amd64';
@@ -85,12 +96,17 @@ export async function runMultiBuildPipeline(o: {
   // uploaded, and its contentDigest covers exactly those bytes; later workspace
   // edits can no longer desync the manifest from the upload
   const frozen: FrozenSource | null = fromDir ? await freezeSourceDir(fromDir, envFiles, o.cwd) : null;
+  if (o.expectedSourceDigest && frozen?.contentDigest !== o.expectedSourceDigest) {
+    await frozen?.cleanup();
+    throw new CliError('Source changed after planning — generate a fresh plan before building');
+  }
   if (frozen) log.info('source frozen', { digest: frozen.contentDigest, files: frozen.files, bytes: frozen.bytes });
   const taskBudgetMs = o.timeoutMs * o.selection.length * 2 + 15 * 60_000;
 
   const run = async (handle: BuilderHandle): Promise<GroupBuildManifest> => {
     // an old builder cannot parse target/platform — refuse before ANY build (and before pushing anything)
     await assertBuilderGroupCapability(handle);
+    if (o.managedCancellation) await requireManagedBuilder(handle);
     const httpOpts = handle.caFile ? { caFile: handle.caFile } : {};
     const source = frozen
       ? await uploadFrozenSource(handle, frozen, log)
@@ -99,17 +115,20 @@ export async function runMultiBuildPipeline(o: {
     // serial builds on the SAME machine, each with its own Dockerfile slice
     const builds: Record<string, BuildResult> = {};
     for (const name of o.selection) {
+      await log.checkpoint?.();
       const svcSpec = o.spec.services[name];
       if (!svcSpec) throw new CliError(`selection contains '${name}' which is not declared in the group spec`);
       const slice = buildSliceFor(name, svcSpec, platform);
       log.info(`building service ${name}`, { target: slice.target, platform: slice.platform });
-      const started = await api<{ jobId: string }>(handle.url, handle.token, 'POST', '/api/build', { source, spec: slice, tag: o.tag }, 20_000, httpOpts);
+      const operationId = await log.operationId?.('build', name, handle);
+      const started = await api<{ jobId: string }>(handle.url, handle.token, 'POST', '/api/build', { source, spec: slice, tag: o.tag, ...(operationId ? { operationId } : {}) }, 20_000, httpOpts);
       builds[name] = (await waitAndReport(handle, started.jobId, `build:${name}`, log, o.timeoutMs)).result as BuildResult;
     }
 
     // every build succeeded → push all; every digest verified → manifest
     const services: Record<string, GroupBuildService> = {};
     for (const name of o.selection) {
+      await log.checkpoint?.();
       const build = builds[name];
       if (!build) throw new CliError(`internal: build result for '${name}' missing after successful build phase`);
       const svcSpec = o.spec.services[name]!;
@@ -119,8 +138,10 @@ export async function runMultiBuildPipeline(o: {
       if (build.arch && build.arch !== effectivePlatform) {
         throw new CliError(`build:${name} produced ${build.arch} but the effective platform is ${effectivePlatform} — refusing to continue`);
       }
+      const operationId = await log.operationId?.('push', name, handle);
       const pushed = await api<{ jobId: string }>(handle.url, handle.token, 'POST', '/api/push', {
         name, tag: build.tag, registry: registry.url, namespace: registry.namespace,
+        ...(operationId ? { operationId } : {}),
       }, 20_000, httpOpts);
       const pushJob = await waitAndReport(handle, pushed.jobId, `push:${name}`, log, o.timeoutMs);
       const push = pushJob.result as PushResult;
@@ -147,7 +168,7 @@ export async function runMultiBuildPipeline(o: {
   };
 
   try {
-    const { value, release } = await withBuilderLease({ config: o.config, keepBuilder: o.keepBuilder, taskBudgetMs, log, run });
+    const { value, release } = await withBuilderLease({ config: o.config, keepBuilder: o.keepBuilder, taskBudgetMs, log, run, managedCancellation: o.managedCancellation });
     return { ...value, builderRelease: release };
   } finally {
     await frozen?.cleanup();

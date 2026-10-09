@@ -1,4 +1,5 @@
 // Cross-cutting contracts shared by the controller CLI and the machine agents.
+export type { Job, JobType, JobStatus, JobEvent, JobPhase, JobLogPage, JobEventsPage } from './job-protocol.js';
 
 export const SHIP_VERSION = '0.5.0';
 
@@ -31,6 +32,7 @@ export type BuildSource =
   | { type: 'tarball'; id: string };
 
 export interface BuildRequest {
+  operationId?: string;
   source: BuildSource;
   spec: ShipSpec;
   tag?: string;
@@ -46,6 +48,7 @@ export interface BuildResult {
 }
 
 export interface PushRequest {
+  operationId?: string;
   name: string;
   tag: string;
   registry?: string;
@@ -85,19 +88,6 @@ export interface RollbackRequest {
   /** must match the (project, env) bound to the app (see DeployRequest) */
   project: string;
   env: string;
-}
-
-export type JobType = 'build' | 'push' | 'deploy' | 'rollback' | 'gc' | 'verify' | 'group-deploy' | 'group-rollback';
-export type JobStatus = 'queued' | 'running' | 'succeeded' | 'failed';
-
-export interface Job {
-  id: string;
-  type: JobType;
-  status: JobStatus;
-  createdAt: string;
-  updatedAt: string;
-  error?: string;
-  result?: unknown;
 }
 
 export interface AgentHealth {

@@ -3,6 +3,7 @@
 // M2-10) is honored by every call; TLS verification is never disabled.
 
 import type { Job } from './types.js';
+import { isTerminalJob } from './job-protocol.js';
 import { requestBuffered } from './http-transport.js';
 
 export interface HttpCallOptions {
@@ -98,6 +99,8 @@ export interface WaitOptions extends HttpCallOptions {
   pollMs?: number;
   timeoutMs?: number;
   onStatus?: (job: Job) => void;
+  /** Awaited on every poll, including terminal results, for durable observation. */
+  onPoll?: (job: Job) => Promise<void>;
 }
 
 export async function waitForJob(
@@ -110,7 +113,8 @@ export async function waitForJob(
   let last: Job | undefined;
   for (;;) {
     const job = await api<Job>(baseUrl, token, 'GET', `/api/jobs/${jobId}`, undefined, 20_000, opts);
-    if (job.status === 'succeeded' || job.status === 'failed') return job;
+    await opts.onPoll?.(job);
+    if (isTerminalJob(job.status)) return job;
     if (!last || last.status !== job.status) opts.onStatus?.(job);
     last = job;
     if (Date.now() > deadline) {

@@ -12,6 +12,7 @@ import type { GroupServiceEntry, GroupServiceSource, GroupRelease } from './grou
 
 const KEEP_RELEASES = 10;
 const RELEASE_ID_RE = /^[a-z0-9-]{6,40}$/;
+const SERVICE_NAME_RE = /^[a-z][a-z0-9-]{0,62}$/;
 
 export function validGroupReleaseId(id: unknown): boolean {
   return typeof id === 'string' && RELEASE_ID_RE.test(id);
@@ -53,8 +54,13 @@ export class GroupSnapshots {
       !Array.isArray(manifest.changedServices) || !isRecord(manifest.services) || Object.keys(manifest.services).length === 0) {
       throw new Error(`group release '${group}/${id}' manifest is corrupt; preserve and restore the snapshot`);
     }
+    const snapshotServices = manifest.services;
+    if (manifest.changedServices.some((name) => typeof name !== 'string' || !SERVICE_NAME_RE.test(name) || !(name in snapshotServices))) {
+      throw new Error(`group release '${group}/${id}' changed service scope is corrupt`);
+    }
     const services: Record<string, GroupServiceEntry> = {};
     for (const [name, raw] of Object.entries(manifest.services)) {
+      if (!SERVICE_NAME_RE.test(name)) throw new Error(`group release '${group}/${id}' service name is outside the deployment scope`);
       if (!isRecord(raw) || typeof raw.imageRef !== 'string' || !raw.imageRef || /\s/.test(raw.imageRef) || typeof raw.hasEnv !== 'boolean') {
         throw new Error(`group release '${group}/${id}' service '${name}' entry is corrupt`);
       }

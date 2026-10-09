@@ -1,0 +1,32 @@
+[
+  {
+    "label": "concurrent task rejected and later stale plan performs no remote work",
+    "passed": true,
+    "at": "2026-10-07T18:21:56.025Z"
+  },
+  {
+    "label": "source mutation invalidates plan before builder work",
+    "passed": true,
+    "at": "2026-10-07T18:21:56.586Z"
+  },
+  {
+    "label": "build cancellation is acknowledged remotely without changing runtime",
+    "passed": true,
+    "at": "2026-10-07T18:22:07.113Z"
+  },
+  {
+    "label": "failed health restores previous version and records real recovery",
+    "passed": true,
+    "at": "2026-10-07T18:22:17.746Z"
+  },
+  {
+    "label": "runtime cancellation during probes restores committed baseline",
+    "passed": true,
+    "at": "2026-10-07T18:22:28.505Z"
+  },
+  {
+    "label": "skipped probes remain explicit and external volume data survives",
+    "passed": true,
+    "at": "2026-10-07T18:22:35.302Z"
+  }
+]

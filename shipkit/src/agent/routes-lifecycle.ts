@@ -7,6 +7,8 @@ import { GroupStore } from './group-store.js';
 import { HttpFail } from './http-fail.js';
 import type { Route, RouteCtx, RouteDeps } from './route-types.js';
 import { capabilitiesFor } from './route-guards.js';
+import { cursorLog } from './routes-job-control.js';
+import { validOperationId } from './job-operations.js';
 
 const JOB_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -38,15 +40,24 @@ export function lifecycleRoutes(d: RouteDeps): Route[] {
       return { status: 200, body: status };
     } },
 
-    { method: 'GET', re: /^\/api\/jobs$/, roles: ['builder', 'runtime'], handler: async () => ({ status: 200, body: { jobs: d.jobs.list() } }) },
+    { method: 'GET', re: /^\/api\/jobs$/, roles: ['builder', 'runtime'], handler: async (ctx) => {
+      const prefix = ctx.query.get('operationPrefix');
+      if (prefix !== null && !validOperationId(prefix)) throw new HttpFail(400, 'invalid_operation', 'invalid operationPrefix');
+      const jobs = d.jobs.list(prefix ?? undefined, ctx.auth?.role ?? d.role);
+      await Promise.all(jobs.map((job) => d.jobs.flush(job.id)));
+      return { status: 200, body: { jobs } };
+    } },
 
     { method: 'GET', re: /^\/api\/jobs\/([0-9a-f-]{36})$/, roles: ['builder', 'runtime'], handler: async (ctx) => {
+      jobOrFail(d, ctx.params[0] ?? '');
+      await d.jobs.flush(ctx.params[0] ?? '');
       return { status: 200, body: jobOrFail(d, ctx.params[0] ?? '') };
     } },
 
     { method: 'GET', re: /^\/api\/jobs\/([0-9a-f-]{36})\/log$/, roles: ['builder', 'runtime'], handler: async (ctx) => {
       const id = ctx.params[0] ?? '';
       jobOrFail(d, id);
+      if (ctx.query.has('offset')) return { status: 200, body: await cursorLog(d, ctx) };
       const tail = Number(ctx.query.get('tail') ?? 200);
       const log = (await d.jobs.readLog(id, Math.min(Math.max(tail, 1), 2000))) ?? '';
       return { status: 200, body: log, contentType: 'text/plain; charset=utf-8' };

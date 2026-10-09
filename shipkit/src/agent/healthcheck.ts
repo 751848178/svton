@@ -15,12 +15,15 @@ export async function waitHealthy(o: {
   timeoutMs: number;
   intervalMs?: number;
   log: (line: string) => void;
+  /** Cooperative cancellation between probe requests; recovery omits this hook. */
+  checkpoint?: () => void;
 }): Promise<HealthOutcome> {
   const interval = o.intervalMs ?? 2000;
   const deadline = Date.now() + o.timeoutMs;
   let attempts = 0;
   let lastError: string | undefined;
   for (;;) {
+    o.checkpoint?.();
     attempts++;
     try {
       const res = await fetch(o.url, { signal: AbortSignal.timeout(5000) });
@@ -34,6 +37,7 @@ export async function waitHealthy(o: {
       lastError = (e as Error).message;
       o.log(`healthcheck attempt ${attempts}: ${lastError}`);
     }
+    o.checkpoint?.();
     if (Date.now() + interval > deadline) break;
     await sleep(interval);
   }

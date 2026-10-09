@@ -7,6 +7,7 @@ import type { BuildRequest, BuildResult } from '../shared/types.js';
 import { dockerBuild } from './docker.js';
 import type { JobContext } from './jobs.js';
 import { ensureSource } from './source.js';
+import type { JobControl } from './job-control.js';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
@@ -17,9 +18,13 @@ export function defaultTag(sha?: string): string {
   return [sha ? sha.slice(0, 7) : null, ts, randomUUID().slice(0, 4)].filter(Boolean).join('-');
 }
 
-export async function runBuild(workRoot: string, req: BuildRequest, log: JobContext['log']): Promise<BuildResult> {
+export async function runBuild(workRoot: string, req: BuildRequest, log: JobContext['log'], control?: JobControl): Promise<BuildResult> {
+  control?.checkpoint();
+  control?.phase('source', req.spec.name);
   const spec = validateSpec(req.spec);
   const { dir, sha } = await ensureSource(workRoot, req.source, log);
+  control?.checkpoint();
+  control?.phase('build', spec.name);
   const tag = req.tag ?? defaultTag(sha);
   const localImage = `shipbuild/${spec.name}:${tag}`;
   const contextDir = path.join(dir, spec.context ?? '.');
@@ -35,6 +40,8 @@ export async function runBuild(workRoot: string, req: BuildRequest, log: JobCont
     platform: spec.platform,
     log,
   });
+  // The current Docker command has completed; cancellation never kills shared daemon work.
+  control?.checkpoint();
   // platform gate: the produced image must really be what the request declared
   if (spec.platform && built.arch && built.arch !== spec.platform) {
     throw new Error(`built image is ${built.arch} but the request pinned ${spec.platform} — refusing to continue with a mismatched architecture`);

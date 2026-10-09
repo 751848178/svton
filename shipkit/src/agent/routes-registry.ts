@@ -48,13 +48,13 @@ export function registryRoutes(d: RouteDeps): Route[] {
       if (req.mode === 'push') {
         const namespace = typeof req.namespace === 'string' ? req.namespace : '';
         if (!/^[a-z0-9][a-z0-9._-]{0,60}$/.test(namespace)) throw new HttpFail(400, 'bad_request', 'namespace required');
-        const job = d.jobs.create('verify', (jctx) => runVerifyPush(d.workRoot, { registry, namespace }, jctx.log));
+        const job = await d.jobs.create('verify', (jctx) => runVerifyPush(d.workRoot, { registry, namespace }, jctx.log));
         return { status: 202, body: { jobId: job.id } };
       }
       const ref = typeof req.ref === 'string' ? req.ref : '';
       if (!ref.startsWith(`${registry}/`) || /\s/.test(ref)) throw new HttpFail(400, 'bad_request', 'ref must belong to the given registry');
       const digest = typeof req.digest === 'string' && /^sha256:[0-9a-f]{64}$/.test(req.digest) ? req.digest : undefined;
-      const job = d.jobs.create('verify', (jctx) => runVerifyPull(d.workRoot, { registry, ref, digest }, jctx.log));
+      const job = await d.jobs.create('verify', (jctx) => runVerifyPull(d.workRoot, { registry, ref, digest }, jctx.log));
       return { status: 202, body: { jobId: job.id } };
     } },
   ];

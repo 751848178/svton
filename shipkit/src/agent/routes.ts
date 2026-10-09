@@ -8,7 +8,8 @@ import { pairingRoutes } from './routes-pairing.js';
 import { imageRoutes } from './routes-images.js';
 import { registryRoutes } from './routes-registry.js';
 import { groupRoutes } from './routes-groups.js';
+import { jobControlRoutes } from './routes-job-control.js';
 
 export function buildRoutes(d: RouteDeps): Route[] {
-  return [...lifecycleRoutes(d), ...pairingRoutes(d), ...imageRoutes(d), ...registryRoutes(d), ...groupRoutes(d)];
+  return [...lifecycleRoutes(d), ...jobControlRoutes(d), ...pairingRoutes(d), ...imageRoutes(d), ...registryRoutes(d), ...groupRoutes(d)];
 }

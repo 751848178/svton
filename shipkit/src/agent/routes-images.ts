@@ -80,7 +80,7 @@ export function imageRoutes(d: RouteDeps): Route[] {
       if (src.type === 'git' && typeof src.repo !== 'string') throw new HttpFail(400, 'bad_request', 'source.repo required');
       if (src.type === 'tarball' && !JOB_ID_RE.test(String(src.id))) throw new HttpFail(400, 'bad_request', 'source.id must be a uuid from POST /api/sources');
       await requireDockerNow();
-      const job = d.jobs.create('build', (jctx) => runBuild(d.workRoot, req, jctx.log));
+      const job = await d.jobs.create('build', (jctx) => runBuild(d.workRoot, req, jctx.log, jctx), true, { operationId: req.operationId, request: req });
       return { status: 202, body: { jobId: job.id } };
     } },
 
@@ -89,7 +89,7 @@ export function imageRoutes(d: RouteDeps): Route[] {
       if (typeof req.name !== 'string' || typeof req.tag !== 'string') throw new HttpFail(400, 'bad_request', 'name + tag required');
       if (!req.registry && !process.env.SHIP_REGISTRY) throw new HttpFail(400, 'registry_missing', 'pass registry in the request or set SHIP_REGISTRY on the builder');
       await requireDockerNow();
-      const job = d.jobs.create('push', (jctx) => runPush(req, jctx.log));
+      const job = await d.jobs.create('push', (jctx) => runPush(req, jctx.log, d.workRoot, jctx), true, { operationId: req.operationId, request: req });
       return { status: 202, body: { jobId: job.id } };
     } },
 
@@ -107,7 +107,7 @@ export function imageRoutes(d: RouteDeps): Route[] {
       if (req.envFileContent !== undefined && typeof req.envFileContent !== 'string') throw new HttpFail(400, 'bad_request', 'envFileContent must be a string');
       validateSpec(req.spec);
       await requireDockerNow();
-      const job = d.jobs.create('deploy', (jctx) => runDeploy(path.join(d.workRoot, 'apps'), req, jctx.log));
+      const job = await d.jobs.create('deploy', (jctx) => runDeploy(path.join(d.workRoot, 'apps'), req, jctx.log));
       return { status: 202, body: { jobId: job.id } };
     } },
 
@@ -121,7 +121,7 @@ export function imageRoutes(d: RouteDeps): Route[] {
         throw new HttpFail(400, 'bad_request', 'env identity required (target name, [A-Za-z0-9._-])');
       }
       await requireDockerNow();
-      const job = d.jobs.create('rollback', (jctx) => runRollback(path.join(d.workRoot, 'apps'), req, jctx.log));
+      const job = await d.jobs.create('rollback', (jctx) => runRollback(path.join(d.workRoot, 'apps'), req, jctx.log));
       return { status: 202, body: { jobId: job.id } };
     } },
 
@@ -134,7 +134,7 @@ export function imageRoutes(d: RouteDeps): Route[] {
         return { status: 200, body: { mode: 'preview', ...plan } };
       }
       // execution is a persistent job: survives client timeouts, pollable, logged (RA10)
-      const job = d.jobs.create('gc', async (jctx) => {
+      const job = await d.jobs.create('gc', async (jctx) => {
         const plan = await planImageGc(appsRoot);
         const result = await executeImageGc(appsRoot, plan, jctx.log);
         return { mode: 'execute', candidates: plan.candidates.length, ...result };

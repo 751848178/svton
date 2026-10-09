@@ -4,6 +4,9 @@
   "private": true,
   "description": "Lightweight build/push/deploy toolchain (controller CLI + machine agents), decoupled from devpilot",
   "type": "module",
+  "exports": {
+    "./platform": { "types": "./dist/platform/index.d.ts", "import": "./dist/platform/index.js" }
+  },
   "bin": {
     "ship": "./dist/cli/main.js"
   },
