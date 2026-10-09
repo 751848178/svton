@@ -1,0 +1,41 @@
+.page-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.page-title h1 { min-width: 0; overflow-wrap: anywhere; }
+.title-back { display: inline-flex; align-items: center; justify-content: center; width: 20px; min-width: 20px; height: 20px; flex-shrink: 0; padding: 0; border: 0; border-radius: 0; color: var(--ink); background: transparent; }
+.title-back:hover:not(:disabled) { color: var(--green); }
+.title-back:disabled { opacity: 1; color: var(--muted); cursor: not-allowed; }
+.page-title + .subtle { margin-top: 9px; max-width: 64ch; }
+.stepper.devpilot-steps { margin-bottom: 10px; }
+.step-guidance { margin-bottom: 18px; font-size: 12px; }
+.wizard-body .panel-head .head-actions { margin: 0; padding: 0; }
+.execution-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.execution-actions .button { min-height: 40px; }
+.execution-actions .execution-count { font-variant-numeric: tabular-nums; }
+.execution-panel .execution-outcome { margin: 18px 23px 0; }
+.execution-blocked { margin: 16px 23px 0; padding: 12px 14px; border-radius: 8px; background: var(--amber-soft); color: var(--amber); font-size: 12px; line-height: 1.7; }
+.execution-blocked strong { display: block; margin-bottom: 4px; }
+.execution-blocked .button { margin-top: 10px; }
+.result-banner > div { min-width: 0; }
+.result-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+.result-actions .button { min-height: 40px; }
+@media (max-width:1000px) {
+  .execution-panel .panel-head { align-items: flex-start; flex-wrap: wrap; }
+  .execution-panel .panel-head > div:first-child { flex: 1 1 200px; min-width: 0; }
+  .execution-actions { justify-content: flex-start; }
+}
+@media (max-width:740px) {
+  .page-title { gap: 0; }
+  .title-back { width: 44px; min-width: 44px; height: 44px; margin-left: -12px; }
+  .page-title + .subtle { margin-top: 7px; font-size: 12px; }
+  .wizard-body .panel-head { align-items: flex-start; flex-wrap: wrap; gap: 12px; }
+  .wizard-body .panel-head > div:first-child { flex: 1 1 100%; min-width: 0; }
+  .wizard-body .panel-head .head-actions { width: 100%; flex-wrap: wrap; gap: 8px; }
+  .wizard-body .panel-head .head-actions .button { min-height: 44px; }
+  .wizard-body .panel-head .head-actions .button.primary { flex: 1; }
+  .execution-actions { width: 100%; justify-content: flex-start; gap: 8px; }
+  .execution-actions .button { min-height: 44px; }
+  .execution-actions .button.primary { flex: 1; }
+  .execution-panel .execution-outcome { margin: 16px 17px 0; padding: 12px 14px; }
+  .execution-blocked { margin: 14px 17px 0; }
+  .result-actions { margin-top: 12px; }
+  .result-actions .button { min-height: 44px; }
+}

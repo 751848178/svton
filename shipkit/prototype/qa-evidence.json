@@ -1,0 +1,242 @@
+{
+  "passed": 49,
+  "checks": [
+    "desktop list has no prototype markers in text, title or accessible labels",
+    "desktop has fixed 256px TWGG-style sidebar",
+    "project list navigation has current page semantics",
+    "search filters navigation groups",
+    "no-match search provides empty state",
+    "clear search restores navigation and focus",
+    "settings has no prototype markers",
+    "connection check toast and labels have no prototype markers",
+    "project context shows IP and name with selected details navigation",
+    "project details has no prototype markers",
+    "project name matches its contextual navigation",
+    "execution entry still waits for manual start",
+    "manual execution ready screen has no prototype markers",
+    "unexecuted stage drawer retains empty state",
+    "empty stage drawer has no prototype markers",
+    "running release locks page navigation",
+    "completion stays on execution and enables manual repeat",
+    "completed stage logs have no prototype markers",
+    "completed stage retains specific logs",
+    "release result has no prototype markers",
+    "release history has no prototype markers",
+    "history record dialog has no prototype markers",
+    "mobile has accessible menu opener and hidden sidebar",
+    "mobile list has no prototype markers",
+    "mobile drawer is modal and focuses close control",
+    "mobile navigation drawer has no prototype markers",
+    "Escape restores sidebar and opener focus",
+    "mobile close button closes menu",
+    "mobile backdrop closes menu",
+    "mobile menu selection closes drawer and navigates",
+    "mobile menu clear search preserves dialog and focus",
+    "resizing open mobile drawer restores desktop navigation",
+    "mobile execution still waits with start in first viewport",
+    "320px content has no horizontal overflow",
+    "mobile navigation stays disabled during release",
+    "mobile completed execution has no prototype markers",
+    "mobile navigation re-enables after release",
+    "mobile log drawer has no prototype markers",
+    "health failure state has no prototype markers",
+    "health recovery logs have no prototype markers",
+    "health log still includes recovery detail",
+    "cleanup failure and builder ID have no prototype markers",
+    "cleanup gate remains actionable",
+    "cleanup completion toast has no prototype markers",
+    "cleanup repair logs have no prototype markers",
+    "website project versions and source metadata have no prototype markers",
+    "website historical versions have no prototype markers",
+    "rollback selection text has no prototype markers",
+    "local service entry has no prototype markers"
+  ],
+  "spaceId": 46,
+  "verifiedAt": "2026-10-07T16:53:32.294Z",
+  "mode": "static-simulation",
+  "desktop": {
+    "width": 1440,
+    "height": 1000
+  },
+  "mobile": {
+    "width": 390,
+    "height": 844
+  },
+  "narrow": {
+    "width": 320,
+    "height": 844
+  },
+  "modelTests": {
+    "passed": 19,
+    "failed": 0,
+    "log": "/tmp/codex-tool-runs/svton/prototype-marker-id-tests.log"
+  },
+  "sourceChecks": {
+    "sourceFiles": 38,
+    "maxLines": 176,
+    "ceiling": 200,
+    "syntax": "passed",
+    "errors": []
+  },
+  "designDetector": "degraded-missing-parser-dependencies",
+  "independentStateReview": {
+    "issuesFound": 1,
+    "issuesResolved": 1,
+    "regression": "Repeat then cancel before creation resets builder instead of reusing the previous instance."
+  },
+  "scriptCapabilityReview": {
+    "repeatSupported": true,
+    "repeatMeaning": "A new build, push and deploy attempt with new history and build costs.",
+    "sources": [
+      "shipkit/src/cli/cmd-release.ts",
+      "shipkit/src/providers/tencent.ts",
+      "shipkit/src/agent/app-lock.ts",
+      "shipkit/src/agent/group-snapshots.ts"
+    ],
+    "scope": "Read-only source review; no CLI release, SSH or cloud operations.",
+    "boundaries": "The prototype requires cleanup before another attempt. Real CLI warns on cleanup failure but does not globally block a new release. Simulated cancellation does not imply remote deployment job cancellation."
+  },
+  "verificationRuns": [
+    "/tmp/codex-tool-runs/svton/prototype-navigation-browser.log",
+    "/tmp/codex-tool-runs/svton/prototype-navigation-edge.log"
+  ],
+  "screenshots": [
+    ".impeccable/review/nav-desktop-projects.png",
+    ".impeccable/review/nav-desktop-project.png",
+    ".impeccable/review/nav-desktop-log-drawer.png",
+    ".impeccable/review/nav-desktop-history.png",
+    ".impeccable/review/nav-mobile-projects.png",
+    ".impeccable/review/nav-mobile-navigation.png",
+    ".impeccable/review/nav-mobile-ready.png",
+    ".impeccable/review/nav-mobile-completed.png",
+    ".impeccable/review/nav-mobile-log-drawer.png",
+    ".impeccable/review/nav-service-entry.png"
+  ],
+  "visualReview": "All ten current desktop, mobile and service-entry screenshots inspected; no material layout defects found.",
+  "previousVerification": {
+    "verifiedAt": "2026-10-07T16:29:28.887Z",
+    "passed": 54,
+    "checks": [
+      "back button sits before the project title and names its parent",
+      "overview back returns directly to project list",
+      "wizard back names project details and footer navigation is removed",
+      "empty selection blocks plan and execution with reasons",
+      "native step button supports keyboard navigation to plan",
+      "plan does not contain an execution trigger",
+      "step strip returns to selection without changing selected services",
+      "direct entry to execution only prepares and waits",
+      "run action is near content heading rather than page bottom",
+      "result is gated until this attempt ends",
+      "unexecuted step opens an empty log drawer",
+      "running attempt disables run, back and unrelated steps",
+      "running stage retains its live specific drawer",
+      "completion stays on execution and enables repeat without auto-navigation",
+      "double click produced exactly one release attempt",
+      "clicking result step opens final versions and preserves inherited services",
+      "returning to execution preserves completed logs and does not rerun",
+      "manual repeat starts and completes a fresh second attempt",
+      "repeated selected service receives new version while others remain inherited",
+      "each manual attempt retains its own history record",
+      "history actions are contextual with no bottom back row",
+      "history title back returns to project details",
+      "a new release flow again waits before running",
+      "selecting failure scenario still waits for explicit start",
+      "failed health attempt stays at execution with manual retry available",
+      "failed health drawer records recovery details",
+      "result from failed new attempt preserves the last successful version",
+      "changing next scenario does not rewrite completed health evidence",
+      "cleanup failure blocks repeated start and earlier-step edits",
+      "cleanup block explains repair beside affected content with one repair action",
+      "pending resource result stays inspectable but new flow is blocked",
+      "resource repair re-enables repeat and step navigation",
+      "cleanup drawer preserves repair events",
+      "immediate cancellation of repeated attempt shows no new builder",
+      "cancelled repeated attempt logs no previous builder release",
+      "cancelled result truthfully reports no builder creation",
+      "history rollback range remains available after navigation changes",
+      "settings also has deterministic title back",
+      "settings title back reaches project list",
+      "mobile title back has 44px target and readable project title",
+      "mobile plan action sits at service content heading",
+      "component select still supports keyboard on mobile plan",
+      "mobile execution entry waits without creating builder",
+      "mobile start action is visible in first viewport",
+      "320px rail labels stay complete and page has no horizontal overflow",
+      "320px start action remains reachable in first viewport",
+      "mobile running action and exit are locked",
+      "mobile selected log drawer updates while execution proceeds",
+      "mobile drawer closes to the clicked execution row",
+      "mobile completion keeps execution active with repeat action at top",
+      "mobile result is reached by step click and actions stay with result",
+      "mobile can revisit selected service step after completion",
+      "mobile wizard title back returns to project details",
+      "mobile project title back returns to project list"
+    ],
+    "verificationRuns": [
+      "/tmp/codex-tool-runs/svton/prototype-oct8-primary.log",
+      "/tmp/codex-tool-runs/svton/prototype-oct8-primary-tail.log",
+      "/tmp/codex-tool-runs/svton/prototype-oct8-edge.log",
+      "/tmp/codex-tool-runs/svton/prototype-oct8-mobile.log"
+    ],
+    "screenshots": [
+      ".impeccable/review/oct8-desktop-ready.png",
+      ".impeccable/review/oct8-desktop-complete.png",
+      ".impeccable/review/oct8-desktop-recovery-drawer.png",
+      ".impeccable/review/oct8-mobile-ready.png",
+      ".impeccable/review/oct8-narrow-ready.png",
+      ".impeccable/review/oct8-mobile-complete.png",
+      ".impeccable/review/oct8-mobile-drawer.png"
+    ],
+    "previousVerification": {
+      "verifiedAt": "2026-10-07T15:27:18.728Z",
+      "passed": 32,
+      "verificationRuns": [
+        "/tmp/codex-tool-runs/svton/prototype-latest-browser.log",
+        "/tmp/codex-tool-runs/svton/prototype-latest-readonly-review.log"
+      ],
+      "scope": "Prior project-name, service-entry and server-label checks. Footer next/back navigation was replaced with title back and clickable steps in this version."
+    },
+    "scope": "Prior 54-step-navigation and manual-release checks. Latest verification covers TWGG-style navigation and removal of visible prototype markers."
+  },
+  "displayContract": {
+    "passed": 89,
+    "scope": "Visible metadata formatting preserves raw model events, ID bindings, URLs and copied commands.",
+    "log": "/tmp/codex-tool-runs/svton/prototype-marker-id-contract.log"
+  },
+  "navigationReference": {
+    "source": "TWGG apps/admin/src/components/layout/sidebar/{sidebar,sidebar-group,sidebar-item,sidebar-user-card}.tsx and console-shell.tsx",
+    "desktop": "Fixed 256px neutral sidebar, menu search, groups, selected state and local controller footer.",
+    "mobile": "Shipkit modal-drawer adaptation; TWGG source has no mobile navigation drawer."
+  },
+  "markerRemoval": {
+    "scope": "Visible headings, labels, buttons, toasts, stages, logs, version/record/builder metadata, settings and service entry.",
+    "preserved": "Underlying simulation, raw IDs/events, data attributes, URLs and exact copied command.",
+    "commandException": "The fictional website configuration path remains exact inside its command code block. It is not a prototype badge or notice."
+  },
+  "titleBackRefinement": {
+    "passed": 12,
+    "checks": [
+      "desktop back has no border, background or rounded button shape",
+      "desktop back icon and title spacing match TWGG",
+      "back uses full ArrowLeft rather than chevron",
+      "hover changes only foreground color",
+      "back retains visible keyboard focus",
+      "keyboard return still reaches deterministic project list",
+      "running back remains disabled without gray button background",
+      "wizard back still returns to project details",
+      "mobile retains 44px transparent touch target",
+      "mobile arrow aligns with content starting edge",
+      "320px header does not overflow horizontally",
+      "mobile return still reaches project list"
+    ],
+    "verifiedAt": "2026-10-07T16:58:04.062Z",
+    "screenshots": [
+      ".impeccable/review/title-back-desktop.png",
+      ".impeccable/review/title-back-mobile.png"
+    ],
+    "reference": "TWGG apps/admin/src/components/layout/page-header.tsx:26-32",
+    "log": "/tmp/codex-tool-runs/svton/prototype-title-back-browser.log",
+    "visualReview": "Desktop and mobile screenshots inspected; borderless ArrowLeft is aligned with title and mobile content.",
+    "scope": "Visual style only; labelled deterministic return and busy-disabled semantics preserved."
+  }
+}

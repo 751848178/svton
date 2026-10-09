@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#176346">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Shipkit · 发布面板</title>
+  <link rel="icon" href="./mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./index.css">
+</head>
+<body>
+  <div class="app-layout">
+    <aside id="sidebar" class="sidebar" aria-label="主导航">
+      <div class="sidebar-brand"><div><a href="#projects" class="brand" data-action="projects"><img src="./mark.svg" alt="" width="32" height="32"><span>Shipkit</span></a><p class="sidebar-caption">本机发布工作台</p></div><button class="sidebar-close" data-navigation-close aria-label="关闭导航"></button></div>
+      <label class="menu-search"><input id="menu-search" class="search-input" type="search" placeholder="搜索菜单" aria-label="搜索菜单" autocomplete="off"></label>
+      <nav id="navigation"></nav>
+      <div class="sidebar-footer"><span class="server-avatar"></span><div><strong>本机控制端</strong><span>Shipkit</span></div></div>
+    </aside>
+    <div class="workspace">
+      <header class="mobile-bar"><button id="open-navigation" aria-label="打开导航" aria-controls="navigation-drawer" aria-expanded="false"></button><a href="#projects" class="brand" data-action="projects"><img src="./mark.svg" alt="" width="27" height="27"><span>Shipkit</span></a></header>
+      <main id="content" tabindex="-1"></main>
+    </div>
+  </div>
+  <dialog id="navigation-drawer" class="navigation-drawer" aria-label="主导航菜单"></dialog>
+  <dialog id="release-dialog" class="dialog" aria-labelledby="dialog-title"></dialog>
+  <dialog id="stage-drawer" class="log-drawer" aria-labelledby="stage-drawer-title"></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
