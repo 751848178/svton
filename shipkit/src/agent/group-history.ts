@@ -3,7 +3,7 @@ import type { GroupHistoryView, GroupHistoryRelease, GroupServiceSource } from '
 import { publicGitRepoUrl } from '../shared/git-url.js';
 import { assertProjectBindingForRead, type BindingRequest } from './project-binding.js';
 import { GroupStore, type GroupRelease } from './group-store.js';
-function publicSource(source: GroupServiceSource): GroupServiceSource {
+export function publicSource(source: GroupServiceSource): GroupServiceSource {
   let repo = source.repo ? publicGitRepoUrl(source.repo) : undefined;
   if (repo) { try { const url = new URL(repo); url.search = ''; url.hash = ''; repo = url.toString(); } catch { /* scp-style git URL */ } }
   return { type: source.type,
@@ -15,6 +15,7 @@ function publicServices(release: GroupRelease | null): GroupHistoryRelease['serv
   return Object.fromEntries(Object.entries(release?.services ?? {}).map(([name, entry]) => [name, {
     imageRef: entry.imageRef, hasEnv: entry.hasEnv,
     ...(entry.source ? { source: publicSource(entry.source) } : {}),
+    ...(entry.configRef ? { configRef: entry.configRef } : {}),
   }]));
 }
 export async function groupHistory(store: GroupStore, identity: BindingRequest): Promise<GroupHistoryView> {

@@ -1,0 +1,80 @@
+model Stage {
+  id String @id @default(cuid())
+  taskId String
+  stageKey String
+  serviceKey String @default("")
+  attempt Int @default(1)
+  status String @default("pending")
+  detailJson String?
+  updatedAt DateTime @updatedAt
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  @@unique([taskId, stageKey, serviceKey, attempt])
+}
+
+model RemoteJob {
+  id String @id @default(cuid())
+  taskId String
+  stageKey String
+  serviceKey String @default("")
+  agentRole String
+  urlRef String
+  jobId String
+  status String
+  logOffset Int @default(0)
+  eventOffset Int @default(0)
+  updatedAt DateTime @updatedAt
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  @@unique([taskId, urlRef, jobId])
+}
+
+model Event {
+  id String @id @default(cuid())
+  taskId String
+  seq Int
+  type String
+  stageKey String?
+  serviceKey String?
+  payloadJson String
+  createdAt DateTime @default(now())
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  @@unique([taskId, seq])
+}
+
+model LogArchive {
+  id String @id @default(cuid())
+  taskId String
+  stageKey String
+  serviceKey String @default("")
+  relativePath String
+  bytes Int @default(0)
+  complete Boolean @default(false)
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  @@unique([taskId, stageKey, serviceKey])
+}
+
+model ResourceLease {
+  id String @id @default(cuid())
+  taskId String
+  provider String
+  leaseRef String
+  status String
+  detailJson String?
+  updatedAt DateTime @updatedAt
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  @@unique([taskId, provider, leaseRef])
+}
+
+model Audit {
+  id String @id @default(cuid())
+  workspaceId String
+  actorId String
+  requestId String
+  action String
+  resourceType String
+  resourceId String
+  outcome String
+  createdAt DateTime @default(now())
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  actor Actor @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  @@index([workspaceId, createdAt])
+}

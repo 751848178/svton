@@ -1,118 +1,70 @@
-// Source materialization (F07 id containment, F08 token redaction, F23 per-invocation fetch auth, F24 ref resolution).
-
+// Materialize immutable source input under the Agent-owned source root.
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir, realpath, rm } from 'node:fs/promises';
 import path from 'node:path';
-import { exec } from '../shared/exec.js';
 import type { BuildSource } from '../shared/types.js';
-
-type Log = (line: string) => void;
+import { assertSupportedGitTree, gitCommand, requireGit, type GitCommand } from './git-command.js';
+import { secretLog, type SecretLog } from './log-secrets.js';
 
 const TARBALL_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const SHA_RE = /^[0-9a-f]{7,40}$/;
 
-const REDACT = (s: string) => s.replace(/(https?:\/\/)[^@/\s]+@/g, '$1***@');
-
-async function git(log: Log, args: string[], timeoutMs: number): Promise<void> {
-  const r = await exec('git', args, { timeoutMs, onLine: (l) => log(l) });
-  if (r.code !== 0) throw new Error(`git ${REDACT(args.join(' '))} failed (exit ${r.code})`);
+async function refExists(git: GitCommand, dir: string, rev: string): Promise<boolean> {
+  const result = await git.run(['-C', dir, 'rev-parse', '--verify', '--quiet', rev], 15_000);
+  return result.code === 0;
+}
+async function resolveRef(git: GitCommand, dir: string, ref: string): Promise<string> {
+  if (SHA_RE.test(ref) && await refExists(git, dir, `${ref}^{commit}`)) return ref;
+  if (await refExists(git, dir, `origin/${ref}`)) return `origin/${ref}`;
+  if (await refExists(git, dir, `refs/tags/${ref}`)) return `refs/tags/${ref}`;
+  throw new Error('Git ref not found as commit, branch or tag after fetch');
 }
 
-function authUrl(repo: string, token: string | undefined): string {
-  if (!token || !repo.startsWith('http')) return repo;
-  try {
-    const u = new URL(repo);
-    u.username = 'x-access-token';
-    u.password = token;
-    return u.toString();
-  } catch {
-    return repo;
-  }
-}
-
-async function refExists(dir: string, rev: string): Promise<boolean> {
-  const r = await exec('git', ['-C', dir, 'rev-parse', '--verify', '--quiet', rev], { timeoutMs: 15_000 });
-  return r.code === 0;
-}
-
-/** commit > remote branch > tag; unknown refs fail with a clear message (F24). */
-async function resolveRef(log: Log, dir: string, ref: string): Promise<string> {
-  if (SHA_RE.test(ref) && (await refExists(dir, `${ref}^{commit}`))) return ref;
-  if (await refExists(dir, `origin/${ref}`)) return `origin/${ref}`;
-  if (await refExists(dir, `refs/tags/${ref}`)) return `refs/tags/${ref}`;
-  throw new Error(`ref '${ref}' not found as commit/branch/tag after fetch`);
-}
-
-export async function ensureSource(
-  workRoot: string,
-  source: BuildSource,
-  log: Log,
-): Promise<{ dir: string; sha?: string }> {
+export async function ensureSource(workRoot: string, source: BuildSource, inputLog: SecretLog): Promise<{ dir: string; sha?: string }> {
   const sourcesRoot = path.join(workRoot, 'sources');
   await mkdir(sourcesRoot, { recursive: true });
   const rootReal = await realpath(sourcesRoot);
-
   if (source.type === 'tarball') {
     if (!TARBALL_ID_RE.test(source.id)) throw new Error(`invalid tarball source id '${source.id}'`);
     const dir = path.join(sourcesRoot, `tar-${source.id}`);
     const real = await realpath(dir).catch(() => null);
-    if (!real || !real.startsWith(rootReal + path.sep)) {
-      throw new Error(`tarball source ${source.id} not found (upload it first via POST /api/sources)`);
-    }
+    if (!real || !real.startsWith(rootReal + path.sep)) throw new Error(`tarball source ${source.id} not found (upload it first via POST /api/sources)`);
     return { dir };
   }
-
-  const repo = source.repo;
-  const secrets = source.token ? [source.token, encodeURIComponent(source.token)] : [];
-  const redact = (line: string) => secrets.reduce((text, secret) => text.split(secret).join('***'), REDACT(line));
-  const rawLog = log;
-  log = (line) => rawLog(redact(line));
-  if (!/^https?:\/\//.test(repo)) throw new Error(redact(`git repo must be an http(s) URL, got: ${repo}`));
-  const cleanUrl = new URL(repo);
-  const embeddedAuth = !!(cleanUrl.username || cleanUrl.password);
-  if (cleanUrl.password) {
-    secrets.push(cleanUrl.password);
-    try { secrets.push(decodeURIComponent(cleanUrl.password)); } catch { /* already covered literally */ }
-  }
-  cleanUrl.username = ''; cleanUrl.password = '';
-  const cleanRepo = cleanUrl.toString();
+  const log = secretLog(inputLog);
+  if (source.token) log.addSecrets?.([source.token]);
+  if (source.username) log.addSecrets?.([source.username]);
   const ref = source.ref ?? 'HEAD';
-  const key = createHash('sha1').update(`${repo}#${ref}`).digest('hex').slice(0, 12);
+  if (!ref || ref.startsWith('-') || /[\s\0~^:?*\[\\]/.test(ref) || ref.includes('..') || ref.includes('@{') || ref.endsWith('/')) throw new Error('Git ref must be a commit SHA, branch or tag without revision operators');
+  const git = await gitCommand(source.repo, source.token, log, source.username);
+  const key = createHash('sha1').update(`${git.repo}#${ref}`).digest('hex').slice(0, 12);
   const dir = path.join(sourcesRoot, `git-${key}`);
-
-  if (existsSync(path.join(dir, '.git'))) {
-    log(`fetching updates in existing clone of ${repo}`);
-    if (source.token || embeddedAuth) await git(log, ['-C', dir, 'remote', 'set-url', 'origin', cleanRepo], 60_000);
-    // auth URL passed per-invocation and never persisted in .git/config (F23)
-    await git(log, [
-      '-C', dir, 'fetch', '--tags', '--force', authUrl(repo, source.token),
-      '+refs/heads/*:refs/remotes/origin/*', '+refs/tags/*:refs/tags/*',
-    ], 10 * 60_000);
-  } else {
-    log(`cloning ${repo} (ref ${ref})`);
-    try {
-      await git(log, ['clone', authUrl(repo, source.token), dir], 30 * 60_000);
-      if (source.token || embeddedAuth) await git(log, ['-C', dir, 'remote', 'set-url', 'origin', cleanRepo], 60_000);
-    } catch (e) {
-      await rm(dir, { recursive: true, force: true });
-      throw e;
+  let cloning = false;
+  try {
+    const real = await realpath(dir).catch(() => null);
+    if (real && !real.startsWith(rootReal + path.sep)) throw new Error('Git source cache escapes the Agent source root');
+    if (existsSync(path.join(dir, '.git'))) {
+      log(`fetching updates from ${git.repo}`);
+      await requireGit(git, ['-C', dir, 'remote', 'set-url', 'origin', git.repo]);
+      await requireGit(git, ['-C', dir, 'fetch', '--tags', '--force', git.repo,
+        '+refs/heads/*:refs/remotes/origin/*', '+refs/tags/*:refs/tags/*'], 10 * 60_000);
+    } else {
+      cloning = true;
+      log(`cloning ${git.repo}`);
+      await requireGit(git, ['clone', '--no-checkout', '--no-recurse-submodules', '--', git.repo, dir], 10 * 60_000);
     }
-  }
-
-  let target: string;
-  if (ref === 'HEAD') {
-    await git(log, ['-C', dir, 'remote', 'set-head', 'origin', '--auto'], 60_000);
-    target = 'origin/HEAD';
-  } else {
-    target = await resolveRef(log, dir, ref);
-  }
-  await git(log, ['-C', dir, 'checkout', '--detach', '--force', target], 60_000);
-
-  const shaR = await exec('git', ['-C', dir, 'rev-parse', 'HEAD'], { timeoutMs: 15_000 });
-  return { dir, sha: shaR.code === 0 ? shaR.stdout.trim() : undefined };
+    if (ref === 'HEAD') await requireGit(git, ['-C', dir, 'remote', 'set-head', 'origin', '--auto']);
+    const target = ref === 'HEAD' ? 'origin/HEAD' : await resolveRef(git, dir, ref);
+    await requireGit(git, ['-C', dir, 'checkout', '--detach', '--force', target]);
+    await assertSupportedGitTree(git, dir);
+    const sha = (await requireGit(git, ['-C', dir, 'rev-parse', 'HEAD'], 15_000)).stdout.trim();
+    if (!/^[0-9a-f]{40}$/.test(sha)) throw new Error('Git did not return a full commit SHA');
+    return { dir, sha };
+  } catch (error) {
+    if (cloning) await rm(dir, { recursive: true, force: true });
+    throw error;
+  } finally { await git.cleanup(); }
 }
 
-export function newTarballId(): string {
-  return randomUUID();
-}
+export function newTarballId(): string { return randomUUID(); }

@@ -16,7 +16,10 @@ function load(path, require = nativeRequire) {
   return exports;
 }
 const presentation = load('lib/presentation.ts');
-const { RuntimeHistory } = load('components/runtime-history.tsx', name => name === '@/lib/presentation' ? presentation : nativeRequire(name));
+const { ConfigReference } = load('components/config-reference.tsx');
+const { SourceReference } = load('components/source-reference.tsx');
+const { HistoryInputs } = load('components/history-inputs.tsx', name => name === './config-reference' ? { ConfigReference } : name === './source-reference' ? { SourceReference } : nativeRequire(name));
+const { RuntimeHistory } = load('components/runtime-history.tsx', name => name === '@/lib/presentation' ? presentation : name === './history-inputs' ? { HistoryInputs } : nativeRequire(name));
 const failedTask = { id: 'failed-task', version: '9.9.9', remoteReleaseId: null };
 const item = overrides => ({ releaseId: 'first-remote', parentReleaseId: null, targetSnapshotId: null, changedServices: ['backend'], createdAt: '2026-10-08T00:00:00Z', rollbackAvailable: false, ...overrides });
 function render(record, tasks, current = record.releaseId) {
@@ -47,4 +50,10 @@ test('an unknown remote ID reports an unassociated task without inventing a plat
   assert.match(html, /当前 未关联变更/);
   assert.match(html, /data-label="可恢复的旧快照"><span class="mono">outside-parent<\/span>/);
   assert.doesNotMatch(html, /9\.9\.9/);
+});
+
+test('runtime history presents saved per-service config and source rather than newer project inputs', () => {
+  const html = render(item({ services: { backend: { imageRef: 'repo@sha256:fixed', configRef: { mode: 'version', name: '生产配置', version: '1.2.3', versionId: 'frozen' }, source: { type: 'git', repo: 'https://git.example.com/old.git', ref: 'stable', sha: 'saved-sha' } }, admin: { imageRef: 'repo@sha256:old' } } }), []);
+  assert.match(html, /生产配置 · 1\.2\.3/); assert.match(html, /saved-sha/); assert.match(html, /old\.git/);
+  assert.match(html, /历史文件配置（未记录版本关联）/); assert.match(html, /此记录未保存源码来源/);
 });

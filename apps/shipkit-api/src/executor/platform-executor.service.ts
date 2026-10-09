@@ -6,11 +6,12 @@ export class PlatformExecutorService implements ExecutorPort {
   private async executor(): Promise<ExecutorPort> {
     return await import('shipkit/platform') as unknown as ExecutorPort;
   }
-  inspectProject: ExecutorPort['inspectProject'] = async (input) => (await this.executor()).inspectProject(input);
+  inspectProject: ExecutorPort['inspectProject'] = async (input, options) => (await this.executor()).inspectProject(input, options);
+  resolveRepositorySource: ExecutorPort['resolveRepositorySource'] = async (source, options) => (await this.executor()).resolveRepositorySource(source, options);
   listProjectAgentConnections: ExecutorPort['listProjectAgentConnections'] = async (input) => (await this.executor()).listProjectAgentConnections(input);
   checkProjectAgentConnection: ExecutorPort['checkProjectAgentConnection'] = async (input, locator, endpoint) => (await this.executor()).checkProjectAgentConnection(input, locator, endpoint);
   diagnoseProject: ExecutorPort['diagnoseProject'] = async (input) => (await this.executor()).diagnoseProject(input);
-  preparePlan: ExecutorPort['preparePlan'] = async (input, request) => (await this.executor()).preparePlan(input, request);
+  preparePlan: ExecutorPort['preparePlan'] = async (input, request, options) => (await this.executor()).preparePlan(input, request, options);
   executeTask: ExecutorPort['executeTask'] = async (input, plan, hooks) => (await this.executor()).executeTask(input, plan, hooks);
   reconcileTask: ExecutorPort['reconcileTask'] = async (input, jobs, hooks) => (await this.executor()).reconcileTask(input, jobs, hooks);
   archiveForCleanup: ExecutorPort['archiveForCleanup'] = async (input, refs, hooks, plan, expectedLeaseRef) => (await this.executor()).archiveForCleanup(input, refs, hooks, plan, expectedLeaseRef);

@@ -35,7 +35,10 @@ export class TaskRepository {
         if (plan.expiresAt.getTime() <= Date.now()) throw new ConflictException({ code: 'PLAN_EXPIRED', message: '发布计划已过期，请重新核对' });
         const previous = await tx.task.findFirst({ where: { projectId, activeScope: null, cleanupState: { in: ['failed', 'releasing', 'pending', 'unknown'] } } });
         if (previous) throw new ConflictException('项目存在待处理临时资源，请先重试释放');
-        const snapshot = JSON.parse(plan.snapshotJson) as { detail?: { projectIdentity?: string } };
+        const snapshot = JSON.parse(plan.snapshotJson) as { detail?: { projectIdentity?: string; sourceSnapshot?: { sourceRevision?: number | string } } };
+        if (plan.project.sourceKind === 'repository' && plan.kind === 'release' && snapshot.detail?.sourceSnapshot?.sourceRevision !== plan.project.sourceRevision) {
+          throw new ConflictException('仓库设置已变化，请重新核对计划');
+        }
         const identity = snapshot.detail?.projectIdentity ?? plan.project.projectIdentity;
         const version = await allocateTaskVersion(tx, projectId, plan.version);
         const task = await tx.task.create({ data: {

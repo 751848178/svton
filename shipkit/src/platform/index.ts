@@ -1,4 +1,10 @@
 export * from './contracts.js';
+export * from './repository-contracts.js';
+export * from './private-snapshot.js';
+export { serializeRuntimeEnv, parseRuntimeEnv } from '../shared/runtime-env.js';
+export type { GroupConfigRef, RuntimeConfigMode } from '../shared/group-protocol.js';
+export { resolveRepositorySource } from './repository-source.js';
+export { captureProject } from './capture-project.js';
 export { inspectProject } from './inspect-project.js';
 export { diagnoseProject } from './diagnose-project.js';
 export { preparePlan, fetchHistory } from './prepare-plan.js';

@@ -26,7 +26,7 @@ export function ProjectOverview({ project, live, onBack, onRelease, onHistory, o
     {!live.runtime.check.ok && <p className="notice-message">运行 Agent 检查失败：{live.runtime.check.error || '连接不可用'}。当前服务状态尚未确认。</p>}
     <div className="detail-grid"><section className="panel"><div className="panel-head"><h2>当前应用服务</h2><span className="subtle">{live.services.length} 个服务</span></div><ServiceTable project={project} live={live} /><div className="panel-body subtle">点击服务名，在新标签页打开服务入口。未选择的服务沿用当前版本。</div></section><ProjectConfigPanel project={project} live={live} /></div>
     <section className="panel recent-panel"><div className="panel-head"><h2>最近发布</h2><button className="button ghost small" onClick={onHistory}>全部记录</button></div><div className="recent-release">
-      {latest ? <><Status value={latest.status} /><div><button className="task-link task-id" onClick={() => onTask(latest)} title={`任务 ID：${latest.id}`}>{latest.version}</button><p className="subtle">{latest.kind === 'rollback' ? '历史快照回滚' : '应用发布'} · {time(latest.createdAt)}</p></div></> : <p className="subtle">本平台尚无发布记录。</p>}
+      {latest ? <><Status value={latest.status} /><div><button className="task-link task-id" onClick={() => onTask(latest)} title={`任务 ID：${latest.id}`}>{latest.version}</button><p className="subtle">{latest.kind === 'rollback' ? '历史快照回滚' : latest.kind === 'config-only' ? '运行配置发布' : '应用发布'} · {time(latest.createdAt)}</p></div></> : <p className="subtle">本平台尚无发布记录。</p>}
     </div></section>
   </>;
 }

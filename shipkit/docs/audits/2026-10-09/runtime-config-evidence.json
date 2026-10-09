@@ -1,0 +1,15 @@
+{
+  "fixture": "isolated public nginx with seeded test provenance",
+  "image": "nginx@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2",
+  "checks": [
+    "initial two-service HTTP probes passed",
+    "configuration-only reused exact digest and provenance; no Builder available; four build stages skipped",
+    "partial update preserved web version and exact container env special characters",
+    "saved connection snapshot ignored edited connection file",
+    "short environment values preserve Job protocol; env values overlapping control URL/digest preserve durable mappings",
+    "Agent restart and controller reconciliation recover exact job and release from saved mappings or no saved job IDs",
+    "explicit noEnv cleared variables without losing configRef",
+    "historical rollback restored api env and configRef while preserving web",
+    "runtime journal and public execution events contain neither old nor new secret values"
+  ]
+}

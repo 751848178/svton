@@ -1,0 +1,90 @@
+import 'reflect-metadata';
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { randomBytes } from 'node:crypto';
+import { rm, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { databaseFixture } from '../testing/database.fixture.js';
+import { LocalPolicyService } from '../policy/local-policy.service.js';
+import type { RequestContext } from '../policy/request-context.js';
+import { SecretStore } from '../secrets/secret-store.js';
+import { assertNoEncryptedData } from '../secrets/key-init.guard.js';
+import { ConfigPrivateService, draftScope, versionScope } from './config-private.service.js';
+import { ConfigRepository } from './config.repository.js';
+import { ConfigService } from './config.service.js';
+
+test('encrypted config drafts freeze atomically, bind immutable versions, and preserve secret/private boundaries', async () => {
+  const fixture = await databaseFixture(), original = process.env.SHIPKIT_SECRET_KEY_FILE;
+  const keyFile = path.join(fixture.directory, 'key.json');
+  process.env.SHIPKIT_SECRET_KEY_FILE = keyFile;
+  const { db } = fixture;
+  const context: RequestContext = { actorId: 'local-controller', workspaceId: 'local', requestId: 'config-test', source: 'session', sessionId: 'test' };
+  const secret = 'isolated-config-test-secret';
+  try {
+    await assertNoEncryptedData();
+    await writeFile(keyFile, JSON.stringify({ version: 1, activeKeyId: 'test', keys: { test: randomBytes(32).toString('base64') } }), { mode: 0o600 });
+    const project = await db.project.create({ data: { workspaceId: 'local', name: 'Test', rootPath: fixture.directory, configPath: path.join(fixture.directory, 'config.json'), targetKey: 'prod', projectIdentity: 'config-test', createdByActorId: 'local-controller', targets: { create: [{ targetKey: 'prod' }, { targetKey: 'test' }] }, services: { create: [{ serviceKey: 'api' }, { serviceKey: 'web' }] } } });
+    const repository = new ConfigRepository(db, new LocalPolicyService()), secrets = new SecretStore();
+    const privateStore = new ConfigPrivateService(repository, secrets), configs = new ConfigService(repository, privateStore);
+    await assert.rejects(configs.create(project.id, 'unregistered', { name: 'No' }, context), /环境未/);
+    await assert.rejects(configs.create(project.id, 'prod', { name: 'No' }, { ...context, workspaceId: 'other' }), /项目不存在/);
+    await assert.rejects(configs.create(project.id, 'prod', { name: 'No' }, { ...context, source: 'loopback' }), /登录会话/);
+    const created = await configs.create(project.id, 'prod', { name: 'Production', defaults: [{ key: 'COMMON', value: '$# \"\\', secret: false }], services: [
+      { serviceKey: 'api', variables: [{ key: 'PRIVATE', value: secret }, { key: 'EMPTY', value: '', secret: false }] },
+      { serviceKey: 'web', noEnv: true },
+    ] }, context);
+    assert(!JSON.stringify(created).includes(secret));
+    const storedDraft = await db.configDraft.findUniqueOrThrow({ where: { id: created.id } });
+    assert(!storedDraft.servicesJson.includes(secret));
+    await assert.rejects(assertNoEncryptedData(), /Encrypted data/);
+    const updated = await configs.update(project.id, 'prod', created.id, { etag: created.etag, services: [{ serviceKey: 'api', variables: [{ key: 'PRIVATE' }, { key: 'VISIBLE', value: "it's $cash #literal", secret: false }] }] }, context);
+    assert.equal(updated.etag, 2);
+    await assert.rejects(configs.update(project.id, 'prod', created.id, { etag: 1 }, context), /草稿已改变/);
+    const raced = await Promise.allSettled([configs.freeze(project.id, 'prod', created.id, { etag: 2, version: '0.0.1' }, context), configs.freeze(project.id, 'prod', created.id, { etag: 2, version: '0.0.1' }, context)]);
+    assert.equal(raced.filter((result) => result.status === 'fulfilled').length, 1);
+    const frozen = raced.find((result) => result.status === 'fulfilled')! as PromiseFulfilledResult<Awaited<ReturnType<ConfigService['freeze']>>>;
+    const version = frozen.value;
+    assert(!JSON.stringify(version).includes(secret));
+    await assert.rejects(configs.update(project.id, 'prod', created.id, { etag: 2 }, context), /冻结/);
+    const storedVersion = await db.configVersion.findUniqueOrThrow({ where: { id: version.id } });
+    assert.notEqual(storedVersion.servicesJson, storedDraft.servicesJson);
+    assert.throws(() => secrets.open(storedVersion.servicesJson, draftScope(storedDraft)), /密文无法验证/);
+    const plain = secrets.open<Record<string, { variables: Record<string, { value: string }> }>>(storedVersion.servicesJson, versionScope(storedVersion));
+    assert.equal(plain.api!.variables.PRIVATE!.value, secret);
+    assert.equal(plain.api!.variables.COMMON!.value, '$# \"\\');
+    const resolved = await configs.resolve(project.id, 'prod', version.id, ['api', 'web']);
+    const { parseRuntimeEnv } = await import('shipkit/platform');
+    assert.equal(parseRuntimeEnv(resolved.envFiles.api!)!.PRIVATE, secret);
+    assert.equal(parseRuntimeEnv(resolved.envFiles.api!)!.EMPTY, '');
+    assert.equal(parseRuntimeEnv(resolved.envFiles.api!)!.VISIBLE, "it's $cash #literal");
+    assert.deepEqual(resolved.noEnvServices, ['web']); assert(!Object.hasOwn(resolved.envFiles, 'web'));
+    assert(resolved.redactionValues.includes(secret));
+    assert.equal(resolved.configRefs.api!.versionId, version.id);
+    assert.equal(resolved.fingerprint, storedVersion.fingerprint);
+    await assert.rejects(configs.resolve(project.id, 'test', version.id, ['api']), /版本不存在/);
+    await assert.rejects(configs.resolve(project.id, 'prod', version.id, ['missing']), /覆盖/);
+    const fork = await configs.create(project.id, 'prod', { name: 'Next', baseVersionId: version.id, services: [{ serviceKey: 'api', variables: [{ key: 'PRIVATE', value: 'replacement-isolated-secret' }, { key: 'VISIBLE', delete: true }] }] }, context);
+    const diff = await configs.preview(project.id, 'prod', fork.id, context);
+    assert.deepEqual(diff.services.api!.changed, ['PRIVATE']); assert.deepEqual(diff.services.api!.removed, ['VISIBLE']);
+    assert(!JSON.stringify(diff).includes(secret));
+    const conflict = await configs.create(project.id, 'prod', { name: 'Collision', baseVersionId: version.id }, context);
+    await assert.rejects(configs.freeze(project.id, 'prod', conflict.id, { etag: 1, version: '0.0.1' }, context), /版本号已经/);
+    assert.equal((await configs.draft(project.id, 'prod', conflict.id, context)).status, 'draft');
+    await configs.archive(project.id, 'prod', version.id, context);
+    await assert.rejects(configs.resolve(project.id, 'prod', version.id, ['api']), /已归档/);
+    assert.equal((await configs.resolve(project.id, 'prod', version.id, ['api'], { allowArchived: true })).configRefs.api!.versionId, version.id);
+    for (const value of ['*****', 'multiline\nvalue', 'nul\0value']) await assert.rejects(configs.update(project.id, 'prod', fork.id, { etag: fork.etag, services: [{ serviceKey: 'api', variables: [{ key: 'BAD', value }] }] }, context));
+    const empty = await configs.create(project.id, 'prod', { name: 'Explicit', services: [{ serviceKey: 'api' }] }, context);
+    await assert.rejects(configs.freeze(project.id, 'prod', empty.id, { etag: 1, version: '0.0.2' }, context), /明确声明/);
+    const safeEmpty = await configs.update(project.id, 'prod', empty.id, { etag: 1, services: [{ serviceKey: 'api', noEnv: true }] }, context);
+    await configs.freeze(project.id, 'prod', empty.id, { etag: safeEmpty.etag, version: '0.0.2' }, context);
+    const audits = await db.audit.findMany({ where: { resourceType: 'config' } });
+    assert(audits.every((audit) => audit.actorId === context.actorId && audit.workspaceId === context.workspaceId));
+    assert(!JSON.stringify(audits).includes(secret));
+    await rm(keyFile);
+    await assert.rejects(configs.version(project.id, 'prod', version.id, context), /主密钥不可用/);
+  } finally {
+    if (original === undefined) delete process.env.SHIPKIT_SECRET_KEY_FILE; else process.env.SHIPKIT_SECRET_KEY_FILE = original;
+    await fixture.dispose();
+  }
+});

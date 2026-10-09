@@ -24,12 +24,14 @@ const FX = {
   failUpFor: null as null | string,
   /** called on every docker pull — lets a test flip ownership DURING the pull window */
   onPull: null as null | (() => void),
+  logText: '',
 };
 mock.module('../shared/exec.js', {
   namedExports: {
     ...realExec,
     exec: async (cmd: string, args: string[], opts?: unknown) => {
       if (cmd !== 'docker') return realExec.exec(cmd, args, opts as never);
+      if (FX.logText) (opts as import('../shared/exec.js').ExecOptions | undefined)?.onLine?.(FX.logText, 'err');
       const ok = (stdout = '') => ({ code: 0, stdout, stderr: '', truncated: false, timedOut: false });
       const fail = (stderr: string) => ({ code: 1, stdout: '', stderr, truncated: false, timedOut: false });
       if (args[0] === 'pull') {
@@ -107,7 +109,25 @@ const downs = () => FX.compose.filter((c) => c.args.includes('down'));
 
 test.beforeEach(() => {
   FX.containers = []; FX.networks = []; FX.volumes = []; FX.pulls = []; FX.compose = [];
-  FX.failPull = null; FX.failUpFor = null; FX.onPull = null;
+  FX.failPull = null; FX.failUpFor = null; FX.onPull = null; FX.logText = '';
+});
+
+test('actual deploy handler registers old and new env values before activation and failed recovery journaling', async t => {
+  const { appsRoot, cleanup } = await root(); t.after(cleanup);
+  const old = 'fake-old-deploy-value', fresh = 'fake-new-deploy-value';
+  await runGroupDeploy(appsRoot, req({ backend: { imageRef: digest('b') }, admin: { imageRef: digest('a'), envFileContent: `ANY_KEY=${old}\n` } }), log);
+  const { JobStore } = await import('./jobs.js');
+  const jobs = new JobStore(path.dirname(appsRoot));
+  FX.failUpFor = digest('c'); FX.logText = `${old} ${fresh}`;
+  const job = await jobs.create('group-deploy', ctx => runGroupDeploy(appsRoot,
+    req({ admin: { imageRef: digest('c'), envFileContent: `OTHER_KEY=${fresh}\n` } }), ctx.log, ctx), true);
+  for (let i = 0; i < 100 && jobs.activeCount(); i++) await new Promise(resolve => setTimeout(resolve, 5));
+  await jobs.flush(job.id);
+  assert.equal(jobs.get(job.id)!.status, 'failed');
+  const journal = await readFile(path.join(path.dirname(appsRoot), 'jobs', job.id, 'log.txt'), 'utf8');
+  assert.doesNotMatch(journal, /fake-old-deploy-value|fake-new-deploy-value/);
+  assert.match(journal, /\*\*\*/);
+  assert.equal(await readFile(path.join(appsRoot, 'twgg', 'services', 'admin', 'runtime.env'), 'utf8'), `ANY_KEY=${old}\n`);
 });
 
 test('first deploy: full combination deploys each service in its own project; partial selection is refused with zero mutations', async (t) => {

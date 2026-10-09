@@ -107,7 +107,7 @@ export async function switchService(o: ServiceActivation): Promise<void> {
   // mutating step: the pre-flight gate ran before any state was written, but
   // the pull window allows a foreign actor — or a binding edit — to land here
   await assertActivationOwner(o, dir, project);
-  await writeServiceCompose(dir, renderServiceCompose(o.group, o.service, o.entry.imageRef, o.entry.spec, o.entry.env !== undefined));
+  await writeServiceCompose(dir, renderServiceCompose(o.group, o.service, o.entry.imageRef, o.entry.spec, o.entry.env !== undefined, o.entry.env));
   const envFile = path.join(dir, 'runtime.env');
   if (o.entry.env !== undefined) {
     await writeFileAtomic(envFile, o.entry.env.endsWith('\n') ? o.entry.env : `${o.entry.env}\n`, 0o600);

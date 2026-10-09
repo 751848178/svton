@@ -1,4 +1,5 @@
-import { Inject, Injectable, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
+import { storedProjectInput } from '../projects/project-source.service.js';
+import { Inject, Injectable, OnApplicationBootstrap, OnModuleDestroy, Optional } from '@nestjs/common';
 import type { ExecutionOutcome } from 'shipkit/platform';
 import { PlatformExecutorService } from '../executor/platform-executor.service.js';
 import type { ExecutionHooks, ExecutionPlan, RemoteJobRef } from '../executor/executor.port.js';
@@ -8,6 +9,7 @@ import { TaskRepository, type StoredTask } from './task.repository.js';
 import { TaskEventService } from './task-event.service.js';
 import { TaskLogService } from './task-log.service.js';
 import { finalizeStages } from './stage-finalization.repository.js';
+import { PlanInputService } from './plan-input.service.js';
 
 @Injectable()
 export class TaskRunnerService implements OnApplicationBootstrap, OnModuleDestroy {
@@ -18,6 +20,7 @@ export class TaskRunnerService implements OnApplicationBootstrap, OnModuleDestro
     @Inject(PlatformExecutorService) private readonly executor: PlatformExecutorService,
     @Inject(TaskEventService) private readonly events: TaskEventService,
     @Inject(TaskLogService) private readonly logs: TaskLogService,
+    @Optional() @Inject(PlanInputService) private readonly inputs?: PlanInputService,
   ) {}
   onApplicationBootstrap(): void {
     void this.reconcile().catch(() => undefined);
@@ -44,8 +47,8 @@ export class TaskRunnerService implements OnApplicationBootstrap, OnModuleDestro
     if (this.running.has(task.id)) return;
     this.running.add(task.id);
     const hooks = this.hooks(task.id);
-    const input = { ...task.project, targetKey: task.plan.targetKey };
     try {
+      const input = this.inputs?.taskInput(task) ?? storedProjectInput(task.project, task.plan.targetKey);
       if (!reconcile) await this.repository.db.task.update({ where: { id: task.id }, data: { status: task.status === 'cancel-requested' ? task.status : 'running', startedAt: new Date() } });
       const result = reconcile
         ? await this.executor.reconcileTask(input, task.remoteJobs.map((job) => ({ ...job, stageKey: job.stageKey, serviceKey: job.serviceKey || undefined })) as RemoteJobRef[], hooks)

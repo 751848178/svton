@@ -24,6 +24,7 @@ import { pullServiceImage, switchService, verifyExternalBindings, verifyService 
 import { recoverServices, type RecoveryOutcome } from './group-recovery.js';
 import type { JobContext } from './jobs.js';
 import { JobCancelled, type JobControl } from './job-control.js';
+import { secretLog } from './log-secrets.js';
 
 type Log = JobContext['log'];
 
@@ -49,6 +50,8 @@ export function describeRecovery(outcome: RecoveryOutcome, switchedCount: number
 }
 
 export async function runGroupDeploy(appsRoot: string, req: GroupDeployRequest, log: Log, control?: JobControl): Promise<GroupDeployResult> {
+  log = secretLog(log);
+  for (const change of Object.values(req.changed)) log.addEnv?.(change.envFileContent);
   const spec = validateProjectSpec(req.spec);
   if (spec.name !== req.app) throw new Error(`spec.name '${spec.name}' must equal the group name '${req.app}'`);
   const store = new GroupStore(appsRoot);
@@ -72,6 +75,7 @@ export async function runGroupDeploy(appsRoot: string, req: GroupDeployRequest, 
 
     control?.checkpoint();
     const current: GroupRelease | null = before.current ? await store.loadRelease(req.app, before.current) : null;
+    for (const entry of Object.values(current?.services ?? {})) log.addEnv?.(entry.env);
     const { combination, changedServices } = mergeCombination({ group: req.app, specs: spec.services, changed: req.changed, current });
     const inheritedServices = Object.keys(combination).filter((s) => !changedServices.includes(s));
     log(`group ${req.app}: changing [${changedServices.join(', ')}], inheriting [${inheritedServices.join(', ')}]`);

@@ -84,7 +84,7 @@ export async function resolveTargetToken(t: TargetConfig, at = 'target'): Promis
   const hasToken = typeof t.token === 'string' && t.token.length > 0;
   const hasRef = typeof t.tokenRef === 'string' && t.tokenRef.length > 0;
   if (hasToken && hasRef) throw new ConfigError(`${at}: token and tokenRef are mutually exclusive — keep exactly one`);
-  if (hasToken) return { url: t.url, token: t.token!, via: 'plaintext' };
+  if (hasToken) return { url: t.url, token: t.token!, via: 'plaintext', ...(t.caFile ? { caFile: t.caFile } : {}) };
   if (!hasRef) throw new ConfigError(`${at}.token is required (or use tokenRef + \`ship pair\`)`);
   const ref = t.tokenRef!;
   if (!REF_RE.test(ref)) throw new ConfigError(`${at}.tokenRef '${ref}' is not a valid credential name`);

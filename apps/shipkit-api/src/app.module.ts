@@ -25,13 +25,20 @@ import { AuthSettings } from './auth/settings.js';
 import { SessionStore } from './auth/session-store.js';
 import { LoginBudget } from './auth/login-budget.js';
 import { AccountAdmin } from './auth/accounts.js';
+import { configControllers, configProviders } from './configs/config.module.js';
+import { ProjectSourceService } from './projects/project-source.service.js';
+import { RepositoryProjectService } from './projects/repository-project.service.js';
+import { ProjectRepositoryController, RepositoryPreviewController } from './projects/repository.controller.js';
+import { PlanInputService } from './tasks/plan-input.service.js';
 
 @Module({
   imports: [HttpModule.forRoot({ enableResponseInterceptor: false, enableExceptionFilter: false })],
-  controllers: [ProjectController, TaskController, AgentController, AuthController, HealthController],
+  controllers: [ProjectController, TaskController, AgentController, AuthController, HealthController,
+    RepositoryPreviewController, ProjectRepositoryController, ...configControllers],
   providers: [DatabaseService, PlatformExecutorService, LocalPolicyService, ProjectRepository, ProjectService, PlanService,
     TaskRepository, TaskEventService, TaskLogService, TaskRunnerService, TaskService, AgentService,
     AuthService, AuthSettings, SessionStore, LoginBudget, AccountAdmin,
+    ProjectSourceService, RepositoryProjectService, PlanInputService, ...configProviders,
     { provide: APP_GUARD, useClass: LocalRequestGuard }, { provide: APP_FILTER, useClass: ApiErrorFilter }],
 })
 export class AppModule {}

@@ -2,17 +2,28 @@
 import { appendFile, mkdir, open, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import type { JobEvent, JobEventsPage, JobLogPage } from '../shared/job-protocol.js';
+import { SecretValues, type SecretLog } from './log-secrets.js';
+import { sanitizeJob, sanitizeJobEvent } from './job-protocol-sanitizer.js';
+import { sanitizeJobResult } from './job-result-sanitizer.js';
+import type { Job, JobType } from '../shared/job-protocol.js';
 export class JobJournal {
   private pending = Promise.resolve();
   private seq = 0;
+  private readonly secrets = new SecretValues();
+  readonly log: SecretLog = Object.assign((line: string) => this.append('log.txt', `${this.secrets.redact(line)}\n`), {
+    addEnv: (content: string | undefined) => this.secrets.addEnv(content),
+    addSecrets: (values: string[]) => this.secrets.add(values),
+  });
+  redactText(value: string): string { return this.secrets.redact(value); }
+  sanitizeJob(job: Job): Job { return sanitizeJob(job, this.secrets); }
+  sanitizeResult(type: JobType, value: unknown): unknown { return sanitizeJobResult(type, value, this.secrets); }
   constructor(private readonly dir: string) {}
   async load(): Promise<void> {
     const data = await readFile(path.join(this.dir, 'events.jsonl'), 'utf8').catch(() => '');
     for (const line of data.split('\n').filter(Boolean)) this.seq = Math.max(this.seq, (JSON.parse(line) as JobEvent).seq);
   }
-  log(line: string): void { this.append('log.txt', `${line}\n`); }
   event(event: Omit<JobEvent, 'seq' | 'ts'>): void {
-    this.append('events.jsonl', `${JSON.stringify({ ...event, seq: ++this.seq, ts: new Date().toISOString() })}\n`);
+    this.append('events.jsonl', `${JSON.stringify(sanitizeJobEvent({ ...event, seq: ++this.seq, ts: new Date().toISOString() }, this.secrets))}\n`);
   }
   private append(file: string, text: string): void {
     this.pending = this.pending.then(async () => {

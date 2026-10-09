@@ -11,8 +11,9 @@ export function taskView(task: Task & { plan?: Plan }): Record<string, unknown> 
   });
 }
 export function planView(plan: Plan, taskVersion?: string): Record<string, unknown> {
-  const snapshot = decodeJson(plan.snapshotJson) as { detail: unknown; sourceMode: string; keepEnv: boolean; keepBuilder: boolean };
-  return { id: plan.id, version: taskVersion ?? plan.version, kind: plan.kind, baseReleaseId: plan.baseReleaseId, selection: decodeJson(plan.selectionJson), expiresAt: plan.expiresAt, detail: snapshot.detail, sourceMode: snapshot.sourceMode, keepEnv: snapshot.keepEnv, keepBuilder: snapshot.keepBuilder };
+  const snapshot = decodeJson(plan.snapshotJson) as { detail: unknown; sourceMode: string; keepEnv: boolean; keepBuilder: boolean; configMode?: string; configBindings?: unknown };
+  return { id: plan.id, version: taskVersion ?? plan.version, kind: plan.kind, baseReleaseId: plan.baseReleaseId, selection: decodeJson(plan.selectionJson), expiresAt: plan.expiresAt, detail: snapshot.detail, sourceMode: snapshot.sourceMode, keepEnv: snapshot.keepEnv, keepBuilder: snapshot.keepBuilder,
+    configMode: snapshot.configMode, configVersionId: plan.configVersionId, configBindings: snapshot.configBindings };
 }
 export function stageView(stage: Stage): Record<string, unknown> {
   return { stageKey: stage.stageKey, serviceKey: stage.serviceKey || null, attempt: stage.attempt, status: stage.status, detail: decodeJson(stage.detailJson), updatedAt: stage.updatedAt };

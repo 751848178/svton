@@ -30,7 +30,7 @@ export function renderComposeFile(app: string, imageRef: string, spec: ShipSpec,
 }
 
 export async function writeComposeFile(appDir: string, content: string): Promise<void> {
-  await writeFileAtomic(path.join(appDir, 'compose.yaml'), content);
+  await writeFileAtomic(path.join(appDir, 'compose.yaml'), content, 0o600);
 }
 
 /** host port explicitly pinned by the operator (healthcheck.hostPort or 'HOST:CONTAINER'); undefined when only dynamic (F26) */

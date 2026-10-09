@@ -1,6 +1,6 @@
 # Git 仓库接入与版本化发布配置
 
-状态：设计提案，尚未实现。源码基线 `49f31106`；本轮只提交设计，不部署或推送。`shipkit/0.0.1` 保留原冻结基线。
+状态：本机实现与隔离验收已完成；浏览器验收待新的接管许可。设计基线 `899f02ee`；本轮不部署生产、不推送。`shipkit/0.0.1` 保留原冻结基线。实际证据见[实施验收报告](audits/2026-10-09/git-source-versioned-config.md)。
 
 ## 目标与推荐边界
 
@@ -53,8 +53,8 @@ flowchart LR
 - `ProjectSource` 为 `directory | repository`：旧目录项目保留 rootPath；仓库项目保存规范化 repoUrl、credentialRef、默认 ref、specPath、来源 revision，不要求用户填写 rootPath。
 - `SourceSnapshot` 保存 repoUrl、specPath、sourceRevision、请求 ref 的类型和值、resolved commit、spec 内容/摘要及发现的服务。Project 可以更新默认 ref；已经核对的计划只引用自己的快照。
 - `RepositorySourceResolver` 归 core `shipkit/src/platform` 所有，API 负责登记/审计/持久化，Web 只调用受控 API。CLI 与平台复用已有 spec 校验、URL 规范化和 Builder Git 管道。
-- 平台使用私有托管缓存自动 fetch，并从固定 SHA 读取定义。单实例首期可用 bare 缓存 + 按 SHA 隔离 checkout 适配现有文件型加载器；缓存是可重建数据，不是用户配置或项目身份。
-- 缓存按仓库加锁，checkout 按 SHA 隔离；无共享可变工作区，无用户任意 shell 指令，受控 Git 配置禁用非必要 hooks/filters。使用中缓存有引用/租约，GC 不得删除活动计划或任务需要的材料。
+- 平台优先调用 GitHub / GitLab / Gitea 元数据 API，只读取提交与该 SHA 的发布定义。generic HTTPS Git 使用受大小与超时限制的临时 shallow fetch，读取后清理；完整源码只在 Builder Agent 拉取。
+- 临时读取使用独立目录，不共享可变工作区；Git 禁用非必要 hooks/filters，认证临时文件在结束后清理。计划保存 SHA 与 spec，不依赖平台仓库缓存长期存在。
 - specPath、Dockerfile、context 均相对仓库根解析，允许 monorepo 的子路径；用现有 `loadSpecAnyFile(repoRoot/specPath)` 读取指定文件，不靠改变 cwd 到 spec 子目录适配。检查真实路径和 symlink，禁止逃逸到仓库外。首期不提供第二套隐含 project-subdir 规则。
 - 服务增删/定义变更必须在计划中核对；正在运行的服务删除继续要求显式迁移，不能由某次 ref 更新静默删除。
 - 登记时固定 `appName=spec.name`；新 ref 改变 appName 拒绝并要求显式迁移，否则会启动新 group 而留下旧容器。登记检查平台已有项目与 Runtime 绑定，避免同一 Runtime/app/env 重复登记；Agent 仍是最终绑定校验者。
@@ -79,7 +79,7 @@ flowchart LR
 
 版本使用“名称 + x.y.z”，例如“生产基础配置 · 0.0.1”，与发布版本独立编号。草稿可修改，用 etag/revision 防止并发覆盖；“冻结为版本”原子分配编号，冻结后不可修改。编辑已有版本创建新草稿；可归档并禁止新计划使用，历史任务引用的版本不得物理删除。
 
-变量以 key/value 表格编辑，支持导入现有 `.env`。公共默认值与服务专属值在冻结时展开成每服务完整 map；服务值覆盖同名公共值，核对页显示最终键集合。秘密标记只影响读取展示；全部值均加密保存。
+变量以 key/value 表格编辑，支持导入单行 `.env`；导入不展开变量，值默认标为秘密。公共默认值与服务专属值在冻结时展开成每服务完整 map；服务值覆盖同名公共值，核对页显示最终键集合。秘密标记只影响读取展示；全部值均加密保存。
 
 变量名校验，重复键拒绝，空字符串有效。set/delete 为明确操作，省略值表示保留已有值，掩码绝不能作为实际值保存。删除公共键与删除覆盖值分别说明结果，不隐含删除已冻结版本。首期仅支持 UTF-8 单行值，拒绝换行/NUL；`.env` 与 Compose 解析的 `$`、`#`、空格、引号、空值必须往返保真，不能靠 shell 拼接或变量展开实现。
 
@@ -132,7 +132,7 @@ API 的 `secrets` 模块单独拥有加密存储与密钥加载，Git 凭据和�
 | --- | --- |
 | 平台启动参数 | 现有私密 EnvironmentFile；不进入业务配置模块 |
 | 项目/源码快照/配置版本/密文 | 现有 `SHIPKIT_DATA_DIR/platform.db`；Prisma 增量迁移 |
-| 仓库缓存 | 数据目录内独立 `sources/`；可重建，GC 不触碰配置与活动引用 |
+| 仓库读取 | Provider API 元数据；generic 临时目录读取后删除。平台不持久托管完整仓库 |
 | 解密/HMAC 密钥 | 数据目录之外的私密 key 文件；独立备份、限制权限，不入 Git |
 | Runtime env 与回滚快照 | Agent 所在机器；与平台 DB 分别备份和验收 |
 
@@ -142,7 +142,7 @@ API 的 `secrets` 模块单独拥有加密存储与密钥加载，Git 凭据和�
 
 ## 实施顺序与验收
 
-本轮以下仅为 planned，不代表已经开发或验收。每个阶段独立提交、风险匹配验证后才进入下一阶段；不改旧 `shipkit/0.0.1` 标签。
+以下为本轮实现范围，具体已通过的检查以验收报告为准；不改旧 `shipkit/0.0.1` 标签。
 
 | 阶段 | 实现切片 | 必须证明的结果 |
 | --- | --- | --- |

@@ -1,4 +1,6 @@
 // Public transport contract; aligned with shipkit/docs/platform-architecture.md.
+import type { RepositoryConnection, RepositoryInput, ServiceSource, SourceRef, SourceSnapshot } from './source-contracts';
+import type { ConfigBinding, ConfigDifference, ConfigMode } from './config-contracts';
 export type StageKey = 'provision' | 'build' | 'push' | 'cleanup' | 'deploy' | 'verify';
 export type TaskStatus = 'queued' | 'running' | 'cancel-requested' | 'succeeded' | 'failed' | 'cancelled' | 'interrupted';
 export interface ServiceMetadata { serviceKey: string; displayName?: string | null; entryUrl?: string | null }
@@ -6,6 +8,10 @@ export interface Project {
   id: string;
   name: string;
   rootPath: string;
+  sourceKind?: 'directory' | 'repository';
+  repository?: RepositoryConnection | null;
+  appName?: string;
+  sourceRevision?: number;
   configPath: string;
   targetKey?: string | null;
   serverName?: string | null;
@@ -17,7 +23,12 @@ export interface Project {
 }
 export interface ProjectRegistration {
   name: string;
-  rootPath: string;
+  rootPath?: string;
+  sourceKind?: 'directory' | 'repository';
+  repository?: RepositoryInput;
+  token?: string;
+  username?: string;
+  expectedCommit?: string;
   configPath: string;
   targetKey?: string;
   serverName?: string;
@@ -25,7 +36,7 @@ export interface ProjectRegistration {
 }
 export interface ProjectPatch { name?: string; serverName?: string | null; targetKey?: string; services?: ServiceMetadata[] }
 export interface AgentCheck { ok: boolean; version?: string; role?: string; docker?: boolean; capabilities?: string[]; error?: string }
-export interface LiveService { serviceKey: string; currentImage: string | null; spec: unknown; hasEnv: boolean }
+export interface LiveService { serviceKey: string; currentImage: string | null; spec: unknown; hasEnv: boolean; configRef?: ConfigBinding }
 export interface LiveProject {
   name: string;
   projectIdentity: string;
@@ -39,13 +50,16 @@ export interface LiveProject {
 }
 export interface PlanRequest {
   version?: string;
-  kind: 'release' | 'rollback';
+  kind: 'release' | 'rollback' | 'config-only';
   services: string[];
   targetKey?: string;
   sourceMode?: 'git' | 'directory';
   changeReleaseId?: string;
   keepEnv?: boolean;
   keepBuilder?: boolean;
+  sourceRef?: SourceRef;
+  configMode?: ConfigMode;
+  configVersionId?: string;
 }
 export interface ReleasePlan {
   firstDeployment: boolean;
@@ -58,8 +72,8 @@ export interface HistoryItem {
   releaseId: string;
   parentReleaseId: string | null;
   changedServices: string[];
-  services: Record<string, { imageRef: string }>;
-  restoreServices?: Record<string, { imageRef: string }>;
+  services: Record<string, { imageRef: string; configRef?: ConfigBinding; source?: ServiceSource | null }>;
+  restoreServices?: Record<string, { imageRef: string; configRef?: ConfigBinding; source?: ServiceSource | null }>;
   createdAt: string;
   rollbackAvailable: boolean;
   reason?: string;
@@ -69,21 +83,23 @@ export interface HistoryView { app: string; current: string | null; items: Histo
 export interface Plan {
   id: string;
   version: string;
-  kind: 'release' | 'rollback';
+  kind: 'release' | 'rollback' | 'config-only';
   baseReleaseId: string | null;
   selection: string[];
   sourceMode?: 'git' | 'directory';
   keepEnv?: boolean;
   keepBuilder?: boolean;
+  configMode?: ConfigMode;
+  configVersionId?: string;
   expiresAt: string;
-  detail: { releasePlan?: ReleasePlan; history?: HistoryItem; sourceDigest?: string; gitRef?: string; targetKey?: string; projectIdentity?: string };
+  detail: { releasePlan?: ReleasePlan; history?: HistoryItem; sourceDigest?: string; gitRef?: string; targetKey?: string; projectIdentity?: string; sourceSnapshot?: SourceSnapshot; currentSources?: Record<string, ServiceSource | null>; configBindings?: Record<string, ConfigBinding>; configDiff?: Record<string, ConfigDifference> };
 }
 export interface Task {
   id: string;
   version: string;
   projectId: string;
   planId: string;
-  kind: 'release' | 'rollback';
+  kind: 'release' | 'rollback' | 'config-only';
   status: TaskStatus;
   phase: string;
   cancelState: string;

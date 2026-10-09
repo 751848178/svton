@@ -7,7 +7,7 @@ import path from 'node:path';
 import type { Logger } from '../shared/log.js';
 import { api } from '../shared/http.js';
 import { createLogger } from '../shared/log.js';
-import type { GroupDeployResult } from '../shared/group-protocol.js';
+import type { GroupDeployResult, GroupConfigRef, RuntimeConfigMode } from '../shared/group-protocol.js';
 import type { GroupDeployRequest } from '../shared/group-protocol.js';
 import type { ProjectSpec } from '../shared/spec-v2.js';
 import type { ShipConfig } from '../shared/types.js';
@@ -28,6 +28,9 @@ export interface GroupDeployPipelineOptions {
   keepEnv?: boolean;
   /** private snapshot read before the build; never included in public output */
   envFiles?: Record<string, string>;
+  configMode?: RuntimeConfigMode;
+  configRefs?: Record<string, GroupConfigRef>;
+  noEnvServices?: string[];
   targetName?: string;
   baseReleaseId?: string | null;
   timeoutMs: number;
@@ -55,6 +58,7 @@ export async function runGroupDeployPipeline(o: GroupDeployPipelineOptions): Pro
   const env = name; // the runtime target IS the environment identity
   const rt = await requireGroupProtocol(target, `runtime.targets.${name}`);
   if (o.baseReleaseId !== undefined) await requireFeature(rt, 'group-baseline-v1');
+  if (o.configRefs && Object.keys(o.configRefs).length) await requireFeature(rt, 'group-config-ref-v1');
 
   const changed: GroupDeployRequest['changed'] = {};
   for (const [svc, built] of Object.entries(o.manifest.services)) {
@@ -73,9 +77,12 @@ export async function runGroupDeployPipeline(o: GroupDeployPipelineOptions): Pro
           : {}),
       },
       ...(o.keepEnv ? { keepEnv: true } : {}),
+      ...(o.configMode ? { configMode: o.configMode } : {}),
+      ...(o.configRefs?.[svc] ? { configRef: o.configRefs[svc] } : {}),
+      ...(o.noEnvServices?.includes(svc) ? { noEnv: true } : {}),
     };
   }
-  const envFiles = o.envFiles ?? readServiceEnvFiles(o.cwd, o.spec, Object.keys(o.manifest.services), Boolean(o.keepEnv));
+  const envFiles = o.envFiles ?? (o.configMode === 'version' ? {} : readServiceEnvFiles(o.cwd, o.spec, Object.keys(o.manifest.services), Boolean(o.keepEnv)));
   for (const [svc, content] of Object.entries(envFiles)) {
     if (changed[svc]) changed[svc].envFileContent = content;
   }

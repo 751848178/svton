@@ -49,6 +49,19 @@ test('Agent global page disables project status and historical task requests eve
   assert.equal(calls[1][2], 0);
 });
 
+test('project source and variable sections are URL-backed child pages and preserve browser-restored scope', () => {
+  let params = new URLSearchParams('view=settings&project=project-a&section=repository');
+  const paths = [];
+  const { useNavigation } = load('hooks/use-navigation.ts', () => ({ useRouter: () => ({ push: value => paths.push(value) }), useSearchParams: () => params }));
+  assert.equal(useNavigation().location.section, 'repository');
+  useNavigation().navigate({ section: 'variables' }); assert.equal(paths[0], '/?view=settings&project=project-a&section=variables');
+  params = new URLSearchParams('view=settings&project=project-b&section=variables&task=stale');
+  assert.equal(useNavigation().location.projectId, 'project-b'); assert.equal(useNavigation().location.taskId, '');
+  useNavigation().navigate({ view: 'overview' }); assert.equal(paths[1], '/?view=overview&project=project-b');
+  params = new URLSearchParams('view=settings&project=project-a&section=repository');
+  assert.equal(useNavigation().location.section, 'repository');
+});
+
 test('resource navigation has its own category, correct active item and case-insensitive agent menu search', () => {
   const { WorkspaceShell } = load('components/workspace-shell.tsx', name => {
     if (name === 'react') return { useState: initial => [initial === '' ? 'agent' : initial, () => {}] };

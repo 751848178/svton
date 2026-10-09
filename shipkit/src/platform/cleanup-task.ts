@@ -8,6 +8,8 @@ import { JobObserver } from './job-observer.js';
 import { discoverJobs } from './reconcile-jobs.js';
 import { loadProject, privateValues, publicUrl } from './project-context.js';
 import type { ExecutionHooks, ExecutionPlan, ProjectInput, RemoteJobRef } from './contracts.js';
+import { assertSnapshotTrust } from './private-fingerprint.js';
+import { isRuntimeOnly } from './execution-kind.js';
 
 /** Archive all task-owned builder evidence before any cleanup may destroy it. */
 export async function archiveForCleanup(
@@ -16,7 +18,9 @@ export async function archiveForCleanup(
 ): Promise<{ archivedJobs: number; leaseRef?: string }> {
   if (!hooks.executionId || !/^[A-Za-z0-9._-]{1,80}$/.test(hooks.executionId)) throw new Error('Cleanup requires a durable task execution ID');
   const c = await loadProject(input, plan?.sourceMode);
-  if (plan?.detail.configDigest && createHash('sha256').update(await readFile(c.configPath)).digest('hex') !== plan.detail.configDigest) {
+  if (c.snapshot) await assertSnapshotTrust(c);
+  if (isRuntimeOnly(c.executionKind ?? plan?.kind)) return { archivedJobs: 0 };
+  if (!c.snapshot && plan?.detail.configDigest && createHash('sha256').update(await readFile(c.configPath)).digest('hex') !== plan.detail.configDigest) {
     throw new Error('Configuration reference changed; refusing cleanup of another builder lease');
   }
   if (c.config.builder.mode === 'static') return { archivedJobs: 0 };

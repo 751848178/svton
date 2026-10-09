@@ -1,0 +1,54 @@
+model Plan {
+  id String @id @default(cuid())
+  projectId String
+  kind String
+  version String?
+  targetKey String
+  baseReleaseId String?
+  selectionJson String
+  privateSnapshot String?
+  configVersionId String?
+  configVersion ConfigVersion? @relation(fields: [configVersionId], references: [id], onDelete: Restrict)
+  snapshotJson String
+  fingerprint String
+  actorId String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  project Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  actor Actor @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  tasks Task[]
+  @@index([projectId, createdAt])
+}
+
+model Task {
+  id String @id @default(cuid())
+  projectId String
+  planId String
+  kind String
+  version String
+  status String @default("queued")
+  phase String @default("provision")
+  cancelState String @default("none")
+  recoveryState String @default("none")
+  cleanupState String @default("pending")
+  activeScope String? @unique
+  idempotencyKey String? @unique
+  actorId String
+  remoteReleaseId String?
+  previousReleaseId String?
+  error String?
+  outputJson String?
+  createdAt DateTime @default(now())
+  startedAt DateTime?
+  finishedAt DateTime?
+  project Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  plan Plan @relation(fields: [planId], references: [id], onDelete: Restrict)
+  actor Actor @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  stages Stage[]
+  remoteJobs RemoteJob[]
+  events Event[]
+  logs LogArchive[]
+  leases ResourceLease[]
+  @@index([projectId, createdAt])
+  @@unique([projectId, version])
+}

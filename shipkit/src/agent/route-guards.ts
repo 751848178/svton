@@ -36,7 +36,7 @@ export function assertMachineCan(role: AgentRole, capability: 'builder' | 'runti
 /** capabilities advertised by /api/status for the authenticated caller (M2-04) */
 export function capabilitiesFor(role: AgentRole): string[] {
   const jobs = [JOB_EVENTS_CAPABILITY, JOB_LOG_CURSOR_CAPABILITY, JOB_CANCELLATION_CAPABILITY, JOB_OPERATION_CAPABILITY];
-  const groups = [GROUP_HISTORY_CAPABILITY, 'group-target-rollback-v1', 'group-baseline-v1'];
+  const groups = [GROUP_HISTORY_CAPABILITY, 'group-target-rollback-v1', 'group-baseline-v1', 'group-config-ref-v1'];
   if (role === 'builder') return ['build', 'push', MULTI_SERVICE_CAPABILITY, ...jobs];
   if (role === 'runtime') return ['deploy', 'rollback', 'gc', DEPLOYMENT_IDENTITY_CAPABILITY, DEPLOYMENT_ENV_CAPABILITY, MULTI_SERVICE_CAPABILITY, ...jobs, ...groups];
   return ['build', 'push', 'deploy', 'rollback', 'gc', DEPLOYMENT_IDENTITY_CAPABILITY, DEPLOYMENT_ENV_CAPABILITY, MULTI_SERVICE_CAPABILITY, ...jobs, ...groups];

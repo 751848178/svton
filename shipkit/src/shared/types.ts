@@ -28,7 +28,7 @@ export interface ShipSpec {
 }
 
 export type BuildSource =
-  | { type: 'git'; repo: string; ref?: string; token?: string }
+  | { type: 'git'; repo: string; ref?: string; token?: string; username?: string }
   | { type: 'tarball'; id: string };
 
 export interface BuildRequest {
@@ -129,6 +129,8 @@ export interface TargetConfig {
   token?: string;
   /** name in ~/.ship/credentials.json written by `ship pair`; mutually exclusive with token */
   tokenRef?: string;
+  /** Frozen resolved trust reference used by private execution snapshots. */
+  caFile?: string;
 }
 
 export interface TencentCvmConfig {
@@ -183,6 +185,6 @@ export interface ShipConfig {
     };
   };
   registry?: { url: string; namespace: string };
-  source?: { repo?: string; ref?: string; token?: string };
+  source?: { repo?: string; ref?: string; token?: string; username?: string };
   runtime: { targets: Record<string, TargetConfig> };
 }

@@ -15,12 +15,14 @@ const FX = {
   compose: [] as Array<{ project: string; args: string[]; composeImage?: string }>,
   /** make `up` fail when the service dir's compose.yaml contains this image ref */
   failUpFor: null as null | string,
+  logText: '',
 };
 mock.module('../shared/exec.js', {
   namedExports: {
     ...realExec,
     exec: async (cmd: string, args: string[], opts?: unknown) => {
       if (cmd !== 'docker') return realExec.exec(cmd, args, opts as never);
+      if (FX.logText) (opts as import('../shared/exec.js').ExecOptions | undefined)?.onLine?.(FX.logText, 'err');
       const ok = (stdout = '') => ({ code: 0, stdout, stderr: '', truncated: false, timedOut: false });
       if (args[0] === 'pull') return ok();
       if (args[0] === 'compose') {
@@ -73,7 +75,31 @@ async function deploySeq(appsRoot: string, steps: Array<Record<string, { imageRe
 const ups = () => FX.compose.filter((c) => c.args.includes('up'));
 const upsFor = (project: string) => ups().filter((c) => c.project === project);
 
-test.beforeEach(() => { FX.compose = []; FX.failUpFor = null; });
+test.beforeEach(() => { FX.compose = []; FX.failUpFor = null; FX.logText = ''; });
+
+test('actual rollback retains old config reference and redacts parent and current env during recovery', async t => {
+  const { appsRoot, cleanup } = await root(); t.after(cleanup);
+  const parentValue = 'fake-parent-rollback-value', currentValue = 'fake-current-rollback-value';
+  const configRef = (version: string) => ({ versionId: `id-${version}`, version, serviceKey: 'admin' });
+  const base = { schemaVersion: 2 as const, app: 'twgg', project: 'p', env: 'prod', spec: SPEC };
+  await runGroupDeploy(appsRoot, { ...base, changed: { backend: { imageRef: digest('b') }, mobile: { imageRef: digest('d') },
+    admin: { imageRef: digest('a'), configMode: 'version', configRef: configRef('1.0.0'), envFileContent: `ANY_KEY=${parentValue}\n` } } }, log);
+  await runGroupDeploy(appsRoot, { ...base, changed: {
+    admin: { imageRef: digest('c'), configMode: 'version', configRef: configRef('1.0.1'), envFileContent: `OTHER_KEY=${currentValue}\n` } } }, log);
+  const { JobStore } = await import('./jobs.js'); const jobs = new JobStore(path.dirname(appsRoot));
+  FX.failUpFor = digest('a'); FX.logText = `${parentValue} ${currentValue}`;
+  const job = await jobs.create('group-rollback', ctx => runGroupRollback(appsRoot, { app: 'twgg', project: 'p', env: 'prod' }, ctx.log, ctx), true);
+  for (let i = 0; i < 100 && jobs.activeCount(); i++) await new Promise(resolve => setTimeout(resolve, 5));
+  await jobs.flush(job.id); assert.equal(jobs.get(job.id)!.status, 'failed');
+  const journal = await readFile(path.join(path.dirname(appsRoot), 'jobs', job.id, 'log.txt'), 'utf8');
+  assert.doesNotMatch(journal, /fake-parent-rollback-value|fake-current-rollback-value/);
+  FX.failUpFor = null;
+  await runGroupRollback(appsRoot, { app: 'twgg', project: 'p', env: 'prod' }, log);
+  const store = new GroupStore(appsRoot), state = await store.loadState('twgg');
+  const restored = await store.loadRelease('twgg', state.current!);
+  assert.equal(restored.services.admin!.configRef!.version, '1.0.0');
+  assert.equal(restored.services.admin!.env, `ANY_KEY=${parentValue}\n`);
+});
 
 test('default rollback restores the LAST release\'s changedServices from the parent; unselected services stay untouched', async (t) => {
   const { appsRoot, cleanup } = await root();

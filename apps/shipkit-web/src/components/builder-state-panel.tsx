@@ -1,10 +1,12 @@
 'use client';
 import { Server } from 'lucide-react';
-import type { LiveProject, Task } from '@/lib/contracts';
+import type { LiveProject, Plan, Task } from '@/lib/contracts';
 import { isBusy, requiresCleanup, statusLabel } from '@/lib/presentation';
 import { Status } from './primitives';
 
-export function BuilderStatePanel({ task, live, busy, onCleanup }: { task?: Task; live: LiveProject; busy?: boolean; onCleanup: () => void }) {
+export function BuilderStatePanel({ task, live, busy, onCleanup, kind }: { task?: Task; live: LiveProject; busy?: boolean; onCleanup: () => void; kind?: Plan['kind'] }) {
+  const operation = task?.kind || kind;
+  if (operation && operation !== 'release') return <aside className="panel builder-panel"><div className="panel-head"><h2>构建机状态</h2></div><div className="panel-body builder-state"><Server size={24} aria-hidden="true" /><span><strong>本轮无需构建机</strong><span className="subtle">{operation === 'config-only' ? '配置发布复用当前镜像' : '回滚复用历史镜像'}</span></span></div><div className="panel-body"><Status value={task?.cleanupState} label={task ? undefined : '不创建构建资源'} /><p className="subtle">跳过构建与推送，直接部署并健康检查。</p></div></aside>;
   const failed = requiresCleanup(task);
   const cleanupLabel = task && isBusy(task) && task.cleanupState === 'pending' ? live.builder.mode === 'dynamic' ? '流程进行中，日志归档后清理' : '流程进行中，构建机保留运行' : undefined;
   return <aside className="panel builder-panel"><div className="panel-head"><h2>构建机状态</h2></div><div className="panel-body builder-state"><Server size={24} aria-hidden="true" /><span><strong>{live.builder.mode === 'dynamic' ? '动态构建资源' : '现有构建机'}</strong><span className="subtle">{cleanupLabel || (task ? statusLabel(task.cleanupState) : live.builder.mode === 'dynamic' ? '发布时按需创建' : '绑定的构建机保留运行')}</span></span></div>

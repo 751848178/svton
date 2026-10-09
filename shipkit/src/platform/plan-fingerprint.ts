@@ -19,7 +19,9 @@ export async function fingerprint(c: ProjectContext, mode: 'git' | 'directory', 
   }
   let sourceDigest: string | undefined;
   let gitRef: string | undefined;
-  if (mode === 'directory') {
+  if (c.sourceSnapshot) {
+    gitRef = c.sourceSnapshot.commit; hash.update(gitRef).update(c.sourceSnapshot.specDigest);
+  } else if (mode === 'directory') {
     const frozen = await freezeSourceDir(c.rootPath, envFiles, c.rootPath);
     try { sourceDigest = frozen.contentDigest; hash.update(sourceDigest); }
     finally { await frozen.cleanup(); }

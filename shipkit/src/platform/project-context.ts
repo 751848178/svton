@@ -1,28 +1,11 @@
-import { realpathSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { loadConfig } from '../shared/config.js';
-import { loadSpecAnyAt } from '../shared/spec-load.js';
-import { resolveTarget } from '../cli/targets.js';
-import { resolveProjectId } from '../cli/project-id.js';
-import { resolveTargetToken } from '../shared/credentials.js';
 import type { ProjectInput } from './contracts.js';
+import type { PrivatePlanOptions } from './private-snapshot.js';
+import { loadProjectInput } from './project-load.js';
 
-export async function loadProject(input: ProjectInput, sourceMode: 'git' | 'directory' = 'directory') {
-  if (!path.isAbsolute(input.rootPath) || !path.isAbsolute(input.configPath)) {
-    throw new Error('Project directory and config reference must be absolute paths');
-  }
-  const rootPath = realpathSync(input.rootPath);
-  const configPath = realpathSync(input.configPath);
-  const config = (() => { try { return loadConfig(configPath); }
-    catch { throw new Error('Configuration reference is invalid; run ship doctor locally to inspect it'); } })();
-  const loaded = (() => { try { return loadSpecAnyAt(rootPath); }
-    catch { throw new Error('Project specification is invalid; validate ship.yaml locally'); } })();
-  if (loaded.version !== 2) throw new Error('Platform projects require a schemaVersion: 2 ship.yaml; single-app CLI remains available');
-  const spec = loaded.spec;
-  const target = resolveTarget(config, input.targetKey);
-  const runtime = await resolveTargetToken(target.target, `runtime.targets.${target.name}`);
-  const identity = await resolveProjectId(rootPath, config, sourceMode === 'directory' ? rootPath : undefined);
-  return { rootPath, configPath, config, spec, targetKey: target.name, runtime, identity };
+export async function loadProject(input: ProjectInput, sourceMode: 'git' | 'directory' = 'directory', options: PrivatePlanOptions = {}) {
+  return loadProjectInput(input, input.repository ? 'git' : sourceMode, options);
 }
 export type ProjectContext = Awaited<ReturnType<typeof loadProject>>;
 
@@ -33,12 +16,13 @@ export function publicUrl(raw: string): string {
 }
 
 export function privateValues(context: ProjectContext): string[] {
-  const values: string[] = [context.runtime.token];
+  const values: string[] = [context.runtime.token, ...context.redactionValues];
   const walk = (value: unknown, key = '') => {
     if (typeof value === 'string' && /token|password|secret|credential/i.test(key)) values.push(value);
     else if (value && typeof value === 'object') Object.entries(value).forEach(([k, v]) => walk(v, k));
   };
   walk(context.config);
+  if (context.snapshot || context.sourceSnapshot) return values.filter(v => v.length >= 3).sort((a, b) => b.length - a.length);
   for (const svc of Object.values(context.spec.services)) {
     if (!svc.envFile) continue;
     try {

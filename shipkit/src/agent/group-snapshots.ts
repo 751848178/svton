@@ -9,6 +9,7 @@ import { validateServiceSpec } from '../shared/spec-v2.js';
 import { isRecord } from '../shared/obj.js';
 import { writeFileAtomic } from './atomic.js';
 import type { GroupServiceEntry, GroupServiceSource, GroupRelease } from './group-store-types.js';
+import { validateConfigRef } from './group-config.js';
 
 const KEEP_RELEASES = 10;
 const RELEASE_ID_RE = /^[a-z0-9-]{6,40}$/;
@@ -81,6 +82,7 @@ export class GroupSnapshots {
         hasEnv: raw.hasEnv,
         env,
         ...(isRecord(raw.source) && typeof raw.source.type === 'string' ? { source: raw.source as unknown as GroupServiceSource } : {}),
+        ...(raw.configRef !== undefined ? { configRef: validateConfigRef(raw.configRef, name) } : {}),
       };
     }
     return {

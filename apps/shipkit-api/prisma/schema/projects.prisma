@@ -1,0 +1,48 @@
+model Project {
+  id String @id @default(cuid())
+  workspaceId String
+  name String
+  sourceKind String @default("directory")
+  repositoryJson String?
+  repositorySecret String?
+  sourceRevision Int @default(1)
+  appName String?
+  rootPath String
+  configPath String
+  targetKey String
+  projectIdentity String
+  lastVersion String @default("0.0.0")
+  createdByActorId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  createdBy Actor @relation(fields: [createdByActorId], references: [id], onDelete: Restrict)
+  targets Target[]
+  services Service[]
+  plans Plan[]
+  tasks Task[]
+  @@unique([workspaceId, rootPath])
+  configDrafts ConfigDraft[]
+  configVersions ConfigVersion[]
+}
+
+model Target {
+  id String @id @default(cuid())
+  projectId String
+  targetKey String
+  displayName String?
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  @@unique([projectId, targetKey])
+  configDrafts ConfigDraft[]
+  configVersions ConfigVersion[]
+}
+
+model Service {
+  id String @id @default(cuid())
+  projectId String
+  serviceKey String
+  displayName String?
+  entryUrl String?
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  @@unique([projectId, serviceKey])
+}

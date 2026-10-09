@@ -8,6 +8,7 @@ import { dockerBuild } from './docker.js';
 import type { JobContext } from './jobs.js';
 import { ensureSource } from './source.js';
 import type { JobControl } from './job-control.js';
+import { secretLog } from './log-secrets.js';
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
 
@@ -19,6 +20,8 @@ export function defaultTag(sha?: string): string {
 }
 
 export async function runBuild(workRoot: string, req: BuildRequest, log: JobContext['log'], control?: JobControl): Promise<BuildResult> {
+  log = secretLog(log);
+  if (req.source.type === 'git' && req.source.token) log.addSecrets?.([req.source.token]);
   control?.checkpoint();
   control?.phase('source', req.spec.name);
   const spec = validateSpec(req.spec);

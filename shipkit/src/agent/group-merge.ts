@@ -8,6 +8,7 @@
 import type { GroupServiceChange } from '../shared/group-protocol.js';
 import type { ServiceSpec } from '../shared/spec-v2.js';
 import type { GroupRelease, GroupServiceEntry, GroupServiceSource } from './group-store-types.js';
+import { resolveServiceConfig } from './group-config.js';
 
 function sameSpec(a: ServiceSpec, b: ServiceSpec): boolean {
   const norm = (v: unknown): unknown => {
@@ -58,18 +59,10 @@ export function mergeCombination(o: MergeInput): MergeResult {
     const change = changed[name];
     if (change) {
       changedServices.push(name);
-      let env: string | undefined;
-      if (typeof change.envFileContent === 'string') env = change.envFileContent;
-      else if (change.keepEnv) {
-        const prev = current?.services[name];
-        if (!prev) {
-          throw new Error(`keepEnv for '${name}' requires a current combination — ship the env file content (or declare no envFile) on this service's first release`);
-        }
-        // explicit no-env inherits "no env" (R05); a committed env MUST load —
-        // loadRelease already refuses a lost env snapshot before we get here
-        if (prev.hasEnv) env = prev.env;
-      }
-      combination[name] = { imageRef: change.imageRef, spec: svcSpec, hasEnv: env !== undefined, env, source: toSource(change) };
+      const previous = current?.services[name];
+      combination[name] = { imageRef: change.imageRef, spec: svcSpec,
+        ...resolveServiceConfig(name, change, previous),
+        source: toSource(change) ?? (change.imageRef === previous?.imageRef ? previous.source : undefined) };
     } else {
       const prev = current?.services[name];
       if (!prev) {

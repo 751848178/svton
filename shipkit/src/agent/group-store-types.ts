@@ -1,6 +1,7 @@
 // v2 group wire/store types (shared by group-store, group-snapshots, handlers).
 
 import type { ServiceSpec } from '../shared/spec-v2.js';
+import type { GroupConfigRef } from '../shared/group-protocol.js';
 
 export interface GroupServiceSource {
   type: 'git' | 'tarball';
@@ -16,6 +17,7 @@ export interface GroupServiceEntry {
   hasEnv: boolean;
   env?: string;
   source?: GroupServiceSource;
+  configRef?: GroupConfigRef;
 }
 
 export interface GroupRelease {

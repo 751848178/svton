@@ -31,7 +31,7 @@ export async function builderHandle(c: ProjectContext) {
 /** Discover remote jobs even if the controller died before saving their IDs. */
 export async function discoverJobs(c: ProjectContext, refs: RemoteJobRef[], executionId?: string,
   roles: Array<'runtime' | 'builder'> = ['runtime', 'builder']) {
-  const handles = { runtime: c.runtime, builder: await builderHandle(c) };
+  const handles = { runtime: c.runtime, builder: roles.includes('builder') ? await builderHandle(c) : null };
   const merged = new Map(refs.map((ref) => [ref.jobId, ref]));
   if (executionId) {
     for (const agentRole of roles) {

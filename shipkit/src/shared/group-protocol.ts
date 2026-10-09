@@ -5,6 +5,9 @@
 
 import type { ProjectSpec } from './spec-v2.js';
 
+export interface GroupConfigRef { versionId: string; version: string; name?: string; serviceKey: string }
+export type RuntimeConfigMode = 'files' | 'inherit' | 'version';
+
 export interface GroupServiceSource {
   type: 'git' | 'tarball';
   /** git commit sha (git sources only — never fabricated for tarballs) */
@@ -25,6 +28,10 @@ export interface GroupServiceChange {
   envFileContent?: string;
   /** inherit the committed env of this service from the current combination */
   keepEnv?: boolean;
+  configMode?: RuntimeConfigMode;
+  configRef?: GroupConfigRef;
+  /** Explicit frozen version declaring no runtime environment. */
+  noEnv?: boolean;
 }
 
 export interface GroupDeployRequest {
@@ -86,7 +93,7 @@ export interface GroupStateView {
   app: string;
   current: string | null;
   updatedAt?: string;
-  services: Record<string, { imageRef: string; hasEnv: boolean; spec: unknown }>;
+  services: Record<string, { imageRef: string; hasEnv: boolean; spec: unknown; source?: GroupServiceSource; configRef?: GroupConfigRef }>;
 }
 
 export interface GroupHistoryRelease {
@@ -98,8 +105,8 @@ export interface GroupHistoryRelease {
   rollbackAvailable: boolean;
   reason?: string;
   targetSnapshotId: string | null;
-  services: Record<string, { imageRef: string; hasEnv: boolean; source?: GroupServiceSource }>;
-  restoreServices: Record<string, { imageRef: string; hasEnv: boolean; source?: GroupServiceSource }>;
+  services: Record<string, { imageRef: string; hasEnv: boolean; source?: GroupServiceSource; configRef?: GroupConfigRef }>;
+  restoreServices: Record<string, { imageRef: string; hasEnv: boolean; source?: GroupServiceSource; configRef?: GroupConfigRef }>;
 }
 export interface GroupHistoryView {
   schemaVersion: 2;

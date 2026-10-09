@@ -1,0 +1,56 @@
+{
+  "passed": true,
+  "at": "2026-10-09T12:58:01.666Z",
+  "checks": [
+    {
+      "label": "untrusted HTTPS certificate fails while TLS verification stays enabled",
+      "passed": true
+    },
+    {
+      "label": "HTTPS CA-authenticated smart Git resolves real fixed commit and spec",
+      "passed": true
+    },
+    {
+      "label": "Builder performs authenticated HTTPS working-tree clone at the pinned SHA",
+      "passed": true
+    },
+    {
+      "label": "branch advancement changes new resolution but immutable commit remains pinned",
+      "passed": true
+    },
+    {
+      "label": "Builder repeat fetch observes branch advancement and keeps the old SHA checkout",
+      "passed": true
+    },
+    {
+      "label": "private host access requires explicit server option",
+      "passed": true
+    },
+    {
+      "label": "metadata cache byte budget refuses oversize and cleans temporary data",
+      "passed": true
+    },
+    {
+      "label": "askpass authentication never enters repository URL, argv, config, or process output",
+      "passed": true
+    },
+    {
+      "label": "temporary checkout and askpass credential files are removed after resolution",
+      "passed": true
+    }
+  ],
+  "commits": {
+    "first": "640099b2956563d37352108f5a1ab446f2951e9b",
+    "second": "fe6c886063f3c236b9cc30c655bb6483a4bb3070",
+    "pinned": "640099b2956563d37352108f5a1ab446f2951e9b",
+    "builderInitial": "640099b2956563d37352108f5a1ab446f2951e9b",
+    "builderAfterFetch": "640099b2956563d37352108f5a1ab446f2951e9b"
+  },
+  "authorizedRequests": 14,
+  "credentialChallenges": 5,
+  "observedGitCommands": 39,
+  "leakMatches": 0,
+  "receivePackRequests": 0,
+  "tlsVerification": "private CA; verification enabled",
+  "secretType": "synthetic temporary credential"
+}

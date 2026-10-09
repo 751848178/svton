@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, Optional } from '@nestjs/common';
 import { realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import type { LiveProject } from 'shipkit/platform';
@@ -9,6 +9,7 @@ import { publicData } from '../transport/public-data.js';
 import { registration, patchMetadata } from './project-input.dto.js';
 import { ProjectRepository, type StoredProject } from './project.repository.js';
 import { projectView } from './project.view.js';
+import { ProjectSourceService, storedProjectInput } from './project-source.service.js';
 
 @Injectable()
 export class ProjectService {
@@ -16,6 +17,7 @@ export class ProjectService {
     @Inject(ProjectRepository) readonly repository: ProjectRepository,
     @Inject(PlatformExecutorService) private readonly executor: PlatformExecutorService,
     @Inject(LocalPolicyService) private readonly policy: LocalPolicyService,
+    @Optional() @Inject(ProjectSourceService) private readonly sources?: ProjectSourceService,
   ) {}
   async list(context: RequestContext): Promise<unknown> {
     this.policy.authorize(context, 'project.read');
@@ -37,7 +39,7 @@ export class ProjectService {
     try {
       return projectView(await this.repository.register({
         workspace: { connect: { id: context.workspaceId } }, name: request.name, rootPath, configPath,
-        targetKey: live.targetKey, projectIdentity: live.projectIdentity, createdBy: { connect: { id: context.actorId } },
+        targetKey: live.targetKey, projectIdentity: live.projectIdentity, appName: live.name, createdBy: { connect: { id: context.actorId } },
         targets: { create: live.targets.map(({ targetKey }) => ({ targetKey, displayName: targetKey === live.targetKey ? request.serverName : undefined })) },
         services: { create: live.services.map(({ serviceKey }) => ({ ...request.services?.find((service) => service.serviceKey === serviceKey), serviceKey })) },
       }, context));
@@ -56,13 +58,17 @@ export class ProjectService {
   }
   async status(id: string, context: RequestContext): Promise<unknown> {
     const project = await this.get(id, context);
-    return { project: projectView(project), live: publicData(await this.executor.inspectProject(project)) };
+    return { project: projectView(project), live: publicData(await this.executor.inspectProject(this.sources?.input(project) ?? storedProjectInput(project),
+      project.sourceKind === 'repository' ? { repository: this.sources?.credentials(project) } : undefined)) };
   }
-  async history(id: string, context: RequestContext): Promise<unknown> { return publicData(await this.executor.fetchHistory(await this.get(id, context))); }
+  async history(id: string, context: RequestContext): Promise<unknown> {
+    const project = await this.get(id, context);
+    return publicData(await this.executor.fetchHistory(this.sources?.input(project) ?? storedProjectInput(project)));
+  }
   async checks(id: string, context: RequestContext): Promise<unknown> {
     const project = await this.get(id, context);
     this.policy.authorize(context, 'project.checks', project.workspaceId);
-    return publicData(await this.executor.diagnoseProject(project));
+    return publicData(await this.executor.diagnoseProject(this.sources?.input(project) ?? storedProjectInput(project)));
   }
   private assertMetadata(live: LiveProject, services: { serviceKey: string }[], targetKey: string): void {
     if (!live.targets.some((target) => target.targetKey === targetKey)) throw new BadRequestException('目标未在真实配置中声明');

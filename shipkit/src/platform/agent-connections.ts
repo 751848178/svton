@@ -16,6 +16,7 @@ export interface AgentConnectionCheck {
 }
 
 function config(input: ProjectInput): ShipConfig {
+  if (input.snapshot ?? input.privateSnapshot) return (input.snapshot ?? input.privateSnapshot)!.config;
   try { return loadConfig(input.configPath); }
   catch { throw new Error('项目配置无法读取或校验失败，请在本机检查配置引用'); }
 }

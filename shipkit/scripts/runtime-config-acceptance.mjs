@@ -1,0 +1,75 @@
+import assert from 'node:assert/strict';
+import { mkdir, mkdtemp, writeFile, readFile, rm, readdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { randomUUID, randomBytes, createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+import { createServer } from 'node:net';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+// Opt-in Docker acceptance; creates only a random local fixture group and removes it in finally.
+const distRoot=fileURLToPath(new URL('../dist/',import.meta.url));
+const outputRoot=path.resolve(process.env.SHIPKIT_ACCEPTANCE_OUTPUT_DIR || '/tmp/codex-tool-runs/svton/git-config');
+await mkdir(outputRoot,{recursive:true});
+const {serviceProject}=await import(pathToFileURL(path.join(distRoot,'agent/compose-service.js')).href);
+const {startAgent}=await import(pathToFileURL(path.join(distRoot,'agent/server.js')).href);
+const {preparePlan,executeTask,reconcileTask,serializeRuntimeEnv}=await import(pathToFileURL(path.join(distRoot,'platform/index.js')).href);
+const directory=await mkdtemp(path.join(tmpdir(),'ship-runtime-config-'));
+const group=`configtest${randomUUID().slice(0,8)}`;
+const token=randomBytes(24).toString('hex');
+const image='nginx@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2';
+const freePort=async()=>{const server=createServer();await new Promise(r=>server.listen(0,'127.0.0.1',r));const p=server.address().port;await new Promise(r=>server.close(r));return p;};
+const portA=await freePort(),portB=await freePort();
+const spec={schemaVersion:2,name:group,services:{api:{ports:[`${portA}:80`],healthcheck:{path:'/',timeoutSeconds:10}},web:{ports:[`${portB}:80`],healthcheck:{path:'/',timeoutSeconds:10}}}};
+const workRoot=path.join(directory,'agent');
+let agent;
+const events=[];
+const secrets=[randomBytes(16).toString('hex'),randomBytes(16).toString('hex')];
+const protectedValues=[...secrets,'127.0.0.1','sha256'];
+const ref=(service,version)=>({versionId:`fixture-${version}`,version,name:'Runtime acceptance',serviceKey:service});
+const publicProvenance={type:'tarball',contentDigest:'sha256:'+createHash('sha256').update('isolated seeded public nginx fixture').digest('hex')};
+const out={fixture:'isolated public nginx with seeded test provenance',image,checks:[]};
+try {
+ agent=await startAgent({role:'runtime',token,port:0,host:'127.0.0.1',workRoot});
+ const call=async(route,body)=>{const r=await fetch(agent.url+route,{method:body===undefined?'GET':'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});const value=await r.json();assert(r.ok,JSON.stringify(value));return value;};
+ const wait=async id=>{for(let i=0;i<240;i++){const j=await call(`/api/jobs/${id}`);if(['succeeded','failed','cancelled'].includes(j.status)){assert.equal(j.status,'succeeded',JSON.stringify(j));return j.result;}await new Promise(r=>setTimeout(r,250));}throw Error('fixture job timeout');};
+ const initial=await call('/api/deploy-group',{schemaVersion:2,app:group,project:'fixture:runtime',env:'test',spec,baseReleaseId:null,changed:Object.fromEntries(['api','web'].map(service=>[service,{imageRef:image,source:publicProvenance,configMode:'version',configRef:ref(service,'0.0.1'),envFileContent:serializeRuntimeEnv({APP_VALUE:secrets[0],DOLLAR:'$HOME ${FAKE} $$ $',EMPTY:'',SHORT_DIGIT:'1',SHORT_LETTER:'a',CONTROL_HOST:'127.0.0.1',IMAGE_DIGEST_KIND:'sha256'})}]))});
+ const first=await wait(initial.jobId);assert.equal(first.verification,'passed');out.checks.push('initial two-service HTTP probes passed');
+ const configPath=path.join(directory,'connections.json');
+ await writeFile(configPath,JSON.stringify({builder:{mode:'static',static:{url:'http://127.0.0.1:1',token:'offline-builder-test'}},runtime:{targets:{test:{url:agent.url,token}}}}),{mode:0o600});
+ const input={configPath,targetKey:'test',appName:group,projectIdentity:'fixture:runtime',repository:{repoUrl:'https://github.com/unreachable-fixture/project.git',ref:{kind:'branch',value:'missing'},specPath:'missing.yaml'}};
+ const hooks={executionId:`fixture-${randomUUID()}`,emit:async event=>events.push(event),isCancellationRequested:async()=>false};
+ let snapshot;
+ const plan=await preparePlan(input,{kind:'config-only',services:['api'],configMode:'version',configVersionId:'fixture-0.0.2'},{runtimeConfiguration:{envFiles:{api:serializeRuntimeEnv({APP_VALUE:secrets[1],DOLLAR:'$HOME ${FAKE} $$ $',EMPTY:'',SHORT_DIGIT:'1',SHORT_LETTER:'a',CONTROL_HOST:'127.0.0.1',IMAGE_DIGEST_KIND:'sha256'})},configRefs:{api:ref('api','0.0.2')},redactionValues:protectedValues,fingerprint:'test-v2'},onPrivateSnapshot:async value=>{snapshot=value;}});
+ await writeFile(configPath,'{"invalid":"changed after plan"}');
+ const second=await executeTask({privateSnapshot:snapshot,targetKey:'test'},plan,hooks);assert.equal(second.status,'succeeded',second.error);
+ const state=await call(`/api/group-state?app=${group}&project=fixture%3Aruntime&env=test`);
+ assert.equal(state.services.api.configRef.version,'0.0.2');assert.equal(state.services.web.configRef.version,'0.0.1');
+ assert.equal(state.services.api.imageRef,image);assert.deepEqual(state.services.api.source,publicProvenance);
+ const envFor=service=>{const dir=path.join(workRoot,'apps',group,'services',service);const ids=execFileSync('docker',['compose','--env-file','compose.env','-p',serviceProject(group,service),'-f','compose.yaml','ps','-q'],{cwd:dir,encoding:'utf8'}).trim();assert(ids);return JSON.parse(execFileSync('docker',['inspect','--format','{{json .Config.Env}}',ids],{encoding:'utf8'}));};
+ assert(envFor('api').includes(`APP_VALUE=${secrets[1]}`));assert(envFor('web').includes(`APP_VALUE=${secrets[0]}`));assert(envFor('api').includes('DOLLAR=$HOME ${FAKE} $$ $'));assert(envFor('api').includes('SHORT_DIGIT=1'));assert(envFor('api').includes('SHORT_LETTER=a'));
+ for(const stage of ['provision','build','push','cleanup'])assert(events.some(e=>e.type==='stage'&&e.stageKey===stage&&e.status==='skipped'));
+ out.checks.push('configuration-only reused exact digest and provenance; no Builder available; four build stages skipped','partial update preserved web version and exact container env special characters','saved connection snapshot ignored edited connection file');
+ const persistedRefs=JSON.parse(JSON.stringify([...new Map(events.filter(e=>e.type==='remote-job').map(e=>[e.remoteJob.jobId,e.remoteJob])).values()]));
+ assert(persistedRefs.length);assert(persistedRefs.every(r=>r.urlRef===agent.url));
+ const completed=events.find(e=>e.type==='stage'&&e.stageKey==='deploy'&&e.status==='succeeded');assert.equal(completed.detail.result.changedRefs.api,image);
+ const originalUrl=agent.url;await agent.close();agent=await startAgent({role:'runtime',token,port:Number(new URL(originalUrl).port),host:'127.0.0.1',workRoot});assert.equal(agent.url,originalUrl);
+ const reconciled=await reconcileTask({privateSnapshot:snapshot},persistedRefs,hooks);assert.equal(reconciled.status,'succeeded',reconciled.error);assert.equal(reconciled.remoteReleaseId,second.remoteReleaseId);
+ const discovered=await reconcileTask({privateSnapshot:snapshot},[],hooks);assert.equal(discovered.status,'succeeded',discovered.error);assert.equal(discovered.remoteReleaseId,second.remoteReleaseId);
+ out.checks.push('short environment values preserve Job protocol; env values overlapping control URL/digest preserve durable mappings','Agent restart and controller reconciliation recover exact job and release from saved mappings or no saved job IDs');
+ const noEnvPlan=await preparePlan({privateSnapshot:snapshot},{kind:'config-only',services:['api'],configMode:'version',configVersionId:'fixture-0.0.3'},{runtimeConfiguration:{envFiles:{},noEnvServices:['api'],configRefs:{api:ref('api','0.0.3')},fingerprint:'test-v3',redactionValues:protectedValues},onPrivateSnapshot:async value=>{snapshot=value;}});
+ const third=await executeTask({privateSnapshot:snapshot},noEnvPlan,{...hooks,executionId:`fixture-${randomUUID()}`});assert.equal(third.status,'succeeded',third.error);
+ const clearState=await call(`/api/group-state?app=${group}&project=fixture%3Aruntime&env=test`);assert.equal(clearState.services.api.hasEnv,false);assert(!envFor('api').some(e=>e.startsWith('APP_VALUE=')));
+ out.checks.push('explicit noEnv cleared variables without losing configRef');
+ const rollback=await preparePlan({privateSnapshot:snapshot},{kind:'rollback',services:['api'],changeReleaseId:third.remoteReleaseId},{onPrivateSnapshot:async value=>{snapshot=value;}});
+ const reverted=await executeTask({privateSnapshot:snapshot},rollback,{...hooks,executionId:`fixture-${randomUUID()}`});assert.equal(reverted.status,'succeeded',reverted.error);
+ const rollbackState=await call(`/api/group-state?app=${group}&project=fixture%3Aruntime&env=test`);assert.equal(rollbackState.services.api.configRef.version,'0.0.2');assert.equal(rollbackState.services.web.configRef.version,'0.0.1');assert(envFor('api').includes(`APP_VALUE=${secrets[1]}`));
+ out.checks.push('historical rollback restored api env and configRef while preserving web');
+ assert(!secrets.some(secret=>JSON.stringify(events).includes(secret)));
+ const checkFiles=async dir=>{for(const entry of await readdir(dir,{withFileTypes:true})){const f=path.join(dir,entry.name);if(entry.isDirectory())await checkFiles(f);else if(['log.txt','events.jsonl'].includes(entry.name)){const s=await readFile(f,'utf8');assert(!secrets.some(v=>s.includes(v)));}}};
+ await checkFiles(path.join(workRoot,'jobs'));
+ out.checks.push('runtime journal and public execution events contain neither old nor new secret values');
+ await writeFile(path.join(outputRoot,'runtime-acceptance.json'),JSON.stringify(out,null,2));console.log(JSON.stringify(out));
+} finally {
+ for(const service of ['api','web']){const dir=path.join(workRoot,'apps',group,'services',service);try{execFileSync('docker',['compose','--env-file','compose.env','-p',serviceProject(group,service),'-f','compose.yaml','down','--remove-orphans'],{cwd:dir,stdio:'ignore'});}catch{}}
+ try{await agent?.close();}finally{await rm(directory,{recursive:true,force:true});}
+}

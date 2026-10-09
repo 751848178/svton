@@ -1,0 +1,44 @@
+model ConfigDraft {
+  id String @id @default(cuid())
+  projectId String
+  targetKey String
+  name String
+  parentId String?
+  etag Int @default(1)
+  status String @default("draft")
+  servicesJson String
+  actorId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  project Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  target Target @relation(fields: [projectId, targetKey], references: [projectId, targetKey], onDelete: Restrict)
+  actor Actor @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  parent ConfigVersion? @relation("DraftBase", fields: [parentId], references: [id], onDelete: Restrict)
+  frozenVersion ConfigVersion? @relation("FrozenDraft")
+  @@index([projectId, targetKey, createdAt])
+}
+
+model ConfigVersion {
+  id String @id @default(cuid())
+  projectId String
+  targetKey String
+  draftId String @unique
+  name String
+  version String
+  parentId String?
+  servicesJson String
+  fingerprint String
+  actorId String
+  archivedAt DateTime?
+  createdAt DateTime @default(now())
+  project Project @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  target Target @relation(fields: [projectId, targetKey], references: [projectId, targetKey], onDelete: Restrict)
+  actor Actor @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  draft ConfigDraft @relation("FrozenDraft", fields: [draftId], references: [id], onDelete: Restrict)
+  parent ConfigVersion? @relation("VersionParent", fields: [parentId], references: [id], onDelete: Restrict)
+  children ConfigVersion[] @relation("VersionParent")
+  basedDrafts ConfigDraft[] @relation("DraftBase")
+  plans Plan[]
+  @@unique([projectId, targetKey, version])
+  @@index([projectId, targetKey, createdAt])
+}

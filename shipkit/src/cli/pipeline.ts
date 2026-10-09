@@ -31,7 +31,7 @@ export async function resolveGitSource(cwd: string, config: ShipConfig, log: Log
   if (!repo) throw new CliError('no git origin remote and no config.source.repo — run inside the project repo or set source.repo');
   const ref = config.source?.ref ?? (await gitHeadSha(cwd)) ?? 'HEAD';
   log.info('build source', { repo: publicGitRepoUrl(repo), ref, auth: config.source?.token ? 'token' : 'none' });
-  return { type: 'git', repo, ref, token: config.source?.token };
+  return { type: 'git', repo, ref, token: config.source?.token, ...(config.source?.username ? { username: config.source.username } : {}) };
 }
 
 /** upload the ONE frozen source artifact (S01/S03): the caller froze the tree

@@ -16,7 +16,7 @@ test('version migration preserves original identities, foreign keys and project-
   await writeFile(path.join(directory, 'platform.db'), '', { mode: 0o600 });
   const prismaDirectory = path.join(directory, 'prisma');
   await mkdir(path.join(prismaDirectory, 'migrations'), { recursive: true });
-  await copyFile('prisma/schema.prisma', path.join(prismaDirectory, 'schema.prisma'));
+  await writeFile(path.join(prismaDirectory, 'schema.prisma'), 'datasource db {\n provider = "sqlite"\n url = env("DATABASE_URL")\n}\n');
   await copyFile('prisma/migrations/migration_lock.toml', path.join(prismaDirectory, 'migrations/migration_lock.toml'));
   const execute = async (migration: string, injectFailure = false) => {
     await mkdir(path.join(prismaDirectory, 'migrations', migration), { recursive: true });
@@ -73,6 +73,7 @@ test('version migration preserves original identities, foreign keys and project-
     await execute('2026100802_release_versions');
     await execute('2026100901_auth_sessions');
     await execute('2026100901_auth_sessions');
+    await execute('2026100904_versioned_config');
     db = new DatabaseService();
     await db.onModuleInit();
     const originalActor = await db.actor.findUniqueOrThrow({ where: { id: 'local-controller' } });

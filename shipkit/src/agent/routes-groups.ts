@@ -11,7 +11,8 @@ import { GroupStore } from './group-store.js';
 import { assertProjectBindingForRead } from './project-binding.js';
 import { runGroupDeploy } from './handlers-group-deploy.js';
 import { runGroupRollback } from './handlers-group-rollback.js';
-import { groupHistory } from './group-history.js';
+import { groupHistory, publicSource } from './group-history.js';
+import { validateServiceConfig } from './group-config.js';
 import { validGroupReleaseId } from './group-snapshots.js';
 import { requireDocker } from './route-guards.js';
 import type { Route, RouteDeps } from './route-types.js';
@@ -39,6 +40,8 @@ function parseDeployRequest(ctxJson: unknown): GroupDeployRequest {
     }
     if (c.envFileContent !== undefined && typeof c.envFileContent !== 'string') throw new HttpFail(400, 'bad_request', `changed.${name}.envFileContent must be a string`);
     if (c.keepEnv !== undefined && typeof c.keepEnv !== 'boolean') throw new HttpFail(400, 'bad_request', `changed.${name}.keepEnv must be a boolean`);
+    try { validateServiceConfig(c, name); }
+    catch (error) { throw new HttpFail(400, 'bad_request', (error as Error).message); }
     if (c.source !== undefined) {
       const src = c.source as Record<string, unknown>;
       if (typeof src !== 'object' || !['git', 'tarball'].includes(String(src.type))) {
@@ -105,9 +108,11 @@ export function groupRoutes(d: RouteDeps): Route[] {
       await assertProjectBindingForRead(appDir, { app, project, env });
       const state = await s.loadState(app);
       const current = state.current ? await s.loadRelease(app, state.current) : null;
-      const services: Record<string, { imageRef: string; hasEnv: boolean; spec: unknown }> = {};
+      const services: import('../shared/group-protocol.js').GroupStateView['services'] = {};
       for (const [name, entry] of Object.entries(current?.services ?? {})) {
-        services[name] = { imageRef: entry.imageRef, hasEnv: entry.hasEnv, spec: entry.spec };
+        services[name] = { imageRef: entry.imageRef, hasEnv: entry.hasEnv, spec: entry.spec,
+          ...(entry.source ? { source: publicSource(entry.source) } : {}),
+          ...(entry.configRef ? { configRef: entry.configRef } : {}) };
       }
       return { status: 200, body: { schemaVersion: 2, app, current: state.current, updatedAt: state.updatedAt, services } };
     } },

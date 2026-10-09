@@ -1,7 +1,21 @@
 import type { ReleasePlan } from '../cli/release-plan.js';
 import type { AgentStatus, Job } from '../shared/types.js';
+import type { GroupConfigRef, GroupServiceSource, RuntimeConfigMode } from '../shared/group-protocol.js';
+import type { RepositorySource, RepositoryRef, SourceSnapshot } from './repository-contracts.js';
+import type { ExecutionKind, PrivateProjectSnapshot } from './private-snapshot.js';
 
-export interface ProjectInput { rootPath: string; configPath: string; targetKey?: string }
+export interface ProjectInput {
+  executionKind?: ExecutionKind;
+  rootPath?: string;
+  configPath?: string;
+  targetKey?: string;
+  appName?: string;
+  projectIdentity?: string;
+  repository?: RepositorySource;
+  sourceSnapshot?: SourceSnapshot;
+  snapshot?: PrivateProjectSnapshot;
+  privateSnapshot?: PrivateProjectSnapshot;
+}
 export type StageKey = 'provision' | 'build' | 'push' | 'cleanup' | 'deploy' | 'verify';
 export interface RemoteJobRef {
   jobId: string;
@@ -26,17 +40,21 @@ export interface ExecutionHooks {
   executionId?: string;
   emit(event: ExecutionEvent): Promise<void>;
   isCancellationRequested(): Promise<boolean>;
+  privateExecutionSnapshot?(): Promise<PrivateProjectSnapshot>;
 }
 export interface PlanRequest {
-  kind: 'release' | 'rollback';
+  kind: ExecutionKind;
   services: string[];
   sourceMode?: 'git' | 'directory';
   changeReleaseId?: string;
   keepEnv?: boolean;
   keepBuilder?: boolean;
+  sourceRef?: RepositoryRef;
+  configMode?: RuntimeConfigMode;
+  configVersionId?: string;
 }
 export interface ExecutionPlan {
-  kind: 'release' | 'rollback';
+  kind: ExecutionKind;
   selection: string[];
   baseReleaseId: string | null;
   changeReleaseId?: string;
@@ -44,6 +62,10 @@ export interface ExecutionPlan {
   keepEnv: boolean;
   keepBuilder: boolean;
   fingerprint: string;
+  configMode?: RuntimeConfigMode;
+  configVersionId?: string;
+  configBindings?: Record<string, { mode: RuntimeConfigMode; configRef?: GroupConfigRef }>;
+  frozenConfig?: { mode: RuntimeConfigMode; versionId?: string; bindings: Record<string, { mode: RuntimeConfigMode; configRef?: GroupConfigRef }> };
   expiresAt: string;
   detail: {
     releasePlan?: ReleasePlan;
@@ -53,6 +75,11 @@ export interface ExecutionPlan {
     gitRef?: string;
     targetKey: string;
     projectIdentity: string;
+    sourceSnapshot?: SourceSnapshot;
+    currentConfigRefs?: Record<string, GroupConfigRef | null>;
+    currentSources?: Record<string, GroupServiceSource | null>;
+    configDiff?: Record<string, { added: string[]; removed: string[]; changed: string[]; noEnvChanged: boolean }>;
+    snapshotVersion?: 1;
   };
 }
 export interface HistoryItem {

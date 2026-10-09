@@ -1,4 +1,5 @@
-import { BadRequestException, ConflictException, Inject, Injectable } from '@nestjs/common';
+import { storedProjectInput } from '../projects/project-source.service.js';
+import { BadRequestException, ConflictException, Inject, Injectable, Optional } from '@nestjs/common';
 import { PlatformExecutorService } from '../executor/platform-executor.service.js';
 import type { ExecutionPlan, RemoteJobRef } from '../executor/executor.port.js';
 import type { RequestContext } from '../policy/request-context.js';
@@ -12,6 +13,7 @@ import { TaskRunnerService } from './task-runner.service.js';
 import { TaskLogService } from './task-log.service.js';
 import { TaskEventService } from './task-event.service.js';
 import { eventView, planView, stageView, taskView } from './task.view.js';
+import { PlanInputService } from './plan-input.service.js';
 
 @Injectable()
 export class TaskService {
@@ -23,6 +25,7 @@ export class TaskService {
     @Inject(PlatformExecutorService) private readonly executor: PlatformExecutorService,
     @Inject(LocalPolicyService) private readonly policy: LocalPolicyService,
     @Inject(TaskEventService) private readonly eventStore: TaskEventService,
+    @Optional() @Inject(PlanInputService) private readonly inputs?: PlanInputService,
   ) {}
   async start(projectId: string, body: Record<string, unknown>, context: RequestContext): Promise<unknown> {
     const project = await this.projects.get(projectId, context);
@@ -79,7 +82,7 @@ export class TaskService {
     await this.eventStore.append(id, { type: 'log', stageKey: 'cleanup', message: `开始第 ${attempt} 次资源释放` });
     let result: { cleanupState: string; output?: unknown };
     try {
-      const input = { ...task.project, targetKey: task.plan.targetKey };
+      const input = this.inputs?.taskInput(task) ?? storedProjectInput(task.project, task.plan.targetKey);
       const plan = decodeJson(task.plan.snapshotJson) as ExecutionPlan;
       const hooks = { executionId: id, emit: (event: Parameters<TaskEventService['append']>[1]) => this.eventStore.append(id, event), isCancellationRequested: async () => false };
       await this.executor.archiveForCleanup(input, task.remoteJobs.map((job) => ({ ...job, serviceKey: job.serviceKey || undefined })) as RemoteJobRef[], hooks, plan, lease?.leaseRef);

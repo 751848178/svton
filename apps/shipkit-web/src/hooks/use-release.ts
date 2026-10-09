@@ -4,14 +4,19 @@ import type { LiveProject, Plan, Project, TaskDetail } from '@/lib/contracts';
 import type { Location } from './use-navigation';
 import { request } from '@/lib/api';
 import { isBusy, requiresCleanup } from '@/lib/presentation';
+import type { ConfigMode } from '@/lib/config-contracts';
+import type { SourceRef } from '@/lib/source-contracts';
 
 interface Input { project: Project; live: LiveProject; location: Location; detail?: TaskDetail; navigate: (next: Partial<Location>) => void; refresh: () => void }
 export function useRelease(input: Input) {
   const { project, live, location, detail, navigate, refresh } = input;
-  const gitAvailable = !!live.source.repo && !!live.source.commit;
+  const gitAvailable = project.sourceKind === 'repository' || (!!live.source.repo && !!live.source.commit);
   const [selected, setSelected] = useState<string[]>(live.services.map(service => service.serviceKey));
   const [sourceMode, setSourceMode] = useState<'git' | 'directory'>(gitAvailable ? 'git' : 'directory');
-  const [keepEnv, setKeepEnv] = useState(false);
+  const [kind, setKind] = useState<'release' | 'config-only'>('release');
+  const [sourceRef, setSourceRef] = useState<SourceRef>(project.repository?.ref || { kind: 'branch', value: live.source.branch || '' });
+  const [configMode, setConfigMode] = useState<ConfigMode>(live.runtime?.currentReleaseId === null ? project.sourceKind === 'repository' ? 'version' : 'files' : 'inherit');
+  const [configVersionId, setConfigVersionId] = useState('');
   const [keepBuilder, setKeepBuilder] = useState(false);
   const [version, setVersion] = useState(project.nextVersion || '0.0.1');
   const [versionEdited, setVersionEdited] = useState(false);
@@ -23,7 +28,10 @@ export function useRelease(input: Input) {
   useEffect(() => {
     if (detail?.plan) {
       setPlan(detail.plan); setSelected(detail.plan.selection); setSourceMode(detail.plan.sourceMode || (gitAvailable ? 'git' : 'directory'));
-      setKeepEnv(detail.plan.keepEnv === true); setKeepBuilder(detail.plan.keepBuilder === true);
+      setKind(detail.plan.kind === 'config-only' ? 'config-only' : 'release');
+      setConfigMode(detail.plan.configMode || (detail.plan.keepEnv ? 'inherit' : 'files')); setConfigVersionId(detail.plan.configVersionId || '');
+      if (detail.plan.detail?.sourceSnapshot) setSourceRef(detail.plan.detail.sourceSnapshot.requestedRef);
+      setKeepBuilder(detail.plan.keepBuilder === true);
       setVersion(detail.plan.version || detail.task.version);
     }
   }, [detail?.plan?.id]);
@@ -41,7 +49,8 @@ export function useRelease(input: Input) {
     try { await operation(); } catch (failure) { setError(failure); } finally { setAction(null); }
   };
   const prepare = () => request('POST:/projects/:id/plans', {
-    id: project.id, kind: 'release', services: selected, sourceMode, keepEnv, keepBuilder, version,
+    id: project.id, kind, services: selected, sourceMode, keepEnv: configMode === 'inherit', keepBuilder: kind === 'release' && keepBuilder, version,
+    configMode, ...(configMode === 'version' ? { configVersionId } : {}), ...(kind === 'release' && project.sourceKind === 'repository' ? { sourceRef } : {}),
   });
   const generatePlan = () => run('plan', async () => {
     if (readOnly) return;
@@ -66,12 +75,18 @@ export function useRelease(input: Input) {
   const cleanupBlocked = requiresCleanup(task);
   const step = !task && location.step > 1 && !plan ? 1 : location.step;
   return {
-    selected, sourceMode, gitAvailable, keepEnv, keepBuilder, version, plan, task, action, error, busy, cleanupBlocked, step, readOnly,
+    selected, sourceMode, sourceRef, kind, configMode, configVersionId, gitAvailable, keepEnv: configMode === 'inherit', keepBuilder, version, plan, task, action, error, busy, cleanupBlocked, step, readOnly,
     toggle, generatePlan, start, cancel, cleanup,
     setSourceMode: (value: 'git' | 'directory') => { if (!readOnly) { invalidate(); setSourceMode(value); } },
-    setKeepEnv: (value: boolean) => { if (!readOnly) { invalidate(); setKeepEnv(value); } },
+    setSourceRef: (value: SourceRef) => { if (!readOnly) { invalidate(); setSourceRef(value); } },
+    setKind: (value: 'release' | 'config-only') => { if (!readOnly) { invalidate(); setKind(value); if (value === 'config-only') { setKeepBuilder(false); setConfigMode('version'); } } },
+    setConfigMode: (value: ConfigMode) => { if (!readOnly) { invalidate(); setConfigMode(value); } },
+    setConfigVersionId: (value: string) => { if (!readOnly) { invalidate(); setConfigVersionId(value); } },
+    setKeepEnv: (value: boolean) => { if (!readOnly) { invalidate(); setConfigMode(value ? 'inherit' : 'files'); } },
     setKeepBuilder: (value: boolean) => { if (!readOnly) { invalidate(); setKeepBuilder(value); } },
     setVersion: (value: string) => { if (!readOnly) { invalidate(); setVersionEdited(true); setVersion(value); } },
+    openConfigs: () => navigate({ view: 'settings', section: 'variables', taskId: '' }),
+    openRepository: () => navigate({ view: 'settings', section: 'repository', taskId: '' }),
   };
 }
 export type ReleaseController = ReturnType<typeof useRelease>;

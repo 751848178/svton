@@ -23,10 +23,12 @@ import { GroupDeployFailure, describeRecovery } from './handlers-group-deploy.js
 import type { JobContext } from './jobs.js';
 import { JobCancelled, type JobControl } from './job-control.js';
 import { rollbackSelection } from './group-rollback-selection.js';
+import { secretLog } from './log-secrets.js';
 
 type Log = JobContext['log'];
 
 export async function runGroupRollback(appsRoot: string, req: GroupRollbackRequest, log: Log, control?: JobControl): Promise<GroupDeployResult> {
+  log = secretLog(log);
   const store = new GroupStore(appsRoot);
   const identity = { app: req.app, project: req.project, env: req.env };
   const result = await withDeploySlot(() => withAppLock(req.app, async () => {
@@ -40,12 +42,14 @@ export async function runGroupRollback(appsRoot: string, req: GroupRollbackReque
       throw new Error(`rollback plan is stale: planned against release '${req.baseReleaseId}' but current is '${state.current}' — another release landed in between; refresh and retry`);
     }
     const current = await store.loadRelease(req.app, state.current);
+    for (const entry of Object.values(current.services)) log.addEnv?.(entry.env);
     for (const name of Object.keys(current.services)) {
       await assertOwnedCompose({ dir: store.servicesDir(req.app, name), project: serviceProject(req.app, name), service: name });
     }
     await assertProjectBinding(appDir, identity, true);
 
     const { services, restoreFrom } = await rollbackSelection(store, req, state, current);
+    for (const entry of Object.values(restoreFrom.services)) log.addEnv?.(entry.env);
     control?.checkpoint();
     const combination = { ...current.services };
     const changedRefs: Record<string, string> = {};

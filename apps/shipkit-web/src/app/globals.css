@@ -11,5 +11,6 @@
 @import '../styles/release-evidence.css';
 @import '../styles/agent-resources.css';
 @import '../styles/auth.css';
+@import '../styles/git-config.css';
 @tailwind components;
 @tailwind utilities;

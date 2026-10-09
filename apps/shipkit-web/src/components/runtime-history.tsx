@@ -1,6 +1,7 @@
 import type { HistoryItem, HistoryView, Task } from '@/lib/contracts';
 import { time } from '@/lib/presentation';
 import { ChevronRight } from 'lucide-react';
+import { HistoryInputs } from './history-inputs';
 
 export function RuntimeHistory({ history, tasks, onRollback, onTask }: {
   history: HistoryView; tasks: Task[]; onRollback: (item: HistoryItem) => void; onTask: (task: Task) => void;
@@ -15,7 +16,7 @@ export function RuntimeHistory({ history, tasks, onRollback, onTask }: {
       const previous = item.targetSnapshotId || item.parentReleaseId;
       const target = find(previous);
       return <tr key={item.releaseId}>
-        <td>{task ? <button className="task-link" onClick={() => onTask(task)}>{task.version}</button> : <strong>未关联任务</strong>}<p className="subtle mono" title={item.releaseId}>{item.releaseId}</p></td>
+        <td>{task ? <button className="task-link" onClick={() => onTask(task)}>{task.version}</button> : <strong>未关联任务</strong>}<p className="subtle mono" title={item.releaseId}>{item.releaseId}</p><HistoryInputs item={item} /></td>
         <td data-label="服务范围">{item.changedServices.map(service => <span className="service-pill" key={service}>{service}</span>)}</td>
         <td data-label="提交时间">{time(item.createdAt)}</td>
         <td data-label="可恢复的旧快照">{target ? `版本 ${target.version}` : previous ? <span className="mono">{previous}</span> : '无旧快照'}{!item.rollbackAvailable && <p className="subtle">{item.reason || '不可回滚'}</p>}</td>

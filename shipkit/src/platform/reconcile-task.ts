@@ -6,13 +6,19 @@ import { EventSink } from './event-sink.js';
 import { JobObserver } from './job-observer.js';
 import type { ExecutionHooks, ExecutionOutcome, ProjectInput, RemoteJobRef } from './contracts.js';
 import { discoverJobs } from './reconcile-jobs.js';
+import { assertSnapshotTrust } from './private-fingerprint.js';
+import { isRuntimeOnly } from './execution-kind.js';
 
 /** Observe durable mappings after a controller restart; never replay a release. */
 export async function reconcileTask(input: ProjectInput, refs: RemoteJobRef[], hooks: ExecutionHooks): Promise<ExecutionOutcome> {
+  if (!input.snapshot && !input.privateSnapshot && hooks.privateExecutionSnapshot) input = { ...input, snapshot: await hooks.privateExecutionSnapshot() };
   const c = await loadProject(input);
+  if (c.snapshot) await assertSnapshotTrust(c);
+  const runtimeOnly = isRuntimeOnly(c.executionKind);
+  if (runtimeOnly && refs.some(ref => ref.agentRole !== 'runtime')) throw new Error('Runtime-only task unexpectedly references a Builder job');
   const archived = new Set(refs.filter((ref) => ref.agentRole === 'builder' && ['build', 'push'].includes(ref.stageKey)
     && ref.status && isTerminalJob(ref.status as Job['status'])).map((ref) => ref.jobId));
-  const discovery = await discoverJobs(c, refs, hooks.executionId);
+  const discovery = await discoverJobs(c, refs, hooks.executionId, runtimeOnly ? ['runtime'] : ['runtime', 'builder']);
   refs = discovery.refs;
   const sink = new EventSink(hooks, privateValues(c));
   const observer = new JobObserver(sink, hooks, refs);
@@ -34,10 +40,10 @@ export async function reconcileTask(input: ProjectInput, refs: RemoteJobRef[], h
   }
   await sink.flush();
   if (!runtime) return { status: 'interrupted', error: 'Controller stopped before a runtime deployment; generate a fresh plan',
-    cleanupState: c.config.builder.mode === 'static' ? 'static' : 'pending', recoveryState: 'none', output: { safeToReleaseGate: true } };
+    cleanupState: runtimeOnly ? 'not-needed' : c.config.builder.mode === 'static' ? 'static' : 'pending', recoveryState: 'none', output: { safeToReleaseGate: true } };
   const result = runtime.result as GroupDeployResult | undefined;
   return { status: runtime.status === 'succeeded' ? 'succeeded' : runtime.status === 'cancelled' ? 'cancelled' : 'failed',
-    output: result, error: runtime.error, cleanupState: c.config.builder.mode === 'static' ? 'static' : 'unknown',
+    output: result, error: runtime.error, cleanupState: runtimeOnly ? 'not-needed' : c.config.builder.mode === 'static' ? 'static' : 'unknown',
     recoveryState: result?.recovery ? result.recovery.succeeded ? 'succeeded' : 'failed' : 'none',
     remoteReleaseId: result?.releaseId, previousReleaseId: result?.previousReleaseId };
 }

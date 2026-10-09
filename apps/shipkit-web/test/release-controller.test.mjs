@@ -66,3 +66,36 @@ test('checks from a previous target or configuration scope cannot label the curr
   assert.equal(currentProjectChecks(stored, 'project|config-b|prod', 'prod'), null);
   assert.equal(currentProjectChecks(stored, stored.scope, 'staging'), null);
 });
+
+test('first directory releases use env files, first repository releases require a frozen version, later releases inherit', () => {
+  const fresh = { ...input('0.0.1'), live: { ...input('0.0.1').live, runtime: { currentReleaseId: null } } };
+  assert.equal(controllerHarness().render(fresh).configMode, 'files');
+  assert.equal(controllerHarness().render({ ...fresh, project: { ...fresh.project, sourceKind: 'repository', repository: { ref: { kind: 'branch', value: 'main' } } } }).configMode, 'version');
+  assert.equal(controllerHarness().render({ ...fresh, live: { ...fresh.live, runtime: { currentReleaseId: 'current' } } }).configMode, 'inherit');
+});
+
+test('config-only preparation uses an explicit frozen version and excludes source ref and builder reuse', async () => {
+  const harness = controllerHarness();
+  const value = { ...input('0.0.2'), project: { ...input('0.0.2').project, sourceKind: 'repository', repository: { ref: { kind: 'branch', value: 'main' } } }, live: { ...input('0.0.2').live, runtime: { currentReleaseId: 'current' } } };
+  harness.render(value).setKeepBuilder(true);
+  harness.render(value).setKind('config-only');
+  harness.render(value).setConfigVersionId('frozen-prod');
+  await harness.render(value).generatePlan();
+  const prepared = harness.requests[0].input;
+  assert.equal(prepared.kind, 'config-only'); assert.equal(prepared.keepBuilder, false);
+  assert.equal(prepared.configMode, 'version'); assert.equal(prepared.configVersionId, 'frozen-prod');
+  assert.equal(Object.hasOwn(prepared, 'sourceRef'), false);
+});
+
+test('repository code plans preserve the chosen ref and historical fixed inputs remain immutable', async () => {
+  const harness = controllerHarness();
+  const value = { ...input('0.0.2'), project: { ...input('0.0.2').project, sourceKind: 'repository', repository: { ref: { kind: 'branch', value: 'main' } } } };
+  harness.render(value).setSourceRef({ kind: 'tag', value: 'v2' });
+  await harness.render(value).generatePlan();
+  assert.equal(harness.requests[0].input.sourceRef.value, 'v2');
+  const saved = { id: 'archive', version: '0.0.1', selection: ['api'], kind: 'config-only', configMode: 'version', configVersionId: 'historical-config', detail: { sourceSnapshot: { requestedRef: { kind: 'commit', value: 'saved-sha' } } } };
+  const historical = { ...value, location: { taskId: 'task', step: 1 }, detail: { task: { id: 'task', version: '0.0.1', status: 'succeeded' }, plan: saved } };
+  harness.render(historical).setConfigVersionId('latest-config'); harness.render(historical).setKind('release'); harness.render(historical).setSourceRef({ kind: 'branch', value: 'new' });
+  const control = harness.render(historical);
+  assert.equal(control.configVersionId, 'historical-config'); assert.equal(control.kind, 'config-only'); assert.equal(control.sourceRef.value, 'saved-sha');
+});

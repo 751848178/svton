@@ -10,7 +10,8 @@ import { jobControl, JobCancelled, type JobControl } from './job-control.js';
 import { HttpFail } from './http-fail.js';
 import { JobOperations, type JobOperationIdentity, type JobOperationMetadata } from './job-operations.js';
 import { canReadJob } from './job-role.js';
-export interface JobContext extends JobControl { log(line: string): void }
+import type { SecretLog } from './log-secrets.js';
+export interface JobContext extends JobControl { log: SecretLog }
 export type JobRunner = (ctx: JobContext) => Promise<unknown>;
 const MAX_CONCURRENT = Math.max(1, Number(process.env.SHIP_AGENT_MAX_JOBS ?? 2) || 2);
 export class JobStore {
@@ -64,7 +65,7 @@ export class JobStore {
   private async runJob(job: Job, run: JobRunner): Promise<void> {
     const journal = this.journal(job.id);
     const ctx: JobContext = {
-      log: (line) => journal.log(line),
+      log: journal.log,
       ...jobControl(job, (event) => {
         journal.event(event);
         void this.persist(job).catch(() => {});
@@ -75,15 +76,15 @@ export class JobStore {
       job.status = 'running';
       job.updatedAt = new Date().toISOString();
       await this.persist(job);
-      job.result = await run(ctx);
+      job.result = journal.sanitizeResult(job.type, await run(ctx));
       await journal.flush();
       if (job.cancellable) ctx.checkpoint();
       job.status = 'succeeded';
     } catch (error) {
       const recovery = (error as { recovery?: unknown }).recovery;
-      if (recovery) job.result = { recovery };
+      if (recovery) job.result = journal.sanitizeResult(job.type, { recovery });
       job.status = error instanceof JobCancelled ? 'cancelled' : 'failed';
-      job.error = error instanceof Error ? error.message : String(error);
+      job.error = journal.redactText(error instanceof Error ? error.message : String(error));
       if (job.cancellation) {
         job.cancellation.outcome = job.status === 'cancelled' ? 'cancelled'
           : (recovery as { succeeded?: boolean } | undefined)?.succeeded === false ? 'recovery-failed' : 'requested';
@@ -94,7 +95,7 @@ export class JobStore {
     job.updatedAt = new Date().toISOString();
     journal.event({ phase: job.phase ?? 'complete', event: job.status });
     try { await journal.flush(); await this.persist(job); }
-    catch (error) { job.status = 'failed'; job.error = `job journal persistence failed: ${String(error)}`; console.error(job.error); }
+    catch (error) { job.status = 'failed'; job.error = journal.redactText(`job journal persistence failed: ${String(error)}`); console.error(job.error); }
     finally { this.active--; this.waiting.shift()?.(); }
   }
   async cancel(id: string, reason?: string): Promise<Job> {
@@ -102,7 +103,7 @@ export class JobStore {
     if (!job) throw new HttpFail(404, 'job_not_found', 'job does not exist');
     if (isTerminalJob(job.status) || job.cancellation) return job;
     if (!job.cancellable) throw new HttpFail(409, 'job_not_cancellable', `job cannot be cancelled in phase ${job.phase ?? 'unknown'}`);
-    job.cancellation = { requestedAt: new Date().toISOString(), ...(reason ? { reason } : {}), outcome: 'requested' };
+    job.cancellation = { requestedAt: new Date().toISOString(), ...(reason ? { reason: this.journal(id).redactText(reason) } : {}), outcome: 'requested' };
     job.status = 'cancel-requested';
     job.updatedAt = job.cancellation.requestedAt;
     this.journal(id).event({ phase: job.phase ?? 'queued', event: 'cancel-requested', ...(reason ? { detail: reason } : {}) });
@@ -124,7 +125,7 @@ export class JobStore {
   }
   events(id: string, after: number) { return this.journal(id).readEvents(after, isTerminalJob(this.get(id)!.status)); }
   private persist(job: Job): Promise<void> {
-    const data = JSON.stringify(job, null, 2);
+    const data = JSON.stringify(this.journal(job.id).sanitizeJob(job), null, 2);
     const pending = (this.writes.get(job.id) ?? Promise.resolve()).catch(() => {})
       .then(() => writeFileAtomic(path.join(this.dir(job.id), 'job.json'), data));
     this.writes.set(job.id, pending);

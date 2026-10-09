@@ -5,6 +5,7 @@ import { resolveTargetToken } from '../shared/credentials.js';
 import { fetchGroupState } from '../cli/release-plan.js';
 import { loadProject, privateValues, publicUrl, redactText } from './project-context.js';
 import type { AgentCheck, AgentPublicStatus, LiveProject, ProjectInput } from './contracts.js';
+import type { PrivatePlanOptions } from './private-snapshot.js';
 
 async function git(cwd: string, args: string[]): Promise<string | null> {
   const r = await exec('git', args, { cwd, timeoutMs: 10_000 });
@@ -19,13 +20,14 @@ async function check(t: { url: string; token: string; caFile?: string }, secrets
   } catch (e) { return { ok: false, error: redactText((e as Error).message, secrets) }; }
 }
 
-export async function inspectProject(input: ProjectInput): Promise<LiveProject> {
-  const c = await loadProject(input);
+export async function inspectProject(input: ProjectInput, options: PrivatePlanOptions = {}): Promise<LiveProject> {
+  const c = await loadProject(input, input.repository ? 'git' : 'directory', options);
   const secrets = privateValues(c);
   const [branch, commit, dirty, repo, runtimeCheck] = await Promise.all([
-    git(c.rootPath, ['branch', '--show-current']), git(c.rootPath, ['rev-parse', 'HEAD']),
-    git(c.rootPath, ['status', '--porcelain', '--untracked-files=normal']),
-    git(c.rootPath, ['remote', 'get-url', 'origin']), check(c.runtime, secrets),
+    c.sourceSnapshot ? Promise.resolve(c.sourceSnapshot.requestedRef.kind === 'branch' ? c.sourceSnapshot.requestedRef.value : null) : git(c.rootPath, ['branch', '--show-current']),
+    c.sourceSnapshot ? Promise.resolve(c.sourceSnapshot.commit) : git(c.rootPath, ['rev-parse', 'HEAD']),
+    c.sourceSnapshot ? Promise.resolve('') : git(c.rootPath, ['status', '--porcelain', '--untracked-files=normal']),
+    c.sourceSnapshot ? Promise.resolve(c.sourceSnapshot.repoUrl) : git(c.rootPath, ['remote', 'get-url', 'origin']), check(c.runtime, secrets),
   ]);
   let current: Awaited<ReturnType<typeof fetchGroupState>> = { schemaVersion: 2, app: c.spec.name, current: null, services: {} };
   if (runtimeCheck.ok) {

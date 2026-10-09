@@ -80,6 +80,7 @@ export async function runMultiBuildPipeline(o: {
   platform?: string;
   timeoutMs: number;
   expectedSourceDigest?: string;
+  expectedGitSha?: string;
   managedCancellation?: boolean;
 }): Promise<GroupBuildManifest> {
   const log = o.logger;
@@ -111,6 +112,8 @@ export async function runMultiBuildPipeline(o: {
     const source = frozen
       ? await uploadFrozenSource(handle, frozen, log)
       : await resolveGitSource(o.cwd, o.config, log);
+    if (o.managedCancellation && source.type === 'git' && source.token && !/^https:\/\//.test(handle.url)
+      && !/^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::|\/|$)/.test(handle.url)) throw new CliError('Private Git credentials require HTTPS or a controlled loopback Agent tunnel');
 
     // serial builds on the SAME machine, each with its own Dockerfile slice
     const builds: Record<string, BuildResult> = {};
@@ -123,6 +126,9 @@ export async function runMultiBuildPipeline(o: {
       const operationId = await log.operationId?.('build', name, handle);
       const started = await api<{ jobId: string }>(handle.url, handle.token, 'POST', '/api/build', { source, spec: slice, tag: o.tag, ...(operationId ? { operationId } : {}) }, 20_000, httpOpts);
       builds[name] = (await waitAndReport(handle, started.jobId, `build:${name}`, log, o.timeoutMs)).result as BuildResult;
+      if (o.expectedGitSha && builds[name]?.sha?.toLowerCase() !== o.expectedGitSha.toLowerCase()) {
+        throw new CliError(`build:${name} did not return the planned Git SHA; refusing every push and deploy`);
+      }
     }
 
     // every build succeeded → push all; every digest verified → manifest

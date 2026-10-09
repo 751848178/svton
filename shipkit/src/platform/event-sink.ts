@@ -1,5 +1,6 @@
 import type { ExecutionEvent, ExecutionHooks } from './contracts.js';
 import { redactText } from './project-context.js';
+import { sanitizeExecutionEvent } from './execution-event-sanitizer.js';
 
 /** Serializes sync pipeline diagnostics into awaited, redacted durable events. */
 export class EventSink {
@@ -8,13 +9,16 @@ export class EventSink {
   constructor(private readonly hooks: ExecutionHooks, private readonly secrets: string[]) {}
   addSecret(secret: string) { if (secret.length >= 3) this.secrets.push(secret); }
   emit(event: ExecutionEvent): Promise<void> {
-    const redact = (v: unknown, key = ""): unknown => {
-      if (typeof v === "string") return ["type","status","stageKey","serviceKey","jobId","phase"].includes(key) ? v : redactText(v, this.secrets);
-      if (Array.isArray(v)) return v.map((item) => redact(item));
-      if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k,value]) => [k,redact(value,k)]));
+    const redact = (v: unknown): unknown => {
+      if (typeof v === 'string') return redactText(v, this.secrets);
+      if (typeof v === 'number' || typeof v === 'boolean') {
+        const literal = String(v), safe = redactText(literal, this.secrets); return literal === safe ? v : safe;
+      }
+      if (Array.isArray(v)) return v.map(redact);
+      if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([key, value]) => [key, redact(value)]));
       return v;
     };
-    const safe = redact(event) as ExecutionEvent;
+    const safe = sanitizeExecutionEvent(event, { redactValue: redact });
     this.queue = this.queue.then(() => this.hooks.emit(safe));
     this.queue.catch((e: unknown) => { this.failure = e; });
     return this.queue;
