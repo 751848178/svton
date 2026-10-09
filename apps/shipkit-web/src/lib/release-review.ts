@@ -23,7 +23,7 @@ export function releaseReviewServices(plan: Plan): ReviewService[] {
     return {
       serviceKey, selected, action: selected ? plan.kind === 'config-only' ? '复用镜像，更新运行配置' : '构建并更新' : '继承基线版本',
       detail: selected && plan.kind !== 'config-only' ? [service?.dockerfile, platform].filter(Boolean).join(' · ') || '原计划未记录构建配置'
-        : service?.imageRef || '原计划未记录继承镜像',
+        : service?.imageRef || (selected && plan.kind === 'config-only' ? '原计划未记录复用镜像' : '原计划未记录继承镜像'),
       imageRef: selected && plan.kind !== 'config-only' ? undefined : service?.imageRef,
     };
   });

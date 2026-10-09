@@ -9,7 +9,7 @@ function load(path) {
   const { outputText } = transpileModule(source, { compilerOptions: { module: ModuleKind.CommonJS, target: ScriptTarget.ES2021 } });
   const exports = {}; runInNewContext(outputText, { exports, URL, TextDecoder }); return exports;
 }
-const { variableRows, variablePatches, importEnv, importEnvBytes, mergeImported, nextConfigVersion } = load('config-form');
+const { variableRows, variablePatches, serviceVariablePatches, importEnv, importEnvBytes, mergeImported, nextConfigVersion } = load('config-form');
 const { repositoryInput } = load('repository-input');
 const plain = value => JSON.parse(JSON.stringify(value));
 
@@ -30,6 +30,15 @@ test('single line env imports preserve UTF-8, literal dollar signs, quotes and e
   assert.equal(merged.length, 4);
   const plainOriginal = variableRows([{ key: 'PLAIN', secret: false, hasValue: true, value: 'original' }]);
   assert.equal(mergeImported(plainOriginal, rows)[0].savedValue, 'original');
+});
+
+test('noEnv service patches delete stored plain and secret variables while leaving unsaved inputs available for undo', () => {
+  const rows = variableRows([{ key: 'TOKEN', secret: true, hasValue: true }, { key: 'EMPTY', secret: false, hasValue: true, value: '' }]);
+  rows.push({ key: '', value: 'unfinished', secret: false, original: false, mode: 'set' });
+  const before = plain(rows);
+  assert.deepEqual(plain(serviceVariablePatches(rows, true)), [{ key: 'TOKEN', delete: true }, { key: 'EMPTY', delete: true }]);
+  assert.deepEqual(plain(rows), before);
+  assert.deepEqual(plain(serviceVariablePatches(rows.slice(0, 2), false)), [{ key: 'TOKEN', secret: true }, { key: 'EMPTY', secret: false }]);
 });
 
 test('ambiguous imports, duplicate names and multiline values cannot silently change a secret', () => {

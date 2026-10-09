@@ -23,8 +23,8 @@
 | --- | --- | --- |
 | 合约与模块实现 | Provider API/generic临时解析、加密仓库凭据、草稿/CAS/冻结、项目子页面已实现 | done |
 | 发布与恢复集成 | 固定私密输入、SHA阻断、configRef/noEnv、仅配置与历史恢复；Runtime-only重启与0映射发现均通过 | done |
-| 隔离集成 | Core/Agent646、API24、Web76；真实HTTPS Git9、Runtime容器9；构建/类型/迁移通过 | done |
-| 浏览器验收 | 原空间返回用户接管硬停止，已请求新的明确许可；未绕过停止，页面验收尚未执行 | pending |
+| 隔离集成 | 最终Core/Agent652、API27、Web86；真实HTTPS Git9、Runtime容器9；构建/类型/迁移通过 | done |
+| 浏览器验收 | 原空间46；配置生命周期4/4、部分回滚0.0.11源码归属、完整Runtime指纹均通过；最终Git0.0.12恢复两服务配置01，113事件/18完整日志scope无trace/fatal/秘密泄漏，页面保留供用户查看 | done |
 | 交付 | 运维说明、可重复隔离验收脚本、实际验收摘要已保存；本机提交，不部署/推送或移动冻结标签 | done |
 
 写入边界：core/Agent 由 protocol；API secrets/configs/Prisma 由 persistence；Web 由 project_context；根代理负责 API projects/tasks/executor 接入、契约与最终验收。共享模块先约定再使用，源码文件≤200行。

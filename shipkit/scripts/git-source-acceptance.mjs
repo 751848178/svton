@@ -18,7 +18,7 @@ const realGit = spawnSync('/usr/bin/which', ['git'], { encoding: 'utf8' }).stdou
 const backend = path.join(spawnSync(realGit, ['--exec-path'], { encoding: 'utf8' }).stdout.trim(), 'git-http-backend');
 const work = path.join(directory, 'work'), repositories = path.join(directory, 'repositories'), bare = path.join(repositories, 'org', 'fixture.git');
 const observationsFile = path.join(directory, 'observations.jsonl');
-const saved = { PATH: process.env.PATH, GIT_SSL_CAINFO: process.env.GIT_SSL_CAINFO, SHIPKIT_GIT_ALLOWED_HOSTS: process.env.SHIPKIT_GIT_ALLOWED_HOSTS, SHIPKIT_GIT_ALLOW_PRIVATE_HOSTS: process.env.SHIPKIT_GIT_ALLOW_PRIVATE_HOSTS };
+const saved = { PATH: process.env.PATH, GIT_SSL_CAINFO: process.env.GIT_SSL_CAINFO, GIT_CURL_VERBOSE: process.env.GIT_CURL_VERBOSE, SHIPKIT_GIT_ALLOWED_HOSTS: process.env.SHIPKIT_GIT_ALLOWED_HOSTS, SHIPKIT_GIT_ALLOW_PRIVATE_HOSTS: process.env.SHIPKIT_GIT_ALLOW_PRIVATE_HOSTS };
 const logs = [], checks = [];
 let server;
 function run(command, args, cwd = directory) {
@@ -56,6 +56,7 @@ try {
   const temporaryRoot = path.join(directory, 'resolver'); await mkdir(temporaryRoot);
   const options = { token, allowedHosts: ['localhost'], allowPrivateHosts: ['localhost'], temporaryRoot, timeoutMs: 20000, maxBytes: 1024 * 1024 };
   process.env.SHIPKIT_GIT_ALLOWED_HOSTS = 'localhost'; process.env.SHIPKIT_GIT_ALLOW_PRIVATE_HOSTS = 'localhost';
+  process.env.GIT_CURL_VERBOSE = '1'; // Prove the child overrides an inherited enabled trace flag.
   const { ensureSource } = await import(pathToFileURL(path.join(distRoot, 'agent/source.js')).href);
   const agentLogs = [], agentWork = path.join(directory, 'agent-work');
   let initial, advanced, pinned, checkout, repeatedCheckout;
@@ -99,6 +100,9 @@ try {
     assert(server.evidence.authorized > 0); assert(server.evidence.challenged > 0); assert.equal(server.evidence.receivePackRequests, 0);
     assert(!JSON.stringify([initial, advanced, pinned, logs, agentLogs]).includes(token));
     assert(!JSON.stringify(agentLogs).includes(encodeURIComponent(token)));
+    assert(!JSON.stringify(agentLogs).includes(Buffer.from('x-access-token:' + token).toString('base64')));
+    assert(!agentLogs.some(line => /http\.c:\d+|== Info:|=> Send header:|<= Recv header:/.test(line)), 'Git HTTP tracing must not appear in actual Builder output');
+    assert(!agentLogs.some(line => /fatal:/i.test(line)), 'A supported repository must not emit fatal errors from existence probes');
     assert(!(await readFile(path.join(checkout.dir, '.git/config'), 'utf8')).includes(token));
   });
   await check('temporary checkout and askpass credential files are removed after resolution', async () => {
@@ -106,7 +110,7 @@ try {
     for (const item of observations) { if (item.askpass) assert(!existsSync(item.askpass)); if (item.credentialFile) assert(!existsSync(item.credentialFile)); }
   });
   const report = { passed: true, at: new Date().toISOString(), checks, commits: { first, second, pinned: pinned.commit, builderInitial: checkout.sha, builderAfterFetch: repeatedCheckout.sha }, authorizedRequests: server.evidence.authorized,
-    credentialChallenges: server.evidence.challenged, observedGitCommands: observations.length, leakMatches: 0, receivePackRequests: server.evidence.receivePackRequests, tlsVerification: 'private CA; verification enabled', secretType: 'synthetic temporary credential' };
+    credentialChallenges: server.evidence.challenged, observedGitCommands: observations.length, leakMatches: 0, httpTraceLines: 0, probeFatalLines: 0, receivePackRequests: server.evidence.receivePackRequests, tlsVerification: 'private CA; verification enabled', secretType: 'synthetic temporary credential' };
   await writeFile(path.join(outputRoot, 'real-git-acceptance.json'), JSON.stringify(report, null, 2));
   await writeFile(path.join(outputRoot, 'real-git-command-log.json'), JSON.stringify({ setupAndInspection: logs, builderLogs: agentLogs }, null, 2));
   console.log(JSON.stringify(report));

@@ -48,6 +48,7 @@ export async function preparePlan(input: ProjectInput, request: PlanRequest, opt
     if (configMode === 'files' && selection.some(name => c.spec.services[name]?.envFile && !(name in snapshot.envFiles))) throw new Error('Runtime env file is missing; use a frozen platform configuration or inherit the committed env');
     detail.releasePlan = buildReleasePlan({ spec: c.spec, project: c.identity, env: c.targetKey, target: c.targetKey,
       selection, requested: request.services, state, keepEnv });
+    if (request.kind === 'config-only') for (const name of selection) detail.releasePlan.services[name]!.imageRef = state.services[name]!.imageRef;
   }
   Object.assign(detail, { sourceDigest: snapshot.sourceDigest, gitRef: snapshot.gitRef, configDigest: snapshot.configDigest, sourceSnapshot: snapshot.sourceSnapshot });
   const configBindings = Object.fromEntries(selection.map(name => [name, { mode: configMode, ...(snapshot.configRefs?.[name] ? { configRef: snapshot.configRefs[name] } : {}) }]));

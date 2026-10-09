@@ -15,6 +15,9 @@ export function variablePatches(rows: VariableRow[]): VariablePatch[] {
     return { key: row.key, value, secret: row.secret };
   });
 }
+export function serviceVariablePatches(rows: VariableRow[], noEnv: boolean): VariablePatch[] {
+  return variablePatches(noEnv ? rows.map(row => ({ ...row, mode: 'delete' })) : rows);
+}
 export function importEnv(text: string): VariableRow[] {
   const rows: VariableRow[] = [];
   for (const [index, line] of text.replace(/^\uFEFF/, '').split(/\r?\n/).entries()) {

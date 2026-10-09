@@ -1,4 +1,5 @@
 'use client';
+import { Select } from '@svton/ui';
 import type { RepositoryInput } from '@/lib/source-contracts';
 import { SourceRefFields } from './source-ref-fields';
 
@@ -9,6 +10,7 @@ export function RepositoryFields({ value, onChange, token, onToken, username, on
 }) {
   return <>
     <label htmlFor={`${prefix}-url`}>HTTPS 仓库地址<input id={`${prefix}-url`} type="url" value={value.url} onChange={event => onChange({ ...value, url: event.target.value })} disabled={disabled} placeholder="https://git.example.com/team/project.git" autoComplete="off" required /><span className="form-help">公开仓库无需凭据。仅允许管理员已开放的 Git 主机。</span></label>
+    <div className="select-field"><label htmlFor={`${prefix}-provider`}>仓库服务</label><Select id={`${prefix}-provider`} value={value.provider || ''} disabled={disabled} onChange={event => onChange({ ...value, provider: event.target.value ? event.target.value as RepositoryInput['provider'] : undefined })} options={[{ value: '', label: '自动识别' }, { value: 'github', label: 'GitHub（github.com）' }, { value: 'gitlab', label: 'GitLab（含自建）' }, { value: 'gitea', label: 'Gitea' }, { value: 'generic', label: '通用HTTPS Git' }]} /><span className="form-help">部署令牌仅支持 Git 读取时，选择“通用HTTPS Git”；主机仍需管理员开放。</span></div>
     <SourceRefFields value={value.ref} onChange={ref => onChange({ ...value, ref })} disabled={disabled} prefix={prefix} />
     <label htmlFor={`${prefix}-spec`}>发布定义路径<input id={`${prefix}-spec`} value={value.specPath || ''} onChange={event => onChange({ ...value, specPath: event.target.value })} disabled={disabled} placeholder="ship.yaml" /><span className="form-help">相对仓库根目录；构建上下文也以仓库根目录解析。</span></label>
     <label htmlFor={`${prefix}-token`}>{hasCredential ? '替换仓库读取凭据' : '仓库读取 Token（私有仓库）'}<input id={`${prefix}-token`} type="password" autoComplete="new-password" value={token} onChange={event => onToken(event.target.value)} disabled={disabled || clearCredential} placeholder={hasCredential ? '已配置；留空保留现有凭据' : '只读 Token，不写入仓库地址'} /><span className="form-help">保存后不回填秘密。凭据不进入源码、计划或日志。</span></label>

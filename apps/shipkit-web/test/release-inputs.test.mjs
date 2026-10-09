@@ -20,6 +20,43 @@ const { ReleaseInputEvidence } = load('components/release-input-evidence.tsx', n
 const sourceSnapshot = { repoUrl: 'https://git.example.com/new.git', requestedRef: { kind: 'tag', value: 'v1' }, commit: 'new-fixed', specPath: 'ship.yaml' };
 const baseline = { type: 'git', repo: 'https://git.example.com/old.git', ref: 'stable', sha: 'old-fixed' };
 const plan = overrides => ({ kind: 'release', selection: ['api'], detail: { sourceSnapshot, currentSources: { api: baseline, admin: baseline }, configBindings: { api: { mode: 'version', name: '生产配置', version: '1.0.0' }, admin: { mode: 'inherit', name: '旧配置', version: '0.0.1' } } }, ...overrides });
+const actualRollback = JSON.parse(readFileSync(new URL('./fixtures/rollback-config-plan.json', import.meta.url), 'utf8'));
+
+test('saved rollback configuration comes from the actual restored archived version, never generic bindings or newer refs', () => {
+  assert.equal(actualRollback.detail.configBindings.api.mode, 'files');
+  assert.equal(actualRollback.detail.currentConfigRefs.api.version, '0.0.3');
+  assert.equal(inputs.planServiceConfig(actualRollback, 'api').version, '0.0.2');
+  const missing = structuredClone(actualRollback); delete missing.detail.history.restoreServices.api.configRef;
+  assert.equal(inputs.planServiceConfig(missing, 'api'), undefined);
+  const unselected = structuredClone(actualRollback);
+  unselected.detail.history.restoreServices.web.configRef.version = 'historical-web-must-not-apply';
+  assert.equal(inputs.planServiceConfig(unselected, 'web').version, '0.0.0');
+});
+
+test('result evidence renders the actual archived rollback version and preserves saved unselected configuration', () => {
+  const html = renderToStaticMarkup(createElement(ReleaseInputEvidence, { plan: actualRollback }));
+  assert.match(html, /页面配置验收 · 0\.0\.2/);
+  assert.match(html, /隔离 nginx 测试基线 · 0\.0\.0/);
+  assert.doesNotMatch(html, /页面配置验收 · 0\.0\.3|历史文件配置/);
+});
+
+test('partial rollback restores selected sources and renders the saved current Git commit for unselected services', () => {
+  const selectedSha = 'a'.repeat(40), currentWebSha = 'b'.repeat(40), parentWebSha = 'c'.repeat(40);
+  const rollback = structuredClone(actualRollback);
+  rollback.detail.currentSources = { api: { ...baseline, sha: 'd'.repeat(40) }, web: { ...baseline, sha: currentWebSha } };
+  rollback.detail.history.restoreServices.api.source = { ...baseline, sha: selectedSha };
+  rollback.detail.history.restoreServices.web.source = { ...baseline, sha: parentWebSha };
+  assert.equal(inputs.planServiceSource(rollback, 'api').sha, selectedSha);
+  assert.equal(inputs.planServiceSource(rollback, 'web').sha, currentWebSha);
+  const html = renderToStaticMarkup(createElement(ReleaseInputEvidence, { plan: rollback }));
+  assert(html.includes(selectedSha)); assert(html.includes(currentWebSha));
+  assert(!html.includes(parentWebSha)); assert(!html.includes('d'.repeat(40)));
+  assert.match(html, /恢复快照/); assert.match(html, /完整继承/);
+  delete rollback.detail.currentSources.web;
+  assert.equal(inputs.planServiceSource(rollback, 'web'), undefined);
+  assert.match(renderToStaticMarkup(createElement(ReleaseInputEvidence, { plan: rollback })), /此记录未保存源码来源/);
+  assert(!renderToStaticMarkup(createElement(ReleaseInputEvidence, { plan: rollback })).includes(parentWebSha));
+});
 
 test('a code release uses its verified commit for selected services and retains each inherited source', () => {
   const value = plan();
@@ -79,4 +116,8 @@ test('rollback plan review exposes only the saved restored source even without r
   const html = renderToStaticMarkup(createElement(ReleasePlanView, { plan: rollback, readOnly: true, project: {}, live: {}, onExecute() {} }));
   assert.match(html, /old-fixed/); assert.match(html, /restore-image/); assert.doesNotMatch(html, /wrong-after-change|changed-image/);
   assert.match(html, /恢复所选服务的历史配置快照/); assert.doesNotMatch(html, /使用已有环境文件/);
+  const actual = renderToStaticMarkup(createElement(ReleasePlanView, { plan: actualRollback, readOnly: true, project: {},
+    live: { services: [{ key: 'api', configRef: { mode: 'version', name: '最新运行配置', version: '9.9.9' } }] }, onExecute() {} }));
+  assert.match(actual, /已保存的发布计划/); assert.match(actual, /页面配置验收 · 0\.0\.2/);
+  assert.doesNotMatch(actual, /历史文件配置|页面配置验收 · 0\.0\.3|最新运行配置|9\.9\.9/);
 });

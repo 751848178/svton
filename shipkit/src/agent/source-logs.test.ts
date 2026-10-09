@@ -34,7 +34,7 @@ mock.module('../shared/exec.js', { namedExports: { ...realExec, exec: async (_cm
     opts?.onLine?.(`diagnostic ${token} ${encodeURIComponent(token)}`, 'err');
     if (failure) return { ...ok(), code: 1, timedOut: failure === 'timeout' };
   }
-  if (args.includes('cat-file')) return { ...ok(), code: feature === 'submodule' ? 0 : 1 };
+  if (args.includes('ls-tree')) return ok(`100644 blob ${'b'.repeat(40)}\t${feature === 'submodule' ? '.gitmodules' : 'README'}\n`);
   if (args.includes('grep')) return { ...ok(), code: feature === 'lfs' ? 0 : 1 };
   if (args.includes('rev-parse')) return ok('a'.repeat(40));
   return ok();

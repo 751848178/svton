@@ -1,0 +1,493 @@
+{
+  "dates": [
+    "2026-10-09",
+    "2026-10-10"
+  ],
+  "scope": "Real browser operations and independent read-only verification in an isolated local environment. No production deployment, remote push, or tag changes.",
+  "project": {
+    "id": "478778b9-1638-49e6-815e-a90de540da01",
+    "name": "Git 与配置验收",
+    "page": "http://localhost:18769/",
+    "fixedSha": "7b6b80590532af2616ae60f06cd5fd527cc1e518",
+    "services": [
+      "api",
+      "web"
+    ]
+  },
+  "configuration": {
+    "passed": true,
+    "builderOffline": true,
+    "seedImageBoundary": "The first four configuration operations reuse clearly marked nginx seed images; later full Git releases build real repository source.",
+    "milestones": [
+      {
+        "milestone": "config01",
+        "taskId": "cmv151tzv001cuwkvsp6t6osc",
+        "releaseVersion": "0.0.2",
+        "kind": "config-only",
+        "remoteReleaseId": "mv151u9w-38045bdf",
+        "configRef": {
+          "versionId": "c2998a85-4ea3-46c7-a0e7-6390f0aa095f",
+          "version": "0.0.1",
+          "serviceKey": "api",
+          "name": "页面配置验收"
+        },
+        "checks": {
+          "encryptedConfigPersistence": true,
+          "runtimeAgreesWithAgent": true,
+          "runningContainers": true,
+          "expectedEnv": true,
+          "secretsHidden": true,
+          "publicAndJournalSecretsAbsent": true,
+          "unchangedImagesSourcesAndWeb": true,
+          "expectedApiConfigRef": true,
+          "latestTaskMatchesRuntime": true,
+          "terminalLatestTask": true,
+          "runtimeOnlyRemoteJobs": true,
+          "selectedOnlyApi": true,
+          "frozenSelectedImageRefs": true,
+          "fixedPlanConfigBinding": true,
+          "configOnlyStagesSkipped": true,
+          "expectedNoEnv": true,
+          "expectedArchivedVersion": true
+        },
+        "passed": true
+      },
+      {
+        "milestone": "config02",
+        "taskId": "cmv154qj0008ruwkvuwvbxf0p",
+        "releaseVersion": "0.0.3",
+        "kind": "config-only",
+        "remoteReleaseId": "mv154quw-355e8d18",
+        "configRef": {
+          "versionId": "ed8e8647-3576-4c20-b7ef-b12e3f12757f",
+          "version": "0.0.2",
+          "serviceKey": "api",
+          "name": "页面配置验收"
+        },
+        "checks": {
+          "encryptedConfigPersistence": true,
+          "runtimeAgreesWithAgent": true,
+          "runningContainers": true,
+          "expectedEnv": true,
+          "secretsHidden": true,
+          "publicAndJournalSecretsAbsent": true,
+          "unchangedImagesSourcesAndWeb": true,
+          "expectedApiConfigRef": true,
+          "latestTaskMatchesRuntime": true,
+          "terminalLatestTask": true,
+          "runtimeOnlyRemoteJobs": true,
+          "selectedOnlyApi": true,
+          "frozenSelectedImageRefs": true,
+          "fixedPlanConfigBinding": true,
+          "configOnlyStagesSkipped": true,
+          "expectedNoEnv": true,
+          "expectedArchivedVersion": true
+        },
+        "passed": true
+      },
+      {
+        "milestone": "config03-clear",
+        "taskId": "cmv156tu100fquwkvlj835aq8",
+        "releaseVersion": "0.0.4",
+        "kind": "config-only",
+        "remoteReleaseId": "mv156u4d-27336223",
+        "configRef": {
+          "versionId": "983c53ae-e208-42a3-96d9-48c969b63b2f",
+          "version": "0.0.3",
+          "serviceKey": "api",
+          "name": "页面配置验收"
+        },
+        "checks": {
+          "encryptedConfigPersistence": true,
+          "runtimeAgreesWithAgent": true,
+          "runningContainers": true,
+          "expectedEnv": true,
+          "secretsHidden": true,
+          "publicAndJournalSecretsAbsent": true,
+          "unchangedImagesSourcesAndWeb": true,
+          "expectedApiConfigRef": true,
+          "latestTaskMatchesRuntime": true,
+          "terminalLatestTask": true,
+          "runtimeOnlyRemoteJobs": true,
+          "selectedOnlyApi": true,
+          "frozenSelectedImageRefs": true,
+          "fixedPlanConfigBinding": true,
+          "configOnlyStagesSkipped": true,
+          "expectedNoEnv": true,
+          "expectedArchivedVersion": true
+        },
+        "passed": true
+      },
+      {
+        "milestone": "rollback-archived02",
+        "taskId": "cmv15a00200miuwkvdl7jrsn8",
+        "releaseVersion": "0.0.5",
+        "kind": "rollback",
+        "remoteReleaseId": "mv15a0a2-7313b98a",
+        "configRef": {
+          "versionId": "ed8e8647-3576-4c20-b7ef-b12e3f12757f",
+          "version": "0.0.2",
+          "serviceKey": "api",
+          "name": "页面配置验收"
+        },
+        "checks": {
+          "encryptedConfigPersistence": true,
+          "runtimeAgreesWithAgent": true,
+          "runningContainers": true,
+          "expectedEnv": true,
+          "secretsHidden": true,
+          "publicAndJournalSecretsAbsent": true,
+          "unchangedImagesSourcesAndWeb": true,
+          "expectedApiConfigRef": true,
+          "latestTaskMatchesRuntime": true,
+          "terminalLatestTask": true,
+          "runtimeOnlyRemoteJobs": true,
+          "builderRemainsOffline": true,
+          "selectedOnlyApi": true,
+          "frozenSelectedImageRefs": true,
+          "fixedPlanConfigBinding": true,
+          "configOnlyStagesSkipped": true,
+          "expectedNoEnv": true,
+          "expectedArchivedVersion": true,
+          "rollbackRestoresFrozenParent": true
+        },
+        "passed": true
+      }
+    ]
+  },
+  "gitArtifactChain": {
+    "releaseVersion": "0.0.7",
+    "taskId": "cmv15g3st00x3uwkvlt2frxri",
+    "passed": true,
+    "checks": {
+      "taskSucceeded": true,
+      "correctProjectAndRuntimeRelease": true,
+      "twoServices": true,
+      "frozenPlanSha": true,
+      "artifactChainsMatch": true,
+      "httpSecretsAbsent": true,
+      "platformPublicSecretsAbsent": true
+    },
+    "services": {
+      "api": {
+        "checks": {
+          "buildJobSucceeded": true,
+          "buildOperationCorrelated": true,
+          "buildFixedSha": true,
+          "manifestDigest": true,
+          "platformManifestDigest": true,
+          "configBlobDigest": true,
+          "builderRegistryRuntimeSameImage": true,
+          "registryConfigMatchesDocker": true,
+          "runtimeImageRefMatches": true,
+          "runtimeFixedGitSource": true,
+          "runtimeFrozenConfig01": true,
+          "httpExactSourceBytes": true,
+          "runtimeExactEnv": true,
+          "buildImageContainsNoRuntimeSecrets": true
+        },
+        "registryManifestDigest": "sha256:cf22c58611511392720b0dd71bbb5bac2f7126dad006e1a63584a504b35cda10",
+        "registryImageManifestDigest": "sha256:86c65d814cbe1c22e70c4efc15beb802552fc6828f090156c2f777f3d34d2722",
+        "registryConfigDigest": "sha256:1f1fd4e77b19c3cdb69e4702d25319281f7e2af4f515a5fb572f4ff4a64a9f59",
+        "runtimeSource": {
+          "type": "git",
+          "sha": "7b6b80590532af2616ae60f06cd5fd527cc1e518",
+          "repo": "https://localhost:52111/org/browser.git",
+          "ref": "7b6b80590532af2616ae60f06cd5fd527cc1e518"
+        },
+        "runtimeConfigRef": {
+          "versionId": "c2998a85-4ea3-46c7-a0e7-6390f0aa095f",
+          "version": "0.0.1",
+          "serviceKey": "api",
+          "name": "页面配置验收"
+        },
+        "httpContentDigest": "sha256:a4c1cc379e1bf762c96c6accf2c3dd716c25f307a9064c06aefd0d2030f7b2f7"
+      },
+      "web": {
+        "checks": {
+          "buildJobSucceeded": true,
+          "buildOperationCorrelated": true,
+          "buildFixedSha": true,
+          "manifestDigest": true,
+          "platformManifestDigest": true,
+          "configBlobDigest": true,
+          "builderRegistryRuntimeSameImage": true,
+          "registryConfigMatchesDocker": true,
+          "runtimeImageRefMatches": true,
+          "runtimeFixedGitSource": true,
+          "runtimeFrozenConfig01": true,
+          "httpExactSourceBytes": true,
+          "runtimeExactEnv": true,
+          "buildImageContainsNoRuntimeSecrets": true
+        },
+        "registryManifestDigest": "sha256:e6311e176db31e5c964cb0fe1054ffab34c3e95cd8d8226dde2ddb4375bb770d",
+        "registryImageManifestDigest": "sha256:4576be49bca4816b8eb24b780409fc46b78629096c9bb70f4c87974762c87708",
+        "registryConfigDigest": "sha256:0486ea825b6a366fa9d46ae29e5daa062c8e4bdd036a7678dfc8758172bd2654",
+        "runtimeSource": {
+          "type": "git",
+          "sha": "7b6b80590532af2616ae60f06cd5fd527cc1e518",
+          "repo": "https://localhost:52111/org/browser.git",
+          "ref": "7b6b80590532af2616ae60f06cd5fd527cc1e518"
+        },
+        "runtimeConfigRef": {
+          "versionId": "c2998a85-4ea3-46c7-a0e7-6390f0aa095f",
+          "version": "0.0.1",
+          "serviceKey": "web",
+          "name": "页面配置验收"
+        },
+        "httpContentDigest": "sha256:00db81c63dfea080b95b3201996e16a6e8d77b03596c3ac7fa361d0aa17985ce"
+      }
+    }
+  },
+  "gitAuthentication": {
+    "passed": true,
+    "checks": [
+      {
+        "label": "untrusted HTTPS certificate fails while TLS verification stays enabled",
+        "passed": true
+      },
+      {
+        "label": "HTTPS CA-authenticated smart Git resolves real fixed commit and spec",
+        "passed": true
+      },
+      {
+        "label": "Builder performs authenticated HTTPS working-tree clone at the pinned SHA",
+        "passed": true
+      },
+      {
+        "label": "branch advancement changes new resolution but immutable commit remains pinned",
+        "passed": true
+      },
+      {
+        "label": "Builder repeat fetch observes branch advancement and keeps the old SHA checkout",
+        "passed": true
+      },
+      {
+        "label": "private host access requires explicit server option",
+        "passed": true
+      },
+      {
+        "label": "metadata cache byte budget refuses oversize and cleans temporary data",
+        "passed": true
+      },
+      {
+        "label": "askpass authentication never enters repository URL, argv, config, or process output",
+        "passed": true
+      },
+      {
+        "label": "temporary checkout and askpass credential files are removed after resolution",
+        "passed": true
+      }
+    ],
+    "httpTraceLines": 0,
+    "leakMatches": 0,
+    "receivePackRequests": 0,
+    "tlsVerification": "private CA; verification enabled"
+  },
+  "browser": {
+    "taskSpace": 46,
+    "page": "p1",
+    "checks": {
+      "repositoryHttpsValidation": true,
+      "repositoryReadPreviewSave": true,
+      "genericProviderSelection": true,
+      "blankCredentialPreservation": true,
+      "envImportLiteralValues": true,
+      "secretMasksAndReadonlyVersions": true,
+      "previewBeforeFreeze": true,
+      "noEnvUndoAndExplicitDelete": true,
+      "archivedExcludedFromNewRelease": true,
+      "archivedHistoricalRollback": true,
+      "rollbackHistoricalConfigLabels": true,
+      "compactImageHoverAndCopy": true,
+      "whiteReadableLogsWithDistinctColors": true,
+      "nonModalStageLogSwitch": true,
+      "logsOnlyInExecutionStep": true,
+      "structuredStageAndServiceEvidence": true,
+      "completedStepsReadonlyReview": true,
+      "agentRoleAndConnectionCheck": true,
+      "viewport1024NoOverallHorizontalOverflow": true
+    },
+    "finalRelease": {
+      "version": "0.0.12",
+      "taskId": "cmv16wxp900qnqyy5e3lqi1su",
+      "passed": true,
+      "url": "http://localhost:18769/?view=release&project=478778b9-1638-49e6-815e-a90de540da01&task=cmv16wxp900qnqyy5e3lqi1su&step=4",
+      "log": {
+        "title": "构建镜像 · 日志",
+        "background": "rgb(255, 255, 255)",
+        "httpTraceLines": 0,
+        "fatalLines": 0,
+        "colors": [
+          "rgb(26, 44, 38)",
+          "rgb(35, 89, 120)",
+          "rgb(23, 99, 70)"
+        ],
+        "evidenceHeadings": [
+          "阶段状态与诊断",
+          "阶段结果与检查证据",
+          "远端任务与已载入事件"
+        ]
+      }
+    },
+    "partialRollback": {
+      "url": "http://localhost:18769/?view=release&project=478778b9-1638-49e6-815e-a90de540da01&task=cmv16qhfw00ipqyy53rgwd2k6&step=4",
+      "version": "0.0.11",
+      "apiHistoricalConfigAndSource": true,
+      "webCurrentGitAndConfig": true,
+      "rows": [
+        "api\t页面配置验收 · 0.0.2\t\n\n目录快照\n\n快照 sha256:3d63cf3edb8498edcb2676412e66b879c20fe0b47669cb3afd16056955511ae8\n\n\t恢复快照",
+        "web\t页面配置验收 · 0.0.1\t\n\nGit 源码 · 7b6b80590532af2616ae60f06cd5fd527cc1e518\n\n提交 7b6b80590532af2616ae60f06cd5fd527cc1e518\n\nhttps://localhost:52111/org/browser.git\n\n\t完整继承"
+      ]
+    },
+    "gitSourceAndRuntimeFingerprintRelease": {
+      "version": "0.0.10",
+      "taskId": "cmv16m2up001zqyy5ef6ye1ip",
+      "passed": true,
+      "checks": {
+        "taskSucceeded": true,
+        "currentReleaseMatches": true,
+        "planFixedSha": true,
+        "noPublicSecretLeaks": true,
+        "noPublicHttpTrace": true,
+        "noFatalProbe": true,
+        "services": {
+          "api": {
+            "sourceGit": true,
+            "sourceFixedSha": true,
+            "configRefMatchesPlan": true,
+            "configRefStillFrozen01": true,
+            "actualRuntimeEnv": true
+          },
+          "web": {
+            "sourceGit": true,
+            "sourceFixedSha": true,
+            "configRefMatchesPlan": true,
+            "configRefStillFrozen01": true,
+            "actualRuntimeEnv": true
+          }
+        }
+      }
+    }
+  },
+  "preservedFailures": [
+    {
+      "releaseVersion": "0.0.1",
+      "taskId": "cmv14pnnz008650wzbwzkf36j",
+      "reason": "Canonical private-input fingerprint order bug. No runtime update; fixed and verified with a fresh plan."
+    },
+    {
+      "releaseVersion": "0.0.6",
+      "taskId": "cmv15dtzh00t1uwkvn1kiefs2",
+      "reason": "Isolated Builder Git whitelist missing. Correct fail-closed behavior; fixture configuration corrected."
+    }
+  ],
+  "productionChanged": false,
+  "frozenTag": {
+    "name": "shipkit/0.0.1",
+    "commit": "0d46cb909aadc24955342a3dafe9c880390a1ca8"
+  },
+  "gitFinalRelease": {
+    "version": "0.0.12",
+    "taskId": "cmv16wxp900qnqyy5e3lqi1su",
+    "passed": true,
+    "checks": {
+      "taskSucceeded": true,
+      "currentReleaseMatches": true,
+      "planFixedSha": true,
+      "noPublicSecretLeaks": true,
+      "noPublicHttpTrace": true,
+      "noFatalProbe": true,
+      "services": {
+        "api": {
+          "sourceGit": true,
+          "sourceFixedSha": true,
+          "configRefMatchesPlan": true,
+          "configRefStillFrozen01": true,
+          "actualRuntimeEnv": true
+        },
+        "web": {
+          "sourceGit": true,
+          "sourceFixedSha": true,
+          "configRefMatchesPlan": true,
+          "configRefStillFrozen01": true,
+          "actualRuntimeEnv": true
+        }
+      }
+    },
+    "publicEvents": 113,
+    "publicEventsComplete": true,
+    "publicLogScopes": 18,
+    "httpTraceLines": 0,
+    "falseFatalLines": 0,
+    "leakedSecretValues": 0
+  },
+  "verification": {
+    "api": {
+      "passed": 27,
+      "total": 27,
+      "failed": 0,
+      "skipped": 0
+    },
+    "web": {
+      "passed": 86,
+      "total": 86,
+      "typecheck": true,
+      "build": true
+    },
+    "coreAgent": {
+      "passed": 648,
+      "total": 648,
+      "composeOptInSupplement": true
+    },
+    "artifactIdentity": {
+      "passed": 4,
+      "total": 4
+    },
+    "installer": {
+      "passed": 17,
+      "total": 17,
+      "freshness": true
+    },
+    "offlinePackage": {
+      "passed": 21,
+      "total": 21,
+      "compiledFilesMatchSource": 590,
+      "installedIsolationTests": 50
+    }
+  },
+  "finalReview": {
+    "passed": true,
+    "resolvedRuntimeUrlCaViaBoundBeforeNetwork": true,
+    "mutationsRejectedBeforeNetwork": 36,
+    "partialRollbackUsesSelectedHistoricalAndUnselectedCurrentSource": true
+  },
+  "partialRollbackRuntime": {
+    "version": "0.0.11",
+    "taskId": "cmv16qhfw00ipqyy53rgwd2k6",
+    "passed": true,
+    "checks": {
+      "taskSucceeded": true,
+      "taskCurrentRuntime": true,
+      "taskSelectionOnlyApi": true,
+      "parentRelease10": true,
+      "apiSeedImage": true,
+      "apiSeedTarballSource": true,
+      "apiRestoredHistoricalBinding": true,
+      "apiArchivedConfig02": true,
+      "apiExactEnvV2": true,
+      "webFullSnapshotUnchangedFrom10": true,
+      "webImageUnchangedFrom10": true,
+      "webFixedGit": true,
+      "webConfig01": true,
+      "webExactEnvDefaults": true,
+      "webContainerPredatesRollbackAnd10Finish": true,
+      "builderStagesAllSkipped": true,
+      "noBuilderRemoteJobs": true,
+      "noPublicSecrets": true,
+      "noTraceOrFatal": true
+    },
+    "webContainerIdBoundary": "The release10 report did not capture a container ID; no claim of before/after ID equality. Image/source/config snapshot and actual Env remained equal, and the existing container predates the rollback."
+  },
+  "passed": true
+}

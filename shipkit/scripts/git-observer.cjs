@@ -16,7 +16,7 @@ for (const directory of directories) for (const file of [path.join(directory, 'c
 fs.appendFileSync(process.env.SHIPKIT_FIXTURE_OBSERVATIONS, JSON.stringify({
   argvLeaked: leaked(args.join('\0')), configLeaked, outputLeaked: leaked(Buffer.concat([run.stdout || Buffer.alloc(0), run.stderr || Buffer.alloc(0)]).toString()),
   askpass: process.env.GIT_ASKPASS || null, credentialFile: process.env.SHIPKIT_GIT_CREDENTIAL_FILE || null,
-  tracingDisabled: ['GIT_TRACE','GIT_TRACE_PACKET','GIT_TRACE_CURL','GIT_CURL_VERBOSE','GIT_TRACE2'].every(key => process.env[key] === '0'),
+  tracingDisabled: process.env.GIT_CURL_VERBOSE === undefined && ['GIT_TRACE','GIT_TRACE_PACKET','GIT_TRACE_CURL','GIT_TRACE2'].every(key => process.env[key] === '0'),
   status: run.status,
 }) + '\n', { mode: 0o600 });
 if (run.stdout) process.stdout.write(run.stdout);

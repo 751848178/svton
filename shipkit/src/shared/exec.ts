@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 
 export interface ExecOptions {
   cwd?: string;
-  env?: Record<string, string>;
+  env?: NodeJS.ProcessEnv;
   timeoutMs?: number;
   /** per-stream capture cap (default 2MB); lines keep streaming to onLine even after cap */
   maxBytes?: number;

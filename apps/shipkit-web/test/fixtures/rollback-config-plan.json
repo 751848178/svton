@@ -1,0 +1,107 @@
+{
+  "id": "b06e89cd-313a-4de0-8aab-7a357221bea9",
+  "version": "0.0.5",
+  "kind": "rollback",
+  "selection": [
+    "api"
+  ],
+  "baseReleaseId": "mv156u4d-27336223",
+  "sourceMode": "directory",
+  "configMode": "files",
+  "expiresAt": "2026-10-09T16:07:30.453Z",
+  "detail": {
+    "targetKey": "local",
+    "configBindings": {
+      "api": {
+        "mode": "files"
+      }
+    },
+    "currentConfigRefs": {
+      "api": {
+        "versionId": "983c53ae-e208-42a3-96d9-48c969b63b2f",
+        "version": "0.0.3",
+        "serviceKey": "api",
+        "name": "页面配置验收"
+      },
+      "web": {
+        "versionId": "browser-fixture-seed-0.0.0",
+        "version": "0.0.0",
+        "serviceKey": "web",
+        "name": "隔离 nginx 测试基线"
+      }
+    },
+    "currentSources": {
+      "api": {
+        "type": "tarball",
+        "contentDigest": "sha256:3d63cf3edb8498edcb2676412e66b879c20fe0b47669cb3afd16056955511ae8"
+      },
+      "web": {
+        "type": "tarball",
+        "contentDigest": "sha256:3d63cf3edb8498edcb2676412e66b879c20fe0b47669cb3afd16056955511ae8"
+      }
+    },
+    "history": {
+      "releaseId": "mv156u4d-27336223",
+      "parentReleaseId": "mv154quw-355e8d18",
+      "changedServices": [
+        "api"
+      ],
+      "services": {
+        "api": {
+          "imageRef": "nginx@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2",
+          "configRef": {
+            "versionId": "983c53ae-e208-42a3-96d9-48c969b63b2f",
+            "version": "0.0.3",
+            "serviceKey": "api",
+            "name": "页面配置验收"
+          },
+          "source": {
+            "type": "tarball",
+            "contentDigest": "sha256:3d63cf3edb8498edcb2676412e66b879c20fe0b47669cb3afd16056955511ae8"
+          }
+        },
+        "web": {
+          "imageRef": "nginx@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2",
+          "configRef": {
+            "versionId": "browser-fixture-seed-0.0.0",
+            "version": "0.0.0",
+            "serviceKey": "web",
+            "name": "隔离 nginx 测试基线"
+          },
+          "source": {
+            "type": "tarball",
+            "contentDigest": "sha256:3d63cf3edb8498edcb2676412e66b879c20fe0b47669cb3afd16056955511ae8"
+          }
+        }
+      },
+      "restoreServices": {
+        "api": {
+          "imageRef": "nginx@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2",
+          "configRef": {
+            "versionId": "ed8e8647-3576-4c20-b7ef-b12e3f12757f",
+            "version": "0.0.2",
+            "serviceKey": "api",
+            "name": "页面配置验收"
+          },
+          "source": {
+            "type": "tarball",
+            "contentDigest": "sha256:3d63cf3edb8498edcb2676412e66b879c20fe0b47669cb3afd16056955511ae8"
+          }
+        },
+        "web": {
+          "imageRef": "nginx@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2",
+          "configRef": {
+            "versionId": "browser-fixture-seed-0.0.0",
+            "version": "0.0.0",
+            "serviceKey": "web",
+            "name": "隔离 nginx 测试基线"
+          },
+          "source": {
+            "type": "tarball",
+            "contentDigest": "sha256:3d63cf3edb8498edcb2676412e66b879c20fe0b47669cb3afd16056955511ae8"
+          }
+        }
+      }
+    }
+  }
+}

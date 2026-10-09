@@ -69,6 +69,13 @@ test('configuration-only planning uses Runtime definitions and per-service prove
   assert.equal(captured.currentServices?.web?.source?.sha, 'c'.repeat(40)); assert.equal(captured.configRefs?.api?.versionId, ref.versionId);
   assert(captured.envFiles.api?.includes(value)); assert(!JSON.stringify(plan).includes(value)); assert(!JSON.stringify(plan).includes('old-runtime-private-token'));
   assert.equal(plan.detail.currentConfigRefs?.api?.versionId, ref.versionId); assert.equal(plan.detail.currentSources?.web?.sha, 'c'.repeat(40));
+  assert.equal(plan.detail.releasePlan?.services.api?.imageRef, state.services.api?.imageRef);
+  assert.equal(plan.detail.releasePlan?.services.web?.imageRef, state.services.web?.imageRef);
+  assert.notEqual(plan.detail.releasePlan?.services.api?.imageRef, plan.detail.releasePlan?.services.web?.imageRef);
+  const frozenImage = state.services.api!.imageRef;
+  state.services.api!.imageRef = `registry.invalid/api@sha256:${'d'.repeat(64)}`;
+  assert.equal(plan.detail.releasePlan?.services.api?.imageRef, frozenImage);
+  state.services.api!.imageRef = frozenImage;
   assert.equal(plan.frozenConfig?.bindings.api?.mode, 'version'); assert.equal(plan.fingerprint, snapshotFingerprint(captured, plan.sourceMode, plan.keepEnv, plan.configMode));
   const events: ExecutionEvent[] = [];
   const result = await executeTask({ ...fx.input, privateSnapshot: captured }, plan, { executionId: 'config-task', isCancellationRequested: async () => false, emit: async event => { events.push(event); } });
@@ -98,6 +105,23 @@ test('secret/noEnv changes alter private fingerprint and restart observation nev
   fx.snapshot.noEnvServices = ['api']; assert.notEqual(snapshotFingerprint(fx.snapshot, 'git', false, 'version'), before);
   const result = await reconcileTask(fx.input, [], { isCancellationRequested: async () => false, emit: async () => {} });
   assert.equal(result.status, 'interrupted'); assert.equal(result.cleanupState, 'static'); assert.equal(routes.length, 0);
+});
+test('resolved Runtime fields bind independently of configured targets and remain stable across key order', () => {
+  const original = fixture().snapshot;
+  original.runtime.caFile = '/absolute/paired/ca.pem';
+  const frozen = snapshotFingerprint(original, 'git', false, 'version');
+  const reordered = structuredClone(original);
+  reordered.runtime = Object.fromEntries(Object.entries(reordered.runtime).reverse()) as PrivateProjectSnapshot['runtime'];
+  assert.equal(snapshotFingerprint(reordered, 'git', false, 'version'), frozen);
+  for (const mutation of [
+    (snapshot: PrivateProjectSnapshot) => { snapshot.runtime.url = 'https://different-resolved-runtime.invalid'; },
+    (snapshot: PrivateProjectSnapshot) => { snapshot.runtime.caFile = '/absolute/different/ca.pem'; },
+    (snapshot: PrivateProjectSnapshot) => { snapshot.runtime.via = 'credential-ref'; },
+  ]) {
+    const changed = structuredClone(original); mutation(changed);
+    assert.deepEqual(changed.config.runtime, original.config.runtime);
+    assert.notEqual(snapshotFingerprint(changed, 'git', false, 'version'), frozen);
+  }
 });
 test('private repository rollback and history need neither repository credentials nor an existing local checkout', async () => {
   const fx = fixture(), directory = await mkdtemp(path.join(tmpdir(), 'ship-rollback-profile-'));

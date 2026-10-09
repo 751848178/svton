@@ -92,7 +92,7 @@ export interface Plan {
   configMode?: ConfigMode;
   configVersionId?: string;
   expiresAt: string;
-  detail: { releasePlan?: ReleasePlan; history?: HistoryItem; sourceDigest?: string; gitRef?: string; targetKey?: string; projectIdentity?: string; sourceSnapshot?: SourceSnapshot; currentSources?: Record<string, ServiceSource | null>; configBindings?: Record<string, ConfigBinding>; configDiff?: Record<string, ConfigDifference> };
+  detail: { releasePlan?: ReleasePlan; history?: HistoryItem; sourceDigest?: string; gitRef?: string; targetKey?: string; projectIdentity?: string; sourceSnapshot?: SourceSnapshot; currentSources?: Record<string, ServiceSource | null>; currentConfigRefs?: Record<string, ConfigBinding | null>; configBindings?: Record<string, ConfigBinding>; configDiff?: Record<string, ConfigDifference> };
 }
 export interface Task {
   id: string;

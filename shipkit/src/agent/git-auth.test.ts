@@ -36,3 +36,18 @@ test('Git authentication rejects control characters and bounded-length violation
     await assert.rejects(() => createGitAuth(token), /credential/);
   }
 });
+
+test('Git child removes inherited curl verbosity without mutating the parent environment', async () => {
+  const previous = process.env.GIT_CURL_VERBOSE;
+  process.env.GIT_CURL_VERBOSE = '1';
+  const auth = await createGitAuth('fake-token');
+  try {
+    const child = await exec(process.execPath, ['-e', 'process.stdout.write(JSON.stringify({verbose:process.env.GIT_CURL_VERBOSE ?? null,trace:process.env.GIT_TRACE_CURL}))'], { env: auth.env });
+    assert.equal(child.code, 0);
+    assert.deepEqual(JSON.parse(child.stdout), { verbose: null, trace: '0' });
+    assert.equal(process.env.GIT_CURL_VERBOSE, '1');
+  } finally {
+    await auth.cleanup();
+    if (previous === undefined) delete process.env.GIT_CURL_VERBOSE; else process.env.GIT_CURL_VERBOSE = previous;
+  }
+});

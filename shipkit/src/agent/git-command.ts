@@ -31,9 +31,8 @@ export async function requireGit(git: GitCommand, args: string[], timeoutMs?: nu
 }
 
 export async function assertSupportedGitTree(git: GitCommand, dir: string): Promise<void> {
-  const modules = await git.run(['-C', dir, 'cat-file', '-e', 'HEAD:.gitmodules'], 15_000);
   const tree = await requireGit(git, ['-C', dir, 'ls-tree', '-r', '--full-tree', 'HEAD'], 15_000);
-  if (modules.code === 0 || /^160000 /m.test(tree.stdout)) throw new Error('Git submodules are not supported in this release; vendor the required source');
+  if (/\t\.gitmodules$/m.test(tree.stdout) || /^160000 /m.test(tree.stdout)) throw new Error('Git submodules are not supported in this release; vendor the required source');
   const lfs = await git.run(['-C', dir, 'grep', '-I', '-l', '-E', 'filter[[:space:]]*=[[:space:]]*lfs|version https://git-lfs.github.com/spec/v1', 'HEAD', '--'], 15_000);
   if (lfs.code === 0) throw new Error('Git LFS is not supported in this release; commit ordinary files');
   if (lfs.code !== 1 || lfs.timedOut || lfs.truncated) throw new Error('Git LFS support check failed');

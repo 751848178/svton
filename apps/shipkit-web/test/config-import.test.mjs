@@ -17,9 +17,9 @@ const { createRoot } = webRequire('react-dom/client');
 const difference = key => ({ added: [key], removed: [], changed: [], noEnvChanged: false });
 const draft = { id: 'draft', projectId: 'project', targetKey: 'prod', name: '生产配置', etag: 'one', status: 'draft', defaults: [{ key: 'GLOBAL', value: 'global', secret: false, hasValue: true }], services: [{ serviceKey: 'api', noEnv: false, variables: [{ key: 'A', value: 'original', secret: false, hasValue: true }] }, { serviceKey: 'admin', noEnv: false, variables: [] }] };
 
-function harness() {
+function harness(initial = draft) {
   const modules = new Map(), requests = [], previewKeys = [];
-  let current = draft, preview = { data: { etag: 'one', services: { api: difference('OLD') } }, isLoading: false };
+  let current = initial, preview = { data: { etag: 'one', services: { api: difference('OLD') } }, isLoading: false };
   const load = relative => {
     if (modules.has(relative)) return modules.get(relative);
     const base = new URL(`../src/${relative}`, import.meta.url);
@@ -29,7 +29,14 @@ function harness() {
     const require = name => {
       if (name === '@svton/ui') return { Select: ({ options, ...props }) => React.createElement('select', props, options.map(option => React.createElement('option', { key: option.value, value: option.value }, option.label))) };
       if (name === '@/hooks/use-api') return { useApi: (route, params) => { if (route) previewKeys.push({ ...params }); return route ? { ...preview, mutate: async () => {} } : {}; } };
-      if (name === '@/lib/api') return { request: async (route, input) => { requests.push({ route, input }); return { ...current, etag: 'two', name: input.name ?? current.name }; } };
+      if (name === '@/lib/api') return { request: async (route, input) => {
+        requests.push({ route, input });
+        if (route.startsWith('PATCH')) for (const patch of input.services) {
+          const previous = current.services.find(service => service.serviceKey === patch.serviceKey);
+          if (patch.noEnv && previous.variables.some(variable => !patch.variables?.some(value => value.key === variable.key && value.delete))) throw new Error('无需环境变量的服务不能同时设置变量，请先明确删除');
+        }
+        return { ...current, etag: 'two', name: input.name ?? current.name, services: current.services.map(service => input.services?.find(patch => patch.serviceKey === service.serviceKey)?.noEnv ? { ...service, noEnv: true, variables: [] } : service) };
+      } };
       if (name === './primitives') return { ErrorMessage: ({ error }) => error ? React.createElement('p', { role: 'alert' }, String(error)) : null };
       if (name === './config-store-error') return { ConfigStoreError: () => null };
       if (name.startsWith('@/')) return load(name.slice(2));
@@ -126,5 +133,33 @@ test('saving changes the preview revision and stale, failed, or pending previews
     await act(async () => button(h.container, '冻结为版本').click());
     assert.equal(h.requests.at(-1).input.etag, 'two');
     assert.equal(h.requests.at(-1).input.version, '0.0.1');
+  } finally { await h.close(); }
+});
+
+test('noEnv explicitly deletes saved service variables, preserves toggle undo inputs, and can freeze after saving', async () => {
+  const variables = ['A', 'B', 'C', 'D', 'E'].map(key => ({ key, value: `${key}-saved`, secret: false, hasValue: true }));
+  const initial = { ...draft, services: [{ serviceKey: 'api', noEnv: false, variables }] };
+  const h = harness(initial); await h.mount();
+  try {
+    await change(h.container.querySelector('[aria-label="api A的值"]'), 'A-edited');
+    const noEnv = () => h.container.querySelector('details .inline-checkbox input');
+    await act(async () => noEnv().click());
+    assert.equal(h.container.querySelector('[aria-label="api A的值"]'), null);
+    assert.match(h.container.textContent, /保存将删除此服务已有变量/);
+    await act(async () => noEnv().click());
+    assert.equal(h.container.querySelector('[aria-label="api A的值"]').value, 'A-edited');
+    assert.equal(h.container.querySelector('[aria-label="api E的值"]').value, 'E-saved');
+    await act(async () => noEnv().click());
+    await act(async () => button(h.container, '保存草稿').click());
+    const patch = h.requests.find(item => item.route.startsWith('PATCH')).input.services[0];
+    assert.equal(patch.noEnv, true);
+    assert.deepEqual(JSON.parse(JSON.stringify(patch.variables)), variables.map(({ key }) => ({ key, delete: true })));
+    assert.equal(noEnv().checked, true);
+    assert.doesNotMatch(h.container.textContent, /无需环境变量的服务不能同时设置变量/);
+    await h.preview({ data: { etag: 'two', services: { api: { added: [], removed: variables.map(({ key }) => key), changed: [], noEnvChanged: true } } }, isLoading: false });
+    assert.equal(button(h.container, '冻结为版本').disabled, false);
+    await act(async () => button(h.container, '冻结为版本').click());
+    assert.equal(h.requests.at(-1).route.endsWith('/freeze'), true);
+    assert.equal(h.requests.at(-1).input.etag, 'two');
   } finally { await h.close(); }
 });
