@@ -11,7 +11,7 @@
     "ship": "./dist/cli/main.js"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && chmod +x dist/cli/main.js",
+    "build": "node ops/host-isolation/render-spec.mjs --check ops/host-isolation/ship.generated.yaml && tsc -p tsconfig.json && chmod +x dist/cli/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "tsc -p tsconfig.json && node scripts/build-install.mjs --check && node --experimental-test-module-mocks --test 'dist/**/*.test.js' && node --test scripts/package-smoke-artifact.test.mjs && node scripts/installer-check.mjs",
     "agent": "node dist/agent/server.js",

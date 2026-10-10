@@ -79,6 +79,11 @@ node shipkit/ops/host-isolation/render-spec.mjs /secure/shipkit-temporary.yaml
 Agent 更新后的容器也须保持这两个策略，不使用 base spec 覆盖临时隔离配置。
 接管后不再用 bootstrap Compose 更新同一服务；自身发布/重启恢复由独立模块验收。
 
+Git 项目使用仓库内 `shipkit/ops/host-isolation/ship.generated.yaml` 作为 `specPath`。
+此文件不含秘密或主机地址，由默认冻结网络派生；`shipkit` 构建会检查它与源规格一致。
+调整 base 后删除并重新生成该文件，再提交两者；其他网络名称须生成并提交独立规格，
+不能把仓库外的本机输出路径作为 Git 项目的 `specPath`。
+
 本机使用 `ssh -L 28769:127.0.0.1:28769 用户@临时主机`，页面来源设置为
 `http://localhost:28769`。迁移时离线保存完整 `/srv/shipkit/data` 与主密钥，按 container
 README 的备份边界操作；在新主机重新核对并创建 external network 与冻结记录。

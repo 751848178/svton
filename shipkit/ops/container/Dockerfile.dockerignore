@@ -23,8 +23,12 @@
 !shipkit/ops/
 !shipkit/ops/container/
 !shipkit/ops/container/Dockerfile
+!shipkit/ops/container/ship.yaml
 !shipkit/ops/container/health.mjs
 !shipkit/ops/container/bootstrap.mjs
+!shipkit/ops/host-isolation/
+!shipkit/ops/host-isolation/render-spec.mjs
+!shipkit/ops/host-isolation/ship.generated.yaml
 !apps/
 !apps/shipkit-api/
 !apps/shipkit-api/package.json

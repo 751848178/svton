@@ -24,6 +24,8 @@ COPY shipkit/src ./shipkit/src
 COPY shipkit/bootstrap/src ./shipkit/bootstrap/src
 COPY shipkit/bootstrap/install.sh ./shipkit/bootstrap/install.sh
 COPY shipkit/scripts/build-install.mjs ./shipkit/scripts/build-install.mjs
+COPY shipkit/ops/container/ship.yaml ./shipkit/ops/container/ship.yaml
+COPY shipkit/ops/host-isolation/render-spec.mjs shipkit/ops/host-isolation/ship.generated.yaml ./shipkit/ops/host-isolation/
 COPY packages/api-client/src ./packages/api-client/src
 COPY packages/hooks/src ./packages/hooks/src
 COPY packages/ui/src ./packages/ui/src

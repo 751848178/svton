@@ -16,6 +16,7 @@ services:
       dropCapabilities: [ALL]
       noNewPrivileges: true
       stopGracePeriodSeconds: 45
+      logging: { maxSizeMiB: 10, maxFiles: 3 }
       tmpfs:
         - { target: /tmp, sizeMiB: 128, uid: 10001, gid: 10001, mode: '1777' }
         - { target: /app/apps/shipkit-web/.next/cache, sizeMiB: 64, uid: 10001, gid: 10001, mode: '0700' }
