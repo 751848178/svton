@@ -1,6 +1,7 @@
 import { request } from 'node:https';
 import { resolveGitAddresses } from '../shared/git-policy.js';
 import type { RepositoryResolveOptions } from './repository-contracts.js';
+import { pinnedLookup } from './pinned-lookup.js';
 
 export interface RepositoryBudget { deadline: number; remaining: number }
 export type RepositoryReader = (url: URL, headers: Record<string, string>) => Promise<Record<string, unknown>>;
@@ -11,8 +12,7 @@ export function repositoryReader(options: RepositoryResolveOptions, budget: Repo
     const address = addresses.find(item => item.family === 4) ?? addresses[0]!;
     const bytes = await new Promise<Buffer>((resolve, reject) => {
       const chunks: Buffer[] = [];
-      const req = request(url, { method: 'GET', headers, agent: false,
-        lookup: (_host, _options, callback) => callback(null, address.address, address.family) }, response => {
+      const req = request(url, { method: 'GET', headers, agent: false, lookup: pinnedLookup(address) }, response => {
         if (response.statusCode !== 200) {
           response.resume(); reject(new Error(response.statusCode === 401 || response.statusCode === 403
             ? 'Repository credentials were rejected or read permission is missing'
@@ -21,7 +21,10 @@ export function repositoryReader(options: RepositoryResolveOptions, budget: Repo
         }
         response.on('data', (chunk: Buffer) => {
           budget.remaining -= chunk.length;
-          if (budget.remaining < 0) req.destroy(new Error('Repository metadata exceeded the configured byte limit'));
+          if (budget.remaining < 0) {
+            const error = new Error('Repository metadata exceeded the configured byte limit');
+            reject(error); req.destroy(error);
+          }
           else chunks.push(chunk);
         });
         response.on('end', () => resolve(Buffer.concat(chunks))); response.on('error', reject);
