@@ -35,6 +35,23 @@ test('save → load round-trips the full combination including private envs, par
   assert.ok(!manifest.includes('SECRET'), 'manifest never contains env content');
 });
 
+test('repository aliases round-trip immutable snapshots without renaming runtime services or older snapshots', async (t) => {
+  const { s, root } = await store();
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await s.claimLayout('shipkit');
+  const old = await s.saveRelease('shipkit', { parent: null, changedServices: ['server'], services: {
+    server: { imageRef: 'reg/ns/server:old', spec: {}, hasEnv: false },
+  } });
+  const next = await s.saveRelease('shipkit', { parent: old.id, changedServices: ['server'], services: {
+    server: { imageRef: 'reg/ns/shipkit-server:new', spec: { imageRepository: 'shipkit-server' }, hasEnv: false },
+  } });
+  const loaded = await s.loadRelease('shipkit', next.id);
+  assert.deepEqual(Object.keys(loaded.services), ['server']);
+  assert.equal(loaded.services.server?.spec.imageRepository, 'shipkit-server');
+  assert.equal(loaded.services.server?.imageRef, 'reg/ns/shipkit-server:new');
+  assert.deepEqual((await s.loadRelease('shipkit', old.id)).services.server?.spec, {});
+});
+
 test('shift moves current/previous and records changedServices history; rollback events included', async (t) => {
   const { s, root } = await store();
   t.after(() => rm(root, { recursive: true, force: true }));

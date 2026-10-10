@@ -53,6 +53,7 @@ export async function inspectProject(input: ProjectInput, options: PrivatePlanOp
       check: runtimeCheck, currentReleaseId: current.current },
     services: Object.entries(c.spec.services).map(([serviceKey, spec]) => ({ serviceKey,
       currentImage: current.services[serviceKey]?.imageRef ?? null, spec: {
+        ...(spec.imageRepository ? { imageRepository: spec.imageRepository } : {}),
         dockerfile: spec.dockerfile, context: spec.context, target: spec.target, platform: spec.platform,
         ports: spec.ports, networks: spec.networks, volumes: spec.volumes, dependsOn: spec.dependsOn,
         envFile: spec.envFile, healthcheck: spec.healthcheck,

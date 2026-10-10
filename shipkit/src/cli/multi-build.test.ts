@@ -41,6 +41,7 @@ function stubBuilder(): Promise<{ url: string; state: StubState; close: () => Pr
   };
   let builds = 0;
   const pushes = new Map<string, number>();
+  const pushNames = new Map<string, string>();
   const server = createServer((req, res) => {
     const chunks: Buffer[] = [];
     req.on('data', (c) => chunks.push(c as Buffer));
@@ -70,12 +71,14 @@ function stubBuilder(): Promise<{ url: string; state: StubState; close: () => Pr
         const n = (pushes.get(body.name) ?? 0) + 1;
         pushes.set(body.name, n);
         if (state.failPushFor && body?.name === state.failPushFor) return json(500, { error: { message: `injected push failure for ${state.failPushFor}` } });
-        return json(202, { jobId: `push-${body.name}-${n}` });
+        const jobId = `push-${body.name}-${n}`;
+        pushNames.set(jobId, body.name);
+        return json(202, { jobId });
       }
       if (req.url?.startsWith('/api/jobs/')) {
         const id = req.url.split('/')[3] ?? '';
         if (id.startsWith('build-')) return json(200, { id, status: 'succeeded', result: { name: 'n', tag: `t-${id}`, sha: 'abc1234', arch: state.buildArch } });
-        const name = id.split('-')[1] ?? 'x';
+        const name = pushNames.get(id) ?? 'x';
         const hex = { backend: 'b', admin: 'a', mobile: 'c' }[name] ?? 'f';
         if (state.pushDigestOverride !== undefined) {
           const d = state.pushDigestOverride === 'none' ? undefined : state.pushDigestOverride;
@@ -146,6 +149,35 @@ test('selection of ONE service builds exactly that image — nothing else is bui
   assert.equal(stub.state.buildCount(), 1);
   assert.ok(stub.state.requests.some((r) => r.path === '/api/push' && r.body.name === 'admin'));
   assert.ok(!stub.state.requests.some((r) => r.path === '/api/push' && r.body.name === 'backend'));
+});
+
+test('repository override uses one Builder and push name but retains service keys in jobs and manifest', async (t) => {
+  const stub = await stubBuilder();
+  t.after(stub.close);
+  const aliasSpec: ProjectSpec = { schemaVersion: 2, name: 'shipkit', services: { server: { imageRepository: 'shipkit-server' } } };
+  const stages: Array<[string, string | undefined]> = [];
+  const logger = createLogger(false, () => {});
+  logger.operationId = async (stage, service) => { stages.push([stage, service]); return `task:${stage}:${service}`; };
+  const manifest = await runMultiBuildPipeline({ ...opts, logger, config: config(stub.url), spec: aliasSpec, selection: ['server'] });
+  const build = stub.state.requests.find(r => r.path === '/api/build')!.body;
+  const push = stub.state.requests.find(r => r.path === '/api/push')!.body;
+  assert.equal(build.spec.name, 'shipkit-server');
+  assert.equal(push.name, build.spec.name);
+  assert.equal(build.operationId, 'task:build:server');
+  assert.equal(push.operationId, 'task:push:server');
+  assert.deepEqual(stages, [['build', 'server'], ['push', 'server']]);
+  assert.deepEqual(Object.keys(manifest.services), ['server']);
+  assert.match(manifest.services.server!.imageRef, /^reg\.example\/ns\/shipkit-server@sha256:/);
+  assert.equal(manifest.spec.services.server!.imageRepository, 'shipkit-server');
+  assert.equal(manifest.services.server!.sha, 'abc1234');
+});
+
+test('repository collisions refuse even direct pipeline input before contacting any Builder', async (t) => {
+  const stub = await stubBuilder();
+  t.after(stub.close);
+  const conflicted: ProjectSpec = { ...spec, services: { backend: { imageRepository: 'admin' }, admin: {} } };
+  await assert.rejects(() => runMultiBuildPipeline({ ...opts, config: config(stub.url), spec: conflicted, selection: ['backend', 'admin'] }), /effective repository 'admin'.*conflicts/);
+  assert.equal(stub.state.requests.length, 0);
 });
 
 test('a mid-way build or push failure yields NO deployable manifest (exception, partial pushes allowed)', async (t) => {

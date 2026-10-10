@@ -3,6 +3,7 @@ schemaVersion: 2
 name: shipkit
 services:
   server:
+    imageRepository: shipkit-server
     dockerfile: shipkit/ops/container/Dockerfile
     context: .
     target: runtime

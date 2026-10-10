@@ -58,6 +58,19 @@ test('private project snapshot avoids every repository, local directory and muta
   await assert.rejects(loadProject({ ...fx.input, appName: 'different-app' }), /appName/);
   await assert.rejects(loadProject({ ...fx.input, targetKey: 'different-target' }), /different project/);
 });
+
+test('image repository survives private snapshot persistence and binds the execution fingerprint', async () => {
+  const fx = fixture();
+  fx.snapshot.spec.services.api!.imageRepository = 'fixed-api';
+  const persisted: PrivateProjectSnapshot = JSON.parse(JSON.stringify(fx.snapshot));
+  const loaded = await loadProject({ ...fx.input, privateSnapshot: persisted });
+  assert.equal(loaded.spec.services.api?.imageRepository, 'fixed-api');
+  assert.deepEqual(Object.keys(loaded.spec.services), ['api', 'web']);
+  const before = snapshotFingerprint(persisted, 'git', false);
+  assert.equal(snapshotFingerprint(fx.snapshot, 'git', false), before);
+  persisted.spec.services.api!.imageRepository = 'different-api';
+  assert.notEqual(snapshotFingerprint(persisted, 'git', false), before);
+});
 test('configuration-only planning uses Runtime definitions and per-service provenance, final callback sees private version inputs', async () => {
   const fx = fixture(); let captured: PrivateProjectSnapshot | undefined;
   const plan = await preparePlan(fx.input, { kind: 'config-only', services: ['api'], configMode: 'version', configVersionId: ref.versionId }, {

@@ -55,3 +55,13 @@ test('keep-env ignores private byte changes and directory freezes exclude declar
   assert.deepEqual(exclusions, [['runtime.env'], ['runtime.env']]);
   assert.equal(cleanups, 2);
 });
+
+test('image repository participates in the source plan fingerprint independently of config and Git SHA', async (t) => {
+  const context = await fixture(t);
+  const before = await fingerprint(context, 'git', false);
+  context.spec.services.api!.imageRepository = 'custom-api';
+  const after = await fingerprint(context, 'git', false);
+  assert.notEqual(before.fingerprint, after.fingerprint);
+  assert.equal(before.configDigest, after.configDigest);
+  assert.equal(before.gitRef, after.gitRef);
+});

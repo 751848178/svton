@@ -10,6 +10,8 @@ E1 隔离审查新增验收门槛：迁移与服务停止须等待完整进程�
 
 首次部署接管影响图：`runtime-policy-types/schema → compiler/legacy 转换 → group 快照 → compose-runtime-policy → Docker`，补受限 `json-file` 日志轮转，验证历史恢复及 Builder 排除；`container/ship.yaml → host-isolation/render-spec → 仓库内派生规格 → Git specPath`，补生成一致性检查。接管必须使用真实 registry manifest digest，先验证固定镜像身份与救援备份，再通过正常首次 `deploy-group` 建立完整基线；禁止手工填写 Agent 状态。随后登记已推送的固定 Git 提交与可解析的独立 Builder/Runtime 连接并验收计划。
 
+当前补充门槛：日志轮转已提交 `7104d672`、仓库规格与构建门禁已提交 `bf66cc5e`。独立 registry 镜像已推送并获准向新 Runtime 分发拉取凭据。自身服务 key 必须保持 `server`，补 `ServiceSpec.imageRepository → buildSliceFor/push → 固定spec指纹` 的可选仓库 leaf 映射，并拒绝有效仓库名冲突，使构建/推送落到已批准的独立仓库。远端动态 Builder 缺少受保护 HTTPS 下载/控制入口；临时独立本机 Builder 与 SSH 加密中继只作为验收路径，需另行验收且不宣称永久托管完成。
+
 开发分支：`codex/shipkit-self-hosted-registration`。功能模块独立提交，旧冻结标签不移动；构建/测试全日志位于 `/tmp/codex-tool-runs/svton/self-hosting/`，协调板位于 `/tmp/codex-tool-runs/svton/long-goals/shipkit-self-hosted-registration/board.json`。
 
 ## A. 身份与资源目录

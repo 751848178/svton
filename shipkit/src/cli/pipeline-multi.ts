@@ -22,6 +22,7 @@ import { waitAndReport } from './job-report.js';
 import { assertBuilderGroupCapability } from './deployment-protocol.js';
 import { withBuilderLease, type BuilderReleaseOutcome } from './builder-lease.js';
 import { resolveSelection } from './service-selection.js';
+import { assertUniqueImageRepositories, serviceImageRepository } from '../shared/service-image-repository.js';
 
 async function requireManagedBuilder(handle: BuilderHandle): Promise<void> {
   const status = await api<{ auth?: { capabilities?: string[] } }>(handle.url, handle.token, 'GET', '/api/status', undefined, 15_000, handle);
@@ -86,6 +87,7 @@ export async function runMultiBuildPipeline(o: {
   const log = o.logger;
   const platform = o.platform ?? 'linux/amd64';
   if (o.selection.length === 0) throw new CliError('selection is empty — nothing to build');
+  assertUniqueImageRepositories(o.spec.services);
   resolveSelection(o.spec, o.selection);
   if (!o.config.registry) throw new CliError('config.registry (url + namespace) is required to push images');
   const registry = o.config.registry;
@@ -122,7 +124,7 @@ export async function runMultiBuildPipeline(o: {
       const svcSpec = o.spec.services[name];
       if (!svcSpec) throw new CliError(`selection contains '${name}' which is not declared in the group spec`);
       const slice = buildSliceFor(name, svcSpec, platform);
-      log.info(`building service ${name}`, { target: slice.target, platform: slice.platform });
+      log.info(`building service ${name}`, { imageRepository: slice.name, target: slice.target, platform: slice.platform });
       const operationId = await log.operationId?.('build', name, handle);
       const started = await api<{ jobId: string }>(handle.url, handle.token, 'POST', '/api/build', { source, spec: slice, tag: o.tag, ...(operationId ? { operationId } : {}) }, 20_000, httpOpts);
       builds[name] = (await waitAndReport(handle, started.jobId, `build:${name}`, log, o.timeoutMs)).result as BuildResult;
@@ -146,7 +148,7 @@ export async function runMultiBuildPipeline(o: {
       }
       const operationId = await log.operationId?.('push', name, handle);
       const pushed = await api<{ jobId: string }>(handle.url, handle.token, 'POST', '/api/push', {
-        name, tag: build.tag, registry: registry.url, namespace: registry.namespace,
+        name: serviceImageRepository(name, svcSpec), tag: build.tag, registry: registry.url, namespace: registry.namespace,
         ...(operationId ? { operationId } : {}),
       }, 20_000, httpOpts);
       const pushJob = await waitAndReport(handle, pushed.jobId, `push:${name}`, log, o.timeoutMs);

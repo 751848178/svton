@@ -38,6 +38,7 @@ export interface ReleasePlan {
   selection: { requested: string[] | null; resolved: string[]; inherited: string[] };
   services: Record<string, {
     action: 'build+deploy' | 'inherit';
+    imageRepository?: string;
     imageRef?: string;
     dockerfile?: string;
     context?: string;
@@ -106,6 +107,7 @@ export function buildReleasePlan(o: {
     if (o.selection.includes(name)) {
       services[name] = {
         action: 'build+deploy',
+        ...(svc.imageRepository ? { imageRepository: svc.imageRepository } : {}),
         dockerfile: svc.dockerfile,
         context: svc.context,
         target: svc.target,
@@ -122,6 +124,7 @@ export function buildReleasePlan(o: {
       if (!sameServiceSpec(current.spec as ServiceSpec, svc)) specChangedButNotSelected.push(name);
       services[name] = {
         action: 'inherit',
+        ...(svc.imageRepository ? { imageRepository: svc.imageRepository } : {}),
         imageRef: current.imageRef,
         hasEnv: current.hasEnv,
         platform: svc.platform ?? platform,

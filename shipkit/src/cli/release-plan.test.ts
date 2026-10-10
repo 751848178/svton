@@ -137,6 +137,17 @@ test('sameServiceSpec ignores key order and list order', () => {
   assert.ok(!sameServiceSpec({ ports: ['1:1'] }, { ports: ['2:2'] }));
 });
 
+test('plan surfaces a repository override under the runtime service key without adding defaults', () => {
+  const alias = validateProjectSpec({ schemaVersion: 2, name: 'shipkit', services: { server: { imageRepository: 'shipkit-server' } } });
+  const plan = buildReleasePlan({ spec: alias, project: 'p', env: 'prod', target: 'prod', selection: ['server'], requested: null,
+    state: { schemaVersion: 2, app: 'shipkit', current: null, services: {} } });
+  assert.deepEqual(Object.keys(plan.services), ['server']);
+  assert.equal(plan.services.server?.imageRepository, 'shipkit-server');
+  const ordinary = buildReleasePlan({ spec, project: 'p', env: 'e', target: 'e', selection: ['backend'], requested: ['backend'], state: deployed });
+  assert.ok(!Object.hasOwn(ordinary.services.backend!, 'imageRepository'));
+  assert.ok(!sameServiceSpec({ imageRepository: 'old' }, { imageRepository: 'new' }));
+});
+
 test('an inherited arm64 service keeps its effective platform in the plan', () => {
   const armSpec = validateProjectSpec({ schemaVersion: 2, name: 'g', services: { api: {}, web: { platform: 'linux/arm64' } } });
   const state: GroupStateView = { schemaVersion: 2, app: 'g', current: 'r1', services: {

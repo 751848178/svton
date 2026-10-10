@@ -6,6 +6,7 @@ import { SpecError, NAME_RE, PUBLIC_BUILD_ARG_RE, validateSpec } from './spec-sc
 import type { ShipSpec } from './types.js';
 import type { RuntimePolicy } from './runtime-policy-types.js';
 import { isRecord } from './obj.js';
+import { assertUniqueImageRepositories, serviceImageRepository } from './service-image-repository.js';
 
 /** external volume reference: `name:/container[/sub][:ro]` (pre-existing named volume) */
 export interface VolumeMount {
@@ -16,6 +17,8 @@ export interface VolumeMount {
 }
 
 export interface ServiceSpec {
+  /** Registry repository leaf; defaults to the service key without changing runtime identity. */
+  imageRepository?: string;
   dockerfile?: string;
   context?: string;
   /** Dockerfile build target (stage name) — required semantics for multi-stage builds */
@@ -46,7 +49,7 @@ export interface ProjectSpec {
 }
 
 const SERVICE_FIELDS = new Set([
-  'dockerfile', 'context', 'target', 'platform', 'buildArgsPolicy', 'buildArgs',
+  'imageRepository', 'dockerfile', 'context', 'target', 'platform', 'buildArgsPolicy', 'buildArgs',
   'ports', 'envFile', 'healthcheck', 'runtime', 'networks', 'volumes', 'dependsOn',
 ]);
 const OVERLAPPING_FIELDS = ['dockerfile', 'context', 'buildArgsPolicy', 'buildArgs', 'ports', 'envFile', 'healthcheck', 'runtime'] as const;
@@ -101,6 +104,7 @@ function validateService(name: string, input: unknown): ServiceSpec {
   const base = validateSpec({ name, ...overlapped });
 
   const svc: ServiceSpec = {};
+  if ('imageRepository' in input) svc.imageRepository = serviceImageRepository(name, { imageRepository: input.imageRepository });
   for (const k of OVERLAPPING_FIELDS) {
     if (base[k] !== undefined) (svc as Record<string, unknown>)[k] = base[k];
   }
@@ -172,6 +176,7 @@ export function validateProjectSpec(input: unknown): ProjectSpec {
     if (!NAME_RE.test(svcName)) throw new SpecError(`service name must match ${NAME_RE}`, `services.${svcName}`);
     services[svcName] = validateService(svcName, raw);
   }
+  assertUniqueImageRepositories(services);
   for (const [svcName, svc] of Object.entries(services)) {
     for (const dep of svc.dependsOn ?? []) {
       if (dep === svcName) throw new SpecError('a service cannot depend on itself', `services.${svcName}.dependsOn`);
@@ -184,7 +189,7 @@ export function validateProjectSpec(input: unknown): ProjectSpec {
 /** v1-shaped spec for the builder's /api/build (build-time fields only; runtime
  *  fields like ports/networks/volumes never reach the builder) */
 export function buildSliceFor(name: string, svc: ServiceSpec, groupPlatform: string): ShipSpec {
-  const spec: ShipSpec = { name };
+  const spec: ShipSpec = { name: serviceImageRepository(name, svc) };
   const extend = spec as unknown as Record<string, unknown>;
   for (const k of ['dockerfile', 'context', 'target', 'buildArgsPolicy', 'buildArgs'] as const) {
     if (svc[k] !== undefined) extend[k] = svc[k];
