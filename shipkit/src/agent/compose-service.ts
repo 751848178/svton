@@ -29,7 +29,6 @@ export function renderServiceCompose(group: string, service: string, imageRef: s
     'services:',
     `  ${service}:`,
     `    image: ${q(imageRef)}`,
-    '    restart: unless-stopped',
     ...renderRuntimePolicy(spec.runtime),
   ];
   if (spec.ports?.length) {

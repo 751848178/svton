@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
@@ -10,8 +10,10 @@ import { validateSpec } from '../shared/spec-schema.js';
 import { validateServiceSpec } from '../shared/spec-v2.js';
 import { renderComposeFile } from './compose.js';
 import { renderServiceCompose } from './compose-service.js';
+import { ReleaseStore } from './release.js';
+import { GroupSnapshots } from './group-snapshots.js';
 
-const runtime = { readOnlyRoot: true, dropCapabilities: ['ALL'], noNewPrivileges: true, stopGracePeriodSeconds: 45,
+const runtime = { restartPolicy: 'on-failure:3', readOnlyRoot: true, dropCapabilities: ['ALL'], noNewPrivileges: true, stopGracePeriodSeconds: 45,
   tmpfs: [{ target: '/tmp', sizeMiB: 128, uid: 10001, gid: 10001, mode: '1777' },
     { target: '/app/apps/shipkit-web/.next/cache', sizeMiB: 64, uid: 10001, gid: 10001, mode: '0700' }] };
 const files = () => [
@@ -22,6 +24,7 @@ const files = () => [
 test('both Compose renderers preserve root restrictions, shutdown budget and tmpfs settings', () => {
   for (const content of files()) {
     const service = (load(content) as { services: Record<string, Record<string, unknown>> }).services.server!;
+    assert.equal(service.restart, 'on-failure:3');
     assert.equal(service.read_only, true);
     assert.deepEqual(service.cap_drop, ['ALL']);
     assert.deepEqual(service.security_opt, ['no-new-privileges:true']);
@@ -51,6 +54,7 @@ test('Docker Compose accepts the generated policy for v1 and v2 without a daemon
       { cwd: root, timeoutMs: 15_000 });
     assert.equal(result.code, 0, result.stderr);
     const normalized = JSON.parse(result.stdout).services.server;
+    assert.equal(normalized.restart, 'on-failure:3');
     assert.equal(normalized.read_only, true);
     assert.deepEqual(normalized.cap_drop, ['ALL']);
     assert.deepEqual(normalized.security_opt, ['no-new-privileges:true']);
@@ -101,10 +105,64 @@ test('isolated container enforces the generated restrictions', async t => {
   const split = inspected.stdout.lastIndexOf(' ');
   const host = JSON.parse(inspected.stdout.slice(0, split));
   assert.equal(host.ReadonlyRootfs, true);
+  assert.deepEqual(host.RestartPolicy, { Name: 'on-failure', MaximumRetryCount: 3 });
   assert.deepEqual(host.CapDrop, ['ALL']);
   assert.deepEqual(host.SecurityOpt, ['no-new-privileges:true']);
   assert.equal(JSON.parse(inspected.stdout.slice(split)), 45);
   const started = await exec('docker', ['start', '-a', ids.stdout.trim()], { timeoutMs: 30_000 });
   assert.equal(started.code, 0, started.stderr);
   assert.match(started.stdout, /runtime-policy-enforced/);
+});
+
+test('restart policies survive v1/v2 snapshot restore and unsafe stored policies refuse', async t => {
+  const root = await mkdtemp(path.join(tmpdir(), 'ship-restart-snapshot-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const singleStore = new ReleaseStore(root), groupStore = new GroupSnapshots(root);
+  for (const restartPolicy of ['no', 'on-failure:3'] as const) {
+    const spec = validateSpec({ name: 'server', runtime: { restartPolicy } });
+    const saved = await singleStore.saveRelease('server', 'server:fixture', spec);
+    const single = await singleStore.loadRelease('server', saved.id);
+    const serviceSpec = validateServiceSpec('server', { runtime: { restartPolicy } });
+    const groupSaved = await groupStore.save('group', { parent: null, changedServices: ['server'],
+      services: { server: { imageRef: 'server:fixture', spec: serviceSpec, hasEnv: false } } });
+    const group = await groupStore.load('group', groupSaved.id);
+    for (const content of [renderComposeFile('server', single.imageRef, single.spec, false),
+      renderServiceCompose('group', 'server', group.services.server!.imageRef, group.services.server!.spec, false)]) {
+      assert.equal((load(content) as { services: { server: { restart: string } } }).services.server.restart, restartPolicy);
+      assert.equal((content.match(/^    restart:/gm) ?? []).length, 1);
+    }
+    const metaFile = path.join(root, 'server', 'releases', saved.id, 'meta.json');
+    const meta = JSON.parse(await readFile(metaFile, 'utf8')); meta.spec.runtime.restartPolicy = 'always';
+    await writeFile(metaFile, JSON.stringify(meta));
+    await assert.rejects(() => singleStore.loadRelease('server', saved.id), /runtime.restartPolicy/);
+    const manifestFile = path.join(root, 'group', 'releases', groupSaved.id, 'manifest.json');
+    const manifest = JSON.parse(await readFile(manifestFile, 'utf8')); manifest.services.server.spec.runtime.restartPolicy = 'always';
+    await writeFile(manifestFile, JSON.stringify(manifest));
+    await assert.rejects(() => groupStore.load('group', groupSaved.id), /runtime.restartPolicy/);
+  }
+});
+
+test('isolated Docker containers receive the exact bounded restart policy from both renderers', async t => {
+  const image = process.env.SHIPKIT_POLICY_TEST_IMAGE;
+  if (!image) return t.skip('set SHIPKIT_POLICY_TEST_IMAGE to an existing local fixture image');
+  const root = await mkdtemp(path.join(tmpdir(), 'ship-restart-container-'));
+  const project = `ship_restart_${randomUUID().slice(0, 8)}`;
+  const args = ['compose', '--env-file', 'compose.env', '-p', project, '-f', 'compose.yaml'];
+  const run = (subcommand: string[]) => exec('docker', [...args, ...subcommand], { cwd: root, timeoutMs: 30_000 });
+  t.after(async () => { await run(['down', '--remove-orphans']); await rm(root, { recursive: true, force: true }); });
+  await writeFile(path.join(root, 'compose.env'), '');
+  for (const restartPolicy of ['no', 'on-failure:3'] as const) {
+    for (const content of [renderComposeFile('server', image, validateSpec({ name: 'server', runtime: { restartPolicy } }), false),
+      renderServiceCompose('fixture', 'server', image, validateServiceSpec('server', { runtime: { restartPolicy } }), false)]) {
+      await writeFile(path.join(root, 'compose.yaml'), content, { mode: 0o600 });
+      const created = await run(['create', '--pull', 'never', '--no-build']);
+      assert.equal(created.code, 0, created.stderr);
+      const ids = await run(['ps', '-a', '-q']); assert.equal(ids.code, 0, ids.stderr);
+      const inspected = await exec('docker', ['inspect', '--format', '{{json .HostConfig.RestartPolicy}}', ids.stdout.trim()], { timeoutMs: 15_000 });
+      assert.equal(inspected.code, 0, inspected.stderr);
+      assert.deepEqual(JSON.parse(inspected.stdout), restartPolicy === 'no'
+        ? { Name: 'no', MaximumRetryCount: 0 } : { Name: 'on-failure', MaximumRetryCount: 3 });
+      const removed = await run(['down', '--remove-orphans']); assert.equal(removed.code, 0, removed.stderr);
+    }
+  }
 });

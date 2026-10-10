@@ -3,9 +3,8 @@ import type { RuntimePolicy } from '../shared/runtime-policy-types.js';
 import { validateRuntimePolicy } from '../shared/runtime-policy.js';
 
 export function renderRuntimePolicy(runtime: RuntimePolicy | undefined): string[] {
-  if (runtime === undefined) return [];
-  const policy = validateRuntimePolicy(runtime);
-  const lines: string[] = [];
+  const policy: RuntimePolicy = runtime === undefined ? {} : validateRuntimePolicy(runtime);
+  const lines: string[] = [`    restart: ${policy.restartPolicy === undefined ? 'unless-stopped' : JSON.stringify(policy.restartPolicy)}`];
   if (policy.readOnlyRoot) lines.push('    read_only: true');
   if (policy.dropCapabilities) lines.push('    cap_drop:', '      - "ALL"');
   if (policy.noNewPrivileges) lines.push('    security_opt:', '      - "no-new-privileges:true"');

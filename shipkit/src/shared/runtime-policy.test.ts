@@ -5,7 +5,7 @@ import { validateProjectSpec, buildSliceFor } from './spec-v2.js';
 import { validateRuntimePolicy } from './runtime-policy.js';
 
 const mount = { target: '/tmp', sizeMiB: 128, uid: 10001, gid: 10001, mode: '1777' };
-const runtime = { readOnlyRoot: true, dropCapabilities: ['ALL'], noNewPrivileges: true,
+const runtime = { restartPolicy: 'on-failure:3', readOnlyRoot: true, dropCapabilities: ['ALL'], noNewPrivileges: true,
   stopGracePeriodSeconds: 45, tmpfs: [mount, { ...mount, target: '/app/apps/web/.next/cache', mode: '0700', sizeMiB: 64 }] };
 
 function both(input: unknown): void {
@@ -51,4 +51,17 @@ test('tmpfs allows only bounded non-root, normalized cache/temporary mounts', ()
 test('absent runtime preserves the legacy contract; opt-in empty runtime adds no restrictions', () => {
   assert.deepEqual(validateSpec({ name: 'server' }), { name: 'server' });
   assert.deepEqual(validateRuntimePolicy({}), {});
+});
+
+test('v1 and v2 accept only the two restricted restart policies and omit them from builds', () => {
+  for (const restartPolicy of ['no', 'on-failure:3'] as const) {
+    const single = validateSpec({ name: 'server', runtime: { restartPolicy } });
+    const project = validateProjectSpec({ schemaVersion: 2, name: 'shipkit', services: { server: { runtime: { restartPolicy } } } });
+    assert.deepEqual(single.runtime, { restartPolicy });
+    assert.deepEqual(project.services.server?.runtime, { restartPolicy });
+    assert.deepEqual(buildSliceFor('server', project.services.server!, 'linux/amd64'), { name: 'server', platform: 'linux/amd64' });
+  }
+  for (const restartPolicy of ['always', 'unless-stopped', 'on-failure', 'on-failure:0', 'on-failure:4', ' no', 'no ', '', null, true, 3, ['no'], {}]) {
+    both({ restartPolicy });
+  }
 });

@@ -3,7 +3,7 @@ import { isRecord } from './obj.js';
 import { SpecError } from './spec-error.js';
 import type { RuntimePolicy, RuntimeTmpfs } from './runtime-policy-types.js';
 
-const FIELDS = new Set(['readOnlyRoot', 'dropCapabilities', 'noNewPrivileges', 'stopGracePeriodSeconds', 'tmpfs']);
+const FIELDS = new Set(['restartPolicy', 'readOnlyRoot', 'dropCapabilities', 'noNewPrivileges', 'stopGracePeriodSeconds', 'tmpfs']);
 const TMPFS_FIELDS = new Set(['target', 'sizeMiB', 'uid', 'gid', 'mode']);
 const WRITABLE_ROOTS = ['/tmp', '/app', '/run', '/var/cache'];
 
@@ -49,6 +49,12 @@ export function validateRuntimePolicy(input: unknown, field = 'runtime'): Runtim
   if (!isRecord(input)) throw new SpecError('must be a mapping', field);
   knownFields(input, FIELDS, field);
   const policy: RuntimePolicy = {};
+  if ('restartPolicy' in input) {
+    if (input.restartPolicy !== 'no' && input.restartPolicy !== 'on-failure:3') {
+      throw new SpecError("must be 'no' or 'on-failure:3'", `${field}.restartPolicy`);
+    }
+    policy.restartPolicy = input.restartPolicy;
+  }
   for (const key of ['readOnlyRoot', 'noNewPrivileges'] as const) {
     if (!(key in input)) continue;
     if (input[key] !== true) throw new SpecError('must be true; restriction cannot be disabled', `${field}.${key}`);

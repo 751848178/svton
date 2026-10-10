@@ -19,7 +19,6 @@ export function renderComposeFile(app: string, imageRef: string, spec: ShipSpec,
     'services:',
     `  ${app}:`,
     `    image: ${q(imageRef)}`,
-    '    restart: unless-stopped',
     ...renderRuntimePolicy(spec.runtime),
   ];
   if (spec.ports?.length) {
