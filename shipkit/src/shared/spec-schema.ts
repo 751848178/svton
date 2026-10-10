@@ -4,12 +4,9 @@
 import type { ShipSpec } from './types.js';
 import { isRecord } from './obj.js';
 import { parsePortMapping } from './port-mapping.js';
-
-export class SpecError extends Error {
-  constructor(message: string, readonly field: string) {
-    super(`${field}: ${message}`);
-  }
-}
+import { SpecError } from './spec-error.js';
+import { validateRuntimePolicy } from './runtime-policy.js';
+export { SpecError } from './spec-error.js';
 
 export const NAME_RE = /^[a-z][a-z0-9-]{0,62}$/;
 /** devpilot-compatible public bake-time variable whitelist */
@@ -17,7 +14,7 @@ export const PUBLIC_BUILD_ARG_RE = /^(NEXT_PUBLIC_|VITE_|PUBLIC_|REACT_APP_)[A-Z
 
 const PLATFORM_RE = /^linux\/(amd64|arm64)$/;
 const KNOWN_FIELDS = new Set([
-  'name', 'dockerfile', 'context', 'target', 'platform', 'buildArgsPolicy', 'buildArgs', 'ports', 'envFile', 'healthcheck',
+  'name', 'dockerfile', 'context', 'target', 'platform', 'buildArgsPolicy', 'buildArgs', 'ports', 'envFile', 'healthcheck', 'runtime',
 ]);
 
 function bad(field: string, want: string, got: unknown): never {
@@ -128,5 +125,6 @@ export function validateSpec(input: unknown): ShipSpec {
     spec.healthcheck = hc;
   }
 
+  if ('runtime' in input) spec.runtime = validateRuntimePolicy(input.runtime);
   return spec;
 }

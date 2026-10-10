@@ -3,6 +3,7 @@
 import path from 'node:path';
 import type { ShipSpec } from '../shared/types.js';
 import { writeFileAtomic } from './atomic.js';
+import { renderRuntimePolicy } from './compose-runtime-policy.js';
 export { selectedHostPort as explicitHostPort, selectedContainerPort as firstContainerPort } from './port-selection.js';
 
 const q = (s: string) => JSON.stringify(s);
@@ -19,6 +20,7 @@ export function renderComposeFile(app: string, imageRef: string, spec: ShipSpec,
     `  ${app}:`,
     `    image: ${q(imageRef)}`,
     '    restart: unless-stopped',
+    ...renderRuntimePolicy(spec.runtime),
   ];
   if (spec.ports?.length) {
     lines.push('    ports:');

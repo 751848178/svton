@@ -1,5 +1,6 @@
 // Cross-cutting contracts shared by the controller CLI and the machine agents.
 export type { Job, JobType, JobStatus, JobEvent, JobPhase, JobLogPage, JobEventsPage } from './job-protocol.js';
+import type { RuntimePolicy } from './runtime-policy-types.js';
 
 export const SHIP_VERSION = '0.5.0';
 
@@ -25,6 +26,8 @@ export interface ShipSpec {
   /** declares a runtime env file; content is delivered via the deploy API, never through the builder */
   envFile?: string;
   healthcheck?: { path?: string; hostPort?: number; timeoutSeconds?: number };
+  /** Optional runtime restrictions, never privilege grants. */
+  runtime?: RuntimePolicy;
 }
 
 export type BuildSource =

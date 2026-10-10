@@ -9,6 +9,7 @@ import type { ServiceSpec } from '../shared/spec-v2.js';
 import { parseVolumeMount } from '../shared/spec-v2.js';
 import { RUNTIME_ENV_FILE, writeComposeFile } from './compose.js';
 import { parseRuntimeEnv } from '../shared/runtime-env.js';
+import { renderRuntimePolicy } from './compose-runtime-policy.js';
 export { selectedHostPort as serviceExplicitHostPort, selectedContainerPort as serviceFirstContainerPort } from './port-selection.js';
 
 const q = (s: string) => JSON.stringify(s);
@@ -29,6 +30,7 @@ export function renderServiceCompose(group: string, service: string, imageRef: s
     `  ${service}:`,
     `    image: ${q(imageRef)}`,
     '    restart: unless-stopped',
+    ...renderRuntimePolicy(spec.runtime),
   ];
   if (spec.ports?.length) {
     lines.push('    ports:');

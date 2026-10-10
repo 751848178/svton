@@ -4,6 +4,7 @@
 
 import { SpecError, NAME_RE, PUBLIC_BUILD_ARG_RE, validateSpec } from './spec-schema.js';
 import type { ShipSpec } from './types.js';
+import type { RuntimePolicy } from './runtime-policy-types.js';
 import { isRecord } from './obj.js';
 
 /** external volume reference: `name:/container[/sub][:ro]` (pre-existing named volume) */
@@ -26,6 +27,7 @@ export interface ServiceSpec {
   ports?: string[];
   envFile?: string;
   healthcheck?: { path?: string; hostPort?: number; timeoutSeconds?: number };
+  runtime?: RuntimePolicy;
   /** EXTERNAL docker networks the service joins; they must already exist on the runtime */
   networks?: string[];
   /** external named volumes / restricted absolute bind mounts */
@@ -45,8 +47,9 @@ export interface ProjectSpec {
 
 const SERVICE_FIELDS = new Set([
   'dockerfile', 'context', 'target', 'platform', 'buildArgsPolicy', 'buildArgs',
-  'ports', 'envFile', 'healthcheck', 'networks', 'volumes', 'dependsOn',
+  'ports', 'envFile', 'healthcheck', 'runtime', 'networks', 'volumes', 'dependsOn',
 ]);
+const OVERLAPPING_FIELDS = ['dockerfile', 'context', 'buildArgsPolicy', 'buildArgs', 'ports', 'envFile', 'healthcheck', 'runtime'] as const;
 const PROJECT_FIELDS = new Set(['schemaVersion', 'name', 'services']);
 const PLATFORM_RE = /^linux\/(amd64|arm64)$/;
 const NET_NAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$/;
@@ -92,13 +95,13 @@ function validateService(name: string, input: unknown): ServiceSpec {
   }
   // reuse the v1 validator for the overlapping shape, then keep the extra v2 fields
   const overlapped: Record<string, unknown> = {};
-  for (const k of ['dockerfile', 'context', 'buildArgsPolicy', 'buildArgs', 'ports', 'envFile', 'healthcheck']) {
+  for (const k of OVERLAPPING_FIELDS) {
     if (k in input) overlapped[k] = input[k];
   }
   const base = validateSpec({ name, ...overlapped });
 
   const svc: ServiceSpec = {};
-  for (const k of ['dockerfile', 'context', 'buildArgsPolicy', 'buildArgs', 'ports', 'envFile', 'healthcheck'] as const) {
+  for (const k of OVERLAPPING_FIELDS) {
     if (base[k] !== undefined) (svc as Record<string, unknown>)[k] = base[k];
   }
   const target = str(input, 'target');
