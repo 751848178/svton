@@ -18,7 +18,24 @@ BASE = {"guard": "shipkit-network-guard.service", "server": "shipkit-server.serv
 
 def command(*args, check=True):
     return subprocess.run(args, check=check, stdout=subprocess.PIPE,
-                          stderr=subprocess.PIPE, universal_newlines=True, timeout=30)
+                          stderr=subprocess.PIPE, universal_newlines=True, timeout=30,
+                          env={**os.environ, "LC_ALL": "C"})
+
+
+def inactive_unit_action(action, name):
+    result = command("systemctl", action, name, check=False)
+    if result.returncode == 0:
+        return
+    # systemd may garbage-collect inactive units before ResetFailedUnit runs.
+    prefix = ("Failed to reset failed state of unit " if action == "reset-failed"
+              else "Failed to stop ")
+    expected = prefix + name + ": Unit " + name + " not loaded."
+    if result.stderr.strip() == expected:
+        return
+    state = command("systemctl", "show", name, "-p", "LoadState", check=False)
+    if state.returncode == 0 and state.stdout.strip() == "LoadState=not-found":
+        return
+    raise RuntimeError("QA " + action + " failed for " + name + ": " + result.stderr.strip())
 
 
 def synthetic_unit(kind, names, gate, marker):
@@ -56,21 +73,38 @@ class OwnedUnits:
             self.created.append((name, file, os.fstat(stream.fileno()).st_ino))
             stream.write(text)
 
+    def reset_failed(self):
+        for name, file, inode in self.created:
+            if not file.exists() or file.is_symlink() or file.lstat().st_ino != inode:
+                raise ValueError("Owned QA unit was replaced/missing; manual review required")
+            inactive_unit_action("reset-failed", name)
+
     def cleanup(self):
         if not self.created:
             return
         # A collision or replacement never becomes an owned cleanup target.
         same = [(name, file) for name, file, inode in self.created
                 if file.exists() and file.lstat().st_ino == inode and not file.is_symlink()]
-        names = [name for name, _ in same]
-        if names:
-            command("systemctl", "stop", *names)
-            command("systemctl", "reset-failed", *names)
-            for _, file in same:
+        errors = []
+        for name, file in same:
+            for action in ("stop", "reset-failed"):
+                try:
+                    inactive_unit_action(action, name)
+                except Exception as error:
+                    errors.append(str(error))
+            try:
                 file.unlink()
-            command("systemctl", "daemon-reload")
+            except Exception as error:
+                errors.append(str(error))
+        if same:
+            try:
+                command("systemctl", "daemon-reload")
+            except Exception as error:
+                errors.append(str(error))
         if len(same) != len(self.created):
-            raise ValueError("Owned QA unit was replaced/missing; manual review required")
+            errors.append("Owned QA unit was replaced/missing; manual review required")
+        if errors:
+            raise ValueError("; ".join(errors))
 
 
 def docker_state():
@@ -116,7 +150,7 @@ def main():
         check(not markers["server"].exists() and not markers["agent"].exists(), "Guard failure must run no app commands")
         check(markers["control"].exists() and docker_state() == before, "Guard failure must leave Docker/control unchanged")
         completed.append("guard failure blocks Server/Agent; Docker/control unchanged")
-        command("systemctl", "reset-failed", *names.values())
+        owned.reset_failed()
         gate.touch()
         command("systemctl", "start", names["server"])
         wait_for_markers([markers["server"], markers["agent"]])
@@ -131,8 +165,10 @@ def main():
         check(docker_state() == before, "Tests must never restart existing Docker")
         completed.append("startup preflight blocks apps when cached guard readiness is lost")
     finally:
-        owned.cleanup()
-        shutil.rmtree(str(scratch))
+        try:
+            owned.cleanup()
+        finally:
+            shutil.rmtree(str(scratch))
     check(docker_state() == before, "Docker changed during QA cleanup")
     print(json.dumps({"checks": completed, "dockerUnchanged": True,
                       "scope": "synthetic systemd graph; real Docker is read-only"}))

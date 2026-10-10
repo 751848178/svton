@@ -87,7 +87,8 @@ README 的备份边界操作；在新主机重新核对并创建 external networ
 
 ## 验证边界
 
-`test_guard.py`、`test_preconditions.py` 与 `test_synthetic_qa.py` 是纯 mock 检查，覆盖
+`test_guard.py`、`test_preconditions.py`、`test_network_compatibility.py` 与
+`test_synthetic_qa.py` 是纯 mock 检查，覆盖
 规则范围与恢复顺序、前置失败不写规则、路径信任、QA 依赖替换和只清理自有对象。
 它们不证明实际内核过滤效果、真实开机排序或 Docker 重启后的容器状态。
 
@@ -96,6 +97,9 @@ README 的备份边界操作；在新主机重新核对并创建 external networ
 依赖；真实 Docker 只读取状态戳。验证 guard 故障、健康启动和缓存 guard 的再次前检，
 最终仅停止/清理本次独占创建且身份未变的 QA unit，daemon-reload 是唯一全局 systemd 动作。
 所有子进程有 30 秒超时；失败清理需要核对输出，不能全局 reset-failed 或 stop Docker。
+对本次已创建单位逐项 reset，仅忽略确认不存在或该单位准确的 not loaded 错误；其他
+错误仍报告，但会继续限定文件清理和 reload。host/none 网络的空 IPAM 不参与子网冲突
+比较，非空池仍严格校验，任一畸形配置或重叠均在创建网络/写冻结记录前拒绝。
 此脚本通过也只证明 synthetic 依赖图，生产启动与真正 boot/restart 仍需单独验收。
 
 不得在共享内核 privileged systemd 容器运行这类验证。systemd-binfmt 会清空共享内核

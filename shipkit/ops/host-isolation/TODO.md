@@ -11,7 +11,7 @@ v2 renderer 已支持 external networks；核心 worker 负责 restartPolicy。
 
 - [x] done：配置校验、自有防火墙规则、冻结 ownership receipt、限定 systemd units。
 - [x] done：复用 base 的 override 与临时 spec 生成；compiled spec validator/renderer 通过，base 保留且拒绝覆盖。
-- [x] done：21 条纯 mock tests；启动前置失败无 firewall 写入；源码 <=200 行。
+- [x] done：30 条纯 mock tests；启动前置失败无 firewall 写入；源码 <=200 行。
 - [x] done：opt-in synthetic systemd QA 脚本与纯安全测试；独立 review 无阻断。
 - [x] done：安装文档与模块交接；不提交、不远程运行 QA/服务。
 - [ ] pending：目标 Compose 2.27.0 的实际合并结果与实际容器 HostConfig。
@@ -27,3 +27,6 @@ Server on-failure:3；自身 unit Requires/After guard，Docker不依赖guard。
 替代 QA 只建随机自有 marker units，真实 Docker 只读；尚未在目标执行。
 纯测试日志：`/tmp/codex-tool-runs/svton/self-hosting/host-isolation/unit.log`。
 派生 spec 日志：`/tmp/codex-tool-runs/svton/self-hosting/host-isolation/derived-spec.log`。
+目标首次 QA 暴露 systemd 对未加载 Agent 的 reset-failed 兼容问题，已改为限定逐项处理；
+network ensure 的 host/none null IPAM 兼容已修，非空畸形/重叠仍拒绝。
+这两处修复日志：`/tmp/codex-tool-runs/svton/self-hosting/host-isolation/host-compat-unit.log`。

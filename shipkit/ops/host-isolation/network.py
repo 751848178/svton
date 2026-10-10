@@ -26,14 +26,30 @@ def inspect_network(config):
     return network
 
 
+def configured_subnets(network):
+    ipam = network.get("IPAM")
+    if ipam is None:
+        return
+    if not isinstance(ipam, dict):
+        raise ValueError("Existing Docker network has invalid IPAM")
+    pools = ipam.get("Config")
+    if pools is None:
+        return
+    if not isinstance(pools, list):
+        raise ValueError("Existing Docker network has invalid IPAM.Config")
+    for pool in pools:
+        if not isinstance(pool, dict) or not isinstance(pool.get("Subnet"), str) or not pool["Subnet"]:
+            raise ValueError("Existing Docker network has invalid subnet configuration")
+        yield ipaddress.ip_network(pool["Subnet"])
+
+
 def reject_conflicts(config):
     desired = ipaddress.IPv4Network(config.subnet)
     names = run("docker", "network", "ls", "--format", "{{.Name}}").splitlines()
     if names:
         for network in json.loads(run("docker", "network", "inspect", *names)):
-            for pool in network.get("IPAM", {}).get("Config", []):
-                subnet = pool.get("Subnet")
-                if subnet and ":" not in subnet and desired.overlaps(ipaddress.IPv4Network(subnet)):
+            for subnet in configured_subnets(network):
+                if subnet.version == 4 and desired.overlaps(subnet):
                     raise ValueError("Control subnet overlaps an existing Docker network")
     for route in json.loads(run("ip", "-j", "-4", "route", "show")):
         destination = route.get("dst", "default")
