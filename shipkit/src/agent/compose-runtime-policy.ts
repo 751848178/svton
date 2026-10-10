@@ -9,6 +9,10 @@ export function renderRuntimePolicy(runtime: RuntimePolicy | undefined): string[
   if (policy.dropCapabilities) lines.push('    cap_drop:', '      - "ALL"');
   if (policy.noNewPrivileges) lines.push('    security_opt:', '      - "no-new-privileges:true"');
   if (policy.stopGracePeriodSeconds !== undefined) lines.push(`    stop_grace_period: ${policy.stopGracePeriodSeconds}s`);
+  if (policy.logging) {
+    lines.push('    logging:', '      driver: json-file', '      options:',
+      `        max-size: "${policy.logging.maxSizeMiB}m"`, `        max-file: "${policy.logging.maxFiles}"`);
+  }
   if (policy.tmpfs?.length) {
     lines.push('    tmpfs:');
     for (const mount of policy.tmpfs) {

@@ -1,10 +1,11 @@
 // Strict validation of the portable, restriction-only runtime policy.
 import { isRecord } from './obj.js';
 import { SpecError } from './spec-error.js';
-import type { RuntimePolicy, RuntimeTmpfs } from './runtime-policy-types.js';
+import type { RuntimePolicy, RuntimeTmpfs, RuntimeLogRotation } from './runtime-policy-types.js';
 
-const FIELDS = new Set(['restartPolicy', 'readOnlyRoot', 'dropCapabilities', 'noNewPrivileges', 'stopGracePeriodSeconds', 'tmpfs']);
+const FIELDS = new Set(['restartPolicy', 'readOnlyRoot', 'dropCapabilities', 'noNewPrivileges', 'stopGracePeriodSeconds', 'tmpfs', 'logging']);
 const TMPFS_FIELDS = new Set(['target', 'sizeMiB', 'uid', 'gid', 'mode']);
+const LOGGING_FIELDS = new Set(['maxSizeMiB', 'maxFiles']);
 const WRITABLE_ROOTS = ['/tmp', '/app', '/run', '/var/cache'];
 
 function knownFields(input: Record<string, unknown>, fields: Set<string>, field: string): void {
@@ -18,6 +19,15 @@ function integer(value: unknown, field: string, min: number, max: number): numbe
     throw new SpecError(`must be an integer in range ${min}-${max}`, field);
   }
   return value;
+}
+
+function logRotation(input: unknown, field: string): RuntimeLogRotation {
+  if (!isRecord(input)) throw new SpecError('must be a mapping', field);
+  knownFields(input, LOGGING_FIELDS, field);
+  return {
+    maxSizeMiB: integer(input.maxSizeMiB, `${field}.maxSizeMiB`, 1, 100),
+    maxFiles: integer(input.maxFiles, `${field}.maxFiles`, 1, 10),
+  };
 }
 
 function tmpfsMount(input: unknown, field: string): RuntimeTmpfs {
@@ -70,6 +80,7 @@ export function validateRuntimePolicy(input: unknown, field = 'runtime'): Runtim
   if ('stopGracePeriodSeconds' in input) {
     policy.stopGracePeriodSeconds = integer(input.stopGracePeriodSeconds, `${field}.stopGracePeriodSeconds`, 1, 300);
   }
+  if ('logging' in input) policy.logging = logRotation(input.logging, `${field}.logging`);
   if ('tmpfs' in input) {
     if (!Array.isArray(input.tmpfs) || input.tmpfs.length > 16) throw new SpecError('must be a list of at most 16 mounts', `${field}.tmpfs`);
     const targets = new Set<string>();

@@ -7,6 +7,13 @@ export interface RuntimePolicy {
   noNewPrivileges?: true;
   stopGracePeriodSeconds?: number;
   tmpfs?: RuntimeTmpfs[];
+  /** Bounded Docker stdout/stderr rotation; the driver is always json-file. */
+  logging?: RuntimeLogRotation;
+}
+
+export interface RuntimeLogRotation {
+  maxSizeMiB: number;
+  maxFiles: number;
 }
 
 export interface RuntimeTmpfs {
