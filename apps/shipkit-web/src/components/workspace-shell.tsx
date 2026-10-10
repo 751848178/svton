@@ -24,7 +24,7 @@ export function WorkspaceShell(props: Props) {
     <header className="sidebar-brand"><div>
       <a className="brand" href="/" onClick={event => { event.preventDefault(); go({ view: 'projects', projectId: '', taskId: '' }); }}>
         <img src="/mark.svg" alt="" width={32} height={32} /><span>Shipkit</span>
-      </a><p className="sidebar-caption">本机发布工作台</p>
+      </a><p className="sidebar-caption">发布工作台</p>
     </div>{mobile && <button className="sidebar-close" onClick={() => setOpen(false)} aria-label="关闭导航"><X size={20} /></button>}</header>
     <div className="menu-search"><Search size={14} aria-hidden="true" /><input className="search-input" value={query} onChange={event => setQuery(event.target.value)} placeholder="搜索菜单" aria-label="搜索菜单" /></div>
     <nav id={mobile ? 'mobile-navigation' : 'navigation'} aria-label="主导航">
