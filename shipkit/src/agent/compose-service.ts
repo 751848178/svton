@@ -9,6 +9,7 @@ import type { ServiceSpec } from '../shared/spec-v2.js';
 import { parseVolumeMount } from '../shared/spec-v2.js';
 import { RUNTIME_ENV_FILE, writeComposeFile } from './compose.js';
 import { parseRuntimeEnv } from '../shared/runtime-env.js';
+export { selectedHostPort as serviceExplicitHostPort, selectedContainerPort as serviceFirstContainerPort } from './port-selection.js';
 
 const q = (s: string) => JSON.stringify(s);
 
@@ -66,22 +67,4 @@ export function renderServiceCompose(group: string, service: string, imageRef: s
 
 export function writeServiceCompose(dir: string, content: string): Promise<void> {
   return writeComposeFile(dir, content);
-}
-
-/** host port explicitly pinned for this service (healthcheck.hostPort or 'HOST:CONTAINER') */
-export function serviceExplicitHostPort(spec: ServiceSpec): number | undefined {
-  if (spec.healthcheck?.hostPort) return spec.healthcheck.hostPort;
-  const first = spec.ports?.[0];
-  if (!first || !first.includes(':')) return undefined;
-  const n = Number(first.split(':')[0]);
-  return n >= 1 && n <= 65535 ? n : undefined;
-}
-
-/** container port of the first declared port — used to query the dynamic mapping */
-export function serviceFirstContainerPort(spec: ServiceSpec): number | undefined {
-  const first = spec.ports?.[0];
-  if (!first) return undefined;
-  const c = first.includes(':') ? first.split(':')[1] : first;
-  const n = Number(c);
-  return n >= 1 && n <= 65535 ? n : undefined;
 }

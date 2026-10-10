@@ -3,6 +3,7 @@
 // explicit keep / change / clear flow instead of empty-input ambiguity (M1-11).
 
 import { NAME_RE } from '../../shared/spec-schema.js';
+import { parsePortMapping } from '../../shared/port-mapping.js';
 import { registryNamespaceError, registryUrlError } from '../../shared/config.js';
 import type { Detection } from './detect.js';
 import { CANCEL, Cancelled, type Prompter, type Question } from './prompt.js';
@@ -41,10 +42,7 @@ async function ask(p: Prompter, q: Question, validate?: Validate): Promise<strin
 
 function portListError(v: string): string | null {
   for (const item of v.split(/\s+/).filter(Boolean)) {
-    if (!/^\d{1,5}(:\d{1,5})?$/.test(item)) return `端口映射 ${item} 应为 HOST:CONTAINER 或 CONTAINER`;
-    for (const part of item.split(':')) {
-      if (Number(part) < 1 || Number(part) > 65535) return `端口 ${part} 超出范围 1-65535`;
-    }
+    if (!parsePortMapping(item)) return `端口映射 ${item} 应为 127.0.0.1:HOST:CONTAINER、HOST:CONTAINER 或 CONTAINER，端口范围 1-65535`;
   }
   return null;
 }
@@ -52,11 +50,12 @@ function portListError(v: string): string | null {
 function hostPortOf(ports: string[]): number | undefined {
   const first = ports[0];
   if (!first) return undefined;
-  return Number(first.split(':')[0]);
+  const mapping = parsePortMapping(first);
+  return mapping?.hostPort ?? mapping?.containerPort;
 }
 
 function containerPortOf(mapping: string): number {
-  return Number(mapping.includes(':') ? mapping.split(':')[1] : mapping);
+  return parsePortMapping(mapping)?.containerPort ?? Number.NaN;
 }
 
 /** A still-valid draft (file unchanged since it was saved) is NEWER intent than
@@ -98,8 +97,8 @@ export async function askApp(det: Detection, src: {
     field: 'ports', label: '应用端口映射', optional: true, clearable: true,
     default: portsDefaultStr,
     hint: portsDefaultStr !== undefined
-      ? `来源：现有配置优先，EXPOSE ${exposed.join(', ') || '无'} 仅补空缺；格式 HOST:CONTAINER，多个空格分隔；回车保留，输入 - 清空全部映射`
-      : '未从现有配置或 EXPOSE 检测到端口；格式 HOST:CONTAINER，多个用空格分隔，留空则不映射',
+      ? `来源：现有配置优先，EXPOSE ${exposed.join(', ') || '无'} 仅补空缺；格式 HOST:CONTAINER 或 127.0.0.1:HOST:CONTAINER，多个空格分隔；回车保留，输入 - 清空全部映射`
+      : '未从现有配置或 EXPOSE 检测到端口；格式 HOST:CONTAINER 或 127.0.0.1:HOST:CONTAINER，多个用空格分隔，留空则不映射',
   }, portListError);
   const ports = portsRaw.split(/\s+/).filter(Boolean);
 

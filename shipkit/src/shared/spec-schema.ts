@@ -3,6 +3,7 @@
 
 import type { ShipSpec } from './types.js';
 import { isRecord } from './obj.js';
+import { parsePortMapping } from './port-mapping.js';
 
 export class SpecError extends Error {
   constructor(message: string, readonly field: string) {
@@ -14,7 +15,6 @@ export const NAME_RE = /^[a-z][a-z0-9-]{0,62}$/;
 /** devpilot-compatible public bake-time variable whitelist */
 export const PUBLIC_BUILD_ARG_RE = /^(NEXT_PUBLIC_|VITE_|PUBLIC_|REACT_APP_)[A-Z0-9_]+$/;
 
-const PORT_RE = /^\d{1,5}(?::\d{1,5})?$/;
 const PLATFORM_RE = /^linux\/(amd64|arm64)$/;
 const KNOWN_FIELDS = new Set([
   'name', 'dockerfile', 'context', 'target', 'platform', 'buildArgsPolicy', 'buildArgs', 'ports', 'envFile', 'healthcheck',
@@ -43,11 +43,7 @@ function validatePorts(input: Record<string, unknown>): string[] | undefined {
   if (!Array.isArray(p)) bad('ports', 'a list', p);
   return (p as unknown[]).map((item, i) => {
     if (typeof item !== 'string') bad(`ports[${i}]`, 'a string "HOST:CONTAINER"', item);
-    if (!PORT_RE.test(item)) throw new SpecError(`must be 'HOST:CONTAINER' or 'CONTAINER'`, `ports[${i}]`);
-    for (const part of item.split(':')) {
-      const n = Number(part);
-      if (n < 1 || n > 65535) throw new SpecError('port out of range 1-65535', `ports[${i}]`);
-    }
+    if (!parsePortMapping(item)) throw new SpecError(`must be '127.0.0.1:HOST:CONTAINER', 'HOST:CONTAINER' or 'CONTAINER', ports in range 1-65535`, `ports[${i}]`);
     return item;
   });
 }

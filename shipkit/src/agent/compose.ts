@@ -3,6 +3,7 @@
 import path from 'node:path';
 import type { ShipSpec } from '../shared/types.js';
 import { writeFileAtomic } from './atomic.js';
+export { selectedHostPort as explicitHostPort, selectedContainerPort as firstContainerPort } from './port-selection.js';
 
 const q = (s: string) => JSON.stringify(s);
 
@@ -31,22 +32,4 @@ export function renderComposeFile(app: string, imageRef: string, spec: ShipSpec,
 
 export async function writeComposeFile(appDir: string, content: string): Promise<void> {
   await writeFileAtomic(path.join(appDir, 'compose.yaml'), content, 0o600);
-}
-
-/** host port explicitly pinned by the operator (healthcheck.hostPort or 'HOST:CONTAINER'); undefined when only dynamic (F26) */
-export function explicitHostPort(spec: ShipSpec): number | undefined {
-  if (spec.healthcheck?.hostPort) return spec.healthcheck.hostPort;
-  const first = spec.ports?.[0];
-  if (!first || !first.includes(':')) return undefined;
-  const n = Number(first.split(':')[0]);
-  return n >= 1 && n <= 65535 ? n : undefined;
-}
-
-/** container port of the first declared port — used to query the actual dynamic mapping */
-export function firstContainerPort(spec: ShipSpec): number | undefined {
-  const first = spec.ports?.[0];
-  if (!first) return undefined;
-  const c = first.includes(':') ? first.split(':')[1] : first;
-  const n = Number(c);
-  return n >= 1 && n <= 65535 ? n : undefined;
 }
