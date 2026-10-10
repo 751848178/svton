@@ -12,8 +12,10 @@
 | 容器运行安全策略 | `ce52b813` | 38 项测试；真实只读根、noexec tmpfs、能力限制、用户和停止宽限 |
 | 完整进程树监督 | `1d73c141` | 8 项测试；迁移后代停止后释放锁、迟到锁和日志打开竞态 |
 | 私有 Git 与 noexec | `1723d32e` | 21 项回归及真实 HTTPS 私有 Git 容器；错误凭据拒绝、清理、并发不串凭据 |
-| 容器镜像与引导 | `53df3f7e` | 固定源码 native/amd64 构建、离线迁移、TTY 初始化、双端健康、正常停止 |
+| 容器镜像与引导 | `53df3f7e` | 固定源码 native/amd64 构建、已有验收目录迁移、TTY 初始化、双端健康、正常停止；首次空配置场景见下文 |
 | 受控重启策略 | `680f91b7` | 41 项测试；v1/v2 实际 Docker 策略、快照恢复与 Builder 排除 |
+| 空配置 Corepack | `4cce3e0a` | 镜像内只读缓存；真实空配置、无网络迁移和 UID 10001 首次启动 |
+| 临时宿主隔离 | `c2ca80f0`、`5f20151d` | 30 项纯测试；真实 synthetic systemd 图、内核 bridge 拒绝与限定规则计数 |
 
 上述生产代码均经过独立审查。核心定向测试日志保存在本机私有目录
 `/tmp/codex-tool-runs/svton/self-hosting/`，不将真实凭据、完整生产日志或主机信息提交到公开仓库。
@@ -32,15 +34,39 @@
 源码：`680f91b7b6fcc453b597bdca5aae7c76070042ab`。构建上下文来自限定路径的
 `git archive`，并经 Dockerfile 白名单过滤；未读取本机 `.npmrc`。
 
-amd64 镜像迁移、健康、真实 noexec Git helper 和正常停止已通过。独立 Agent 包的完整
+amd64 镜像在已有验收配置目录下的迁移、健康、真实 noexec Git helper 和正常停止已通过。
+目标主机的首次空配置目录、只读挂载与无网络迁移随后暴露 Corepack 缓存未随运行用户
+正确固定：尝试创建 `/etc/shipkit/.cache/node/corepack/v1` 而失败。`4cce3e0a` 将 Corepack
+缓存固定在镜像内，重建后通过真实空配置、只读挂载与无网络迁移。Prisma 初始化自己的
+缓存属于正常行为，不能将它误判为 Corepack 缓存回写。独立 Agent 包的完整
 dist 与冻结依赖来自同一固定镜像，在目标机新命名空间的 Node 22.23.3 下通过真实 x64
 健康验收；只使用临时回环端口，测试进程随后停止，现有 Agent 未被替换。离线压缩包完成 gzip、
 SHA-256 和 OCI index → amd64 manifest → Docker config 的身份链校验。Docker 28 的
 index ID 与 Docker 26 传统存储的 config ID 不同，安装必须核对对应身份，不能直接混比。
 
+## 首次真实部署
+
+实际 Server 使用固定提交 `4cce3e0aaeb94cc8a7301f945c252621b967ba16` 的 amd64 镜像。
+仅通过 SSH 隧道访问，Server 无 Docker socket；外置数据与原主密钥、只读根、能力限制、
+noexec tmpfs、停止宽限及有限日志轮转均保留。专用宿主 Runtime Agent 使用独立目录、
+Node 与认证凭据；旧业务 Agent 未被覆盖。三个专用 systemd unit 已验收后启用。
+
+用户选择全新平台数据，保留本机原数据。页面真实登录通过；正常停止释放维护锁后重建
+Server 容器，同一冻结镜像下账号、会话、主密钥、Agent 凭据与已有进程日志均保留，
+API 和容器健康通过。前后对照的原有 7 个业务容器身份、镜像、启动时间和健康状态一致，
+旧 Agent 的进程与启动状态一致。
+
+同 control bridge 的验收容器访问 Agent/Server 均为 200；另一专用 bridge 访问均超时，
+两条限定 DROP 规则计数增加，验收容器/网络已清理。synthetic systemd 检查涵盖前置失败、
+健康启动与缓存 guard 下再次前检；它没有重启真实 Docker，也不代表实际开机验收。
+
+首次初始化的数据库通过离线备份、完整性和管理员记录检查；原解密主密钥单独保存。
+经用户明确批准，数据库与密钥分别下载至本机私密恢复目录，两份归档均为 0600，
+数据库重读完整性为 `ok`。这是初始恢复副本，尚非定期备份或当前完整运行状态的备份。
+
 ## 尚未通过的门槛
 
-- 临时主机隔离规则、网络归属校验和开机失败关闭仍在实现和独立复核；不升级或重启其既有 Docker。
-- 嵌套系统启动测试漏屏蔽 systemd-binfmt，可能影响本机 amd64 模拟；沙箱已停止。后续真实系统测试须先核对共享内核服务边界。
-- 首次服务端数据采用迁移或新建，尚待用户选择；镜像仅上传暂存，服务未启动。
-- 独立 Runtime Agent 的实际部署、Shipkit Git 项目登记与计划验收、注册中心、维护交接及自升级均尚未完成。
+- Docker 空 IPAM 和未加载 synthetic QA unit 的兼容问题已在 `5f20151d` 修复并重放。真实开机、Docker daemon 重启、外部 L2/DNAT 路径尚未回放；不升级或重启其既有 Docker。
+- 嵌套系统启动测试未屏蔽 systemd-binfmt，清空了本机 Rosetta 注册；沙箱容器、镜像和源码已删除。经用户批准重启 Docker Desktop 后，15 个原运行容器均恢复，原健康的 8 个容器保持健康，amd64 Node 22.23.3 与浏览器持久化页面重新通过。后续禁止共享内核 privileged fixture。
+- bootstrap Server 尚未归属 Agent。接管前必须补齐 Runtime 受限日志轮转，并把固定镜像发布到 registry，核对真实 manifest digest 与当前 Docker config ID；两种摘要不能互相替代。正常首次 `deploy-group` 健康成功后才能作为自发布基线，禁止手工构造状态。
+- Shipkit Git 项目需要仓库内的临时规格、已推送的冻结提交和独立 Builder 配置；这些计划门槛、注册中心、维护交接及自升级均尚未完成。

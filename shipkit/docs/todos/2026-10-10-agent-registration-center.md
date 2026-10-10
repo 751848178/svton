@@ -4,9 +4,11 @@
 
 已确认：先部署当前加固版，后续通过 Shipkit 自身的构建部署能力发布新 Server/Agent。先升级兼容旧 Agent 的 Server，再逐台升级/注册并切换项目绑定。
 
-当前活动项：E1 生产镜像与持久化发布定义（`in_progress`）。顺序为 E1–E3 首次部署基础与隔离验收 → 首次真实部署 → A–D 注册中心 → E4–E8 自发布与 Agent 升级。原目标系统已停止维护；用户提出先部署至现有运行机、后续迁移，并已为临时目标创建用户。临时目标 SSH 与 sudo 已验证，容器访问隔离仍须验收；不升级或重启其现有 Docker 与业务。域名由用户后续配置，先仅经 SSH 隧道访问。真实地址和凭据保存在本机私密部署记录，不进入公开仓库。
+当前活动项：E1–E3 首次部署接管与自身项目计划（`in_progress`，执行路径 `specialized`）。顺序为首次部署基础与隔离验收 → 首次真实部署 → A–D 注册中心 → E4–E8 自发布与 Agent 升级。临时主机的新 Server、独立 Runtime Agent 和限定网络已部署，登录、容器替换持久化及内核 bridge 隔离已验收；原有业务与旧 Agent 未改变。域名由用户后续配置，先仅经 SSH 隧道访问；不升级或重启现有 Docker 与业务。真实地址和凭据保存在本机私密部署记录，不进入公开仓库。
 
 E1 隔离审查新增验收门槛：迁移与服务停止须等待完整进程树退出后才能释放维护锁；发布定义经 Runtime Agent 渲染后须保留首次安装的只读根文件系统、临时目录、安全选项与停止宽限；通用私有 Git 认证须在临时目录禁止执行的环境完成真实读取。回环端口模块已提交 `c636e85e`，容器停机身份校验备份已提交 `518962bf`，控制端辅助状态备份已提交 `3d010150`，Runtime 容器安全策略已提交 `ce52b813`，完整进程树监督与停止竞态修复已提交 `1d73c141`。
+
+首次部署接管影响图：`runtime-policy-types/schema → compiler/legacy 转换 → group 快照 → compose-runtime-policy → Docker`，补受限 `json-file` 日志轮转，验证历史恢复及 Builder 排除；`container/ship.yaml → host-isolation/render-spec → 仓库内派生规格 → Git specPath`，补生成一致性检查。接管必须使用真实 registry manifest digest，先验证固定镜像身份与救援备份，再通过正常首次 `deploy-group` 建立完整基线；禁止手工填写 Agent 状态。随后登记已推送的固定 Git 提交与可解析的独立 Builder/Runtime 连接并验收计划。
 
 开发分支：`codex/shipkit-self-hosted-registration`。功能模块独立提交，旧冻结标签不移动；构建/测试全日志位于 `/tmp/codex-tool-runs/svton/self-hosting/`，协调板位于 `/tmp/codex-tool-runs/svton/long-goals/shipkit-self-hosted-registration/board.json`。
 
@@ -56,5 +58,5 @@ E1 隔离审查新增验收门槛：迁移与服务停止须等待完整进程�
 - 已完成：当前资源派生、入站 HTTP 认证、Job/游标、私有快照和云构建机链路的源码核对；方案评审输入已保存。
 - 未完成：任何注册/心跳/反向通信实现、数据库迁移、安装升级、页面或真实运行验收。
 - 已完成：生产镜像、发布定义、离线初始化、持久化目录与完整进程树监督的隔离测试；浏览器已保存合成项目、秘密变量与冻结版本，并在替换镜像后重读。私有 Git noexec 修复已提交 `1723d32e`，容器与引导已提交 `53df3f7e`，受控重启策略已提交 `680f91b7`；固定提交 amd64 离线镜像通过校验，仍未视为 E1–E3 整体达标。详见[基础验收记录](../audits/2026-10-10/self-hosting-foundation.md)。
-- 未完成：真实首次部署、宿主自升级任务、维护交接和 Server/Agent 自发布验收。
-- 临时目标已完成 SSH/sudo 和只读容量检查；当前尚未修改真实运行服务/项目或 Git 冻结标签。
+- 已完成：冻结镜像 `4cce3e0a` 的真实首次部署；空配置离线迁移、登录、容器替换后持久化、独立 Runtime Agent 认证健康、内核跨 bridge 拒绝及初始备份。原有 7 个业务容器和旧 Agent 的身份及启动状态保持；旧 Git 冻结标签未改变。
+- 未完成：bootstrap 服务归属 Agent 的正常接管、自身 Git 项目与计划、宿主自升级任务、维护交接和 Server/Agent 自发布验收。真实开机/Docker daemon 重启及外部 L2/DNAT 路径尚未回放，不将 synthetic 检查等同于这些验收。
