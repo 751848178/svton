@@ -1,0 +1,25 @@
+[Unit]
+Description=Shipkit isolated host TCP relay
+Requires=shipkit-public-ingress-guard.service
+After=shipkit-public-ingress-guard.service
+StartLimitIntervalSec=30
+StartLimitBurst=3
+
+[Service]
+User=nobody
+Group=nobody
+Environment=PATH=/usr/sbin:/usr/bin:/sbin:/bin
+ExecStartPre=+/usr/bin/python3 -E -s /usr/local/lib/shipkit-public-ingress/guard.py verify
+ExecStart=/usr/lib/systemd/systemd-socket-proxyd 127.0.0.1:28769
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+RestrictAddressFamilies=AF_INET AF_UNIX
+MemoryMax=64M
+TasksMax=32
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=15

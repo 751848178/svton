@@ -1,0 +1,10 @@
+[Unit]
+Description=Verify Shipkit-only NPM upstream admission
+After=docker.service shipkit-server.service
+Before=shipkit-public-ingress.socket shipkit-public-ingress.service
+
+[Service]
+Type=oneshot
+Environment=PATH=/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/usr/bin/python3 -E -s /usr/local/lib/shipkit-public-ingress/guard.py enforce
+RemainAfterExit=yes

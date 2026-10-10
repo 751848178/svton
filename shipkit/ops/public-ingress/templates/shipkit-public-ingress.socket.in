@@ -1,0 +1,13 @@
+[Unit]
+Description=Shipkit HTTPS proxy upstream socket
+Requires=docker.service shipkit-server.service shipkit-public-ingress-guard.service
+After=docker.service shipkit-server.service shipkit-public-ingress-guard.service
+
+[Socket]
+ListenStream=@NPM_GATEWAY@:@LISTEN_PORT@
+BindToDevice=docker0
+Accept=no
+Service=shipkit-public-ingress.service
+
+[Install]
+WantedBy=multi-user.target
