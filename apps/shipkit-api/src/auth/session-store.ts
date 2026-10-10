@@ -1,6 +1,7 @@
 import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service.js';
 import type { SessionView } from './contracts.js';
+import { pruneInvalidSession, readSessionSnapshot, validSessionSnapshot } from './session-read.js';
 
 export const unauthorized = () => new UnauthorizedException('登录凭据无效或会话已失效');
 @Injectable()
@@ -16,15 +17,14 @@ export class SessionStore {
     });
   }
   async read(hash: string): Promise<SessionView | null> {
-    return this.db.$transaction(async tx => {
-      const session = await tx.authSession.findUnique({ where: { id: hash }, include: { actor: true } });
-      if (!session) return null;
-      if (session.actor.disabled || session.actor.kind !== 'user' || !session.actor.username || !session.actor.passwordHash || session.expiresAt.getTime() <= Date.now()) {
-        await tx.authSession.deleteMany({ where: session.actor.disabled ? { actorId: session.actorId } : { id: hash } });
-        return null;
-      }
-      return { user: { id: session.actor.id, username: session.actor.username, displayName: session.actor.name }, expiresAt: session.expiresAt.toISOString() };
-    });
+    const session = await readSessionSnapshot(this.db, hash);
+    if (!session) return null;
+    const now = new Date();
+    if (!validSessionSnapshot(session, now)) {
+      await pruneInvalidSession(this.db, session, now);
+      return null;
+    }
+    return { user: { id: session.actorId, username: session.username!, displayName: session.name }, expiresAt: session.expiresAt.toISOString() };
   }
   async revoke(hash: string, requestId: string): Promise<void> {
     await this.db.$transaction(async tx => {

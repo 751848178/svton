@@ -16,6 +16,8 @@ E3 文件锁运行路径补齐：正常 Builder registry-creds 接口发现只�
 
 E3 Git 元数据预算影响图：`source.ensureSource → git-command.assertSupportedGitTree → shared.exec → Job 日志`。实际冻结树 8,881 行、1,054,015 字节超过 1MiB；检查改为紧凑 mode、独立 `.gitmodules` 和现有 LFS 查询，内部 stdout 不进入用户日志。保留 DNS/TLS/认证、超时和截断拒绝；使用大树、异常元数据和真实 Git 回归。临时 Builder 控制 Agent 必须冻结完整编译输出后替换，不热补单文件或把本机编译标成实际 Git 镜像。
 
+E3 会话读取与配置冻结影响图：`LocalRequestGuard → SessionStore.read → Prisma interactive transaction (BEGIN IMMEDIATE)` 与 `ConfigRepository.freeze` 竞争 SQLite 写锁。真实页面一次冻结失败，原 etag/版本重试成功；隔离真实数据库已复现 16 次普通会话读与一次冻结的 P2028/P1008，失败完全回滚。活动修复限定为原子只读会话快照，保留停用、过期、撤销及用户种类校验；验收包含实际并发、无读取写锁、单一冻结结果和审计、完整编译及最终实际镜像更新。注册中心实现仍等待本基础门槛完成。
+
 当前补充门槛：日志轮转已提交 `7104d672`、仓库规格与构建门禁已提交 `bf66cc5e`。独立 registry 镜像已推送并获准向新 Runtime 分发拉取凭据。自身服务 key 必须保持 `server`，补 `ServiceSpec.imageRepository → buildSliceFor/push → 固定spec指纹` 的可选仓库 leaf 映射，并拒绝有效仓库名冲突，使构建/推送落到已批准的独立仓库。远端动态 Builder 缺少受保护 HTTPS 下载/控制入口；临时独立本机 Builder 与 SSH 加密中继只作为验收路径，需另行验收且不宣称永久托管完成。
 
 开发分支：`codex/shipkit-self-hosted-registration`。功能模块独立提交，旧冻结标签不移动；构建/测试全日志位于 `/tmp/codex-tool-runs/svton/self-hosting/`，协调板位于 `/tmp/codex-tool-runs/svton/long-goals/shipkit-self-hosted-registration/board.json`。
