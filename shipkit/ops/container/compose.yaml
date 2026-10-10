@@ -1,0 +1,36 @@
+# Bootstrap only: later updates are managed by the external Runtime Agent.
+name: ship_shipkit_server
+services:
+  server:
+    image: ${SHIPKIT_IMAGE:?Pin SHIPKIT_IMAGE to a published immutable digest}
+    restart: unless-stopped
+    init: true
+    user: "10001:10001"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    stop_grace_period: 45s
+    ports:
+      - "127.0.0.1:${SHIPKIT_HOST_PORT:-28769}:8769"
+    environment:
+      SHIPKIT_PUBLIC_ORIGIN: ${SHIPKIT_PUBLIC_ORIGIN:?Configure the exact browser origin}
+      SHIPKIT_DATA_DIR: /var/lib/shipkit
+      SHIPKIT_STATE_DIR: /var/lib/shipkit/controller-state
+      SHIPKIT_SECRET_KEY_FILE: /etc/shipkit/private/secret-key.json
+      SHIPKIT_WEB_HOST: 0.0.0.0
+    volumes:
+      - type: bind
+        source: ${SHIPKIT_DATA_PATH:-/srv/shipkit/data}
+        target: /var/lib/shipkit
+        bind: { create_host_path: false }
+      - type: bind
+        source: ${SHIPKIT_CONFIG_PATH:-/srv/shipkit/config}
+        target: /etc/shipkit
+        read_only: true
+        bind: { create_host_path: false }
+    tmpfs:
+      - /tmp:size=128m,noexec,nosuid,nodev,uid=10001,gid=10001,mode=1777
+      - /app/apps/shipkit-web/.next/cache:size=64m,noexec,nosuid,nodev,uid=10001,gid=10001,mode=0700
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: "3" }
