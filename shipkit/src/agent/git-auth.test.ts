@@ -10,21 +10,22 @@ for (const username of [undefined, 'gitlab+deploy-token-43', 'gitea.$(printf inj
     const token = 'fake-read-token', expected = username ?? 'x-access-token';
     const auth = await createGitAuth(token, username);
     try {
-      const usernameFile = auth.env.SHIPKIT_GIT_USERNAME_FILE!, script = auth.env.GIT_ASKPASS!;
+      const usernameFile = auth.env.SHIPKIT_GIT_USERNAME_FILE!;
       assert.equal(await readFile(usernameFile, 'utf8'), expected);
       assert.equal((await stat(usernameFile)).mode & 0o777, 0o600);
       assert.equal((await stat(path.dirname(usernameFile))).mode & 0o777, 0o700);
-      const text = await readFile(script, 'utf8');
-      assert.ok(!text.includes(expected) && !text.includes(token));
+      assert.equal(auth.env.GIT_ASKPASS, process.execPath);
       assert.ok(!auth.gitArgs.join(' ').includes(expected));
       assert.ok(!Object.values(auth.env).includes(expected));
-      const user = await exec('/bin/sh', [script, 'Username for repository'], { env: auth.env });
-      const password = await exec('/bin/sh', [script, 'Password for repository'], { env: auth.env });
-      assert.equal(user.code, 0); assert.equal(user.stdout, expected);
-      assert.equal(password.code, 0); assert.equal(password.stdout, token);
+      const credential = await exec('git', [...auth.gitArgs, 'credential', 'fill'], { env: auth.env,
+        stdin: 'protocol=https\nhost=example.test\n\n' });
+      assert.equal(credential.code, 0, credential.stderr);
+      assert.ok(credential.stdout.includes(`username=${expected}\n`), 'custom username returned through Git');
+      assert.ok(credential.stdout.includes(`password=${token}\n`), 'token returned through Git');
     } finally { await auth.cleanup(); }
     await assert.rejects(() => stat(auth.env.SHIPKIT_GIT_USERNAME_FILE!), { code: 'ENOENT' });
     await assert.rejects(() => stat(auth.env.SHIPKIT_GIT_CREDENTIAL_FILE!), { code: 'ENOENT' });
+    assert.ok((await stat(new URL('./git-askpass.js', auth.env.NODE_OPTIONS!.slice('--import='.length)))).isFile(), 'trusted helper remains installed');
   });
 }
 

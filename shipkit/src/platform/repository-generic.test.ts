@@ -22,7 +22,7 @@ mock.module('node:fs/promises', { namedExports: { ...fs, stat: async (file: stri
 mock.module('../shared/git-auth.js', { namedExports: { createGitAuth: async (token?: string) => {
   if (scenario === 'auth') throw new Error('fixture authentication creation failed');
   const auth = await authModule.createGitAuth(token);
-  authDirectories.push(path.dirname(auth.env.GIT_ASKPASS!));
+  authDirectories.push(path.dirname(auth.env.SHIPKIT_GIT_CREDENTIAL_FILE!));
   return auth;
 } } });
 mock.module('../shared/git-policy.js', { namedExports: { ...policyModule,

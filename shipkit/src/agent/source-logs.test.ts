@@ -12,25 +12,25 @@ mock.module('../shared/git-policy.js', { namedExports: { ...policy,
   resolveGitAddresses: async () => [{ address: '140.82.112.3', family: 4 }],
 } });
 const token = 'fake-token:/+secret';
-let failure = '', feature = '', authFile = '', usernameFile = '', askpass = '', expectedToken = token, expectedUsername = 'x-access-token';
+let failure = '', feature = '', authFile = '', usernameFile = '', expectedToken = token, expectedUsername = 'x-access-token';
 const calls: { args: string[]; opts?: ExecOptions }[] = [];
 const ok = (stdout = '') => ({ code: 0, stdout, stderr: '', truncated: false, timedOut: false });
 mock.module('../shared/exec.js', { namedExports: { ...realExec, exec: async (_cmd: string, args: string[], opts?: ExecOptions) => {
   calls.push({ args, opts });
   if (args.includes('--config')) return ok('http.curloptResolve\n');
   if (args.includes('clone') || args.includes('fetch')) {
-    authFile = opts!.env!.SHIPKIT_GIT_CREDENTIAL_FILE!; askpass = opts!.env!.GIT_ASKPASS!;
+    authFile = opts!.env!.SHIPKIT_GIT_CREDENTIAL_FILE!;
     usernameFile = opts!.env!.SHIPKIT_GIT_USERNAME_FILE!;
     assert.equal(await readFile(usernameFile, 'utf8'), expectedUsername);
     assert.equal((await stat(usernameFile)).mode & 0o777, 0o600);
     assert.equal(await readFile(authFile, 'utf8'), expectedToken);
     assert.equal((await stat(authFile)).mode & 0o777, 0o600);
     assert.equal((await stat(path.dirname(authFile))).mode & 0o777, 0o700);
-    assert.doesNotMatch(await readFile(askpass, 'utf8'), /fake-token/);
-    const password = await realExec.exec('/bin/sh', [askpass, 'Password for repository'], { env: opts!.env });
-    const username = await realExec.exec('/bin/sh', [askpass, 'Username for repository'], { env: opts!.env });
-    assert.equal(username.stdout, expectedUsername);
-    assert.equal(password.stdout, expectedToken);
+    const credential = await realExec.exec('git', ['-c', 'credential.helper=', 'credential', 'fill'], { env: opts!.env,
+      stdin: 'protocol=https\nhost=example.test\n\n' });
+    assert.equal(credential.code, 0, credential.stderr);
+    assert.ok(credential.stdout.includes(`username=${expectedUsername}\n`), 'username supplied through Git');
+    assert.ok(credential.stdout.includes(`password=${expectedToken}\n`), 'token supplied through Git');
     opts?.onLine?.(`diagnostic ${token} ${encodeURIComponent(token)}`, 'err');
     if (failure) return { ...ok(), code: 1, timedOut: failure === 'timeout' };
   }
@@ -42,7 +42,7 @@ mock.module('../shared/exec.js', { namedExports: { ...realExec, exec: async (_cm
 const { ensureSource } = await import('./source.js');
 
 async function fixture(t: test.TestContext) {
-  calls.length = 0; failure = ''; feature = ''; authFile = ''; usernameFile = ''; askpass = ''; expectedToken = token; expectedUsername = 'x-access-token';
+  calls.length = 0; failure = ''; feature = ''; authFile = ''; usernameFile = ''; expectedToken = token; expectedUsername = 'x-access-token';
   const root = await mkdtemp(path.join(tmpdir(), 'ship-git-test-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   return root;
@@ -61,7 +61,7 @@ test('Git token stays out of argv, env, script, logs and remote; askpass works a
   assert.ok(clone.args.includes('http.followRedirects=false'));
   assert.ok(clone.args.includes('https://github.com/team/repo'));
   assert.doesNotMatch(logs.join('\n'), /fake-token/);
-  assert.ok(!existsSync(authFile) && !existsSync(askpass));
+  assert.ok(!existsSync(authFile) && !existsSync(usernameFile));
 });
 
 test('Builder source passes a custom Git username only through temporary askpass files', async t => {
@@ -71,7 +71,7 @@ test('Builder source passes a custom Git username only through temporary askpass
     assert.ok(!args.join(' ').includes(expectedUsername));
     assert.ok(!Object.values(opts?.env ?? {}).includes(expectedUsername));
   }
-  assert.ok(!existsSync(authFile) && !existsSync(usernameFile) && !existsSync(askpass));
+  assert.ok(!existsSync(authFile) && !existsSync(usernameFile));
 });
 
 test('legacy public HTTPS source without a token remains supported', async t => {
@@ -86,7 +86,7 @@ test('clone failure and timeout remove temporary credentials and partial sources
   for (const fail of ['error', 'timeout']) {
     failure = fail;
     await assert.rejects(() => ensureSource(root, { type: 'git', repo: 'https://github.com/team/repo', token }, () => {}), /failed/);
-    assert.ok(!existsSync(authFile) && !existsSync(askpass));
+    assert.ok(!existsSync(authFile) && !existsSync(usernameFile));
   }
 });
 
