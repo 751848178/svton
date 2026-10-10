@@ -6,8 +6,8 @@ import shutil
 import sqlite3
 from contextlib import closing
 from pathlib import Path
-from backup_integrity import digest, verify_backup, write_checksums
-from data_safety import database_stamp, directory, maintenance_lock, open_database, safe_tree, validate_data
+from backup_integrity import digest, persistent_data_stamp, verify_backup, write_checksums
+from data_safety import data_trees, database_stamp, directory, maintenance_lock, open_database, safe_tree, validate_data
 from process_state import stopped
 
 
@@ -38,13 +38,14 @@ def backup(source_value, output_value, stopped_container=None):
         stopped(source, stopped_container)
         validate_data(source)
         stamp = database_stamp(source)
+        data_stamp = persistent_data_stamp(source)
         output.mkdir(mode=0o700)
         try:
             with open_database(source) as original:
                 with closing(sqlite3.connect(output / "platform.db")) as snapshot:
                     original.backup(snapshot)
             os.chmod(output / "platform.db", 0o600)
-            for name in ("logs", "process-logs"):
+            for name in data_trees(source):
                 (output / name).mkdir(mode=0o700)
                 for file in safe_tree(source / name):
                     target = output / file.relative_to(source)
@@ -55,6 +56,8 @@ def backup(source_value, output_value, stopped_container=None):
             validate_data(source)
             if database_stamp(source) != stamp:
                 raise ValueError("Source database changed during backup")
+            if persistent_data_stamp(source) != data_stamp:
+                raise ValueError("Source persisted data changed during backup")
             write_checksums(output)
             verify_backup(output)
             stopped(source, stopped_container)
@@ -71,7 +74,7 @@ def restore(backup_value, destination_value):
     try:
         for file in safe_tree(source):
             private_copy(file, target / file.relative_to(source))
-        for name in ("logs", "process-logs"):
+        for name in data_trees(source):
             (target / name).mkdir(exist_ok=True, mode=0o700)
         verify_backup(target)
         # A rollback of session records must never resurrect logged-out cookies.

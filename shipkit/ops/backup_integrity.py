@@ -2,7 +2,7 @@
 import hashlib
 import os
 from pathlib import Path
-from data_safety import directory, relative_file, safe_tree, validate_data
+from data_safety import DATA_TREES, data_trees, directory, relative_file, safe_tree, validate_data
 
 CHECKSUMS = "SHA256SUMS"
 
@@ -13,6 +13,12 @@ def digest(file):
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             value.update(chunk)
     return value.hexdigest()
+
+
+def persistent_data_stamp(root):
+    names = data_trees(root)
+    return names, {file.relative_to(root).as_posix(): digest(file)
+        for name in names for file in safe_tree(root / name)}
 
 
 def inventory(root):
@@ -55,7 +61,7 @@ def verify_backup(value):
         raise ValueError("Backup inventory does not match SHA256SUMS")
     if any(digest(files[name]) != checksum for name, checksum in expected.items()):
         raise ValueError("Backup SHA256 mismatch")
-    if any(name != "platform.db" and not name.startswith(("logs/", "process-logs/")) for name in files):
+    if any(name != "platform.db" and not name.startswith(tuple(f"{tree}/" for tree in DATA_TREES)) for name in files):
         raise ValueError("Unexpected backup file")
     validate_data(root, immutable=True)
     return root

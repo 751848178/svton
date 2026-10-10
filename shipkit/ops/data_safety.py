@@ -5,6 +5,14 @@ import sqlite3
 from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
 
+DATA_TREES = ("logs", "process-logs", "controller-state")
+
+
+def data_trees(root):
+    """Controller records are optional in old data; preserve their presence."""
+    return tuple(name for name in DATA_TREES if name != "controller-state"
+        or (root / name).exists() or (root / name).is_symlink())
+
 
 def directory(value):
     path = Path(value).expanduser()
@@ -82,7 +90,8 @@ def open_database(root, immutable=False):
 def validate_data(root, immutable=False):
     """Match every archive row to exactly one complete log with identical bytes."""
     logs = safe_tree(root / "logs")
-    safe_tree(root / "process-logs")
+    for name in DATA_TREES[1:]:
+        safe_tree(root / name)
     with open_database(root, immutable) as database:
         if database.execute("PRAGMA integrity_check").fetchall() != [("ok",)]:
             raise ValueError("SQLite integrity check failed")
