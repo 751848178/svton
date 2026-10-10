@@ -1,0 +1,10 @@
+# Merge after ops/container/compose.yaml; no !reset tag is required by Compose 2.27.
+services:
+  server:
+    restart: on-failure:3
+    networks:
+      - control
+networks:
+  control:
+    name: ${SHIPKIT_CONTROL_NETWORK:-shipkit-control}
+    external: true

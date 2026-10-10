@@ -77,7 +77,8 @@ Builder 构建并推送镜像；宿主 Runtime Agent 更新此容器。平台中
 相同的 `/srv/shipkit/data` 与 `/srv/shipkit/config` 挂载，执行前完成离线备份。
 
 发布规格与 bootstrap compose 都将 `127.0.0.1:28769` 绑定至容器 `8769`，不公开管理端口。
-Runtime Agent 的 bind allowlist 只放行上述两个宿主目录；自发布后仍需核对宿主实际绑定。
+发布规格固定上述两个宿主挂载目录，部署后须核对实际绑定。当前 Agent 认证约束角色，
+项目与绑定目录的授权尚未实现；专用安装目录和凭据提供操作隔离。
 
 首次安装 compose 只负责引导，后续通过平台发布前应按 Agent 的部署归属要求接管，
 禁止同时用 bootstrap compose 与 Runtime Agent 操作同一服务。发布进行中不启动另一轮
@@ -88,3 +89,11 @@ Runtime Agent 的 bind allowlist 只放行上述两个宿主目录；自发布�
 镜像健康检查同时探测 API 与 Web 同源代理。必须验证未登录页面、初始化用户、正常
 登录、无密钥拒启、错误密钥拒绝读取、停止信号、维护锁、容器重建后用户/项目/日志
 仍保留。不要将健康检查通过等同于自身升级完成；自身更新后的任务恢复由发布模块验收。
+
+## 共享临时主机
+
+Docker 26 且已有业务的临时主机，使用
+[限定隔离模块](../host-isolation/README.md) 的 external bridge、专用 Agent、
+guard 与 `on-failure:3` override。先冻结独占网络，再建立限定规则，由 Shipkit 自有
+systemd unit 验证后启动；不直接执行上面的 `up -d`。其 mock/synthetic 检查与实际
+内核、开机、重启验收分别记录，不为本平台升级或重启现有 Docker/业务。

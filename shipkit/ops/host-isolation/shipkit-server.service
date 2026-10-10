@@ -1,0 +1,20 @@
+[Unit]
+Description=Shipkit Server after scoped network protection
+Requires=docker.service shipkit-network-guard.service
+After=docker.service shipkit-network-guard.service
+Wants=shipkit-runtime-agent.service
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+EnvironmentFile=/etc/shipkit-isolation/control.env
+ExecStartPre=/usr/bin/python3 /usr/local/lib/shipkit-host-isolation/guard.py apply
+ExecStartPre=/usr/bin/python3 /usr/local/lib/shipkit-host-isolation/guard.py verify
+ExecStart=/usr/bin/python3 /usr/local/lib/shipkit-host-isolation/server.py start
+ExecStop=/usr/bin/docker stop --time 45 ship_shipkit_server-server-1
+TimeoutStartSec=150
+TimeoutStopSec=55
+
+[Install]
+WantedBy=multi-user.target

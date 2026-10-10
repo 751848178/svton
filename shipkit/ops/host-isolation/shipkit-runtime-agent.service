@@ -1,0 +1,23 @@
+[Unit]
+Description=Shipkit dedicated Runtime Agent
+Requires=docker.service shipkit-network-guard.service
+After=docker.service shipkit-network-guard.service
+PartOf=docker.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/shipkit-isolation/control.env
+EnvironmentFile=/etc/shipkit-isolation/agent.env
+ExecStartPre=/usr/bin/python3 /usr/local/lib/shipkit-host-isolation/network.py ensure
+ExecStartPre=/usr/bin/python3 /usr/local/lib/shipkit-host-isolation/guard.py apply
+ExecStartPre=/usr/bin/python3 /usr/local/lib/shipkit-host-isolation/guard.py verify
+ExecStart=/usr/bin/python3 /usr/local/lib/shipkit-host-isolation/agent.py
+Restart=on-failure
+RestartSec=5
+KillMode=control-group
+TimeoutStopSec=45
+UMask=0077
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
