@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Inject, Injectable, Optional } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, Optional, ServiceUnavailableException } from '@nestjs/common';
 import { realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import type { LiveProject } from 'shipkit/platform';
@@ -21,7 +21,11 @@ export class ProjectService {
   ) {}
   async list(context: RequestContext): Promise<unknown> {
     this.policy.authorize(context, 'project.read');
-    return { items: (await this.repository.list(context.workspaceId)).map(projectView) };
+    return { items: (await this.repository.list(context.workspaceId)).map(project => this.view(project)) };
+  }
+  view(project: StoredProject): unknown {
+    if (project.repositorySecret && !this.sources) throw new ServiceUnavailableException('仓库私密输入读取服务不可用');
+    return projectView(project, this.sources?.hasCredential(project) ?? false);
   }
   async get(id: string, context: RequestContext): Promise<StoredProject> {
     const project = await this.repository.get(id, context.workspaceId);
@@ -37,7 +41,7 @@ export class ProjectService {
     const live = await this.executor.inspectProject({ rootPath, configPath, targetKey: request.targetKey }) as LiveProject;
     this.assertMetadata(live, request.services ?? [], request.targetKey ?? live.targetKey);
     try {
-      return projectView(await this.repository.register({
+      return this.view(await this.repository.register({
         workspace: { connect: { id: context.workspaceId } }, name: request.name, rootPath, configPath,
         targetKey: live.targetKey, projectIdentity: live.projectIdentity, appName: live.name, createdBy: { connect: { id: context.actorId } },
         targets: { create: live.targets.map(({ targetKey }) => ({ targetKey, displayName: targetKey === live.targetKey ? request.serverName : undefined })) },
@@ -54,16 +58,16 @@ export class ProjectService {
     const patch = patchMetadata(body);
     if (patch.targetKey && !project.targets.some((target) => target.targetKey === patch.targetKey)) throw new BadRequestException('不能重命名底层目标');
     if (patch.services?.some((service) => !project.services.some((stored) => stored.serviceKey === service.serviceKey))) throw new BadRequestException('元数据引用了未注册的服务');
-    return projectView(await this.repository.patch(project, patch, context));
+    return this.view(await this.repository.patch(project, patch, context));
   }
   async status(id: string, context: RequestContext): Promise<unknown> {
     const project = await this.get(id, context);
-    return { project: projectView(project), live: publicData(await this.executor.inspectProject(this.sources?.input(project) ?? storedProjectInput(project),
+    return { project: this.view(project), live: publicData(await this.executor.inspectProject(this.sources?.inspectionInput(project) ?? storedProjectInput(project),
       project.sourceKind === 'repository' ? { repository: this.sources?.credentials(project) } : undefined)) };
   }
   async history(id: string, context: RequestContext): Promise<unknown> {
     const project = await this.get(id, context);
-    return publicData(await this.executor.fetchHistory(this.sources?.input(project) ?? storedProjectInput(project)));
+    return publicData(await this.executor.fetchHistory(this.sources?.inspectionInput(project) ?? storedProjectInput(project)));
   }
   async checks(id: string, context: RequestContext): Promise<unknown> {
     const project = await this.get(id, context);

@@ -4,7 +4,7 @@
 
 已确认：先部署当前加固版，后续通过 Shipkit 自身的构建部署能力发布新 Server/Agent。先升级兼容旧 Agent 的 Server，再逐台升级/注册并切换项目绑定。
 
-当前活动项：E1–E3 首次部署接管与自身项目计划（`in_progress`，执行路径 `specialized`）。顺序为首次部署基础与隔离验收 → 首次真实部署 → A–D 注册中心 → E4–E8 自发布与 Agent 升级。冻结版 `b08ffde7` 已通过正常 Runtime `deploy-group` 接管并保存真实基线；登录、数据库、密钥与原有 7 个业务容器和旧 Agent均保持。E3 页面验收发现的 Node 22 仓库 HTTPS lookup 回调兼容已通过真实 transport 回归并提交 `b9094d30`。固定文件锁所需的受限临时目录已通过并发容器检查并提交 `9f3ec865`。正常 Git 构建停在全树元数据超过 1MiB 的源码校验；紧凑查询与 LFS 语义检查已通过目标 Linux 41 项回归；冻结完整临时 Builder 控制包后继续正常 Git 构建与版本化配置计划。域名由用户后续配置，先仅经 SSH 隧道访问；不升级或重启现有 Docker 与业务。真实地址和凭据保存在本机私密部署记录，不进入公开仓库。
+当前活动项：E1–E3 自身项目页面与最终持久化验收（`in_progress`，执行路径 `specialized`）。顺序为首次部署基础与隔离验收 → 首次真实部署 → A–D 注册中心 → E4–E8 自发布与 Agent 升级。冻结提交 `d1f5ba85` 已通过正常 Git 构建、独立仓库推送、完整 Runtime 安装和正常 `deploy-group` 更新 Server，真实基线与原有业务保持。页面已登记自身 Git 项目并保存冻结配置 `0.0.1`；会话读锁竞争已复现并修复，仓库状态刷新触发限流正补登记快照与明确 429。下一门槛为修复版固定提交的正常构建部署、页面核对计划和最终离线备份/重启重读。域名由用户后续配置，先仅经 SSH 隧道访问；不升级或重启现有 Docker 与业务。真实地址和凭据保存在私密部署记录，不进入公开仓库。
 
 E1 隔离审查新增验收门槛：迁移与服务停止须等待完整进程树退出后才能释放维护锁；发布定义经 Runtime Agent 渲染后须保留首次安装的只读根文件系统、临时目录、安全选项与停止宽限；通用私有 Git 认证须在临时目录禁止执行的环境完成真实读取。回环端口模块已提交 `c636e85e`，容器停机身份校验备份已提交 `518962bf`，控制端辅助状态备份已提交 `3d010150`，Runtime 容器安全策略已提交 `ce52b813`，完整进程树监督与停止竞态修复已提交 `1d73c141`。
 
@@ -17,6 +17,8 @@ E3 文件锁运行路径补齐：正常 Builder registry-creds 接口发现只�
 E3 Git 元数据预算影响图：`source.ensureSource → git-command.assertSupportedGitTree → shared.exec → Job 日志`。实际冻结树 8,881 行、1,054,015 字节超过 1MiB；检查改为紧凑 mode、独立 `.gitmodules` 和现有 LFS 查询，内部 stdout 不进入用户日志。保留 DNS/TLS/认证、超时和截断拒绝；使用大树、异常元数据和真实 Git 回归。临时 Builder 控制 Agent 必须冻结完整编译输出后替换，不热补单文件或把本机编译标成实际 Git 镜像。
 
 E3 会话读取与配置冻结影响图：`LocalRequestGuard → SessionStore.read → Prisma interactive transaction (BEGIN IMMEDIATE)` 与 `ConfigRepository.freeze` 竞争 SQLite 写锁。真实页面一次冻结失败，原 etag/版本重试成功；隔离真实数据库已复现 16 次普通会话读与一次冻结的 P2028/P1008，失败完全回滚。活动修复限定为原子只读会话快照，保留停用、过期、撤销及用户种类校验；验收包含实际并发、无读取写锁、单一冻结结果和审计、完整编译及最终实际镜像更新。注册中心实现仍等待本基础门槛完成。
+
+E3 仓库限流影响图：`ProjectService.status → inspectionInput → inspectProject → resolveRepositorySource → GitHub commits/contents`。真实匿名首个 commits 请求已 403、配额 60/剩余 0；两端 Agent 的 Server 认证检查均 200。修复只将服务端已核对 SourceSnapshot 保存在既有按项目/源码修订绑定的加密 envelope，状态/历史使用该登记定义；发布计划、任务输入、显式仓库检查仍走原解析路径。真实 token 决定凭据标识，旧 envelope 无快照保留兼容，存在但不匹配或损坏的快照拒绝。403 限流与未知权限失败分别处理，不能公开响应正文或通过新凭据绕过。验收覆盖密码投影、跨范围/篡改/修订、无状态元数据请求、计划重新读取及仓库 CAS 保存。
 
 当前补充门槛：日志轮转已提交 `7104d672`、仓库规格与构建门禁已提交 `bf66cc5e`。独立 registry 镜像已推送并获准向新 Runtime 分发拉取凭据。自身服务 key 必须保持 `server`，补 `ServiceSpec.imageRepository → buildSliceFor/push → 固定spec指纹` 的可选仓库 leaf 映射，并拒绝有效仓库名冲突，使构建/推送落到已批准的独立仓库。远端动态 Builder 缺少受保护 HTTPS 下载/控制入口；临时独立本机 Builder 与 SSH 加密中继只作为验收路径，需另行验收且不宣称永久托管完成。
 

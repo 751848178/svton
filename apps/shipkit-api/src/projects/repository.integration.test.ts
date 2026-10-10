@@ -29,7 +29,7 @@ test('repository HTTP intake keeps credentials private, pins previews, and seals
   const commit = 'a'.repeat(40);
   const spec = { schemaVersion: 2 as const, name: 'fixture', services: { api: { context: '.', dockerfile: 'Dockerfile', ports: ['18111:3000'] } } };
   const source = (revision: string | number | undefined): SourceSnapshot => ({ repoUrl: 'https://github.com/fixture/app.git', requestedRef: { kind: 'branch', value: 'main' }, commit,
-    specPath: 'ship.yaml', sourceRevision: revision, specDigest: 'spec-digest', appName: 'fixture', spec });
+    specPath: 'ship.yaml', sourceRevision: revision, specDigest: 'd'.repeat(64), provider: 'github', appName: 'fixture', spec });
   let app: Awaited<ReturnType<typeof NestFactory.create>> | undefined;
   try {
     app = await NestFactory.create(AppModule, { logger: false });

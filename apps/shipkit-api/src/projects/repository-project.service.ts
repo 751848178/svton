@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, HttpException, Inject, Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
@@ -56,13 +56,14 @@ export class RepositoryProjectService {
     if (duplicate) throw new ConflictException('同一仓库应用与运行目标已登记，请使用已有项目');
     const project = await this.projects.register({ id, name, rootPath, configPath, targetKey: live.targetKey,
       sourceKind: 'repository', sourceRevision: 1, appName: sourceSnapshot.appName,
-      repositoryJson: JSON.stringify({ ...repository, hasUsername: Boolean(username) }), repositorySecret: token ? this.sources.sealToken(token, id, 1, username) : null,
+      repositoryJson: JSON.stringify({ ...repository, hasUsername: Boolean(username) }),
+      repositorySecret: this.sources.sealRepository({ token, username, sourceSnapshot }, id, 1, repository),
       projectIdentity: live.projectIdentity, workspace: { connect: { id: context.workspaceId } },
       createdBy: { connect: { id: context.actorId } },
       targets: { create: live.targets.map(target => ({ targetKey: target.targetKey, displayName: target.targetKey === live.targetKey ? stringField(body.serverName, '目标显示名') : undefined })) },
       services: { create: live.services.map(service => ({ ...services.find(item => item.serviceKey === service.serviceKey), serviceKey: service.serviceKey })) },
     }, context);
-    return projectView(project);
+    return projectView(project, this.sources.hasCredential(project));
   }
 
   async get(id: string, context: RequestContext) {
@@ -70,7 +71,7 @@ export class RepositoryProjectService {
     this.policy.authorize(context, 'project.read', project.workspaceId);
     const source = this.sources.source(project);
     if (!source) throw new BadRequestException('此项目使用已有目录来源');
-    return { repository: repositoryView(source), hasCredential: Boolean(project.repositorySecret), hasUsername: this.sources.hasUsername(project) };
+    return { repository: repositoryView(source), hasCredential: this.sources.hasCredential(project), hasUsername: this.sources.hasUsername(project) };
   }
 
   async previewSaved(id: string, body: Record<string, unknown>, context: RequestContext) {
@@ -108,7 +109,8 @@ export class RepositoryProjectService {
     await this.db.$transaction(async tx => {
       if (await tx.task.findFirst({ where: { projectId: id, activeScope: { not: null } } })) throw new ConflictException('发布仍在执行，暂不能修改仓库设置');
       const result = await tx.project.updateMany({ where: { id, sourceRevision: project.sourceRevision }, data: {
-        sourceRevision: revision, repositoryJson: JSON.stringify({ ...repository, hasUsername: Boolean(username) }), repositorySecret: token ? this.sources.sealToken(token, id, revision, username) : null,
+        sourceRevision: revision, repositoryJson: JSON.stringify({ ...repository, hasUsername: Boolean(username) }),
+        repositorySecret: this.sources.sealRepository({ token, username, sourceSnapshot: snapshot }, id, revision, repository),
       } });
       if (!result.count) throw new ConflictException('仓库设置已更新，请刷新后重试');
       for (const serviceKey of Object.keys(snapshot.spec.services)) await tx.service.upsert({
@@ -122,6 +124,11 @@ export class RepositoryProjectService {
   private async resolve(repository: RepositorySource, token?: string, username?: string) {
     try { return await this.executor.resolveRepositorySource(repository, { token, username }); }
     catch (error) {
+      if (error instanceof Error && (error as { code?: unknown }).code === 'REPOSITORY_RATE_LIMITED') {
+        const retryAt = (error as { retryAt?: unknown }).retryAt;
+        throw new HttpException({ code: 'REPOSITORY_RATE_LIMITED', message: '仓库服务已限流，请等待配额恢复后重试',
+          ...(typeof retryAt === 'string' ? { retryAt } : {}) }, 429);
+      }
       let message = executionError(error);
       if (token) for (const secret of [token, encodeURIComponent(token)]) message = message.split(secret).join('[redacted]');
       throw new BadRequestException(`仓库检查失败：${message}`);
