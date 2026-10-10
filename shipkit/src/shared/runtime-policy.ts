@@ -6,7 +6,7 @@ import type { RuntimePolicy, RuntimeTmpfs, RuntimeLogRotation } from './runtime-
 const FIELDS = new Set(['restartPolicy', 'readOnlyRoot', 'dropCapabilities', 'noNewPrivileges', 'stopGracePeriodSeconds', 'tmpfs', 'logging']);
 const TMPFS_FIELDS = new Set(['target', 'sizeMiB', 'uid', 'gid', 'mode']);
 const LOGGING_FIELDS = new Set(['maxSizeMiB', 'maxFiles']);
-const WRITABLE_ROOTS = ['/tmp', '/app', '/run', '/var/cache'];
+const WRITABLE_ROOTS = ['/tmp', '/var/tmp', '/app', '/run', '/var/cache'];
 
 function knownFields(input: Record<string, unknown>, fields: Set<string>, field: string): void {
   for (const key of Object.keys(input)) {
@@ -37,7 +37,7 @@ function tmpfsMount(input: unknown, field: string): RuntimeTmpfs {
   if (typeof target !== 'string' || !/^\/[a-zA-Z0-9._/-]+$/.test(target)
       || target.includes('//') || target.endsWith('/') || target.split('/').some(part => part === '.' || part === '..')
       || !WRITABLE_ROOTS.some(root => target === root || target.startsWith(`${root}/`))) {
-    throw new SpecError('must be a normalized path under /tmp, /app, /run or /var/cache', `${field}.target`);
+    throw new SpecError('must be a normalized path under /tmp, /var/tmp, /app, /run or /var/cache', `${field}.target`);
   }
   const mode = input.mode;
   if (typeof mode !== 'string' || !/^(?:0?[0-7]{3}|1[0-7]{3})$/.test(mode)) {

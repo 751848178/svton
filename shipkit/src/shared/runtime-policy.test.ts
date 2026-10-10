@@ -48,6 +48,40 @@ test('tmpfs allows only bounded non-root, normalized cache/temporary mounts', ()
   both({ tmpfs: [{ ...mount, target: '/tmp/cache' }, mount] });
 });
 
+test('v1 and v2 accept var tmp scratch paths without sending runtime settings to builders', () => {
+  for (const targets of [
+    ['/var/tmp'], ['/var/tmp/shipkit'], ['/var/tmp/shipkit/locks'],
+    ['/tmp', '/var/tmp'], ['/var/tmp/locks', '/var/tmp/locks-extra'],
+  ]) {
+    const policy = { tmpfs: targets.map(target => ({ ...mount, target, sizeMiB: 16, mode: '0700' })) };
+    const single = validateSpec({ name: 'server', runtime: policy });
+    const project = validateProjectSpec({ schemaVersion: 2, name: 'shipkit', services: { server: { runtime: policy } } });
+    assert.deepEqual(single.runtime, policy);
+    assert.deepEqual(project.services.server?.runtime, policy);
+    assert.deepEqual(buildSliceFor('server', project.services.server!, 'linux/amd64'), { name: 'server', platform: 'linux/amd64' });
+  }
+});
+
+test('var tmp permission does not allow similar prefixes, protected paths or weaker mount restrictions', () => {
+  for (const target of [
+    '/var', '/var/lib', '/var/lib/shipkit', '/var/tmp-escape', '/var/tmpfile',
+    '/var/tmp/../lib', '/var/tmp//locks', '/var/tmp/./locks', '/var/tmp/',
+    '/var/tmp:rw', '/var/tmp/$TARGET', '/var/tmp\nprivileged: true',
+  ]) both({ tmpfs: [{ ...mount, target }] });
+  for (const overrides of [
+    { uid: 0 }, { gid: 0 }, { sizeMiB: 0 }, { sizeMiB: 4097 },
+    { mode: '0777' }, { mode: '4777' }, { mode: '0600' }, { exec: true },
+  ]) both({ tmpfs: [{ ...mount, target: '/var/tmp', ...overrides }] });
+});
+
+test('var tmp scratch mounts reject duplicates and ancestor overlap in either order', () => {
+  for (const targets of [
+    ['/var/tmp', '/var/tmp'], ['/var/tmp', '/var/tmp/locks'],
+    ['/var/tmp/locks', '/var/tmp'], ['/var/tmp/shipkit', '/var/tmp/shipkit/locks'],
+    ['/var/tmp/shipkit/locks', '/var/tmp/shipkit'],
+  ]) both({ tmpfs: targets.map(target => ({ ...mount, target })) });
+});
+
 test('absent runtime preserves the legacy contract; opt-in empty runtime adds no restrictions', () => {
   assert.deepEqual(validateSpec({ name: 'server' }), { name: 'server' });
   assert.deepEqual(validateRuntimePolicy({}), {});

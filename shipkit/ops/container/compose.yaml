@@ -30,6 +30,7 @@ services:
         bind: { create_host_path: false }
     tmpfs:
       - /tmp:size=128m,noexec,nosuid,nodev,uid=10001,gid=10001,mode=1777
+      - /var/tmp:size=16m,noexec,nosuid,nodev,uid=10001,gid=10001,mode=0700
       - /app/apps/shipkit-web/.next/cache:size=64m,noexec,nosuid,nodev,uid=10001,gid=10001,mode=0700
     logging:
       driver: json-file

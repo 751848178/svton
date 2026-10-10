@@ -92,3 +92,10 @@ relay 无发布端口、只读 socket 挂载、0700/0600 权限与受限日志�
 - 嵌套系统启动测试未屏蔽 systemd-binfmt，清空了本机 Rosetta 注册；沙箱容器、镜像和源码已删除。经用户批准重启 Docker Desktop 后，15 个原运行容器均恢复，原健康的 8 个容器保持健康，amd64 Node 22.23.3 与浏览器持久化页面重新通过。后续禁止共享内核 privileged fixture。
 - Shipkit Git 项目登记、版本化环境配置与计划尚在验收。真实 GitHub 预览暴露 Node 22 HTTPS lookup 的 `all:true` 回调兼容问题，正在修复并补 transport 回归；本机 fake-IP DNS 已被 Git 安全校验拒绝，临时 Builder 将使用独立真实 DNS，保留地址防护。
 - 注册中心、维护交接与自升级均尚未完成；首次 Agent 接管不等于通过平台任务发布自身已获验收。
+
+## E3 运行路径回归
+
+- Node 22 固定 DNS lookup 修复已提交 `b9094d30`；实际部署同版 Node 22.23.3 的真实 TLS 回归 13/13 通过，零跳过，编译通过。
+- 保留固定全局文件锁算法，为只读根文件系统补 UID/GID10001、0700、16MiB、noexec/nosuid/nodev 的 `/var/tmp` tmpfs。源规格、bootstrap Compose 和派生规格一致。
+- 完整编译及 27 项运行策略回归通过。冻结镜像独立隔离容器中的实际锁检查 12/12 通过：父持锁期间独立子进程超时且不执行回调，释放后新子进程获取成功；固定注册路径和端口保持。实验容器清理后本机原 16 个容器的 ID、PID、启动时间与状态保持。
+- 临时 Builder 的正常 registry-creds 接口已返回 200；最终 Git 构建、远端更新和浏览器配置计划仍待完成，不由这些局部检查代替。
