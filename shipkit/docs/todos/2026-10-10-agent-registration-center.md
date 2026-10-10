@@ -4,7 +4,7 @@
 
 已确认：先部署当前加固版，后续通过 Shipkit 自身的构建部署能力发布新 Server/Agent。先升级兼容旧 Agent 的 Server，再逐台升级/注册并切换项目绑定。
 
-当前活动项：E1–E3 自身项目页面与最终持久化验收（`in_progress`，执行路径 `specialized`）。顺序为首次部署基础与隔离验收 → 首次真实部署 → A–D 注册中心 → E4–E8 自发布与 Agent 升级。冻结提交 `d1f5ba85` 已通过正常 Git 构建、独立仓库推送、完整 Runtime 安装和正常 `deploy-group` 更新 Server，真实基线与原有业务保持。页面已登记自身 Git 项目并保存冻结配置 `0.0.1`；会话读锁竞争已复现并修复，仓库状态刷新触发限流正补登记快照与明确 429。下一门槛为修复版固定提交的正常构建部署、页面核对计划和最终离线备份/重启重读。域名由用户后续配置，先仅经 SSH 隧道访问；不升级或重启现有 Docker 与业务。真实地址和凭据保存在私密部署记录，不进入公开仓库。
+当前活动项：A1 注册身份、机器认证与会话租约（`in_progress`，执行路径 `specialized`）。E1–E3 已逐项验收：固定提交 `cfafa790` 正常 Git 构建、独立仓库推送和 Runtime `deploy-group` 更新成功；真实页面登记自身项目、关联冻结配置 `0.0.1` 并核对只读计划；离线备份解包校验与 Server 重启后项目、配置、计划和原主密钥均保持。原 10 个业务容器、Builder 中继、Runtime、旧 Agent 和 Docker 的身份及启动状态保持。顺序继续为 A–D 注册中心 → E4–E8 自发布与 Agent 升级，尚未通过平台任务发布自身。域名由用户后续配置，先仅经 SSH 隧道访问；临时本机 Builder 与中继不是永久托管。真实地址和凭据保存在私密部署记录，不进入公开仓库。
 
 E1 隔离审查新增验收门槛：迁移与服务停止须等待完整进程树退出后才能释放维护锁；发布定义经 Runtime Agent 渲染后须保留首次安装的只读根文件系统、临时目录、安全选项与停止宽限；通用私有 Git 认证须在临时目录禁止执行的环境完成真实读取。回环端口模块已提交 `c636e85e`，容器停机身份校验备份已提交 `518962bf`，控制端辅助状态备份已提交 `3d010150`，Runtime 容器安全策略已提交 `ce52b813`，完整进程树监督与停止竞态修复已提交 `1d73c141`。
 
@@ -25,6 +25,10 @@ E3 仓库限流影响图：`ProjectService.status → inspectionInput → inspec
 开发分支：`codex/shipkit-self-hosted-registration`。功能模块独立提交，旧冻结标签不移动；构建/测试全日志位于 `/tmp/codex-tool-runs/svton/self-hosting/`，协调板位于 `/tmp/codex-tool-runs/svton/long-goals/shipkit-self-hosted-registration/board.json`。
 
 ## A. 身份与资源目录
+
+A1 实施边界：三个新增模型 `Agent/AgentEnrollment/AgentSession`，既有用户与会话不变；共享严格 v1 协议由 core 导出，Server 持有认证、事务与资源批准。仅支持明确批准用途的持久 Agent，临时注册暂时拒绝，原动态构建机保持。注册码有效期与消费后的响应恢复期各 15 分钟；心跳 15 秒、疑似离线 45 秒、租约 90 秒。机器入口默认关闭，启用时需明确可信 HTTPS 入口；不能凭客户端 forwarded 头判定 TLS。机器凭据不授权人类 API，用户会话不授权机器方法，所有写事务重新鉴权。带 epoch/sequence 的重复响应不续租，撤销与换证须封闭旧会话。A1 的执行就绪始终为 false，待 B 通信通道验收后开放。
+
+A1 分模块验收：新增协议与实际旧数据迁移/DDL 回滚 → 一次性注册、同请求恢复和精确机器入口/人类回归 → 会话、心跳、撤销、换证与独立目录。每个模块保持单一职责与 200 行文件上限；真实 SQLite 竞态、实际 Next 入口、隔离 TLS 与秘密不出现在响应/审计作为验收门槛，不用 mocked DB 替代。
 
 - [ ] 新增 Agent/Session/Enrollment 模型，区分稳定身份、数据实例和进程会话。验收：重启 ID 保留，丢台账不能恢复为原执行身份。
 - [ ] 实现一次性注册、幂等响应恢复、机器认证、用途批准与审计。验收：过期/重用/跨范围/伪造角色被拒绝，丢响应不产生重复资源。
@@ -56,9 +60,9 @@ E3 仓库限流影响图：`ProjectService.status → inspectionInput → inspec
 
 ## E. 首次部署与平台自发布
 
-- [ ] 首次部署前补齐 Shipkit Server/Web Dockerfile、`ship.yaml`、生产入口和健康检查。验收：固定提交构建并由独立 Runtime Agent 部署；Server 不包含宿主 Agent 或 Docker socket。
-- [ ] 建立外置数据/日志/原主密钥/配置目录和引导安装入口。验收：替换 Server 镜像后项目、版本、历史任务和秘密仍可用，目录/卷需显式预建。
-- [ ] Shipkit 自身登记为 Git 项目，绑定独立 Builder/宿主 Runtime。验收：平台页面选择固定提交后能核对自发布计划，旧 Agent 在 Server 升级期间保持兼容。
+- [x] 首次部署前补齐 Shipkit Server/Web Dockerfile、`ship.yaml`、生产入口和健康检查。验收：固定提交构建并由独立 Runtime Agent 部署；Server 不包含宿主 Agent 或 Docker socket。
+- [x] 建立外置数据/日志/原主密钥/配置目录和引导安装入口。验收：替换 Server 镜像后项目、版本、历史任务和秘密仍可用，目录/卷需显式预建。
+- [x] Shipkit 自身登记为 Git 项目，绑定独立 Builder/宿主 Runtime。验收：平台页面选择固定提交后能核对自发布计划，旧 Agent 在 Server 升级期间保持兼容。
 - [ ] 增加受限 Server 自发布任务及持久维护交接。验收：排空其他任务、完整指令交接后 Server 可退出，宿主接手；`.ops.lock` 与备份活任务保护无死锁或泛化绕过。
 - [ ] 完成迁移前备份、单写者切换、限制写入的升级健康验证和恢复策略。验收：新版本失败时按兼容边界恢复旧代码/迁移前数据，原密钥保留；普通镜像回滚不能伪装成数据恢复。
 - [ ] 增加受控 Agent 升级包构建、校验和独立宿主升级程序。验收：原 Agent 停止后程序继续完成替换/健康核验/回退，不能执行任意宿主脚本。
@@ -71,4 +75,5 @@ E3 仓库限流影响图：`ProjectService.status → inspectionInput → inspec
 - 未完成：任何注册/心跳/反向通信实现、数据库迁移、安装升级、页面或真实运行验收。
 - 已完成：生产镜像、发布定义、离线初始化、持久化目录与完整进程树监督的隔离测试；浏览器已保存合成项目、秘密变量与冻结版本，并在替换镜像后重读。私有 Git noexec 修复已提交 `1723d32e`，容器与引导已提交 `53df3f7e`，受控重启策略已提交 `680f91b7`；固定提交 amd64 离线镜像通过校验，仍未视为 E1–E3 整体达标。详见[基础验收记录](../audits/2026-10-10/self-hosting-foundation.md)。
 - 已完成：冻结镜像 `4cce3e0a` 的真实首次部署；空配置离线迁移、登录、容器替换后持久化、独立 Runtime Agent 认证健康、内核跨 bridge 拒绝及初始备份。原有 7 个业务容器和旧 Agent 的身份及启动状态保持；旧 Git 冻结标签未改变。
-- 未完成：bootstrap 服务归属 Agent 的正常接管、自身 Git 项目与计划、宿主自升级任务、维护交接和 Server/Agent 自发布验收。真实开机/Docker daemon 重启及外部 L2/DNAT 路径尚未回放，不将 synthetic 检查等同于这些验收。
+- 已完成：bootstrap 的正常 Agent 接管、后续固定提交 Git 构建/推送/更新、自身 Git 项目与配置计划、最终离线备份解包校验与 Server 重启页面重读。当前真实数据库为 1 个项目、1 个冻结版本、1 个关联计划、0 个平台任务；合成隔离数据的历史任务与秘密保留另有替换镜像证据。没有将原始 Agent Job 冒充平台任务。
+- 未完成：注册中心、永久 Builder 托管、公网 HTTPS、宿主自升级任务、维护交接和 Server/Agent 自发布验收。真实开机/Docker daemon 重启及外部 L2/DNAT 路径尚未回放，不将 synthetic 检查等同于这些验收。
