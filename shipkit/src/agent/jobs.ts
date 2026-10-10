@@ -19,6 +19,7 @@ export class JobStore {
   private readonly journals = new Map<string, JobJournal>();
   private readonly writes = new Map<string, Promise<void>>();
   private readonly waiting: Array<() => void> = [];
+  private readonly idle: Array<() => void> = [];
   private active = 0;
   private readonly operations = new JobOperations();
   constructor(private readonly workRoot: string) {}
@@ -96,7 +97,15 @@ export class JobStore {
     journal.event({ phase: job.phase ?? 'complete', event: job.status });
     try { await journal.flush(); await this.persist(job); }
     catch (error) { job.status = 'failed'; job.error = journal.redactText(`job journal persistence failed: ${String(error)}`); console.error(job.error); }
-    finally { this.active--; this.waiting.shift()?.(); }
+    finally {
+      this.active--; this.waiting.shift()?.();
+      if (this.active === 0 && this.waiting.length === 0) this.idle.splice(0).forEach(resolve => resolve());
+    }
+  }
+  /** Called after HTTP admission closes; all previously accepted work keeps its owner. */
+  async drain(): Promise<void> {
+    if (this.active === 0 && this.waiting.length === 0) return;
+    await new Promise<void>(resolve => this.idle.push(resolve));
   }
   async cancel(id: string, reason?: string): Promise<Job> {
     const job = this.get(id);
