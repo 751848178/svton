@@ -1,9 +1,10 @@
 import { open } from 'node:fs/promises';
 import { statSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
+import { platformRuntimeContext } from './platform-runtime-context.mjs';
 
 // A shared exclusive lease prevents platform startup during offline maintenance.
-export async function acquireProcessLock(dataRoot) {
+export async function acquireProcessLock(dataRoot, purpose = 'platform') {
   const filename = path.join(dataRoot, '.ops.lock');
   let handle;
   try { handle = await open(filename, 'wx', 0o600); }
@@ -12,7 +13,7 @@ export async function acquireProcessLock(dataRoot) {
     throw error;
   }
   const identity = await handle.stat();
-  await handle.writeFile(JSON.stringify({ pid: process.pid, purpose: 'platform' }));
+  await handle.writeFile(JSON.stringify({ pid: process.pid, purpose, ...await platformRuntimeContext(dataRoot) }));
   await handle.close();
   return () => {
     try {
