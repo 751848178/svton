@@ -1,8 +1,10 @@
 FROM node:22.23.3-bookworm-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392 AS base
+ENV COREPACK_HOME=/opt/corepack
 RUN apt-get -o Acquire::Retries=3 update && apt-get -o Acquire::Retries=3 install -y --no-install-recommends \
     ca-certificates openssl git openssh-client tini \
     && rm -rf /var/lib/apt/lists/* \
-    && corepack enable && corepack prepare pnpm@8.12.0 --activate
+    && corepack enable && corepack prepare pnpm@8.12.0 --activate \
+    && chmod -R a+rX,go-w /opt/corepack
 WORKDIR /app
 
 FROM base AS build
@@ -51,6 +53,7 @@ RUN node shipkit/scripts/build-install.mjs --check \
 FROM base AS runtime
 RUN groupadd --gid 10001 shipkit && useradd --uid 10001 --gid shipkit --no-create-home shipkit
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 HOME=/etc/shipkit SHIPKIT_WEB_HOST=0.0.0.0 \
+    COREPACK_ENABLE_NETWORK=0 \
     SHIPKIT_DATA_DIR=/var/lib/shipkit SHIPKIT_STATE_DIR=/var/lib/shipkit/controller-state \
     SHIPKIT_SECRET_KEY_FILE=/etc/shipkit/private/secret-key.json
 COPY --from=build --chown=10001:10001 /app/node_modules ./node_modules
