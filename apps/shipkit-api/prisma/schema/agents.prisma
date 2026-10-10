@@ -1,0 +1,67 @@
+// Registration identity is independent of configured legacy Agent endpoints.
+model Agent {
+  id String @id @default(uuid())
+  workspaceId String
+  actorId String @unique
+  name String
+  incarnation String
+  approvedRole String
+  resourceKind String
+  credentialHash String @unique
+  credentialRevision Int @default(1)
+  trustRevision Int @default(1)
+  disabled Boolean @default(false)
+  draining Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  actor Actor @relation("AgentActor", fields: [actorId], references: [id], onDelete: Restrict)
+  enrollments AgentEnrollment[]
+  session AgentSession?
+  @@unique([workspaceId, incarnation])
+  @@index([workspaceId, disabled])
+}
+
+model AgentEnrollment {
+  id String @id @default(uuid())
+  workspaceId String
+  issuedByActorId String
+  name String
+  approvedRole String
+  resourceKind String
+  tokenHash String @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  consumedAt DateTime?
+  attemptId String? @unique
+  requestHash String?
+  agentId String?
+  recoveryUntil DateTime?
+  receiptJson String?
+  createdAt DateTime @default(now())
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  issuer Actor @relation("AgentEnrollmentIssuer", fields: [issuedByActorId], references: [id], onDelete: Restrict)
+  agent Agent? @relation(fields: [agentId], references: [id], onDelete: Restrict)
+  @@index([workspaceId, expiresAt])
+}
+
+model AgentSession {
+  agentId String @id
+  epoch Int
+  bootId String
+  incarnation String
+  credentialRevision Int
+  trustRevision Int
+  openRequestHash String
+  lastSequence Int @default(0)
+  lastPayloadHash String?
+  lastReceiptJson String?
+  lastSeenAt DateTime
+  leaseExpiresAt DateTime
+  reportedRole String
+  capabilitiesJson String
+  version String
+  docker Boolean
+  agent Agent @relation(fields: [agentId], references: [id], onDelete: Restrict)
+  @@index([leaseExpiresAt])
+}

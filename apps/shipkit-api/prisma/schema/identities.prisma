@@ -3,6 +3,8 @@ model Workspace {
   name String
   projects Project[]
   audits Audit[]
+  agents Agent[]
+  agentEnrollments AgentEnrollment[]
 }
 
 model Actor {
@@ -19,6 +21,8 @@ model Actor {
   audits Audit[]
   configDrafts ConfigDraft[]
   configVersions ConfigVersion[]
+  machineAgent Agent? @relation("AgentActor")
+  issuedAgentEnrollments AgentEnrollment[] @relation("AgentEnrollmentIssuer")
 }
 
 model AuthSession {
