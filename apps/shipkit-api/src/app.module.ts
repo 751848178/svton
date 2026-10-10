@@ -30,15 +30,17 @@ import { ProjectSourceService } from './projects/project-source.service.js';
 import { RepositoryProjectService } from './projects/repository-project.service.js';
 import { ProjectRepositoryController, RepositoryPreviewController } from './projects/repository.controller.js';
 import { PlanInputService } from './tasks/plan-input.service.js';
+import { registrationControllers, registrationProviders } from './registration/registration.module.js';
+import { PlatformRequestGuard } from './transport/platform-request.guard.js';
 
 @Module({
   imports: [HttpModule.forRoot({ enableResponseInterceptor: false, enableExceptionFilter: false })],
   controllers: [ProjectController, TaskController, AgentController, AuthController, HealthController,
-    RepositoryPreviewController, ProjectRepositoryController, ...configControllers],
+    RepositoryPreviewController, ProjectRepositoryController, ...configControllers, ...registrationControllers],
   providers: [DatabaseService, PlatformExecutorService, LocalPolicyService, ProjectRepository, ProjectService, PlanService,
     TaskRepository, TaskEventService, TaskLogService, TaskRunnerService, TaskService, AgentService,
     AuthService, AuthSettings, SessionStore, LoginBudget, AccountAdmin,
-    ProjectSourceService, RepositoryProjectService, PlanInputService, ...configProviders,
-    { provide: APP_GUARD, useClass: LocalRequestGuard }, { provide: APP_FILTER, useClass: ApiErrorFilter }],
+    ProjectSourceService, RepositoryProjectService, PlanInputService, ...configProviders, ...registrationProviders, LocalRequestGuard,
+    { provide: APP_GUARD, useClass: PlatformRequestGuard }, { provide: APP_FILTER, useClass: ApiErrorFilter }],
 })
 export class AppModule {}
