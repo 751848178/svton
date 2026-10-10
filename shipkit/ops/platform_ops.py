@@ -7,7 +7,8 @@ import sqlite3
 from contextlib import closing
 from pathlib import Path
 from backup_integrity import digest, verify_backup, write_checksums
-from data_safety import database_stamp, directory, maintenance_lock, open_database, safe_tree, stopped, validate_data
+from data_safety import database_stamp, directory, maintenance_lock, open_database, safe_tree, validate_data
+from process_state import stopped
 
 
 def new_destination(value, source):
@@ -29,12 +30,12 @@ def private_copy(source, target):
         os.fsync(stream.fileno())
 
 
-def backup(source_value, output_value):
+def backup(source_value, output_value, stopped_container=None):
     source = directory(source_value)
     output = new_destination(output_value, source)
-    stopped(source)
+    stopped(source, stopped_container)
     with maintenance_lock(source):
-        stopped(source)
+        stopped(source, stopped_container)
         validate_data(source)
         stamp = database_stamp(source)
         output.mkdir(mode=0o700)
@@ -50,12 +51,13 @@ def backup(source_value, output_value):
                     private_copy(file, target)
                     if digest(file) != digest(target):
                         raise ValueError("Source log changed during backup")
-            stopped(source)
+            stopped(source, stopped_container)
             validate_data(source)
             if database_stamp(source) != stamp:
                 raise ValueError("Source database changed during backup")
             write_checksums(output)
             verify_backup(output)
+            stopped(source, stopped_container)
         except BaseException:
             shutil.rmtree(output)
             raise
@@ -93,6 +95,7 @@ def main():
     create = commands.add_parser("backup", help="Back up a stopped platform into a new directory")
     create.add_argument("--source", required=True)
     create.add_argument("--output", required=True)
+    create.add_argument("--stopped-container", help="Explicit Docker identity for a stopped container data owner")
     check = commands.add_parser("verify", help="Verify all hashes, database and log indices")
     check.add_argument("--backup", required=True)
     recover = commands.add_parser("restore", help="Restore into a new directory without live switching")
@@ -102,7 +105,7 @@ def main():
     os.umask(0o077)
     try:
         if args.command == "backup":
-            result = backup(args.source, args.output)
+            result = backup(args.source, args.output, args.stopped_container)
         elif args.command == "verify":
             result = verify_backup(args.backup)
         else:

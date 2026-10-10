@@ -45,32 +45,6 @@ def relative_file(root, value):
     return result
 
 
-def stopped(root):
-    runtime = root / "runtime.json"
-    if runtime.is_symlink():
-        raise ValueError("Runtime PID record cannot be a symlink")
-    if not runtime.exists():
-        return
-    if runtime.stat().st_size > 32768:
-        raise ValueError("Invalid runtime PID record")
-    record = json.loads(runtime.read_text())
-    if not isinstance(record, dict):
-        raise ValueError("Invalid runtime PID record")
-    for key in ("supervisorPid", "apiPid", "webPid"):
-        pid = record.get(key)
-        if pid is None:
-            continue
-        if type(pid) is not int or pid <= 0:
-            raise ValueError("Invalid runtime PID record")
-        try:
-            os.kill(pid, 0)
-        except ProcessLookupError:
-            continue
-        except PermissionError:
-            pass
-        raise ValueError("A recorded platform PID is running; stop the service first")
-
-
 @contextmanager
 def maintenance_lock(root):
     lock = root / ".ops.lock"
