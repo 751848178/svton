@@ -2,6 +2,7 @@ import { request } from 'node:https';
 import { resolveGitAddresses } from '../shared/git-policy.js';
 import type { RepositoryResolveOptions } from './repository-contracts.js';
 import { pinnedLookup } from './pinned-lookup.js';
+import { repositoryResponseError } from './repository-response-error.js';
 
 export interface RepositoryBudget { deadline: number; remaining: number }
 export type RepositoryReader = (url: URL, headers: Record<string, string>) => Promise<Record<string, unknown>>;
@@ -14,10 +15,7 @@ export function repositoryReader(options: RepositoryResolveOptions, budget: Repo
       const chunks: Buffer[] = [];
       const req = request(url, { method: 'GET', headers, agent: false, lookup: pinnedLookup(address) }, response => {
         if (response.statusCode !== 200) {
-          response.resume(); reject(new Error(response.statusCode === 401 || response.statusCode === 403
-            ? 'Repository credentials were rejected or read permission is missing'
-            : response.statusCode === 404 ? 'Repository, ref, or definition file does not exist'
-              : `Repository metadata request failed (${response.statusCode}); redirects are not followed`)); return;
+          response.resume(); reject(repositoryResponseError(response.statusCode, response.headers)); return;
         }
         response.on('data', (chunk: Buffer) => {
           budget.remaining -= chunk.length;

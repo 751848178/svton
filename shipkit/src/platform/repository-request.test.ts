@@ -48,6 +48,7 @@ before(async () => {
     if (responseMode === 'hang') return;
     if (responseMode === 'redirect') { response.writeHead(302, { location: 'https://unsafe.invalid/metadata' }); response.end(); return; }
     if (responseMode === 'denied') { response.writeHead(403); response.end(); return; }
+    if (responseMode === 'limited') { response.writeHead(403, { 'x-ratelimit-remaining': '0', 'retry-after': '60' }); response.end('private provider detail'); return; }
     response.end(responseMode === 'invalid' ? 'not-json' : JSON.stringify({ pinned: true }));
   });
   ipv4 = server(); await listen(ipv4, '127.0.0.1');
@@ -120,6 +121,18 @@ test('the shared byte budget is enforced across real HTTPS reads', async () => {
   assert.equal(budget.remaining, 5);
   await assert.rejects(read(url(), {}), /configured byte limit/);
   assert(budget.remaining < 0); assert.equal(dnsCalls, 2);
+});
+test('a real limited TLS response keeps its distinct code, ignores its body and does not retry', async () => {
+  responseMode = 'limited';
+  await assert.rejects(reader().read(url(), {}), error => {
+    assert(error instanceof Error);
+    const limited = error as Error & { code?: string; retryAt?: string };
+    assert.equal(limited.code, 'REPOSITORY_RATE_LIMITED');
+    assert(limited.retryAt && !Number.isNaN(Date.parse(limited.retryAt)));
+    assert(!limited.message.includes('private provider detail'));
+    return true;
+  });
+  assert.equal(transportCalls, 1); assert.equal(dnsCalls, 1);
 });
 test('DNS consumes the deadline without opening a late HTTPS connection', async () => {
   dnsDelay = 80;

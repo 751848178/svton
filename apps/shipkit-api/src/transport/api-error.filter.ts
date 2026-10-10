@@ -3,6 +3,7 @@ import { isPrismaError, mapPrismaError } from '@svton/nestjs-http';
 import type { Response } from 'express';
 import type { LocalRequest } from '../policy/request-context.js';
 import { publicData } from './public-data.js';
+import { repositoryLimitResponse } from './repository-limit-response.js';
 
 @Catch()
 export class ApiErrorFilter implements ExceptionFilter {
@@ -13,7 +14,10 @@ export class ApiErrorFilter implements ExceptionFilter {
     let status = 422;
     let code = 'EXECUTION_UNAVAILABLE';
     let message = '操作未能完成，请检查项目配置、Agent 连接或任务日志';
-    if (error instanceof HttpException) {
+    const repositoryLimit = repositoryLimitResponse(error);
+    if (repositoryLimit) {
+      status = 429; code = repositoryLimit.code; message = repositoryLimit.message;
+    } else if (error instanceof HttpException) {
       status = error.getStatus(); code = String(status);
       const body = error.getResponse();
       message = typeof body === 'string' ? body : String((body as { message?: unknown }).message ?? error.message);
@@ -42,6 +46,7 @@ export class ApiErrorFilter implements ExceptionFilter {
     } else if (error instanceof Error && /snapshot|history.*(?:missing|available)|no previous/i.test(error.message)) {
       status = 409; code = 'SNAPSHOT_UNAVAILABLE'; message = '所选历史快照不存在或当前不可回滚，请刷新发布历史';
     }
-    response.status(status).json({ code, message: publicData(message), requestId: request.localContext?.requestId });
+    response.status(status).json({ code, message: publicData(message),
+      ...(repositoryLimit?.retryAt ? { retryAt: repositoryLimit.retryAt } : {}), requestId: request.localContext?.requestId });
   }
 }
