@@ -34,8 +34,19 @@ mock.module('../shared/exec.js', { namedExports: { ...realExec, exec: async (_cm
     opts?.onLine?.(`diagnostic ${token} ${encodeURIComponent(token)}`, 'err');
     if (failure) return { ...ok(), code: 1, timedOut: failure === 'timeout' };
   }
-  if (args.includes('ls-tree')) return ok(`100644 blob ${'b'.repeat(40)}\t${feature === 'submodule' ? '.gitmodules' : 'README'}\n`);
-  if (args.includes('grep')) return { ...ok(), code: feature === 'lfs' ? 0 : 1 };
+  if (args.includes('ls-tree') || args.includes('grep')) {
+    const stdout = args.includes('grep') ? (feature === 'lfs' && !args.includes('.gitattributes') ? 'HEAD:asset.bin\0' : '')
+      : args.includes('-r') ? '100644\n' : feature === 'submodule' ? '100644\n' : '';
+    opts?.onLine?.(stdout.trim(), 'out');
+    opts?.onLine?.('machine check diagnostic', 'err');
+    return { ...ok(stdout), code: args.includes('grep') && !stdout ? 1 : 0 };
+  }
+  if (args.includes('show')) {
+    const stdout = `version https://git-lfs.github.com/spec/v1\noid sha256:${'a'.repeat(64)}\nsize 1\n`;
+    opts?.onLine?.(stdout, 'out'); opts?.onLine?.('machine check diagnostic', 'err');
+    return ok(stdout);
+  }
+  if (args.includes('checkout')) opts?.onLine?.('normal checkout progress', 'out');
   if (args.includes('rev-parse')) return ok('a'.repeat(40));
   return ok();
 } } });
@@ -61,6 +72,14 @@ test('Git token stays out of argv, env, script, logs and remote; askpass works a
   assert.ok(clone.args.includes('http.followRedirects=false'));
   assert.ok(clone.args.includes('https://github.com/team/repo'));
   assert.doesNotMatch(logs.join('\n'), /fake-token/);
+  assert.doesNotMatch(logs.join('\n'), /100644|HEAD:asset\.bin/);
+  assert.ok(logs.includes('machine check diagnostic'), 'stderr diagnostics remain visible');
+  assert.ok(logs.includes('normal checkout progress'), 'ordinary Git stdout remains visible');
+  for (const { args, opts } of calls.filter(call => call.args.includes('ls-tree') || call.args.includes('grep') || call.args.includes('show'))) {
+    assert.equal(opts?.maxBytes, 1024 * 1024, 'machine checks retain the original output cap');
+    assert.ok(opts!.timeoutMs! > 0 && opts!.timeoutMs! <= 15_000);
+    if (args.includes('ls-tree')) assert.ok(args.includes('--format=%(objectmode)'));
+  }
   assert.ok(!existsSync(authFile) && !existsSync(usernameFile));
 });
 
@@ -94,7 +113,10 @@ test('submodule and LFS repositories explicitly refuse and clean credentials', a
   const root = await fixture(t);
   for (const dependency of ['submodule', 'lfs']) {
     feature = dependency;
-    await assert.rejects(() => ensureSource(root, { type: 'git', repo: 'https://github.com/team/repo', token }, () => {}), /not supported/);
+    const logs: string[] = [];
+    await assert.rejects(() => ensureSource(root, { type: 'git', repo: 'https://github.com/team/repo', token }, line => logs.push(line)), /not supported/);
+    assert.doesNotMatch(logs.join('\n'), /100644|HEAD:asset\.bin|version https:\/\/git-lfs/);
+    assert.ok(logs.includes('machine check diagnostic'));
     assert.ok(!existsSync(authFile));
   }
 });
